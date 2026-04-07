@@ -1,0 +1,1633 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>ArtzFolio Scan-Pick-Pack</title>
+    <!-- ZXing multi-format decoder (Code128/39/EAN/UPC/ITF/DataMatrix/PDF417/Aztec/QR). Loaded async; app works without it. -->
+    <script src="https://cdn.jsdelivr.net/npm/@zxing/library@0.19.2/umd/index.min.js" onerror="window.ZXing=null;"></script>
+    <!-- jsQR: QR-only fallback (offline-capable) -->
+    <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js" onerror="window.jsQR=null;"></script>
+    <style>
+        *,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+        body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;background:#f0f2f5;height:100vh;overflow:hidden}
+        .app{display:flex;flex-direction:column;height:100vh;max-width:520px;margin:0 auto;background:#fff;box-shadow:0 0 20px rgba(0,0,0,.12)}
+        /* HEADER */
+        .header{background:linear-gradient(135deg,#1B4F8A,#153C6E);color:#fff;padding:10px 16px 8px;display:flex;justify-content:space-between;align-items:center;flex-shrink:0}
+        .header-left{display:flex;flex-direction:column}
+        .header-brand{font-size:10px;letter-spacing:1px;opacity:.7;text-transform:uppercase}
+        .header-title{font-size:15px;font-weight:700;letter-spacing:.3px}
+        .header-right{display:flex;gap:10px;align-items:center}
+        .demo-btn{background:rgba(255,255,255,.18);border:1px solid rgba(255,255,255,.35);color:#fff;padding:4px 10px;border-radius:12px;font-size:11px;cursor:pointer}
+        .demo-btn:active{background:rgba(255,255,255,.3)}
+        /* SCAN BAR */
+        .scan-bar-wrap{padding:10px 14px 4px;flex-shrink:0;background:#fff}
+        .scan-bar{display:flex;align-items:center;background:#f7f9fc;border:2px solid #1B4F8A;border-radius:28px;padding:4px 4px 4px 14px;gap:6px;box-shadow:0 2px 10px rgba(27,79,138,.12);transition:border-color .2s,box-shadow .2s}
+        .scan-bar:focus-within{border-color:#F39C12;box-shadow:0 2px 14px rgba(243,156,18,.2)}
+        .scan-bar-icon{color:#1B4F8A;opacity:.6;flex-shrink:0}
+        .scan-bar input{flex:1;border:none;background:transparent;font-size:13px;color:#222;outline:none;min-width:0;padding:7px 0;caret-color:#1B4F8A}
+        .scan-bar input::placeholder{color:#aaa;font-size:12px}
+        .scan-cam-btn{background:#1B4F8A;border:none;border-radius:22px;width:44px;height:44px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:background .15s,transform .1s,opacity .15s;touch-action:manipulation}
+        .scan-cam-btn:active{background:#153C6E;transform:scale(.93)}
+        .scan-cam-btn svg{width:22px;height:22px;fill:#fff}
+        .scan-hint{text-align:center;font-size:10px;color:#999;margin-top:5px;margin-bottom:2px}
+        /* CONTENT */
+        .content{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:10px 14px 90px}
+        /* TABS */
+        .tab-nav{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:520px;display:flex;background:#fff;border-top:1px solid #e0e0e0;z-index:100}
+        .tab-btn{flex:1;padding:10px 4px 8px;border:none;background:transparent;cursor:pointer;font-size:11px;border-top:3px solid transparent;transition:all .15s;color:#888;touch-action:manipulation}
+        .tab-btn.active{border-top-color:#1B4F8A;color:#1B4F8A;font-weight:700;background:#f7f9ff}
+        .tab-content{display:none}
+        .tab-content.active{display:block}
+        /* STEPS */
+        .steps{display:flex;align-items:center;gap:6px;margin-bottom:8px}
+        .step{flex:1;background:#e8edf4;border-radius:8px;padding:7px 4px;text-align:center;font-size:10px;font-weight:700;color:#666;transition:all .25s}
+        .step.active{background:#F39C12;color:#fff;box-shadow:0 2px 6px rgba(243,156,18,.4)}
+        .step.done{background:#27AE60;color:#fff}
+        .step-arrow{color:#ccc;font-size:12px;flex-shrink:0}
+        /* GROUP PROGRESS */
+        .group-progress{display:none;flex-direction:column;gap:7px;margin-bottom:8px;background:linear-gradient(135deg,#EBF5FB,#D6EAF8);border:2px solid #2980B9;border-radius:12px;padding:10px 14px}
+        .group-progress.visible{display:flex}
+        .gp-header{display:flex;align-items:center;justify-content:space-between}
+        .gp-title{font-size:11px;font-weight:800;color:#1B4F8A;letter-spacing:.6px;text-transform:uppercase}
+        .group-dots{display:flex;gap:5px;flex-wrap:wrap;justify-content:flex-end;max-width:60%}
+        .gp-dot{width:14px;height:14px;border-radius:50%;background:#d0e4f7;border:2px solid #b8d4f0;transition:all .25s;flex-shrink:0}
+        .gp-dot.done{background:#27AE60;border-color:#1e8449}
+        .gp-dot.active{background:#F39C12;border-color:#e67e22;box-shadow:0 0 6px rgba(243,156,18,.7)}
+        .gp-status{font-size:13px;font-weight:700;color:#1B4F8A;line-height:1.4}
+        .gp-done-num{color:#1e8449;font-size:15px;font-weight:800}
+        .gp-todo-num{color:#c0392b;font-size:15px;font-weight:800}
+        .gp-all-done{color:#1e8449;font-size:14px;font-weight:800}
+        .gp-bar-track{height:7px;background:rgba(41,128,185,.2);border-radius:4px;overflow:hidden}
+        .gp-bar-fill{height:100%;background:linear-gradient(90deg,#27AE60,#52BE80);border-radius:4px;transition:width .45s ease}
+        /* QTY BANNER */
+        .qty-remaining-banner{background:#fff3cd;border:2px solid #ffc107;border-radius:8px;padding:9px 12px;margin-top:8px;font-size:13px;font-weight:700;color:#856404;text-align:center;line-height:1.5}
+        .multi-pkg-instruction{background:#fff8e1;border-left:4px solid #FF8C00;border-radius:0 8px 8px 0;padding:9px 12px;margin-top:6px;font-size:11px;color:#5c3d00;line-height:1.6;text-align:left}
+        /* NEXT ACTION BANNER */
+        .next-action{display:flex;align-items:center;justify-content:center;gap:10px;border-radius:14px;padding:13px 16px;margin-bottom:12px;font-size:15px;font-weight:800;letter-spacing:.4px;text-align:center;text-transform:uppercase;transition:all .3s ease;position:relative;overflow:hidden}
+        .next-action::after{content:"";position:absolute;inset:0;background:linear-gradient(90deg,transparent,rgba(255,255,255,.25),transparent);background-size:200% 100%;animation:shimmer 2s infinite linear}
+        @keyframes shimmer{from{background-position:-200% 0}to{background-position:200% 0}}
+        @keyframes glow-pulse{0%,100%{box-shadow:0 0 12px 3px var(--gc,rgba(243,156,18,.7))}50%{box-shadow:0 0 24px 8px var(--gc,rgba(243,156,18,.9))}}
+        .state-idle{background:linear-gradient(135deg,#1B4F8A,#2980B9);color:#fff;--gc:rgba(41,128,185,.75);animation:glow-pulse 2s ease-in-out infinite}
+        .state-bin{background:linear-gradient(135deg,#E67E22,#F39C12);color:#fff;--gc:rgba(243,156,18,.8);animation:glow-pulse 1.4s ease-in-out infinite}
+        .state-sku{background:linear-gradient(135deg,#6C3483,#9B59B6);color:#fff;--gc:rgba(155,89,182,.8);animation:glow-pulse 1.4s ease-in-out infinite}
+        .state-sku-more{background:linear-gradient(135deg,#7B241C,#E74C3C);color:#fff;--gc:rgba(231,76,60,.9);animation:glow-pulse .8s ease-in-out infinite}
+        .state-next-line{background:linear-gradient(135deg,#1B4F8A,#2980B9);color:#fff;--gc:rgba(41,128,185,.8);animation:glow-pulse 1.5s ease-in-out infinite}
+        .state-ready{background:linear-gradient(135deg,#1E8449,#27AE60);color:#fff;--gc:rgba(39,174,96,.7);animation:glow-pulse 2.5s ease-in-out infinite}
+        .next-action-icon{font-size:22px;flex-shrink:0}
+        .next-action-text{line-height:1.2}
+        .next-action-sub{display:block;font-size:10px;font-weight:500;opacity:.85;text-transform:none;margin-top:2px;letter-spacing:0}
+        /* BACK BUTTON */
+        .back-btn-wrap{display:none;text-align:center;margin-bottom:8px}
+        .back-btn{background:transparent;border:1.5px solid #b0bec5;color:#546e7a;padding:7px 18px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;touch-action:manipulation}
+        .back-btn:active{background:#eceff1}
+        /* STATUS */
+        .status{padding:10px 14px;border-radius:10px;font-size:13px;font-weight:600;margin-bottom:10px;text-align:center;transition:all .25s}
+        .status.idle{background:#eaf0fb;color:#1B4F8A}
+        .status.success{background:#eafaf1;color:#1e8449}
+        .status.error{background:#fdedec;color:#c0392b}
+        .status.waiting{background:#fef9e7;color:#7d6608}
+        .scan-raw{display:block;font-size:10px;font-weight:400;font-family:monospace;word-break:break-all;margin-top:4px;opacity:.8}
+        /* CAMERA ERROR BANNER */
+        .cam-error-banner{display:none;background:#fff3cd;border:2px solid #fd7e14;border-radius:12px;padding:12px 14px;margin-bottom:10px;font-size:12px;color:#856404}
+        .cam-error-banner.visible{display:block}
+        .cam-error-banner strong{color:#c0392b;display:block;font-size:13px;margin-bottom:4px}
+        /* ORDER CARD */
+        .order-card{background:#fff;border:2px solid #1B4F8A;border-radius:14px;padding:12px 14px;margin-bottom:12px;display:none;animation:slideIn .2s ease-out}
+        .order-card.visible{display:block}
+        @keyframes slideIn{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:none}}
+        .card-row{display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid #f0f2f5;font-size:12px;gap:8px}
+        .card-row:last-child{border-bottom:none}
+        .card-label{font-weight:700;color:#666;flex-shrink:0}
+        .card-value{color:#1B4F8A;font-weight:600;text-align:right;word-break:break-word}
+        .channel-badge{display:inline-block;padding:3px 8px;border-radius:4px;font-size:11px;font-weight:700;color:#fff}
+        .qty-scan-row{background:#f5eeff;border-radius:8px;margin:4px -2px 2px;padding:8px 10px}
+        .qty-scan-row .card-label{color:#6C3483}
+        .qty-scan-row .card-value{color:#6C3483;font-size:14px;font-weight:800}
+        .total-banner{background:linear-gradient(135deg,#F39C12,#E67E22);border-radius:10px;padding:10px;text-align:center;margin-top:10px;font-size:15px;font-weight:800;color:#fff;letter-spacing:.5px}
+        /* SCAN OPTIONS */
+        .scan-options-banner{display:none;background:linear-gradient(135deg,#EDE7F6,#D1C4E9);border:2px solid #7E57C2;border-radius:12px;padding:10px 14px;margin-bottom:10px}
+        .scan-options-banner.visible{display:block}
+        .scan-options-title{font-size:11px;font-weight:800;color:#4A148C;text-transform:uppercase;letter-spacing:.6px;margin-bottom:8px;text-align:center}
+        .scan-options-row{display:flex;gap:8px;justify-content:center;align-items:center}
+        .scan-option-pill{flex:1;background:#fff;border:2px solid #9575CD;border-radius:16px;padding:7px 10px;text-align:center;line-height:1.4}
+        .pill-label{font-size:9px;font-weight:600;color:#7E57C2;display:block;text-transform:uppercase}
+        .pill-val{font-size:11px;font-family:monospace;word-break:break-all;color:#4A148C;font-weight:700}
+        .scan-options-or{font-size:13px;font-weight:800;color:#7E57C2;padding:0 2px}
+        /* ACTION BUTTONS */
+        .actions{display:flex;gap:8px;margin-top:10px}
+        .btn{flex:1;padding:14px;border:none;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;transition:all .15s;touch-action:manipulation}
+        .btn:active{transform:scale(.97)}
+        .btn-confirm{background:#27AE60;color:#fff}
+        .btn-issue{background:#E74C3C;color:#fff}
+        .btn-reset{background:#BDC3C7;color:#333}
+        /* LOG */
+        .log-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+        .log-header h2{font-size:15px;color:#1B4F8A}
+        .log-list{list-style:none}
+        .log-item{padding:8px 0;border-bottom:1px solid #eee;font-size:11px}
+        .log-row1{display:flex;gap:6px;align-items:center;margin-bottom:2px}
+        .log-time{color:#999;font-size:10px;flex-shrink:0;font-family:monospace}
+        .log-emp{color:#7E57C2;font-weight:700;font-size:10px;flex-shrink:0}
+        .log-order{font-weight:700;color:#1B4F8A;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+        .log-action{color:#444;font-size:11px;padding-left:2px}
+        .log-meta{color:#888;font-size:10px;font-family:monospace;padding-left:2px}
+        .csv-btn{background:#1B4F8A;color:#fff;border:none;padding:7px 14px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;touch-action:manipulation}
+        .csv-btn:active{background:#153C6E}
+        /* GUIDE */
+        .guide-section{margin-bottom:20px}
+        .guide-section h3{font-size:14px;color:#1B4F8A;margin-bottom:8px;padding-bottom:4px;border-bottom:2px solid #e8edf4}
+        .guide-section ol,.guide-section ul{padding-left:18px}
+        .guide-section li{font-size:12px;margin-bottom:6px;line-height:1.5;color:#333}
+        .glossary-term{font-size:12px;padding:5px 0;border-bottom:1px solid #eee;color:#444}
+        .glossary-term strong{color:#1B4F8A}
+        /* SETTINGS */
+        .settings-section{background:#f7f9fc;border-radius:12px;padding:14px;margin-bottom:14px}
+        .settings-section h3{font-size:13px;color:#1B4F8A;font-weight:800;margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid #dce4f0}
+        .settings-row{display:flex;gap:8px;align-items:center;margin-bottom:8px}
+        .settings-input{flex:1;border:1.5px solid #c5d0de;border-radius:8px;padding:9px 11px;font-size:12px;outline:none;color:#222}
+        .settings-input:focus{border-color:#1B4F8A}
+        .settings-btn{background:#1B4F8A;color:#fff;border:none;padding:9px 14px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;touch-action:manipulation}
+        .settings-btn:active{background:#153C6E}
+        .settings-btn.danger{background:#E74C3C}
+        .settings-btn.danger:active{background:#c0392b}
+        .settings-info{font-size:12px;color:#555;margin-bottom:6px;line-height:1.5}
+        .settings-chip{display:inline-block;background:#1B4F8A;color:#fff;padding:3px 10px;border-radius:12px;font-size:12px;font-weight:700;margin-bottom:8px}
+        .settings-notice{font-size:11px;color:#888;margin-top:6px;line-height:1.5}
+        .gs-status{font-size:11px;margin-top:6px;min-height:16px}
+        .gs-ok{color:#27AE60;font-weight:700}
+        .gs-err{color:#c0392b;font-weight:700}
+        /* VERSION BADGE */
+        .ver-badge{background:linear-gradient(135deg,#1B4F8A,#2980B9);color:#fff;border-radius:10px;padding:12px 14px;text-align:center}
+        .ver-name{font-size:16px;font-weight:800;margin-bottom:4px}
+        .ver-sub{font-size:11px;opacity:.8}
+        /* CAMERA OVERLAY */
+        .cam-overlay{display:none;position:fixed;inset:0;background:#000;z-index:200;flex-direction:column}
+        .cam-overlay.active{display:flex}
+        .cam-overlay video{flex:1;width:100%;object-fit:cover;background:#111}
+        .cam-frame{position:absolute;top:50%;left:50%;transform:translate(-50%,-55%);width:min(260px,72vw);height:min(260px,72vw);border:none;pointer-events:none}
+        .cam-frame::before,.cam-frame::after,.cam-frame span::before,.cam-frame span::after{content:"";position:absolute;width:28px;height:28px;border-color:#F39C12;border-style:solid}
+        .cam-frame::before{top:0;left:0;border-width:3px 0 0 3px}
+        .cam-frame::after{top:0;right:0;border-width:3px 3px 0 0}
+        .cam-frame span::before{bottom:0;left:0;border-width:0 0 3px 3px}
+        .cam-frame span::after{bottom:0;right:0;border-width:0 3px 3px 0}
+        .cam-scan-line{position:absolute;top:50%;left:50%;transform:translate(-50%,-55%);width:min(260px,72vw);height:2px;background:linear-gradient(90deg,transparent,#F39C12,transparent);animation:scanLine 1.8s ease-in-out infinite;pointer-events:none}
+        @keyframes scanLine{0%{margin-top:-130px;opacity:0}10%{opacity:1}90%{opacity:1}100%{margin-top:130px;opacity:0}}
+        .cam-bottom{background:rgba(0,0,0,.82);padding:12px 16px 20px;display:flex;flex-direction:column;align-items:center;gap:8px}
+        .cam-hint{color:rgba(255,255,255,.9);font-size:13px;text-align:center;line-height:1.4}
+        .cam-hint strong{color:#F39C12}
+        .cam-formats{color:rgba(255,255,255,.5);font-size:9px;text-align:center;letter-spacing:.3px;margin-top:2px}
+        .cam-close{background:rgba(255,255,255,.15);border:1.5px solid rgba(255,255,255,.5);color:#fff;padding:11px 32px;border-radius:24px;font-size:14px;font-weight:700;cursor:pointer;touch-action:manipulation}
+        .cam-close:active{background:rgba(255,255,255,.3)}
+        #flash{position:fixed;inset:0;pointer-events:none;opacity:0;z-index:300;transition:opacity .25s}
+        #flash.s{background:rgba(39,174,96,.22)}
+        #flash.e{background:rgba(192,57,43,.22)}
+        /* EMPLOYEE MODAL */
+        .emp-modal-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:400;align-items:center;justify-content:center}
+        .emp-modal-bg.active{display:flex}
+        .emp-modal{background:#fff;border-radius:18px;padding:24px 22px 20px;width:min(340px,90vw);box-shadow:0 8px 40px rgba(0,0,0,.25)}
+        .emp-modal h2{font-size:17px;color:#1B4F8A;font-weight:800;margin-bottom:4px;text-align:center}
+        .emp-modal p{font-size:12px;color:#666;text-align:center;margin-bottom:16px;line-height:1.5}
+        .emp-field{margin-bottom:12px}
+        .emp-field label{display:block;font-size:11px;font-weight:700;color:#555;margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px}
+        .emp-field input{width:100%;border:2px solid #dce4f0;border-radius:10px;padding:11px 13px;font-size:14px;outline:none;color:#222;transition:border-color .15s}
+        .emp-field input:focus{border-color:#1B4F8A}
+        .emp-save-btn{width:100%;background:linear-gradient(135deg,#1B4F8A,#2980B9);color:#fff;border:none;padding:13px;border-radius:12px;font-size:15px;font-weight:800;cursor:pointer;margin-top:4px;touch-action:manipulation;letter-spacing:.3px}
+        .emp-save-btn:active{opacity:.88}
+        .emp-err{color:#c0392b;font-size:11px;text-align:center;margin-top:6px;min-height:14px}
+    </style>
+</head>
+<body>
+<div class="app">
+    <!-- HEADER -->
+    <div class="header">
+        <div class="header-left">
+            <span class="header-brand">ArtzFolio &middot; Vishnu Image Folio</span>
+            <span class="header-title">&#128230; Scan-Pick-Pack</span>
+        </div>
+        <div class="header-right">
+            <button class="demo-btn" onclick="loadDemo()" title="Load single-SKU demo">&#9654; Demo</button>
+            <button class="demo-btn" onclick="loadDemoMulti()" title="Load multi-SKU demo">&#9654; Multi</button>
+        </div>
+    </div>
+
+    <!-- SCAN BAR -->
+    <div class="scan-bar-wrap" id="scan-bar-wrap">
+        <div class="scan-bar">
+            <span class="scan-bar-icon">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="#1B4F8A" opacity="0.65">
+                    <path d="M2 4h2v16H2zm3 0h1v16H5zm2 0h2v16H7zm3 0h1v16h-1zm2 0h1v16h-1zm2 0h2v16h-2zm3 0h1v16h-1zm2 0h2v16h-2z"/>
+                </svg>
+            </span>
+            <input type="text" id="scan-input"
+                placeholder="Tap &#128247; to scan &mdash; or use Bluetooth scanner..."
+                autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
+            <button class="scan-cam-btn" id="cam-btn" onclick="openCamera()" title="Open camera scanner">
+                <svg viewBox="0 0 24 24"><path d="M12 9a4 4 0 1 0 4 4 4 4 0 0 0-4-4zm0 6a2 2 0 1 1 2-2 2 2 0 0 1-2 2z"/><path d="M20 4h-2.76l-1.63-2H8.39L6.76 4H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2zm0 15H4V6h3.56L9.19 4h5.62l1.63 2H20z"/></svg>
+            </button>
+        </div>
+        <div class="scan-hint" id="scan-hint-text">Tap &#128247; to open camera &mdash; QR &middot; Code 128 &middot; Code 39 &middot; EAN &middot; UPC &middot; ITF and more</div>
+    </div>
+
+    <!-- MAIN CONTENT -->
+    <div class="content">
+        <div id="pick-tab" class="tab-content active">
+            <!-- Steps -->
+            <div class="steps">
+                <div class="step" id="step-1">1 PICK LIST</div>
+                <div class="step-arrow">&rsaquo;</div>
+                <div class="step" id="step-2">2 BIN</div>
+                <div class="step-arrow">&rsaquo;</div>
+                <div class="step" id="step-3">3 PRODUCT</div>
+            </div>
+
+            <!-- Camera error banner -->
+            <div class="cam-error-banner" id="cam-error-banner">
+                <strong>&#128247; Camera Not Available</strong>
+                <span id="cam-error-msg">Camera access was denied or is not supported.</span><br><br>
+                <small>&#128161; <strong>You can still scan without the camera:</strong> Use a Bluetooth barcode scanner gun connected to the phone, or type the code in the text box and press Enter.</small>
+            </div>
+
+            <!-- Multi-line group progress -->
+            <div class="group-progress" id="group-progress">
+                <div class="gp-header">
+                    <span class="gp-title">&#128230; Multi-Item Order</span>
+                    <div class="group-dots" id="group-dots"></div>
+                </div>
+                <div class="gp-status" id="group-label">Item 1 of ...</div>
+                <div class="gp-bar-track"><div class="gp-bar-fill" id="gp-bar-fill" style="width:0%"></div></div>
+            </div>
+
+            <!-- Next action banner -->
+            <div class="next-action state-idle" id="next-action-banner">
+                <span class="next-action-icon">&#128241;</span>
+                <span class="next-action-text">Scan Pick List QR Code
+                    <span class="next-action-sub">Tap &#128247; and point at col H QR on the printed pick list</span>
+                </span>
+            </div>
+
+            <!-- Back button -->
+            <div class="back-btn-wrap" id="back-btn-wrap">
+                <button class="back-btn" id="back-btn" onclick="goBack()">&larr; Back</button>
+            </div>
+
+            <!-- Status message -->
+            <div class="status idle" id="status-msg">Scan a Pick List QR code to begin</div>
+
+            <!-- Scan options: SKU or ASIN -->
+            <div class="scan-options-banner" id="scan-options-banner">
+                <div class="scan-options-title">&#128269; Scan Either Barcode to Verify Product</div>
+                <div class="scan-options-row">
+                    <div class="scan-option-pill">
+                        <span class="pill-label">SKU Barcode</span>
+                        <span class="pill-val" id="scan-opt-sku">&mdash;</span>
+                    </div>
+                    <span class="scan-options-or">OR</span>
+                    <div class="scan-option-pill">
+                        <span class="pill-label">ASIN / Code 128</span>
+                        <span class="pill-val" id="scan-opt-asin">&mdash;</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Order card -->
+            <div class="order-card" id="order-card"></div>
+
+            <!-- Action buttons (shown only in READY state) -->
+            <div class="actions" id="action-btns" style="display:none;">
+                <button class="btn btn-confirm" onclick="confirmOrder()">&#10003; CONFIRM</button>
+                <button class="btn btn-issue" onclick="reportIssue()">&#9888; ISSUE</button>
+                <button class="btn btn-reset" onclick="resetPick()">&#8635; RESET</button>
+            </div>
+        </div>
+
+        <!-- LOG TAB -->
+        <div id="log-tab" class="tab-content">
+            <div class="log-header">
+                <h2>&#128220; Scan Log (<span id="log-count">0</span>)</h2>
+                <button class="csv-btn" onclick="exportCSV()">&#8595; CSV</button>
+            </div>
+            <ul class="log-list" id="log-list">
+                <li style="text-align:center;color:#aaa;font-size:12px;padding:20px 0;">No scans yet</li>
+            </ul>
+        </div>
+
+        <!-- GUIDE TAB -->
+        <div id="guide-tab" class="tab-content">
+            <div class="guide-section">
+                <h3>&#128203; Daily Workflow</h3>
+                <ol>
+                    <li>In Excel: paste orders in <strong>4. Order Entry</strong> (cols A&ndash;D only; Product &amp; ASIN auto-fill from SKU Database)</li>
+                    <li>Run <strong>Step1 &rarr; Step2 &rarr; Step3_GenerateBarcodes</strong> &rarr; print <strong>6. Print Picklist</strong></li>
+                    <li>Open this app &rarr; tap the <strong>blue &#128247; camera button</strong> &rarr; scan the Pick List QR (col H)</li>
+                    <li>Go to the bin &rarr; scan the Bin QR sticker on the shelf</li>
+                    <li>Scan the <strong>SKU barcode</strong> or the <strong>ASIN barcode</strong> on the product</li>
+                    <li>If Qty &gt; 1: scan once per unit until all are confirmed</li>
+                    <li>Tap <strong>CONFIRM</strong></li>
+                </ol>
+            </div>
+            <div class="guide-section">
+                <h3>&#128247; Camera &mdash; How to Open &amp; Scan</h3>
+                <ol>
+                    <li>Tap the <strong>blue camera button</strong> inside the app (in the scan bar at the top)</li>
+                    <li>Tap <strong>Allow</strong> when Chrome asks for camera permission</li>
+                    <li>The camera overlay will open &mdash; point it at a barcode or QR code</li>
+                    <li>Supported formats: <strong>QR Code, Code 128, Code 39, EAN-13, EAN-8, UPC-A, UPC-E, ITF, DataMatrix, PDF417, Aztec</strong></li>
+                    <li>If the camera button shows an error banner: use a Bluetooth scanner or type the code manually and press Enter</li>
+                </ol>
+            </div>
+            <div class="guide-section">
+                <h3>&#128241; Opening on Android Phone</h3>
+                <ol>
+                    <li>Send this HTML file to your phone (WhatsApp, USB, Google Drive)</li>
+                    <li>On the phone: open <strong>Files by Google</strong> app &rarr; find the HTML file &rarr; tap <strong>Open with Chrome</strong></li>
+                    <li>Do NOT type a URL in Chrome's address bar &mdash; always use the Files app to open it</li>
+                    <li>Tap <strong>Allow</strong> when Chrome asks for camera permission</li>
+                    <li>If camera still fails: Chrome menu &rarr; Settings &rarr; Site Settings &rarr; Camera &rarr; Allow for this file</li>
+                </ol>
+            </div>
+            <div class="guide-section">
+                <h3>&#128218; Glossary</h3>
+                <div class="glossary-term"><strong>AF2</strong> &mdash; ArtzFolio pick-list QR format. All pick-list QR codes start with AF2|</div>
+                <div class="glossary-term"><strong>BIN</strong> &mdash; Physical shelf location. BIN QR stickers are on the shelf/rack. Bin QR data starts with BIN|</div>
+                <div class="glossary-term"><strong>ASIN</strong> &mdash; Amazon product ID. Its Code 128 barcode on the product label is accepted at step 3 instead of the SKU barcode</div>
+                <div class="glossary-term"><strong>Set Size</strong> &mdash; Pieces inside one sellable unit (e.g. Set of 10 = 10 pieces packed together)</div>
+            </div>
+            <div class="guide-section">
+                <h3>&#128295; Troubleshooting</h3>
+                <ul>
+                    <li><strong>Camera button does nothing / black overlay</strong> &mdash; Tap the <em>blue button inside the app</em> (not the Chrome address bar icon). On first use, wait 2&ndash;3 s for permission prompt</li>
+                    <li><strong>QR not scanning</strong> &mdash; Hold phone 15&ndash;25 cm from QR code, good light, keep still; the orange scanning line shows it is active</li>
+                    <li><strong>Product mismatch</strong> &mdash; Try scanning the ASIN barcode instead of SKU label (or vice versa)</li>
+                    <li><strong>Wrong bin scanned</strong> &mdash; Tap &larr; Back, go to the correct bin and scan again</li>
+                    <li><strong>CONFIRM not visible</strong> &mdash; Scroll down; all required qty scans must complete first</li>
+                    <li><strong>QR missing in Excel pick list</strong> &mdash; Re-run Step3_GenerateBarcodes in Excel</li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- SETTINGS TAB -->
+        <div id="settings-tab" class="tab-content">
+
+            <!-- Employee -->
+            <div class="settings-section">
+                <h3>&#128100; Active Employee</h3>
+                <div class="settings-info" id="settings-emp-display">Not set</div>
+                <button class="settings-btn" onclick="showEmployeeModal()">&#9997; Change Employee</button>
+            </div>
+
+            <!-- Google Sheets Webhook -->
+            <div class="settings-section" style="display:none">
+                <h3>&#128202; Google Sheets Webhook</h3>
+                <div class="settings-info">Paste your Apps Script Web App URL below. Every confirmed scan event is POST-ed as JSON.</div>
+                <div class="settings-row">
+                    <input class="settings-input" id="gs-url-input" type="url"
+                        placeholder="https://script.google.com/macros/s/..." autocomplete="off" autocorrect="off" autocapitalize="off">
+                </div>
+                <div class="settings-row">
+                    <button class="settings-btn" onclick="saveGsUrl()" style="flex:1">&#128190; Save URL</button>
+                    <button class="settings-btn danger" onclick="clearGsUrl()" style="flex:1">&#128465; Clear</button>
+                </div>
+                <div class="gs-status" id="gs-status"></div>
+                <div class="settings-notice">&#128161; In your Apps Script, set <strong>doPost(e)</strong> to parse <code>JSON.parse(e.postData.contents)</code>. Fields: ts, empName, empCode, orderID, sku, channel, qty, bin, action.</div>
+            </div>
+
+            <!-- Audit Log -->
+            <div class="settings-section">
+                <h3>&#128220; Audit Log</h3>
+                <div class="settings-info">Stores up to 500 entries in this browser. Use the <strong>&#8595; CSV</strong> button in the Log tab to export.</div>
+                <div class="settings-info" id="settings-log-count">0 entries stored</div>
+                <button class="settings-btn danger" onclick="clearLogConfirm()">&#128465; Clear All Log Entries</button>
+            </div>
+
+            <!-- Session -->
+            <div class="settings-section">
+                <h3>&#128260; Session Recovery</h3>
+                <div class="settings-info">Your current pick session is auto-saved. If the app is refreshed mid-order, it will resume where you left off.</div>
+                <button class="settings-btn danger" onclick="clearSession()">&#128465; Clear Saved Session</button>
+            </div>
+
+            <!-- Version -->
+            <div class="ver-badge">
+                <div class="ver-name">&#128230; ArtzFolio Scan-Pick-Pack v19</div>
+                <div class="ver-sub">localStorage &bull; Audit Trail &bull; GS Webhook &bull; Session Recovery</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- BOTTOM TAB BAR -->
+    <div class="tab-nav">
+        <button class="tab-btn active" id="tab-pick"     onclick="switchTab('pick')">&#128230; PICK</button>
+        <button class="tab-btn"        id="tab-log"      onclick="switchTab('log')">&#128220; LOG</button>
+        <button class="tab-btn"        id="tab-guide"    onclick="switchTab('guide')">&#10067; GUIDE</button>
+        <button class="tab-btn"        id="tab-settings" onclick="switchTab('settings')">&#9881; SET</button>
+    </div>
+
+    <!-- CAMERA OVERLAY -->
+    <div class="cam-overlay" id="cam-overlay">
+        <video id="cam-video" playsinline autoplay muted></video>
+        <div class="cam-frame"><span></span></div>
+        <div class="cam-scan-line"></div>
+        <div class="cam-bottom">
+            <div class="cam-hint" id="cam-hint">Point at the <strong>barcode or QR code</strong></div>
+            <div class="cam-formats" id="cam-formats">Loading scanner...</div>
+            <button class="cam-close" onclick="closeCamera()">&#10005;&nbsp; Close Camera</button>
+        </div>
+    </div>
+
+    <div id="flash"></div>
+</div>
+
+<!-- EMPLOYEE MODAL -->
+<div class="emp-modal-bg" id="emp-modal-bg">
+    <div class="emp-modal">
+        <h2>&#128100; Who is packing today?</h2>
+        <p>Enter your name and employee code to begin. This is saved on the device and included in every scan record.</p>
+        <div class="emp-field">
+            <label for="emp-name-input">Full Name</label>
+            <input type="text" id="emp-name-input" placeholder="e.g. Rajat K" autocomplete="off" autocorrect="off">
+        </div>
+        <div class="emp-field">
+            <label for="emp-code-input">Employee Code</label>
+            <input type="text" id="emp-code-input" placeholder="e.g. EMP001" autocomplete="off" autocapitalize="characters">
+        </div>
+        <button class="emp-save-btn" onclick="saveEmployeeModal()">&#10003;&nbsp; Start Session</button>
+        <div class="emp-err" id="emp-err"></div>
+    </div>
+</div>
+
+<script>
+// =============================================================
+// ArtzFolio Scan-Pick-Pack  v19
+// NEW in v19 (all additive — core scan logic UNCHANGED from v18):
+//   1. localStorage: 500-entry audit log, employee, GS URL, session state
+//   2. Employee ID modal on first load (name + code)
+//   3. Enhanced logEvent(): ISO timestamp, empName/Code, SKU, channel, qty, bin
+//   4. Google Sheets webhook: POST JSON to configurable Apps Script URL
+//   5. CSV export in Log tab
+//   6. Settings tab: change employee, GS URL, clear log, clear session, version
+//   7. Session recovery on page refresh
+// NOTE: no optional chaining (?.) no nullish coalescing (??)
+//       no const/let, no arrow functions -> ES5-safe for Chrome < v80
+// =============================================================
+
+// ── STATE ────────────────────────────────────────────────────
+var state = {
+    tab:          'pick',
+    pickState:    'IDLE',  // IDLE | NEED_BIN | NEED_SKU | NEXT_LINE | READY
+    order:        null,
+    bin:          null,
+    skuScanned:   0,
+    groupOrderID: null,
+    groupTotal:   1,
+    groupDone:    0,
+    log:          [],
+    camStream:    null,
+    scanLoop:     null
+};
+
+// Channel display helpers
+var CH_COLOR = {
+    AMZES:'#E67E22', AMZVC:'#2980B9', AMZSF:'#16A085',
+    SHOPIFY:'#27AE60', FLIPKART:'#F39C12', MYNTRA:'#E91E8C',
+    PRIVATE:'#7F8C8D', ETRADE:'#8E44AD', COCOBLU:'#16A085',
+    SELLERFLEX:'#1A6E8C', EASYSHIP:'#C0392B', DIRECT:'#7F8C8D',
+    MEESHO:'#F06292', GLOWROAD:'#FF7043', B2B:'#607D8B'
+};
+var CH_NAME = {
+    AMZES:'Amazon EasyShip', AMZVC:'Amazon Vendor', AMZSF:'Amazon Seller Flex',
+    SHOPIFY:'Shopify', FLIPKART:'Flipkart', MYNTRA:'Myntra',
+    PRIVATE:'Direct/B2B', ETRADE:'Etrade', COCOBLU:'Cocoblu',
+    SELLERFLEX:'Seller Flex', EASYSHIP:'Seller Central', DIRECT:'Direct',
+    MEESHO:'Meesho', GLOWROAD:'Glowroad', B2B:'B2B'
+};
+
+// ── LOCALSTORAGE KEYS ────────────────────────────────────────
+var LS_EMP     = 'af_employee';
+var LS_LOG     = 'af_log';
+var LS_GS_URL  = 'af_gs_url';
+var LS_SESSION = 'af_session';
+
+// ── LOCALSTORAGE HELPERS ─────────────────────────────────────
+function lsGet(key) {
+    try { return localStorage.getItem(key); } catch(e) { return null; }
+}
+function lsSet(key, val) {
+    try { localStorage.setItem(key, val); } catch(e) {}
+}
+function lsRemove(key) {
+    try { localStorage.removeItem(key); } catch(e) {}
+}
+function lsGetJSON(key) {
+    var s = lsGet(key);
+    if (!s) return null;
+    try { return JSON.parse(s); } catch(e) { return null; }
+}
+function lsSetJSON(key, val) {
+    try { lsSet(key, JSON.stringify(val)); } catch(e) {}
+}
+
+// ── EMPLOYEE ─────────────────────────────────────────────────
+function loadEmployee() {
+    return lsGetJSON(LS_EMP);
+}
+function showEmployeeModal() {
+    var emp = loadEmployee();
+    var nameEl = document.getElementById('emp-name-input');
+    var codeEl = document.getElementById('emp-code-input');
+    if (nameEl && emp) nameEl.value = emp.name || '';
+    if (codeEl && emp) codeEl.value = emp.code || '';
+    var errEl = document.getElementById('emp-err');
+    if (errEl) errEl.textContent = '';
+    document.getElementById('emp-modal-bg').classList.add('active');
+    setTimeout(function() { try { document.getElementById('emp-name-input').focus(); } catch(e) {} }, 100);
+}
+function saveEmployeeModal() {
+    var nameVal = (document.getElementById('emp-name-input').value || '').trim();
+    var codeVal = (document.getElementById('emp-code-input').value || '').trim().toUpperCase();
+    var errEl   = document.getElementById('emp-err');
+    if (!nameVal) { errEl.textContent = 'Please enter your name.'; return; }
+    if (!codeVal) { errEl.textContent = 'Please enter your employee code.'; return; }
+    lsSetJSON(LS_EMP, { name: nameVal, code: codeVal });
+    document.getElementById('emp-modal-bg').classList.remove('active');
+    updateSettingsEmployeeDisplay();
+    logEvent('—', 'Session started by ' + nameVal + ' (' + codeVal + ')');
+}
+function updateSettingsEmployeeDisplay() {
+    var emp  = loadEmployee();
+    var el   = document.getElementById('settings-emp-display');
+    if (!el) return;
+    if (emp && emp.name) {
+        el.innerHTML = '<span class="settings-chip">&#128100; ' + emp.name + ' &mdash; ' + emp.code + '</span>';
+    } else {
+        el.textContent = 'Not set — tap Change Employee';
+    }
+}
+
+// ── LOG PERSISTENCE ──────────────────────────────────────────
+function loadLog() {
+    var arr = lsGetJSON(LS_LOG);
+    return (arr && arr.length) ? arr : [];
+}
+function saveLog() {
+    lsSetJSON(LS_LOG, state.log);
+}
+function clearLogConfirm() {
+    if (!confirm('Clear all ' + state.log.length + ' log entries? This cannot be undone.')) return;
+    state.log = [];
+    saveLog();
+    renderLog();
+    updateSettingsLogCount();
+}
+
+// ── SESSION SAVE / RESTORE ───────────────────────────────────
+function saveSession() {
+    var snap = {
+        pickState:    state.pickState,
+        order:        state.order,
+        bin:          state.bin,
+        skuScanned:   state.skuScanned,
+        groupOrderID: state.groupOrderID,
+        groupTotal:   state.groupTotal,
+        groupDone:    state.groupDone
+    };
+    lsSetJSON(LS_SESSION, snap);
+}
+function restoreSession() {
+    var snap = lsGetJSON(LS_SESSION);
+    if (!snap || snap.pickState === 'IDLE' || snap.pickState === 'READY') return false;
+    state.pickState    = snap.pickState    || 'IDLE';
+    state.order        = snap.order        || null;
+    state.bin          = snap.bin          || null;
+    state.skuScanned   = snap.skuScanned   || 0;
+    state.groupOrderID = snap.groupOrderID || null;
+    state.groupTotal   = snap.groupTotal   || 1;
+    state.groupDone    = snap.groupDone    || 0;
+    return true;
+}
+function clearSession() {
+    lsRemove(LS_SESSION);
+    setStatus('Saved session cleared.', 'idle');
+    resetPick();
+}
+
+// ── TIMESTAMP FORMATTER ──────────────────────────────────────
+function formatTs(d) {
+    var months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    var yyyy = d.getFullYear();
+    var mmm  = months[d.getMonth()];
+    var dd   = ('0' + d.getDate()).slice(-2);
+    var hh   = d.getHours();
+    var ampm = hh >= 12 ? 'PM' : 'AM';
+    hh = hh % 12 || 12;
+    var min  = ('0' + d.getMinutes()).slice(-2);
+    var sec  = ('0' + d.getSeconds()).slice(-2);
+    return yyyy + '-' + mmm + '-' + dd + ' ' + ('0'+hh).slice(-2) + ':' + min + ':' + sec + ' ' + ampm;
+}
+
+// ── GOOGLE SHEETS WEBHOOK ────────────────────────────────────
+function loadGsUrl() {
+    return 'https://script.google.com/macros/s/AKfycby3yWOhFVU2gtJeP3jZq0sIcq1i574cNlWxKhKw1ivBDem5WRYQzOQJDP-fmOS8QOzyEQ/exec';
+}
+function saveGsUrl() {
+    var url = (document.getElementById('gs-url-input').value || '').trim();
+    var statusEl = document.getElementById('gs-status');
+    if (!url) {
+        lsRemove(LS_GS_URL);
+        statusEl.innerHTML = '<span class="gs-err">URL cleared.</span>';
+        return;
+    }
+    if (url.indexOf('https://') !== 0) {
+        statusEl.innerHTML = '<span class="gs-err">URL must start with https://</span>';
+        return;
+    }
+    lsSet(LS_GS_URL, url);
+    statusEl.innerHTML = '<span class="gs-ok">&#10003; URL saved.</span>';
+}
+function clearGsUrl() {
+    lsRemove(LS_GS_URL);
+    document.getElementById('gs-url-input').value = '';
+    document.getElementById('gs-status').innerHTML = '<span class="gs-err">URL cleared.</span>';
+}
+function pushToGoogleSheets(entry) {
+    var url = loadGsUrl();
+    if (!url) return;
+    try {
+        var xhr = new XMLHttpRequest();
+        xhr.open('POST', url, true);
+        xhr.timeout = 8000;
+        xhr.send(JSON.stringify(entry));
+    } catch(e) {
+        console.warn('GS webhook error:', e);
+    }
+}
+
+// ── CSV EXPORT ───────────────────────────────────────────────
+function exportCSV() {
+    if (!state.log.length) { alert('No log entries to export.'); return; }
+    var rows = ['Timestamp,Employee Name,Employee Code,Order ID,SKU,Channel,Qty,Bin,Action'];
+    for (var i = 0; i < state.log.length; i++) {
+        var e = state.log[i];
+        var csvAction = '"' + ((e.action || '').replace(/<[^>]+>/g,'').replace(/"/g,'""')) + '"';
+        rows.push([
+            e.ts       || '',
+            e.empName  || '',
+            e.empCode  || '',
+            e.orderID  || '',
+            e.sku      || '',
+            e.channel  || '',
+            e.qty      || '',
+            e.bin      || '',
+            csvAction
+        ].join(','));
+    }
+    var blob = new Blob([rows.join('\r\n')], { type: 'text/csv;charset=utf-8;' });
+    var url  = URL.createObjectURL(blob);
+    var a    = document.createElement('a');
+    a.href   = url;
+    a.download = 'scan_log_' + new Date().toISOString().slice(0,10) + '.csv';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+}
+
+// ── SETTINGS UI REFRESH ──────────────────────────────────────
+function updateSettingsLogCount() {
+    var el = document.getElementById('settings-log-count');
+    if (el) el.textContent = state.log.length + ' entr' + (state.log.length === 1 ? 'y' : 'ies') + ' stored';
+}
+function refreshSettingsTab() {
+    updateSettingsEmployeeDisplay();
+    updateSettingsLogCount();
+    var url = loadGsUrl();
+    var urlInput = document.getElementById('gs-url-input');
+    if (urlInput) urlInput.value = url || '';
+    var gsStatus = document.getElementById('gs-status');
+    if (gsStatus) gsStatus.innerHTML = url ? '<span class="gs-ok">&#10003; URL configured.</span>' : '';
+}
+
+// ── QR PARSER ────────────────────────────────────────────────
+// AF2 format (12 fields, backward-compatible with 9-field v8 and 11-field v15):
+// AF2|internalID|channel|marketOrderID|sku|product|setSize|qty|bin|lineNum|totalLines|asin
+function parseQR(raw) {
+    if (!raw) return null;
+    var p = raw.trim().split('|');
+    if (p[0] === 'AF2' && p.length >= 9) {
+        return {
+            type:          'AF2',
+            internalID:    p[1],
+            channel:       p[2],
+            marketOrderID: p[3],
+            sku:           p[4],
+            product:       p[5],
+            setSize:       parseInt(p[6], 10) || 1,
+            qty:           parseInt(p[7], 10) || 1,
+            bin:           p[8],
+            lineNum:       p.length >= 10 ? (parseInt(p[9],  10) || 1) : 1,
+            totalLines:    p.length >= 11 ? (parseInt(p[10], 10) || 1) : 1,
+            asin:          p.length >= 12 ? p[11].trim() : ''
+        };
+    }
+    if (p[0] === 'BIN' && p.length >= 2) {
+        return { type: 'BIN', binID: p[1].trim() };
+    }
+    return { type: 'UNKNOWN', raw: raw.trim() };
+}
+
+// ── SCAN BAR VISIBILITY ──────────────────────────────────────
+function syncScanBar() {
+    document.getElementById('scan-bar-wrap').style.display = (state.tab === 'pick') ? '' : 'none';
+}
+
+// ── GO BACK ──────────────────────────────────────────────────
+function goBack() {
+    if (state.pickState === 'NEED_SKU') {
+        state.bin        = null;
+        state.skuScanned = 0;
+        state.pickState  = 'NEED_BIN';
+        hideScanOptions();
+        var binName = state.order ? state.order.bin : '—';
+        setStatus('&#8629; Returned to bin scan.<br>Go to bin <strong>' + binName + '</strong> and scan the bin QR sticker.', 'waiting');
+        logEvent(state.order ? state.order.internalID : '—', 'Stepped back to bin scan');
+        updateSteps();
+    } else if (state.pickState === 'NEED_BIN' || state.pickState === 'NEXT_LINE') {
+        var id = state.groupOrderID || (state.order ? state.order.internalID : '—');
+        logEvent(id, 'Reset to start (back button)');
+        resetPick();
+    }
+}
+
+// ── MAIN SCAN PROCESSOR ──────────────────────────────────────
+function processScan(value) {
+    value = (value || '').trim();
+    if (!value) return;
+    document.getElementById('scan-input').value = '';
+
+    var parsed = parseQR(value);
+
+    // ── State: NEXT_LINE (waiting for next item QR in multi-SKU order) ──
+    if (state.pickState === 'NEXT_LINE') {
+        if (parsed && parsed.type === 'AF2') {
+            if (parsed.marketOrderID !== state.groupOrderID) {
+                setStatus(
+                    '&#10060; Wrong order!<br>Expected item from Order <strong>' + state.groupOrderID + '</strong>.<br>' +
+                    'Scan item ' + (state.groupDone + 1) + ' of this order, or tap RESET.',
+                    'error'
+                );
+                pulse('e');
+            } else {
+                state.order      = parsed;
+                state.skuScanned = 0;
+                state.pickState  = 'NEED_BIN';
+                hideScanOptions();
+                renderOrderCard();
+                updateGroupProgress();
+                setStatus(
+                    '&#10003; Item ' + (state.groupDone + 1) + '/' + state.groupTotal + ' loaded.<br>' +
+                    'Go to bin <strong>' + parsed.bin + '</strong> and scan the bin QR sticker.',
+                    'success'
+                );
+                logEvent(parsed.internalID, 'Multi-line item ' + (state.groupDone + 1) + '/' + state.groupTotal + ' loaded');
+                pulse('s');
+            }
+        } else {
+            setStatus(
+                '&#9888; Scan the <strong>Pick List QR</strong> for item ' + (state.groupDone + 1) +
+                ' of Order <strong>' + state.groupOrderID + '</strong>.',
+                'waiting'
+            );
+        }
+        updateSteps();
+        saveSession();
+        return;
+    }
+
+    // ── State: IDLE (scan pick list QR to begin) ──
+    if (state.pickState === 'IDLE') {
+        if (parsed && parsed.type === 'AF2') {
+            state.order        = parsed;
+            state.skuScanned   = 0;
+            state.groupOrderID = parsed.marketOrderID;
+            state.groupTotal   = parsed.totalLines || 1;
+            state.groupDone    = 0;
+            state.pickState    = 'NEED_BIN';
+            hideScanOptions();
+            renderOrderCard();
+            updateGroupProgress();
+            var qtyHint = parsed.qty > 1
+                ? ' (Qty ' + parsed.qty + ' &mdash; scan barcode <strong>' + parsed.qty + 'x</strong>)'
+                : '';
+            setStatus(
+                '&#10003; Order loaded: <strong>' + parsed.internalID + '</strong>.<br>' +
+                'Go to bin <strong>' + parsed.bin + '</strong> and scan the bin QR sticker' + qtyHint + '.',
+                'success'
+            );
+            logEvent(parsed.internalID, 'Pick list QR scanned — ' + (state.groupTotal > 1 ? state.groupTotal + '-item order' : 'single-item order'));
+            pulse('s');
+        } else if (parsed && parsed.type === 'BIN') {
+            setStatus('&#9888; Got a Bin QR but no order is loaded yet.<br>Scan the <strong>Pick List QR</strong> from column H of the printed pick list first.', 'waiting');
+        } else if (parsed && parsed.type === 'UNKNOWN') {
+            var raw = parsed.raw || '';
+            var esc = raw.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+            var hint = 'Scan the <strong>Pick List QR</strong> from column H of the printed pick list.';
+            if (raw.indexOf('AF2|') === 0 && raw.split('|').length < 9) {
+                hint = 'Partial AF2 QR (fewer than 9 fields). Re-run <strong>Step3_GenerateBarcodes</strong> in Excel and reprint.';
+            } else if (raw.indexOf('|') === -1) {
+                hint = '&#9888; This looks like a plain barcode (SKU or ASIN), not a Pick List QR.<br>Make sure you scan the large QR in <strong>column H</strong> of the pick list.';
+            }
+            setStatus(
+                '&#128247; Camera working &#10003;<br>&#10060; Not a valid Pick List QR.<br>' + hint +
+                '<span class="scan-raw">Scanned: ' + esc + '</span>',
+                'error'
+            );
+            logEvent('—', 'Unknown scan in IDLE: ' + raw.slice(0, 60));
+            pulse('e');
+        }
+
+    // ── State: NEED_BIN (scan bin QR sticker) ──
+    } else if (state.pickState === 'NEED_BIN') {
+        var scannedBin = null;
+        if (parsed && parsed.type === 'BIN') {
+            scannedBin = parsed.binID;
+        } else if (parsed && parsed.type === 'UNKNOWN') {
+            scannedBin = parsed.raw.trim();
+        } else if (parsed && parsed.type === 'AF2') {
+            setStatus('&#10060; That is a <strong>Pick List QR</strong>, not a bin QR.<br>Scan the <strong>QR sticker on the shelf</strong> at bin <strong>' + state.order.bin + '</strong>.', 'error');
+            pulse('e');
+            updateSteps();
+            saveSession();
+            return;
+        }
+
+        if (scannedBin !== null) {
+            var normalise = function(s) { return (s || '').toLowerCase().replace(/[\s\-_\.]/g, ''); };
+            var exp = normalise(state.order.bin);
+            var got = normalise(scannedBin);
+            if (exp === got || got.indexOf(exp) !== -1 || exp.indexOf(got) !== -1) {
+                state.bin       = { binID: scannedBin };
+                state.pickState = 'NEED_SKU';
+                var qtyNote = state.order.qty > 1
+                    ? ' &mdash; must scan barcode <strong>' + state.order.qty + ' times</strong> (once per unit)'
+                    : '';
+                setStatus(
+                    '&#10003; Bin <strong>' + scannedBin + '</strong> verified.<br>' +
+                    'Scan the product SKU or ASIN barcode' + qtyNote + '.',
+                    'success'
+                );
+                showScanOptions();
+                logEvent(state.order.internalID, 'Bin ' + scannedBin + ' verified');
+                pulse('s');
+            } else {
+                setStatus(
+                    '&#10060; Wrong bin!<br>Expected: <strong>' + state.order.bin + '</strong>&nbsp;&nbsp;Got: <strong>' + scannedBin + '</strong><br>' +
+                    '<small>Check the bin label and try again, or tap &larr; Back to rescan the pick list.</small>',
+                    'error'
+                );
+                pulse('e');
+            }
+        } else {
+            setStatus('&#10060; Not a valid bin QR or code.<br>Scan the <strong>QR sticker on the shelf</strong> at bin <strong>' + state.order.bin + '</strong>.', 'error');
+            pulse('e');
+        }
+
+    // ── State: NEED_SKU (scan product barcode) ──
+    } else if (state.pickState === 'NEED_SKU') {
+        if (parsed && parsed.type === 'AF2') {
+            setStatus('&#10060; That is a <strong>Pick List QR</strong>.<br>Scan the <strong>barcode on the physical product</strong> (SKU label or ASIN Code 128).', 'error');
+            pulse('e');
+        } else {
+            var v = value.toUpperCase().trim();
+            var s = state.order.sku.toUpperCase().trim();
+            var a = (state.order.asin || '').toUpperCase().trim();
+            var skuMatch  = (v === s || v.indexOf(s) !== -1 || s.indexOf(v) !== -1);
+            var asinMatch = (a.length > 0 && (v === a || v.indexOf(a) !== -1 || a.indexOf(v) !== -1));
+
+            if (skuMatch || asinMatch) {
+                var matchType = (asinMatch && !skuMatch) ? 'ASIN' : 'SKU';
+                state.skuScanned++;
+                var needed    = state.order.qty;
+                var remaining = needed - state.skuScanned;
+                logEvent(state.order.internalID, matchType + ' scan ' + state.skuScanned + '/' + needed + ': ' + value);
+                pulse('s');
+                vibrate([100]);
+                updateQtyScanDisplay();
+
+                if (remaining > 0) {
+                    setStatus(
+                        '&#9989; Scanned <strong>' + state.skuScanned + ' of ' + needed + '</strong> units.' +
+                        '<div class="qty-remaining-banner">&#9888; ' + remaining + ' MORE SCAN' + (remaining > 1 ? 'S' : '') + ' NEEDED<br>' +
+                        'Pick ' + remaining + ' more unit' + (remaining > 1 ? 's' : '') + ' and scan the barcode again</div>' +
+                        '<div class="multi-pkg-instruction">&#128230; <strong>Multiple units of same SKU:</strong><br>' +
+                        'Hand each unit <strong>one at a time</strong> to packing.<br>' +
+                        'Tell them: &ldquo;<em>' + needed + ' units of <strong>' + state.order.sku + '</strong> &mdash; keep together.</em>&rdquo;</div>',
+                        'waiting'
+                    );
+                } else {
+                    hideScanOptions();
+                    state.groupDone++;
+                    var allDone = (state.groupDone >= state.groupTotal);
+
+                    if (!allDone) {
+                        var gID     = state.groupOrderID;
+                        var gTotal  = state.groupTotal;
+                        var gDone   = state.groupDone;
+                        var nextNum = gDone + 1;
+                        state.order      = null;
+                        state.bin        = null;
+                        state.skuScanned = 0;
+                        state.pickState  = 'NEXT_LINE';
+                        document.getElementById('order-card').classList.remove('visible');
+                        updateGroupProgress();
+                        setStatus(
+                            '&#9989; <strong>Item ' + gDone + ' of ' + gTotal + ' picked!</strong><br>' +
+                            'Now scan the Pick List QR for <strong>item ' + nextNum + ' of ' + gTotal + '</strong><br>' +
+                            '<small>(Order: ' + gID + ')</small>',
+                            'success'
+                        );
+                    } else {
+                        state.pickState = 'READY';
+                        updateGroupProgress();
+                        var allMsg = state.groupTotal > 1
+                            ? '&#9989; <strong>All ' + state.groupTotal + ' items picked</strong> for Order <strong>' + state.groupOrderID + '</strong>!<br>Deliver all packages to packing desk, then tap CONFIRM.'
+                            : '&#10003; Product confirmed: <strong>' + (state.order.product || state.order.sku) + '</strong>.<br>Tap CONFIRM when packed and ready for dispatch.';
+                        setStatus(allMsg, 'success');
+                        document.getElementById('action-btns').style.display = 'flex';
+                        setTimeout(function() {
+                            var ab = document.getElementById('action-btns');
+                            if (ab) { ab.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); }
+                        }, 150);
+                    }
+                }
+            } else {
+                var hasAsin = state.order.asin && state.order.asin.trim().length > 0;
+                var wrongHint = hasAsin
+                    ? '<br><small>Try the <strong>ASIN barcode</strong> (' + state.order.asin + ') if SKU label does not scan</small>'
+                    : '<br><small>Scan the <strong>SKU barcode</strong> (' + state.order.sku + ') on the physical product</small>';
+                setStatus(
+                    '&#10060; Wrong product!<br>Expected: <strong>' + state.order.sku + '</strong><br>Scanned: <strong>' + v + '</strong>' + wrongHint,
+                    'error'
+                );
+                pulse('e');
+            }
+        }
+    }
+
+    updateSteps();
+    saveSession();
+}
+
+// ── SCAN OPTIONS PANEL ───────────────────────────────────────
+function showScanOptions() {
+    if (!state.order) return;
+    document.getElementById('scan-opt-sku').textContent  = state.order.sku  || '—';
+    document.getElementById('scan-opt-asin').textContent = state.order.asin || 'N/A (SKU only)';
+    document.getElementById('scan-options-banner').classList.add('visible');
+}
+function hideScanOptions() {
+    document.getElementById('scan-options-banner').classList.remove('visible');
+}
+
+// ── STATUS ───────────────────────────────────────────────────
+function setStatus(msg, type) {
+    var el = document.getElementById('status-msg');
+    el.innerHTML = msg;
+    el.className = 'status ' + (type || 'idle');
+}
+
+// ── STEPS & NEXT-ACTION BANNER ───────────────────────────────
+function updateSteps() {
+    var ids = ['step-1', 'step-2', 'step-3'];
+    var i;
+    for (i = 0; i < ids.length; i++) {
+        document.getElementById(ids[i]).classList.remove('active', 'done');
+    }
+    var idxMap = { IDLE:0, NEXT_LINE:0, NEED_BIN:1, NEED_SKU:2, READY:3 };
+    var idx = (idxMap[state.pickState] !== undefined) ? idxMap[state.pickState] : 0;
+    for (i = 0; i < ids.length; i++) {
+        if      (i < idx)               document.getElementById(ids[i]).classList.add('done');
+        else if (i === idx && idx < 3)  document.getElementById(ids[i]).classList.add('active');
+        else if (idx === 3)             document.getElementById(ids[i]).classList.add('done');
+    }
+
+    var backWrap = document.getElementById('back-btn-wrap');
+    var backBtn  = document.getElementById('back-btn');
+    var showBack = (state.pickState === 'NEED_BIN' || state.pickState === 'NEED_SKU' || state.pickState === 'NEXT_LINE');
+    backWrap.style.display = showBack ? 'block' : 'none';
+    if (backBtn) {
+        backBtn.textContent = (state.pickState === 'NEED_SKU') ? '\u2190 Back to Bin Scan' : '\u2190 Back to Start';
+    }
+
+    updateNextActionBanner();
+}
+
+function updateNextActionBanner() {
+    var banner = document.getElementById('next-action-banner');
+    if (!banner) return;
+    var skuDone   = state.skuScanned || 0;
+    var skuNeeded = (state.order && state.order.qty) ? state.order.qty : 1;
+    var midScan   = (state.pickState === 'NEED_SKU') && skuDone > 0 && skuDone < skuNeeded;
+    var hasAsin   = state.order && state.order.asin && state.order.asin.trim().length > 0;
+
+    var cfg = {
+        cls:  'state-idle',
+        icon: '&#128241;',
+        text: 'Scan Pick List QR Code',
+        sub:  'Tap &#128247; and point at col H QR on the printed pick list'
+    };
+
+    if (state.pickState === 'NEXT_LINE') {
+        cfg = {
+            cls:  'state-next-line',
+            icon: '&#128203;',
+            text: 'Scan Item ' + (state.groupDone + 1) + ' of ' + state.groupTotal + ' QR',
+            sub:  'Order ' + state.groupOrderID + ' \u2014 scan next item\u2019s Pick List QR (col H)'
+        };
+    } else if (state.pickState === 'NEED_BIN') {
+        cfg = {
+            cls:  'state-bin',
+            icon: '&#128230;',
+            text: 'Scan Bin QR Sticker',
+            sub:  'Go to bin ' + (state.order ? state.order.bin : '\u2014') + ' and scan the QR sticker on the shelf'
+        };
+    } else if (state.pickState === 'NEED_SKU') {
+        var skuText = midScan
+            ? 'Scan Again \u2014 ' + skuDone + '/' + skuNeeded + ' Done'
+            : 'Scan SKU or ASIN Barcode';
+        var skuSub = midScan
+            ? ((skuNeeded - skuDone) + ' more scan' + ((skuNeeded - skuDone) > 1 ? 's' : '') + ' needed \u2014 same barcode as before')
+            : (hasAsin
+                ? 'Scan the SKU label OR the ASIN barcode (Code 128) on the product'
+                : 'Pick up the product and scan its SKU barcode label');
+        cfg = {
+            cls:  midScan ? 'state-sku-more' : 'state-sku',
+            icon: midScan ? '&#9888;&#65039;' : '&#128269;',
+            text: skuText,
+            sub:  skuSub
+        };
+    } else if (state.pickState === 'READY') {
+        cfg = {
+            cls:  'state-ready',
+            icon: '&#9989;',
+            text: 'All Items Verified \u2014 Confirm',
+            sub:  'Tap CONFIRM when all packages are ready for dispatch'
+        };
+    }
+
+    banner.className = 'next-action ' + cfg.cls;
+    banner.innerHTML =
+        '<span class="next-action-icon">' + cfg.icon + '</span>' +
+        '<span class="next-action-text">' + cfg.text +
+        '<span class="next-action-sub">' + cfg.sub + '</span></span>';
+}
+
+// ── GROUP PROGRESS ───────────────────────────────────────────
+function updateGroupProgress() {
+    var bar    = document.getElementById('group-progress');
+    var label  = document.getElementById('group-label');
+    var dots   = document.getElementById('group-dots');
+    var barFil = document.getElementById('gp-bar-fill');
+
+    if (state.groupTotal <= 1) { bar.classList.remove('visible'); return; }
+    bar.classList.add('visible');
+
+    var done      = state.groupDone;
+    var total     = state.groupTotal;
+    var isReady   = (state.pickState === 'READY');
+    var activeIdx = isReady ? -1 : done;
+
+    var statusHTML;
+    if (isReady) {
+        statusHTML = '<span class="gp-all-done">&#9989; All ' + total + ' items picked!</span>';
+    } else if (done === 0) {
+        statusHTML = 'Scanning item <span class="gp-done-num">1 of ' + total + '</span>';
+    } else {
+        statusHTML = '<span class="gp-done-num">&#9989; ' + done + ' of ' + total + '</span> picked &mdash; <span class="gp-todo-num">' + (total - done) + ' more</span> to go';
+    }
+    label.innerHTML = statusHTML;
+    barFil.style.width = (isReady ? 100 : Math.round(((done + 0.5) / total) * 100)) + '%';
+
+    var html = '';
+    for (var i = 0; i < total; i++) {
+        if      (i < done)            html += '<div class="gp-dot done"   title="Item ' + (i+1) + ' done"></div>';
+        else if (i === activeIdx)     html += '<div class="gp-dot active" title="Item ' + (i+1) + ' active"></div>';
+        else                          html += '<div class="gp-dot"        title="Item ' + (i+1) + ' pending"></div>';
+    }
+    dots.innerHTML = html;
+}
+
+// ── ORDER CARD ───────────────────────────────────────────────
+function renderOrderCard() {
+    if (!state.order) return;
+    var o     = state.order;
+    var total = (o.setSize || 1) * (o.qty || 1);
+    var col   = CH_COLOR[o.channel] || '#7F8C8D';
+    var name  = CH_NAME[o.channel]  || o.channel;
+
+    var lineRow = state.groupTotal > 1
+        ? '<div class="card-row"><span class="card-label">Order Item</span><span class="card-value">' + (state.groupDone + 1) + ' of ' + state.groupTotal + '</span></div>'
+        : '';
+
+    var asinRow = o.asin
+        ? '<div class="card-row"><span class="card-label">ASIN</span><span class="card-value" style="color:#16A085;font-family:monospace;font-size:12px;font-weight:700;">' + o.asin + '</span></div>'
+        : '';
+
+    var qtyScanRow = o.qty > 1
+        ? '<div class="card-row qty-scan-row"><span class="card-label">Scanned / Needed</span><span class="card-value" id="qty-scan-val">' + state.skuScanned + ' / ' + o.qty + '</span></div>'
+        : '';
+
+    document.getElementById('order-card').innerHTML =
+        '<div class="card-row"><span class="card-label">Channel</span><span class="card-value"><span class="channel-badge" style="background:' + col + '">' + name + '</span></span></div>' +
+        lineRow +
+        '<div class="card-row"><span class="card-label">Order ID</span><span class="card-value">' + (o.marketOrderID || '—') + '</span></div>' +
+        '<div class="card-row"><span class="card-label">SKU</span><span class="card-value">' + (o.sku || '—') + '</span></div>' +
+        asinRow +
+        '<div class="card-row"><span class="card-label">Product</span><span class="card-value">' + (o.product || '(see SKU DB)') + '</span></div>' +
+        '<div class="card-row"><span class="card-label">Set Size</span><span class="card-value">Set of ' + (o.setSize || 1) + '</span></div>' +
+        '<div class="card-row"><span class="card-label">Qty Ordered</span><span class="card-value">' + (o.qty || 1) + ' unit' + ((o.qty || 1) > 1 ? 's' : '') + '</span></div>' +
+        '<div class="card-row"><span class="card-label">Bin</span><span class="card-value">' + (o.bin || '—') + '</span></div>' +
+        qtyScanRow +
+        '<div class="total-banner">&#11088; PACK ' + total + ' PIECE' + (total > 1 ? 'S' : '') +
+        ' <span style="font-size:11px;font-weight:600;opacity:.9;">&nbsp;(' + (o.qty || 1) + ' unit' + ((o.qty||1)>1?'s':'') + ' &times; set of ' + (o.setSize||1) + ')</span></div>';
+
+    document.getElementById('order-card').classList.add('visible');
+}
+
+function updateQtyScanDisplay() {
+    var el = document.getElementById('qty-scan-val');
+    if (el && state.order) {
+        el.textContent = state.skuScanned + ' / ' + state.order.qty;
+    }
+}
+
+// ── CONFIRM / ISSUE / RESET ──────────────────────────────────
+function confirmOrder() {
+    var id    = state.groupOrderID || (state.order ? state.order.internalID : '?');
+    var items = state.groupTotal;
+    logEvent(id, '&#9989; CONFIRMED &amp; PACKED (' + items + ' item' + (items > 1 ? 's' : '') + ')');
+    setStatus('&#9989; Order confirmed and packed. Ready for the next order.', 'success');
+    vibrate([100, 60, 100]);
+    pulse('s');
+    setTimeout(resetPick, 400);
+}
+function reportIssue() {
+    var id = state.groupOrderID || (state.order ? state.order.internalID : '?');
+    logEvent(id, '&#9888; ISSUE REPORTED');
+    setStatus('&#9888; Issue logged. Please inform your supervisor.', 'error');
+    vibrate([100, 50, 100, 50, 200]);
+    resetPick();
+}
+function resetPick() {
+    state.pickState    = 'IDLE';
+    state.order        = null;
+    state.bin          = null;
+    state.skuScanned   = 0;
+    state.groupOrderID = null;
+    state.groupTotal   = 1;
+    state.groupDone    = 0;
+    document.getElementById('order-card').classList.remove('visible');
+    document.getElementById('order-card').innerHTML = '';
+    document.getElementById('action-btns').style.display = 'none';
+    hideScanOptions();
+    setStatus('Scan a Pick List QR code to begin', 'idle');
+    updateSteps();
+    updateGroupProgress();
+    document.getElementById('scan-input').value = '';
+    saveSession();
+    if (state.tab === 'pick') {
+        try { document.getElementById('scan-input').focus(); } catch(e) {}
+    }
+}
+
+// ── CAMERA SCANNING ──────────────────────────────────────────
+var zxingDecoder     = null;
+var useCanvasLum     = false;
+var barcodeDetector  = null;
+var scanCanvas       = null;
+var scanCtx          = null;
+var decodersReady    = false;
+
+function initDecoders() {
+    if (decodersReady) return;
+    decodersReady = true;
+
+    if (typeof ZXing !== 'undefined' && ZXing !== null) {
+        try {
+            var hints = new Map();
+            hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS, [
+                ZXing.BarcodeFormat.QR_CODE, ZXing.BarcodeFormat.CODE_128,
+                ZXing.BarcodeFormat.CODE_39, ZXing.BarcodeFormat.EAN_13,
+                ZXing.BarcodeFormat.EAN_8,   ZXing.BarcodeFormat.UPC_A,
+                ZXing.BarcodeFormat.UPC_E,   ZXing.BarcodeFormat.ITF,
+                ZXing.BarcodeFormat.DATA_MATRIX, ZXing.BarcodeFormat.PDF_417,
+                ZXing.BarcodeFormat.AZTEC
+            ]);
+            hints.set(ZXing.DecodeHintType.TRY_HARDER, true);
+            zxingDecoder = new ZXing.MultiFormatReader();
+            zxingDecoder.setHints(hints);
+            useCanvasLum = (typeof ZXing.HTMLCanvasElementLuminanceSource === 'function');
+        } catch (e) {
+            zxingDecoder = null;
+            console.warn('ZXing init error:', e);
+        }
+    }
+
+    if (!zxingDecoder && typeof BarcodeDetector !== 'undefined') {
+        try {
+            BarcodeDetector.getSupportedFormats().then(function(fmts) {
+                barcodeDetector = new BarcodeDetector({ formats: fmts });
+            }).catch(function() {
+                barcodeDetector = new BarcodeDetector();
+            });
+        } catch (e) { console.warn('BarcodeDetector init error:', e); }
+    }
+
+    scanCanvas = document.createElement('canvas');
+    scanCtx    = scanCanvas.getContext('2d', { willReadFrequently: true });
+
+    var label;
+    if (zxingDecoder) {
+        label = 'ZXing ' + (useCanvasLum ? '(canvas mode)' : '(rgb mode)') + ' — Code128 + QR + all formats';
+    } else if (barcodeDetector) {
+        label = 'BarcodeDetector (native Chrome) — all formats';
+    } else if (typeof jsQR !== 'undefined' && jsQR) {
+        label = 'jsQR (offline fallback) — QR codes only';
+    } else {
+        label = 'No auto-decoder — type code manually or use Bluetooth scanner';
+    }
+    var fmtEl = document.getElementById('cam-formats');
+    if (fmtEl) fmtEl.textContent = label;
+    document.getElementById('scan-hint-text').textContent = 'Scanner ready: ' + (zxingDecoder ? 'ZXing' : barcodeDetector ? 'BarcodeDetector' : jsQR ? 'jsQR' : 'manual') + ' — Tap camera to scan';
+    console.log('Decoder:', label);
+}
+
+function setCamBtn(busy) {
+    var btn = document.getElementById('cam-btn');
+    if (!btn) return;
+    btn.disabled      = busy;
+    btn.style.opacity = busy ? '0.5' : '1';
+}
+
+function showCamError(msg) {
+    var banner = document.getElementById('cam-error-banner');
+    var msgEl  = document.getElementById('cam-error-msg');
+    if (msgEl)  msgEl.textContent = msg || 'Camera access denied or not supported.';
+    if (banner) banner.classList.add('visible');
+}
+
+function openCamera() {
+    document.getElementById('cam-error-banner').classList.remove('visible');
+    if (!navigator.mediaDevices || typeof navigator.mediaDevices.getUserMedia !== 'function') {
+        showCamError('Camera API not available. Open this file in Chrome via the Files app, not by typing a URL.');
+        return;
+    }
+    updateCamHint();
+    if (state.camStream) { _showOverlay(); return; }
+
+    document.getElementById('cam-overlay').classList.add('active');
+    var hintEl = document.getElementById('cam-hint');
+    if (hintEl) hintEl.innerHTML = '&#128247; <strong style="color:#F39C12">Requesting camera...</strong><br><small style="color:rgba(255,255,255,.75)">Tap Allow when the permission prompt appears</small>';
+    setCamBtn(true);
+
+    navigator.mediaDevices.getUserMedia({
+        video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } }
+    }).then(function(stream) {
+        setCamBtn(false);
+        state.camStream = stream;
+        var video = document.getElementById('cam-video');
+        video.srcObject = stream;
+        function beginScanning() {
+            if (state.scanLoop) return;
+            initDecoders(); updateCamHint(); startScanLoop(video);
+        }
+        video.onloadedmetadata = function() {
+            var pr = video.play();
+            if (pr && typeof pr.then === 'function') {
+                pr.then(beginScanning).catch(function() { beginScanning(); });
+            } else { beginScanning(); }
+        };
+        setTimeout(function() {
+            if (!state.scanLoop) {
+                var pr = video.play();
+                if (pr && typeof pr.then === 'function') {
+                    pr.then(beginScanning).catch(function() { beginScanning(); });
+                } else { beginScanning(); }
+            }
+        }, 2500);
+    }).catch(function(err) {
+        setCamBtn(false);
+        document.getElementById('cam-overlay').classList.remove('active');
+        var msg = 'Camera error.';
+        if (err) {
+            switch (err.name) {
+                case 'NotFoundError': case 'DevicesNotFoundError':
+                    msg = 'No camera found on this device.'; break;
+                case 'NotAllowedError': case 'PermissionDeniedError':
+                    msg = 'Camera permission denied. Fix: Chrome menu \u2192 Settings \u2192 Site Settings \u2192 Camera \u2192 Allow for this file.'; break;
+                case 'NotSupportedError': case 'SecurityError':
+                    msg = 'Camera blocked. Open this HTML file using Files app \u2192 Open with Chrome.'; break;
+                case 'NotReadableError': case 'TrackStartError':
+                    msg = 'Camera is in use by another app. Close other camera apps and try again.'; break;
+                case 'OverconstrainedError': case 'ConstraintNotSatisfiedError':
+                    retryBasicCamera(); return;
+                default:
+                    msg = 'Camera failed: ' + (err.message || err.name || 'unknown error');
+            }
+        }
+        showCamError(msg);
+        console.warn('getUserMedia error:', err);
+    });
+}
+
+function retryBasicCamera() {
+    navigator.mediaDevices.getUserMedia({ video: true }).then(function(stream) {
+        setCamBtn(false);
+        state.camStream = stream;
+        var video = document.getElementById('cam-video');
+        video.srcObject = stream;
+        document.getElementById('cam-overlay').classList.add('active');
+        video.onloadedmetadata = function() {
+            var pr = video.play();
+            var go = function() { if (state.scanLoop) return; initDecoders(); updateCamHint(); startScanLoop(video); };
+            if (pr && typeof pr.then === 'function') { pr.then(go).catch(go); } else { go(); }
+        };
+        setTimeout(function() {
+            if (!state.scanLoop) { initDecoders(); updateCamHint(); startScanLoop(video); }
+        }, 2500);
+    }).catch(function() {
+        setCamBtn(false);
+        showCamError('Camera not available. Use a Bluetooth barcode scanner or type the code manually.');
+    });
+}
+
+function _showOverlay() {
+    document.getElementById('cam-overlay').classList.add('active');
+    var video = document.getElementById('cam-video');
+    if (state.camStream && !video.srcObject) video.srcObject = state.camStream;
+    if (!state.scanLoop) {
+        if (video.readyState >= 2) {
+            startScanLoop(video);
+        } else {
+            video.onloadedmetadata = function() {
+                var pr = video.play();
+                var go = function() { if (!state.scanLoop) startScanLoop(video); };
+                if (pr && typeof pr.then === 'function') { pr.then(go).catch(go); } else { go(); }
+            };
+        }
+    }
+    updateCamHint();
+}
+
+function updateCamHint() {
+    var hint = document.getElementById('cam-hint');
+    if (!hint) return;
+    var hasAsin = state.order && state.order.asin && state.order.asin.trim().length > 0;
+    if (state.pickState === 'IDLE' || state.pickState === 'NEXT_LINE') {
+        hint.innerHTML = 'Point at the <strong>Pick List QR code</strong> &mdash; column H of the printed pick list';
+    } else if (state.pickState === 'NEED_BIN') {
+        hint.innerHTML = 'Point at the <strong>Bin QR sticker</strong> on the shelf at bin <strong style="color:#F39C12">' + (state.order ? state.order.bin : '?') + '</strong>';
+    } else if (state.pickState === 'NEED_SKU') {
+        var rem = (state.order ? state.order.qty : 1) - state.skuScanned;
+        if (state.skuScanned > 0 && rem > 0) {
+            hint.innerHTML = 'Scan the <strong>same barcode again</strong> &mdash; <strong style="color:#F39C12">' + rem + ' more unit' + (rem > 1 ? 's' : '') + ' needed</strong>';
+        } else if (hasAsin) {
+            hint.innerHTML = 'Scan the <strong>SKU barcode</strong> or the <strong>ASIN / Code 128 barcode</strong> on the product';
+        } else {
+            hint.innerHTML = 'Point at the <strong>product SKU barcode</strong>';
+        }
+    } else {
+        hint.innerHTML = 'Point camera at a <strong>barcode or QR code</strong>';
+    }
+}
+
+// ── SCAN LOOP ────────────────────────────────────────────────
+function startScanLoop(video) {
+    if (state.scanLoop) { clearInterval(state.scanLoop); }
+    state.scanLoop = setInterval(function() {
+        if (!state.camStream) return;
+        if (!video || video.readyState < 2) return;
+        var w = video.videoWidth;
+        var h = video.videoHeight;
+        if (!w || !h) return;
+        scanCanvas.width  = w;
+        scanCanvas.height = h;
+        scanCtx.drawImage(video, 0, 0, w, h);
+
+        if (zxingDecoder) {
+            try {
+                var lum, bmp, res;
+                if (useCanvasLum) {
+                    lum = new ZXing.HTMLCanvasElementLuminanceSource(scanCanvas);
+                } else {
+                    var imgD  = scanCtx.getImageData(0, 0, w, h);
+                    var rgba  = imgD.data;
+                    var npx   = w * h;
+                    var rgb   = new Uint8ClampedArray(npx * 3);
+                    for (var pi = 0; pi < npx; pi++) {
+                        rgb[pi * 3]     = rgba[pi * 4];
+                        rgb[pi * 3 + 1] = rgba[pi * 4 + 1];
+                        rgb[pi * 3 + 2] = rgba[pi * 4 + 2];
+                    }
+                    lum = new ZXing.RGBLuminanceSource(rgb, w, h);
+                }
+                bmp = new ZXing.BinaryBitmap(new ZXing.HybridBinarizer(lum));
+                res = zxingDecoder.decode(bmp);
+                if (res) { onCodeDetected(res.getText()); return; }
+            } catch (e) {
+                if (e && e.name && e.name !== 'NotFoundException') {
+                    console.warn('ZXing decode:', e.name);
+                }
+            }
+            return;
+        }
+
+        if (barcodeDetector) {
+            barcodeDetector.detect(video).then(function(codes) {
+                if (codes && codes.length > 0) { onCodeDetected(codes[0].rawValue); }
+            }).catch(function() {});
+            return;
+        }
+
+        if (typeof jsQR !== 'undefined' && jsQR !== null) {
+            var imgData2 = scanCtx.getImageData(0, 0, w, h);
+            var code = jsQR(imgData2.data, w, h, { inversionAttempts: 'attemptBoth' });
+            if (code && code.data) { onCodeDetected(code.data); }
+        }
+    }, 100);
+}
+
+function onCodeDetected(value) {
+    closeCamera();
+    vibrate([200]);
+    processScan(value);
+}
+function closeCamera() {
+    if (state.scanLoop) { clearInterval(state.scanLoop); state.scanLoop = null; }
+    document.getElementById('cam-overlay').classList.remove('active');
+    setCamBtn(false);
+}
+function releaseCamera() {
+    closeCamera();
+    if (state.camStream) {
+        try { state.camStream.getTracks().forEach(function(t) { t.stop(); }); } catch(e) {}
+        state.camStream = null;
+    }
+}
+
+// ── UTILITIES ────────────────────────────────────────────────
+function vibrate(pattern) {
+    try { if (navigator.vibrate) navigator.vibrate(pattern); } catch(e) {}
+}
+function pulse(type) {
+    var f = document.getElementById('flash');
+    f.className = type;
+    f.style.opacity = '1';
+    setTimeout(function() { f.style.opacity = '0'; f.className = ''; }, 350);
+}
+
+// ── ENHANCED logEvent ────────────────────────────────────────
+function logEvent(orderID, action) {
+    var ts  = formatTs(new Date());
+    var emp = loadEmployee() || { name: '', code: '' };
+    var entry = {
+        ts:       ts,
+        empName:  emp.name  || '',
+        empCode:  emp.code  || '',
+        orderID:  orderID || '—',
+        sku:      state.order  ? (state.order.sku      || '') : '',
+        channel:  state.order  ? (state.order.channel  || '') : '',
+        qty:      state.order  ? (state.order.qty       || '') : '',
+        bin:      state.bin    ? (state.bin.binID       || '') : '',
+        action:   action  || ''
+    };
+    state.log.unshift(entry);
+    if (state.log.length > 500) { state.log.length = 500; }
+    saveLog();
+    renderLog();
+    updateSettingsLogCount();
+    pushToGoogleSheets(entry);
+}
+
+// ── RENDER LOG ───────────────────────────────────────────────
+function renderLog() {
+    var ul      = document.getElementById('log-list');
+    var countEl = document.getElementById('log-count');
+    if (countEl) countEl.textContent = state.log.length;
+
+    if (!state.log.length) {
+        ul.innerHTML = '<li style="text-align:center;color:#aaa;font-size:12px;padding:20px;">No scans yet</li>';
+        return;
+    }
+    var html = '';
+    for (var i = 0; i < state.log.length; i++) {
+        var e = state.log[i];
+        // Time: show HH:MM:SS from ISO or stored format
+        var tDisp = '';
+        if (e.ts) {
+            var d = new Date(e.ts);
+            if (!isNaN(d.getTime())) {
+                tDisp = d.toLocaleTimeString('en-IN', { hour:'2-digit', minute:'2-digit', second:'2-digit' });
+            } else {
+                tDisp = e.ts; // legacy format fallback
+            }
+        }
+        var empBadge = e.empCode ? '<span class="log-emp">' + e.empCode + '</span>' : '';
+        var meta = '';
+        if (e.sku || e.bin) {
+            var parts = [];
+            if (e.sku)     parts.push('SKU:' + e.sku);
+            if (e.channel) parts.push(e.channel);
+            if (e.bin)     parts.push('Bin:' + e.bin);
+            if (e.qty)     parts.push('Qty:' + e.qty);
+            meta = '<div class="log-meta">' + parts.join(' &bull; ') + '</div>';
+        }
+        html += '<li class="log-item">' +
+            '<div class="log-row1">' +
+                '<span class="log-time">' + tDisp + '</span>' +
+                empBadge +
+                '<span class="log-order">' + (e.orderID || '—') + '</span>' +
+            '</div>' +
+            '<div class="log-action">' + (e.action || '') + '</div>' +
+            meta +
+            '</li>';
+    }
+    ul.innerHTML = html;
+}
+
+// ── TAB SWITCHING ────────────────────────────────────────────
+function switchTab(tab) {
+    state.tab = tab;
+    var tabs = ['pick', 'log', 'guide', 'settings'];
+    for (var i = 0; i < tabs.length; i++) {
+        var tc = document.getElementById(tabs[i] + '-tab');
+        var tb = document.getElementById('tab-' + tabs[i]);
+        if (tc) tc.classList.remove('active');
+        if (tb) tb.classList.remove('active');
+    }
+    var activeTab = document.getElementById(tab + '-tab');
+    var activeBtn = document.getElementById('tab-' + tab);
+    if (activeTab) activeTab.classList.add('active');
+    if (activeBtn) activeBtn.classList.add('active');
+    syncScanBar();
+    if (tab === 'pick') {
+        setTimeout(function() { try { document.getElementById('scan-input').focus(); } catch(e) {} }, 50);
+    }
+    if (tab === 'settings') {
+        refreshSettingsTab();
+    }
+}
+
+// ── DEMO FUNCTIONS ───────────────────────────────────────────
+function loadDemo() {
+    switchTab('pick');
+    resetPick();
+    setTimeout(function() {
+        processScan('AF2|ETRD20260330-1001|ETRADE|403-1234567-1234567|ARTWRP-S6-BLU|ArtzFolio Waterproof Wall Print Blue|6|3|B-04|1|1|B07ABCD1234');
+    }, 200);
+}
+function loadDemoMulti() {
+    switchTab('pick');
+    resetPick();
+    setTimeout(function() {
+        processScan('AF2|ETRD20260330-2001|ETRADE|403-9876543-9876543|ARTWRP-A1-RED|ArtzFolio Abstract Red|4|1|C-07|1|2|B07XYZ5678');
+    }, 200);
+}
+
+// ── INIT ─────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', function() {
+    // Load persisted log
+    state.log = loadLog();
+
+    // Restore session if mid-order
+    var resumed = restoreSession();
+    if (resumed) {
+        renderOrderCard();
+        updateGroupProgress();
+        updateSteps();
+        setStatus('&#128260; Session restored. Continue scanning.', 'waiting');
+    } else {
+        resetPick();
+    }
+
+    renderLog();
+    syncScanBar();
+
+    // Keyboard / Bluetooth scanner support
+    document.getElementById('scan-input').addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') { processScan(e.target.value); }
+    });
+
+    // Check employee — show modal if not set
+    var emp = loadEmployee();
+    if (!emp || !emp.name) {
+        setTimeout(showEmployeeModal, 300);
+    }
+
+    window.addEventListener('beforeunload', releaseCamera);
+    setTimeout(function() {
+        try { document.getElementById('scan-input').focus(); } catch(e) {}
+    }, 100);
+});
+</script>
+</body>
+</html>
