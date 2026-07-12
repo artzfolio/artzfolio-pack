@@ -376,22 +376,15 @@
                 <button class="settings-btn" onclick="showEmployeeModal()">&#9997; Change Employee</button>
             </div>
 
-            <!-- Google Sheets Webhook -->
+            <!-- Google Sheet Sync (LOCKED - URL is built into the app, staff cannot change it) -->
             <div class="settings-section">
-                <h3>&#128202; Google Sheets Webhook</h3>
-                <div class="settings-info">Paste your Apps Script Web App URL below. Every confirmed scan event is POST-ed as JSON.</div>
-                <div class="settings-row">
-                    <input class="settings-input" id="gs-url-input" type="url"
-                        placeholder="https://script.google.com/macros/s/..." autocomplete="off" autocorrect="off" autocapitalize="off">
-                </div>
-                <div class="settings-row">
-                    <button class="settings-btn" onclick="saveGsUrl()" style="flex:1">&#128190; Save URL</button>
-                    <button class="settings-btn danger" onclick="clearGsUrl()" style="flex:1">&#128465; Clear</button>
-                </div>
+                <h3>&#128202; Google Sheet Sync</h3>
+                <div class="settings-info">Every confirmed scan is logged automatically to the ArtzFolio Google Sheet. This is preset and locked - staff cannot view or change the address.</div>
+                <div class="gs-status" id="gs-status"><span class="gs-ok">&#10003; Google Sheet sync: LIVE (locked)</span></div>
+                <input type="hidden" id="gs-url-input">
                 <div class="settings-row">
                     <button class="settings-btn" onclick="testGsUrl()" style="flex:1">&#128276; Send test row</button>
                 </div>
-                <div class="gs-status" id="gs-status"></div>
                 <div class="settings-notice">&#128161; In your Apps Script, set <strong>doPost(e)</strong> to parse <code>JSON.parse(e.postData.contents)</code>. Fields: ts, empName, empCode, orderID, sku, channel, qty, bin, action.</div>
             </div>
 
@@ -412,8 +405,8 @@
 
             <!-- Version -->
             <div class="ver-badge">
-                <div class="ver-name">&#128230; ArtzFolio Scan-Pick-Pack v20</div>
-                <div class="ver-sub">localStorage &bull; Audit Trail &bull; GS Webhook (LIVE) &bull; Session Recovery</div>
+                <div class="ver-name">&#128230; ArtzFolio Scan-Pick-Pack v21</div>
+                <div class="ver-sub">localStorage &bull; Audit Trail &bull; GS Webhook (LIVE, locked) &bull; Session Recovery</div>
             </div>
         </div>
     </div>
@@ -666,11 +659,9 @@ function pushToGoogleSheets(entry) {
     }
 }
 function testGsUrl() {
-    var url = (document.getElementById('gs-url-input').value || '').trim();
+    var url = loadGsUrl();
     var statusEl = document.getElementById('gs-status');
-    if (!url) { statusEl.innerHTML = '<span class="gs-err">Enter and Save a URL first.</span>'; return; }
-    if (url.indexOf('https://') !== 0) { statusEl.innerHTML = '<span class="gs-err">URL must start with https://</span>'; return; }
-    lsSet(LS_GS_URL, url);
+    if (!url) { statusEl.innerHTML = '<span class="gs-err">No sync address is configured.</span>'; return; }
     var testEntry = { ts: new Date().toISOString(), empName: 'TEST', empCode: 'TEST', orderID: 'TEST-SCAN', sku: 'TEST-SKU', channel: 'TEST', qty: '1', bin: 'TEST-BIN', action: 'WEBHOOK TEST' };
     try {
         var xhr = new XMLHttpRequest();
