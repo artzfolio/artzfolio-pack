@@ -377,7 +377,7 @@
             </div>
 
             <!-- Google Sheets Webhook -->
-            <div class="settings-section" style="display:none">
+            <div class="settings-section">
                 <h3>&#128202; Google Sheets Webhook</h3>
                 <div class="settings-info">Paste your Apps Script Web App URL below. Every confirmed scan event is POST-ed as JSON.</div>
                 <div class="settings-row">
@@ -387,6 +387,9 @@
                 <div class="settings-row">
                     <button class="settings-btn" onclick="saveGsUrl()" style="flex:1">&#128190; Save URL</button>
                     <button class="settings-btn danger" onclick="clearGsUrl()" style="flex:1">&#128465; Clear</button>
+                </div>
+                <div class="settings-row">
+                    <button class="settings-btn" onclick="testGsUrl()" style="flex:1">&#128276; Send test row</button>
                 </div>
                 <div class="gs-status" id="gs-status"></div>
                 <div class="settings-notice">&#128161; In your Apps Script, set <strong>doPost(e)</strong> to parse <code>JSON.parse(e.postData.contents)</code>. Fields: ts, empName, empCode, orderID, sku, channel, qty, bin, action.</div>
@@ -409,8 +412,8 @@
 
             <!-- Version -->
             <div class="ver-badge">
-                <div class="ver-name">&#128230; ArtzFolio Scan-Pick-Pack v19</div>
-                <div class="ver-sub">localStorage &bull; Audit Trail &bull; GS Webhook &bull; Session Recovery</div>
+                <div class="ver-name">&#128230; ArtzFolio Scan-Pick-Pack v20</div>
+                <div class="ver-sub">localStorage &bull; Audit Trail &bull; GS Webhook (LIVE) &bull; Session Recovery</div>
             </div>
         </div>
     </div>
@@ -490,14 +493,14 @@ var state = {
 var CH_COLOR = {
     AMZES:'#E67E22', AMZVC:'#2980B9', AMZSF:'#16A085',
     SHOPIFY:'#27AE60', FLIPKART:'#F39C12', MYNTRA:'#E91E8C',
-    PRIVATE:'#7F8C8D', ETRADE:'#8E44AD', COCOBLU:'#16A085',
+    PRIVATE:'#7F8C8D', ETRADE:'#8E44AD', COCOBLU:'#16A085', FLEX:'#1A6E8C',
     SELLERFLEX:'#1A6E8C', EASYSHIP:'#C0392B', DIRECT:'#7F8C8D',
     MEESHO:'#F06292', GLOWROAD:'#FF7043', B2B:'#607D8B'
 };
 var CH_NAME = {
     AMZES:'Amazon EasyShip', AMZVC:'Amazon Vendor', AMZSF:'Amazon Seller Flex',
     SHOPIFY:'Shopify', FLIPKART:'Flipkart', MYNTRA:'Myntra',
-    PRIVATE:'Direct/B2B', ETRADE:'Etrade', COCOBLU:'Cocoblu',
+    PRIVATE:'Direct/B2B', ETRADE:'Etrade', COCOBLU:'Cocoblu', FLEX:'Seller Flex',
     SELLERFLEX:'Seller Flex', EASYSHIP:'Seller Central', DIRECT:'Direct',
     MEESHO:'Meesho', GLOWROAD:'Glowroad', B2B:'B2B'
 };
@@ -627,7 +630,8 @@ function formatTs(d) {
 
 // ── GOOGLE SHEETS WEBHOOK ────────────────────────────────────
 function loadGsUrl() {
-    return 'https://script.google.com/macros/s/AKfycby3yWOhFVU2gtJeP3jZq0sIcq1i574cNlWxKhKw1ivBDem5WRYQzOQJDP-fmOS8QOzyEQ/exec';
+    // Uses the URL saved in Settings if present, else the ArtzFolio default (live).
+    return lsGet(LS_GS_URL) || 'https://script.google.com/macros/s/AKfycby3yWOhFVU2gtJeP3jZq0sIcq1i574cNlWxKhKw1ivBDem5WRYQzOQJDP-fmOS8QOzyEQ/exec';
 }
 function saveGsUrl() {
     var url = (document.getElementById('gs-url-input').value || '').trim();
@@ -659,6 +663,23 @@ function pushToGoogleSheets(entry) {
         xhr.send(JSON.stringify(entry));
     } catch(e) {
         console.warn('GS webhook error:', e);
+    }
+}
+function testGsUrl() {
+    var url = (document.getElementById('gs-url-input').value || '').trim();
+    var statusEl = document.getElementById('gs-status');
+    if (!url) { statusEl.innerHTML = '<span class="gs-err">Enter and Save a URL first.</span>'; return; }
+    if (url.indexOf('https://') !== 0) { statusEl.innerHTML = '<span class="gs-err">URL must start with https://</span>'; return; }
+    lsSet(LS_GS_URL, url);
+    var testEntry = { ts: new Date().toISOString(), empName: 'TEST', empCode: 'TEST', orderID: 'TEST-SCAN', sku: 'TEST-SKU', channel: 'TEST', qty: '1', bin: 'TEST-BIN', action: 'WEBHOOK TEST' };
+    try {
+        var xhr = new XMLHttpRequest();
+        xhr.open('POST', url, true);
+        xhr.timeout = 8000;
+        xhr.send(JSON.stringify(testEntry));
+        statusEl.innerHTML = '<span class="gs-ok">&#10003; Test row sent. Open your Google Sheet and look for a row where Order ID = TEST-SCAN. If it appears, the webhook works.</span>';
+    } catch(e) {
+        statusEl.innerHTML = '<span class="gs-err">Could not send. Check the URL and your internet connection.</span>';
     }
 }
 
@@ -726,13 +747,27 @@ function parseQR(raw) {
             bin:           p[8],
             lineNum:       p.length >= 10 ? (parseInt(p[9],  10) || 1) : 1,
             totalLines:    p.length >= 11 ? (parseInt(p[10], 10) || 1) : 1,
-            asin:          p.length >= 12 ? p[11].trim() : ''
+            asin:          p.length >= 12 ? p[11].trim() : '',
+            flag:          p.length >= 13 ? p[12].trim().toUpperCase() : ''
         };
     }
     if (p[0] === 'BIN' && p.length >= 2) {
         return { type: 'BIN', binID: p[1].trim() };
     }
     return { type: 'UNKNOWN', raw: raw.trim() };
+}
+
+// ── FLAG ALERT (exception / out-of-stock) ────────────────────
+function applyFlagAlert(parsed){
+    if (!parsed) return;
+    if (parsed.flag === 'EXC') {
+        setStatus('&#9888; SKU NOT IN DATABASE.<br>Do NOT pick from a bin. Check the panel and process this order manually.', 'error');
+        logEvent(parsed.internalID || '\u2014', 'EXCEPTION \u2014 SKU not in database');
+        pulse('e');
+    } else if (parsed.flag === 'MTO') {
+        setStatus('&#9888; OUT OF STOCK &mdash; MANUFACTURE FIRST.<br>Set this order aside (QR + label + invoice) and give it to the supervisor.', 'waiting');
+        logEvent(parsed.internalID || '\u2014', 'OUT OF STOCK \u2014 manufacture first');
+    }
 }
 
 // ── SCAN BAR VISIBILITY ──────────────────────────────────────
@@ -790,6 +825,7 @@ function processScan(value) {
                 );
                 logEvent(parsed.internalID, 'Multi-line item ' + (state.groupDone + 1) + '/' + state.groupTotal + ' loaded');
                 pulse('s');
+                applyFlagAlert(parsed);
             }
         } else {
             setStatus(
@@ -825,6 +861,7 @@ function processScan(value) {
             );
             logEvent(parsed.internalID, 'Pick list QR scanned — ' + (state.groupTotal > 1 ? state.groupTotal + '-item order' : 'single-item order'));
             pulse('s');
+            applyFlagAlert(parsed);
         } else if (parsed && parsed.type === 'BIN') {
             setStatus('&#9888; Got a Bin QR but no order is loaded yet.<br>Scan the <strong>Pick List QR</strong> from column H of the printed pick list first.', 'waiting');
         } else if (parsed && parsed.type === 'UNKNOWN') {
@@ -1124,6 +1161,13 @@ function renderOrderCard() {
     var col   = CH_COLOR[o.channel] || '#7F8C8D';
     var name  = CH_NAME[o.channel]  || o.channel;
 
+    var flagBanner = '';
+    if (o.flag === 'EXC') {
+        flagBanner = '<div style="background:#C0392B;color:#fff;padding:10px 12px;border-radius:8px;font-weight:800;text-align:center;margin-bottom:10px;">&#9888; SKU NOT IN DATABASE<br><span style="font-size:12px;font-weight:600;">Do not pick. Check the panel and process manually.</span></div>';
+    } else if (o.flag === 'MTO') {
+        flagBanner = '<div style="background:#D98A00;color:#fff;padding:10px 12px;border-radius:8px;font-weight:800;text-align:center;margin-bottom:10px;">&#9888; OUT OF STOCK &mdash; MANUFACTURE FIRST<br><span style="font-size:12px;font-weight:600;">Set QR + label + invoice aside for the supervisor.</span></div>';
+    }
+
     var lineRow = state.groupTotal > 1
         ? '<div class="card-row"><span class="card-label">Order Item</span><span class="card-value">' + (state.groupDone + 1) + ' of ' + state.groupTotal + '</span></div>'
         : '';
@@ -1137,6 +1181,7 @@ function renderOrderCard() {
         : '';
 
     document.getElementById('order-card').innerHTML =
+        flagBanner +
         '<div class="card-row"><span class="card-label">Channel</span><span class="card-value"><span class="channel-badge" style="background:' + col + '">' + name + '</span></span></div>' +
         lineRow +
         '<div class="card-row"><span class="card-label">Order ID</span><span class="card-value">' + (o.marketOrderID || '—') + '</span></div>' +
