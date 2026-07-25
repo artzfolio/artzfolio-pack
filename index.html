@@ -8,6 +8,10 @@
     <script src="https://cdn.jsdelivr.net/npm/@zxing/library@0.19.2/umd/index.min.js" onerror="window.ZXing=null;"></script>
     <!-- jsQR: QR-only fallback (offline-capable) -->
     <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js" onerror="window.jsQR=null;"></script>
+    <!-- Supabase JS client — the live inventory database. Loaded async; app still works for
+         pick/pack scanning (against the QR data) if this fails to load, but stock will not
+         update live and the MOVE/STOCK tabs will show an offline notice. -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
         *,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
         body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;background:#f0f2f5;height:100vh;overflow:hidden}
@@ -157,6 +161,24 @@
         .gs-status{font-size:11px;margin-top:6px;min-height:16px}
         .gs-ok{color:#27AE60;font-weight:700}
         .gs-err{color:#c0392b;font-weight:700}
+        /* MOVE / STOCK TABS (live inventory) */
+        .db-offline-banner{display:none;background:#fdedec;border:2px solid #c0392b;border-radius:10px;padding:10px 12px;margin-bottom:10px;font-size:12px;color:#7b241c;font-weight:600}
+        .db-offline-banner.visible{display:block}
+        .pill-row{display:flex;gap:6px;margin-bottom:12px}
+        .pill-btn{flex:1;background:#eef2f8;border:2px solid #dce4f0;border-radius:20px;padding:9px 4px;text-align:center;font-size:11px;font-weight:700;color:#546e7a;cursor:pointer;touch-action:manipulation}
+        .pill-btn.active{background:#1B4F8A;border-color:#1B4F8A;color:#fff}
+        .move-result{font-size:12px;margin-top:6px;min-height:16px;font-weight:600}
+        .move-result.ok{color:#1e8449}
+        .move-result.err{color:#c0392b}
+        .stock-toolbar{display:flex;gap:8px;margin-bottom:10px}
+        .stock-search{flex:1;border:1.5px solid #c5d0de;border-radius:8px;padding:9px 11px;font-size:12px;outline:none}
+        .stock-row{display:flex;justify-content:space-between;align-items:center;padding:9px 10px;border-bottom:1px solid #f0f2f5;font-size:12px}
+        .stock-sku{font-weight:700;color:#1B4F8A}
+        .stock-asin{font-size:10px;color:#888;font-family:monospace}
+        .stock-qty{font-size:15px;font-weight:800;color:#1e8449;padding:3px 10px;border-radius:8px;background:#eafaf1}
+        .stock-qty.low{color:#c0392b;background:#fdedec}
+        .stock-live-dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:#27AE60;margin-right:5px;box-shadow:0 0 0 0 rgba(39,174,96,.6);animation:livepulse 1.6s infinite}
+        @keyframes livepulse{0%{box-shadow:0 0 0 0 rgba(39,174,96,.55)}70%{box-shadow:0 0 0 6px rgba(39,174,96,0)}100%{box-shadow:0 0 0 0 rgba(39,174,96,0)}}
         /* VERSION BADGE */
         .ver-badge{background:linear-gradient(135deg,#1B4F8A,#2980B9);color:#fff;border-radius:10px;padding:12px 14px;text-align:center}
         .ver-name{font-size:16px;font-weight:800;margin-bottom:4px}
@@ -195,6 +217,15 @@
         .emp-save-btn{width:100%;background:linear-gradient(135deg,#1B4F8A,#2980B9);color:#fff;border:none;padding:13px;border-radius:12px;font-size:15px;font-weight:800;cursor:pointer;margin-top:4px;touch-action:manipulation;letter-spacing:.3px}
         .emp-save-btn:active{opacity:.88}
         .emp-err{color:#c0392b;font-size:11px;text-align:center;margin-top:6px;min-height:14px}
+        /* RBAC — tabs hidden for roles without access. !important so a stray
+           inline style or stale class ordering can never leave a forbidden
+           tab visible. */
+        .tab-hidden{display:none!important}
+        .login-alt-link{font-size:11px;color:#888;text-decoration:underline;cursor:pointer}
+        .admin-emp-row{border-bottom:1px solid #eee;padding:10px 0}
+        .admin-emp-row:last-child{border-bottom:none}
+        .admin-emp-actions{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
+        .admin-emp-actions .settings-btn{font-size:11px;padding:6px 10px}
     </style>
 </head>
 <body>
@@ -208,6 +239,7 @@
         <div class="header-right">
             <button class="demo-btn" onclick="loadDemo()" title="Load single-SKU demo">&#9654; Demo</button>
             <button class="demo-btn" onclick="loadDemoMulti()" title="Load multi-SKU demo">&#9654; Multi</button>
+            <button class="demo-btn" onclick="logout()" title="Logout">&#128274; Logout</button>
         </div>
     </div>
 
@@ -301,12 +333,72 @@
             </div>
         </div>
 
+        <!-- MOVE TAB — New Stock In / Returns In / Adjustment. Writes directly to the live
+             database ledger (oms.inventory_transactions). Independent of the pick-and-pack
+             flow above — this is for warehouse events that aren't order dispatch. -->
+        <div id="move-tab" class="tab-content">
+            <div class="db-offline-banner" id="move-offline-banner">&#9888; Live database not reachable right now. Movements cannot be recorded until this reconnects — check your internet connection.</div>
+            <div class="pill-row">
+                <div class="pill-btn active" id="move-pill-NEW_STOCK_IN" onclick="setMoveMode('NEW_STOCK_IN')">&#128230; New Stock</div>
+                <div class="pill-btn" id="move-pill-RETURN_IN" onclick="setMoveMode('RETURN_IN')">&#8617; Returns</div>
+                <div class="pill-btn" id="move-pill-ADJUSTMENT_FOUND" onclick="setMoveMode('ADJUSTMENT_FOUND')">&#10133; Found</div>
+                <div class="pill-btn" id="move-pill-ADJUSTMENT_LOST_THEFT" onclick="setMoveMode('ADJUSTMENT_LOST_THEFT')">&#10134; Lost/Theft</div>
+                <div class="pill-btn" id="move-pill-QC_HOLD" onclick="setMoveMode('QC_HOLD')">&#128295; QC Hold</div>
+            </div>
+            <div class="settings-section">
+                <h3 id="move-mode-title">&#128230; New Stock In</h3>
+                <div class="settings-info" id="move-mode-desc">Scan or type the SKU or ASIN barcode of the product being brought into stock, enter the quantity, then submit. This adds to live stock immediately.</div>
+                <div class="settings-row">
+                    <input type="text" class="settings-input" id="move-sku-input" placeholder="Scan or type SKU / ASIN" autocomplete="off" autocorrect="off" autocapitalize="off">
+                </div>
+                <div class="settings-row">
+                    <input type="number" class="settings-input" id="move-qty-input" placeholder="Quantity" min="1" value="1" style="max-width:110px">
+                    <input type="text" class="settings-input" id="move-note-input" placeholder="Note (optional — e.g. PO number, reason)">
+                </div>
+                <div class="settings-row">
+                    <button class="settings-btn" style="flex:1" onclick="submitMoveTransaction()">&#10003; Submit</button>
+                </div>
+                <div class="move-result" id="move-result"></div>
+            </div>
+        </div>
+
+        <!-- STOCK TAB — live, read-only view of oms.current_stock. Updates in real time via
+             a Supabase Realtime subscription: any scan by any employee on any device pushes
+             a refresh here within moments. -->
+        <div id="stock-tab" class="tab-content">
+            <div class="db-offline-banner" id="stock-offline-banner">&#9888; Live database not reachable right now. Showing no data until this reconnects.</div>
+            <div class="cam-error-banner" id="low-stock-banner" style="margin-bottom:10px;"><strong id="low-stock-banner-text">&#9888; 0 SKUs at or below reorder point</strong></div>
+            <div class="log-header">
+                <h2><span class="stock-live-dot" id="stock-live-dot" style="display:none;"></span>Live Stock (<span id="stock-count">0</span>)</h2>
+                <button class="csv-btn" onclick="loadStockTab(true)">&#8635; Refresh</button>
+            </div>
+            <div class="stock-toolbar">
+                <input type="text" class="stock-search" id="stock-search-input" placeholder="Filter by SKU, ASIN, or product name..." oninput="renderStockList()">
+            </div>
+            <div id="stock-list"><div style="text-align:center;color:#aaa;font-size:12px;padding:20px 0;">Loading...</div></div>
+        </div>
+
         <!-- LOG TAB -->
         <div id="log-tab" class="tab-content">
             <div class="log-header">
                 <h2>&#128220; Scan Log (<span id="log-count">0</span>)</h2>
                 <button class="csv-btn" onclick="exportCSV()">&#8595; CSV</button>
             </div>
+            <div class="settings-notice" id="log-scope-note" style="display:none;margin-bottom:8px;">&#128100; Showing your activity only.</div>
+
+            <!-- DAILY RECONCILIATION (v38) — store-wide summary, only visible to
+                 roles with logScope:'all' (INVENTORY_LEAD, PRODUCTION_LEAD, ADMIN).
+                 Hidden entirely for WAREHOUSE_STAFF/BILLING_OPERATOR since it is
+                 not "own activity". Refreshed each time the LOG tab is opened. -->
+            <div class="settings-section" id="reconciliation-section" style="display:none;">
+                <h3>&#128202; Today&rsquo;s Reconciliation (all SKUs)</h3>
+                <div class="cam-error-banner" id="negative-stock-banner" style="margin-bottom:10px;">
+                    <strong>&#9888; Negative stock detected</strong>
+                    <span id="negative-stock-text"></span>
+                </div>
+                <div id="reconciliation-body" class="settings-info">Loading...</div>
+            </div>
+
             <ul class="log-list" id="log-list">
                 <li style="text-align:center;color:#aaa;font-size:12px;padding:20px 0;">No scans yet</li>
             </ul>
@@ -369,11 +461,40 @@
         <!-- SETTINGS TAB -->
         <div id="settings-tab" class="tab-content">
 
-            <!-- Employee -->
+            <!-- Employee (v37: real login session, not free-text) -->
             <div class="settings-section">
-                <h3>&#128100; Active Employee</h3>
+                <h3>&#128100; Logged-In Employee</h3>
                 <div class="settings-info" id="settings-emp-display">Not set</div>
-                <button class="settings-btn" onclick="showEmployeeModal()">&#9997; Change Employee</button>
+                <button class="settings-btn danger" onclick="logout()">&#128274; Logout</button>
+            </div>
+
+            <!-- ADMIN ONLY: Employee management panel. Hidden entirely for
+                 non-ADMIN roles (see renderAdminPanel()). -->
+            <div class="settings-section" id="admin-panel-section" style="display:none;">
+                <h3>&#128118; Employee Management (Admin)</h3>
+                <div class="settings-info">Add employees, deactivate/reactivate accounts, and reset PINs.</div>
+                <div id="admin-emp-table"><div class="settings-info">Loading...</div></div>
+                <div style="margin-top:12px;padding-top:12px;border-top:1px solid #dce4f0;">
+                    <div class="settings-info" style="font-weight:700;color:#1B4F8A;">&#10133; Add Employee</div>
+                    <div class="settings-row">
+                        <input type="text" class="settings-input" id="admin-add-code" placeholder="Employee code" autocomplete="off" oninput="this.value=this.value.toUpperCase()">
+                        <input type="text" class="settings-input" id="admin-add-name" placeholder="Display name" autocomplete="off">
+                    </div>
+                    <div class="settings-row">
+                        <select class="settings-input" id="admin-add-role">
+                            <option value="WAREHOUSE_STAFF">Warehouse Staff</option>
+                            <option value="BILLING_OPERATOR">Billing Operator</option>
+                            <option value="INVENTORY_LEAD">Inventory Lead</option>
+                            <option value="PRODUCTION_LEAD">Production Lead</option>
+                            <option value="ADMIN">Admin</option>
+                        </select>
+                        <input type="tel" inputmode="numeric" maxlength="4" class="settings-input" id="admin-add-pin" placeholder="4-digit PIN" style="max-width:110px">
+                    </div>
+                    <div class="settings-row">
+                        <button class="settings-btn" style="flex:1" onclick="adminAddEmployee()">&#10003; Add Employee</button>
+                    </div>
+                    <div class="move-result" id="admin-add-result"></div>
+                </div>
             </div>
 
             <!-- Google Sheet Sync (LOCKED - URL is built into the app, staff cannot change it) -->
@@ -405,8 +526,8 @@
 
             <!-- Version -->
             <div class="ver-badge">
-                <div class="ver-name">&#128230; ArtzFolio Scan-Pick-Pack v21</div>
-                <div class="ver-sub">localStorage &bull; Audit Trail &bull; GS Webhook (LIVE, locked) &bull; Session Recovery</div>
+                <div class="ver-name">&#128230; ArtzFolio Scan-Pick-Pack v38</div>
+                <div class="ver-sub">QC Hold/Damage &bull; Low-Stock Alerts &bull; Daily Reconciliation &bull; Admin PIN-Lock Unlock &bull; Real Employee Login (PIN) &bull; RBAC &bull; Live Database (Supabase)</div>
             </div>
         </div>
     </div>
@@ -414,6 +535,8 @@
     <!-- BOTTOM TAB BAR -->
     <div class="tab-nav">
         <button class="tab-btn active" id="tab-pick"     onclick="switchTab('pick')">&#128230; PICK</button>
+        <button class="tab-btn"        id="tab-move"     onclick="switchTab('move')">&#128260; MOVE</button>
+        <button class="tab-btn"        id="tab-stock"    onclick="switchTab('stock')">&#128202; STOCK</button>
         <button class="tab-btn"        id="tab-log"      onclick="switchTab('log')">&#128220; LOG</button>
         <button class="tab-btn"        id="tab-guide"    onclick="switchTab('guide')">&#10067; GUIDE</button>
         <button class="tab-btn"        id="tab-settings" onclick="switchTab('settings')">&#9881; SET</button>
@@ -434,21 +557,51 @@
     <div id="flash"></div>
 </div>
 
-<!-- EMPLOYEE MODAL -->
-<div class="emp-modal-bg" id="emp-modal-bg">
-    <div class="emp-modal">
-        <h2>&#128100; Who is packing today?</h2>
-        <p>Enter your name and employee code to begin. This is saved on the device and included in every scan record.</p>
+<!-- LOGIN MODAL (v37 — replaces the v36 free-text employee modal with real
+     PIN-verified login against oms_verify_login()). Two views toggled by
+     display:none — Login and First-Time Setup — share the same overlay. -->
+<div class="emp-modal-bg" id="login-modal-bg">
+    <div class="emp-modal" id="login-view">
+        <h2>&#128274; Employee Login</h2>
+        <p>Enter your employee code and 4-digit PIN to begin.</p>
         <div class="emp-field">
-            <label for="emp-name-input">Full Name</label>
-            <input type="text" id="emp-name-input" placeholder="e.g. Rajat K" autocomplete="off" autocorrect="off">
+            <label for="login-code-input">Employee Code</label>
+            <input type="text" id="login-code-input" placeholder="e.g. EMP001" autocomplete="off" autocorrect="off" autocapitalize="characters" oninput="this.value=this.value.toUpperCase()">
         </div>
         <div class="emp-field">
-            <label for="emp-code-input">Employee Code</label>
-            <input type="text" id="emp-code-input" placeholder="e.g. EMP001" autocomplete="off" autocapitalize="characters">
+            <label for="login-pin-input">4-Digit PIN</label>
+            <input type="tel" inputmode="numeric" maxlength="4" id="login-pin-input" placeholder="&bull;&bull;&bull;&bull;" autocomplete="off">
         </div>
-        <button class="emp-save-btn" onclick="saveEmployeeModal()">&#10003;&nbsp; Start Session</button>
-        <div class="emp-err" id="emp-err"></div>
+        <button class="emp-save-btn" onclick="attemptLogin()">&#10003;&nbsp; Login</button>
+        <div class="emp-err" id="login-err"></div>
+        <div style="text-align:center;margin-top:14px;">
+            <span class="login-alt-link" onclick="showFirstTimeSetup()">First time setup &mdash; create Admin account</span>
+        </div>
+    </div>
+    <div class="emp-modal" id="setup-view" style="display:none;">
+        <h2>&#128272; First-Time Setup</h2>
+        <p>Create the first Admin account for this pilot. Only do this once — after that, use Login.</p>
+        <div class="emp-field">
+            <label for="setup-code-input">Employee Code</label>
+            <input type="text" id="setup-code-input" placeholder="e.g. ADMIN01" autocomplete="off" oninput="this.value=this.value.toUpperCase()">
+        </div>
+        <div class="emp-field">
+            <label for="setup-name-input">Display Name</label>
+            <input type="text" id="setup-name-input" placeholder="e.g. Rajat K" autocomplete="off">
+        </div>
+        <div class="emp-field">
+            <label for="setup-pin1-input">4-Digit PIN</label>
+            <input type="tel" inputmode="numeric" maxlength="4" id="setup-pin1-input" placeholder="&bull;&bull;&bull;&bull;" autocomplete="off">
+        </div>
+        <div class="emp-field">
+            <label for="setup-pin2-input">Confirm PIN</label>
+            <input type="tel" inputmode="numeric" maxlength="4" id="setup-pin2-input" placeholder="&bull;&bull;&bull;&bull;" autocomplete="off">
+        </div>
+        <button class="emp-save-btn" onclick="submitFirstTimeSetup()">&#10003;&nbsp; Create Admin Account</button>
+        <div class="emp-err" id="setup-err"></div>
+        <div style="text-align:center;margin-top:14px;">
+            <span class="login-alt-link" onclick="showLoginView()">&larr; Back to Login</span>
+        </div>
     </div>
 </div>
 
@@ -466,10 +619,122 @@
 // NOTE: no optional chaining (?.) no nullish coalescing (??)
 //       no const/let, no arrow functions -> ES5-safe for Chrome < v80
 // =============================================================
+// v35 (2026-07-25): SKU/ASIN match in the NEED_SKU handler fixed to strict
+// equality (see inline "v35 FIX" comment below). Same bug class as the v34
+// bin-code fix — the substring indexOf() checks let a random scan that was
+// merely a fragment of (or contained) the real SKU/ASIN pass as verified,
+// which also explains the reported "quantity accepts random values" symptom
+// since a false match still increments the qty counter. No other logic
+// changed.
+// v36 (2026-07-25): FIRST version wired to the live cloud database
+// (Supabase). NEW, additive, existing pick-and-pack scan logic UNCHANGED:
+//   1. Every time a pick line finishes its required scans (the exact
+//      moment the app already knew "this SKU/qty/bin is verified picked"),
+//      a row is now also written to oms.inventory_transactions
+//      (txn_type=SCAN_OUT_ORDER) — this is what actually deducts live
+//      stock, in real time, the instant it happens on the warehouse floor.
+//   2. New MOVE tab — New Stock In / Returns In / Found / Lost-Theft.
+//      Independent of order picking; for warehouse events that aren't a
+//      dispatch. Each submit is one ledger row.
+//   3. New STOCK tab — live read of oms.current_stock, refreshed instantly
+//      via a Realtime subscription whenever ANY device (any employee, any
+//      tab) writes a new transaction — this is what makes "3 people
+//      scanning different things at once" reflect everywhere in a jiffy.
+//   4. If the database is unreachable, PICK still works exactly as v35
+//      (against the QR data) — MOVE/STOCK show an offline banner instead
+//      of silently failing.
+// v37 (2026-07-25): Real employee login + role-based access control (RBAC).
+// NEW, additive around the v36 pick/move/stock logic — none of that logic
+// was changed:
+//   1. The old free-text "employee modal" (name + code, no verification) is
+//      REPLACED by a real login screen: employee code + 4-digit PIN,
+//      verified server-side via the new oms_verify_login() RPC. No offline
+//      login bypass — if the database can't be reached, login is refused
+//      (deliberate security choice for a shared warehouse tablet).
+//   2. Session is stored in sessionStorage (key oms_session, NOT
+//      localStorage) — survives a page refresh mid-shift, but requires a
+//      fresh login once the browser tab is closed.
+//   3. First-run bootstrap: since oms_employees starts empty, the login
+//      screen always shows a low-emphasis "First time setup — create Admin
+//      account" link. It inserts one ADMIN row + sets its PIN, then returns
+//      to Login.
+//   4. New ROLE_PERMISSIONS matrix (5 roles: WAREHOUSE_STAFF,
+//      BILLING_OPERATOR, INVENTORY_LEAD, PRODUCTION_LEAD, ADMIN) drives
+//      which bottom-nav tabs are visible. switchTab() itself now refuses to
+//      enter a tab the logged-in role can't access, so a stale button
+//      reference or programmatic call can't bypass the UI hiding.
+//   5. LOG tab: WAREHOUSE_STAFF and BILLING_OPERATOR see only their own
+//      entries (matched by employee code already recorded on each local log
+//      entry) with a "Showing your activity only" note; other roles see
+//      everything, same as v36.
+//   6. New ADMIN-only "Employee Management" panel inside SET: list all
+//      employees, add new ones, deactivate/reactivate, reset PINs — all via
+//      oms_employees inserts/updates and the oms_set_pin() RPC.
+//   7. loadEmployee() now reads from the logged-in session instead of
+//      localStorage — this is what threads the real employee_code into
+//      every writeLedgerTxn() call (pick-out deductions, MOVE tab
+//      submissions) without touching those functions' own logic.
+//   8. Added a Logout control in the header (always visible, any role) and
+//      in the Settings tab (Admin-reachable), both clearing sessionStorage
+//      and returning to the login screen.
+// v38 (2026-07-25): 4 additive "Tier 1" features. NONE of the v36/v37 pick,
+// move, stock, login, or RBAC-hiding logic below was rewritten — only
+// extended in place, following the exact existing patterns:
+//   1. 5th MOVE mode — QC Hold / Damage (txn_type QC_HOLD, sign -1, note
+//      required before submit — same accountability rule as Lost/Theft).
+//      Added as a new key in the existing MOVE_MODES object and a 5th pill
+//      in the MOVE tab pill-row; submitMoveTransaction()'s required-note
+//      check now also covers QC_HOLD.
+//   2. STOCK tab low-stock indicator — loadStockTab() now also queries the
+//      new oms_low_stock view (SKUs at/below their reorder_threshold) after
+//      loading oms_current_stock, and renderStockList() cross-references
+//      that set to add the (already-defined-but-unused) .stock-qty.low CSS
+//      class and a "⚠ N SKUs at or below reorder point" banner (hidden when
+//      N is 0). Most SKUs have reorder_threshold=0 (not yet configured), so
+//      an empty/hidden banner most of the time is expected, not a bug.
+//   3. LOG tab daily reconciliation — new store-wide summary block (today's
+//      picked/new-stock/returns/found/lost-theft/QC-hold totals + txn count,
+//      summed client-side from oms_daily_reconciliation) plus a red banner
+//      listing any SKUs from oms_negative_stock_flags. Loaded by
+//      loadReconciliation(), called from switchTab('log'). Visible only to
+//      roles with ROLE_PERMISSIONS[...].logScope === 'all' (INVENTORY_LEAD,
+//      PRODUCTION_LEAD, ADMIN) — same roles that already see store-wide LOG
+//      entries; WAREHOUSE_STAFF/BILLING_OPERATOR (logScope 'own') never see
+//      this section.
+//   4. Admin unlock — loadAdminEmployees() now also selects locked_until and
+//      failed_pin_count; renderAdminEmpTable() shows a "🔓 Unlock" button
+//      only when locked_until is in the future, calling the new
+//      adminUnlockEmployee() which invokes oms_admin_unlock() then reloads
+//      the row. oms_verify_login()'s lockout messages already flow through
+//      unchanged via the existing login-err element.
+// =============================================================
+
+// ── LIVE DATABASE CONFIG ─────────────────────────────────────
+// Points at the "oms" schema, currently co-located inside the ArtzFolio
+// HRMS Supabase project pending Rajat's org plan upgrade to a dedicated
+// project (see 2026-07-25 decision log). To migrate: create the new
+// project, re-run the same "oms_live_inventory_foundation" migration
+// there, then change ONLY the two constants below — nothing else in this
+// file needs to change.
+var DB_URL     = 'https://vvtwcggcfopnfddiffxb.supabase.co';
+var DB_ANON_KEY = 'sb_publishable_eccWE8_s6ozNzewz6_5o1w_XIvFSovQ';
+var db = null;
+var dbOnline = false;
+try {
+    if (window.supabase && window.supabase.createClient) {
+        db = window.supabase.createClient(DB_URL, DB_ANON_KEY);
+        // Tables live in the 'public' schema with an oms_ prefix (not a real 'oms'
+        // schema) — PostgREST only exposes 'public' by default on this project, and
+        // rather than depend on a dashboard-only config change, the tables were moved
+        // here. See 2026-07-25 decision log.
+        dbOnline = true;
+    }
+} catch (e) { console.warn('DB init failed:', e); dbOnline = false; }
 
 // ── STATE ────────────────────────────────────────────────────
 var state = {
     tab:          'pick',
+    session:      null,    // { employee_code, display_name, role } — set on login (v37)
     pickState:    'IDLE',  // IDLE | NEED_BIN | NEED_SKU | NEXT_LINE | READY
     order:        null,
     bin:          null,
@@ -498,6 +763,19 @@ var CH_NAME = {
     MEESHO:'Meesho', GLOWROAD:'Glowroad', B2B:'B2B'
 };
 
+// ── ROLE-BASED ACCESS CONTROL (v37) ──────────────────────────
+// Single source of truth for which bottom-nav tabs each role can see.
+// Adjust here only — switchTab() and applyRolePermissions() both read this.
+// logScope: 'own' = LOG tab filters to the logged-in employee's own entries;
+// 'all' = sees everything (matches v36 behaviour).
+var ROLE_PERMISSIONS = {
+    WAREHOUSE_STAFF:  { pick:true,  move:false, stock:false, log:true, guide:true, settings:false, logScope:'own' },
+    BILLING_OPERATOR: { pick:true,  move:false, stock:true,  log:true, guide:true, settings:false, logScope:'own' },
+    INVENTORY_LEAD:   { pick:true,  move:true,  stock:true,  log:true, guide:true, settings:false, logScope:'all' },
+    PRODUCTION_LEAD:  { pick:false, move:false, stock:true,  log:true, guide:true, settings:false, logScope:'all' },
+    ADMIN:            { pick:true,  move:true,  stock:true,  log:true, guide:true, settings:true,  logScope:'all' }
+};
+
 // ── LOCALSTORAGE KEYS ────────────────────────────────────────
 var LS_EMP     = 'af_employee';
 var LS_LOG     = 'af_log';
@@ -523,41 +801,356 @@ function lsSetJSON(key, val) {
     try { lsSet(key, JSON.stringify(val)); } catch(e) {}
 }
 
-// ── EMPLOYEE ─────────────────────────────────────────────────
+// ── EMPLOYEE (v37: sourced from the logged-in session, not free text) ───
+// loadEmployee() keeps its v36 name/shape ({name, code}) so every existing
+// call site (logEvent, writeLedgerTxn, submitMoveTransaction) automatically
+// picks up the real, PIN-verified employee_code without those functions
+// needing any change — this is the mechanism that threads real employee
+// attribution into every ledger transaction.
 function loadEmployee() {
-    return lsGetJSON(LS_EMP);
-}
-function showEmployeeModal() {
-    var emp = loadEmployee();
-    var nameEl = document.getElementById('emp-name-input');
-    var codeEl = document.getElementById('emp-code-input');
-    if (nameEl && emp) nameEl.value = emp.name || '';
-    if (codeEl && emp) codeEl.value = emp.code || '';
-    var errEl = document.getElementById('emp-err');
-    if (errEl) errEl.textContent = '';
-    document.getElementById('emp-modal-bg').classList.add('active');
-    setTimeout(function() { try { document.getElementById('emp-name-input').focus(); } catch(e) {} }, 100);
-}
-function saveEmployeeModal() {
-    var nameVal = (document.getElementById('emp-name-input').value || '').trim();
-    var codeVal = (document.getElementById('emp-code-input').value || '').trim().toUpperCase();
-    var errEl   = document.getElementById('emp-err');
-    if (!nameVal) { errEl.textContent = 'Please enter your name.'; return; }
-    if (!codeVal) { errEl.textContent = 'Please enter your employee code.'; return; }
-    lsSetJSON(LS_EMP, { name: nameVal, code: codeVal });
-    document.getElementById('emp-modal-bg').classList.remove('active');
-    updateSettingsEmployeeDisplay();
-    logEvent('—', 'Session started by ' + nameVal + ' (' + codeVal + ')');
+    if (!state.session) return null;
+    return { name: state.session.display_name, code: state.session.employee_code };
 }
 function updateSettingsEmployeeDisplay() {
-    var emp  = loadEmployee();
-    var el   = document.getElementById('settings-emp-display');
+    var el = document.getElementById('settings-emp-display');
     if (!el) return;
-    if (emp && emp.name) {
-        el.innerHTML = '<span class="settings-chip">&#128100; ' + emp.name + ' &mdash; ' + emp.code + '</span>';
+    if (state.session) {
+        el.innerHTML = '<span class="settings-chip">&#128100; ' + state.session.display_name +
+            ' &mdash; ' + state.session.employee_code + ' &mdash; ' + state.session.role + '</span>';
     } else {
-        el.textContent = 'Not set — tap Change Employee';
+        el.textContent = 'Not logged in';
     }
+}
+
+// ── LOGIN / SESSION (v37) ─────────────────────────────────────
+// Session lives in sessionStorage (NOT localStorage) — deliberate: a shared
+// warehouse tablet should require login again after the tab is closed, but
+// survive an accidental page refresh mid-shift.
+var OMS_SESSION_KEY = 'oms_session';
+function loadSessionFromStorage() {
+    try {
+        var raw = sessionStorage.getItem(OMS_SESSION_KEY);
+        if (!raw) return null;
+        var parsed = JSON.parse(raw);
+        if (parsed && parsed.employee_code && parsed.role) return parsed;
+        return null;
+    } catch (e) { return null; }
+}
+function saveSessionToStorage(sess) {
+    try { sessionStorage.setItem(OMS_SESSION_KEY, JSON.stringify(sess)); } catch (e) {}
+}
+function clearSessionStorage() {
+    try { sessionStorage.removeItem(OMS_SESSION_KEY); } catch (e) {}
+}
+
+function showLoginModal() {
+    document.getElementById('login-modal-bg').classList.add('active');
+    showLoginView();
+    setTimeout(function() { try { document.getElementById('login-code-input').focus(); } catch (e) {} }, 100);
+}
+function showLoginView() {
+    document.getElementById('login-view').style.display = '';
+    document.getElementById('setup-view').style.display = 'none';
+    var e = document.getElementById('setup-err'); if (e) e.textContent = '';
+}
+function showFirstTimeSetup() {
+    document.getElementById('login-view').style.display = 'none';
+    document.getElementById('setup-view').style.display = '';
+    var e = document.getElementById('login-err'); if (e) e.textContent = '';
+    setTimeout(function() { try { document.getElementById('setup-code-input').focus(); } catch (e) {} }, 100);
+}
+
+function attemptLogin() {
+    var codeEl = document.getElementById('login-code-input');
+    var pinEl  = document.getElementById('login-pin-input');
+    var errEl  = document.getElementById('login-err');
+    var code = (codeEl.value || '').trim().toUpperCase();
+    var pin  = (pinEl.value || '').trim();
+    errEl.textContent = '';
+    if (!code) { errEl.textContent = 'Enter your employee code.'; return; }
+    if (!/^\d{4}$/.test(pin)) { errEl.textContent = 'PIN must be exactly 4 digits.'; return; }
+    if (!db) {
+        errEl.textContent = 'Cannot verify login — database unreachable. Check connection and retry.';
+        return;
+    }
+    errEl.textContent = 'Checking...';
+    db.rpc('oms_verify_login', {
+        p_employee_code: code,
+        p_pin: pin,
+        p_device_hint: navigator.userAgent.slice(0, 120)
+    }).then(function(res) {
+        if (res.error) {
+            errEl.textContent = 'Cannot verify login — database unreachable. Check connection and retry.';
+            return;
+        }
+        var row = (res.data && res.data.length) ? res.data[0] : null;
+        if (!row) {
+            errEl.textContent = 'Cannot verify login — database unreachable. Check connection and retry.';
+            return;
+        }
+        if (!row.ok) {
+            errEl.textContent = row.message || 'Login failed. Check your code and PIN.';
+            return;
+        }
+        var sess = { employee_code: row.employee_code, display_name: row.display_name, role: row.role };
+        state.session = sess;
+        saveSessionToStorage(sess);
+        errEl.textContent = '';
+        pinEl.value = '';
+        enterApp();
+    }).catch(function() {
+        errEl.textContent = 'Cannot verify login — database unreachable. Check connection and retry.';
+    });
+}
+
+function submitFirstTimeSetup() {
+    var codeEl = document.getElementById('setup-code-input');
+    var nameEl = document.getElementById('setup-name-input');
+    var pin1El = document.getElementById('setup-pin1-input');
+    var pin2El = document.getElementById('setup-pin2-input');
+    var errEl  = document.getElementById('setup-err');
+    var code = (codeEl.value || '').trim().toUpperCase();
+    var name = (nameEl.value || '').trim();
+    var pin1 = (pin1El.value || '').trim();
+    var pin2 = (pin2El.value || '').trim();
+    errEl.textContent = '';
+    if (!code) { errEl.textContent = 'Enter an employee code.'; return; }
+    if (!name) { errEl.textContent = 'Enter a display name.'; return; }
+    if (!/^\d{4}$/.test(pin1)) { errEl.textContent = 'PIN must be exactly 4 digits.'; return; }
+    if (pin1 !== pin2) { errEl.textContent = 'PINs do not match.'; return; }
+    if (!db) { errEl.textContent = 'Cannot create account — database unreachable. Check connection and retry.'; return; }
+
+    errEl.textContent = 'Creating account...';
+    db.from('oms_employees').insert({
+        company_id: 'artzfolio', employee_code: code, display_name: name, role: 'ADMIN', active: true
+    }).select().then(function(res) {
+        if (res.error) {
+            var msg = res.error.message || '';
+            if (res.error.code === '23505' || /duplicate|unique/i.test(msg)) {
+                errEl.textContent = 'This employee code already exists — use Login instead.';
+            } else {
+                errEl.textContent = 'Could not create account: ' + msg;
+            }
+            return;
+        }
+        db.rpc('oms_set_pin', { p_employee_code: code, p_new_pin: pin1 }).then(function(res2) {
+            if (res2.error) {
+                errEl.textContent = 'Account created, but the PIN could not be set (' + res2.error.message + '). Contact support.';
+                return;
+            }
+            codeEl.value = ''; nameEl.value = ''; pin1El.value = ''; pin2El.value = '';
+            document.getElementById('login-code-input').value = code;
+            showLoginView();
+            var loginErr = document.getElementById('login-err');
+            if (loginErr) loginErr.innerHTML = '<span style="color:#1e8449;">Admin account created &mdash; please log in.</span>';
+        }).catch(function() {
+            errEl.textContent = 'Account created, but the PIN could not be set. Contact support.';
+        });
+    }).catch(function(err) {
+        errEl.textContent = 'Could not create account: ' + String(err);
+    });
+}
+
+// Called once after a successful login (fresh, or restored from
+// sessionStorage on page load) — applies RBAC and lands on an allowed tab.
+function enterApp() {
+    var bg = document.getElementById('login-modal-bg');
+    if (bg) bg.classList.remove('active');
+    applyRolePermissions();
+    updateSettingsEmployeeDisplay();
+    var perm = ROLE_PERMISSIONS[state.session.role] || {};
+    if (perm[state.tab]) {
+        switchTab(state.tab);
+    } else {
+        var order = ['pick', 'stock', 'move', 'log', 'guide', 'settings'];
+        for (var i = 0; i < order.length; i++) {
+            if (perm[order[i]]) { switchTab(order[i]); break; }
+        }
+    }
+}
+
+function logout() {
+    clearSessionStorage();
+    state.session = null;
+    location.reload();
+}
+
+// Hides (display:none, not just disabled) the bottom-nav buttons for tabs
+// the logged-in role cannot access. switchTab() itself also refuses to
+// enter a forbidden tab, so this is belt-and-braces, not the only guard.
+function applyRolePermissions() {
+    if (!state.session) return;
+    var perm = ROLE_PERMISSIONS[state.session.role] || {};
+    var tabMap = { pick: 'tab-pick', move: 'tab-move', stock: 'tab-stock', log: 'tab-log', guide: 'tab-guide', settings: 'tab-settings' };
+    for (var key in tabMap) {
+        var btn = document.getElementById(tabMap[key]);
+        if (!btn) continue;
+        if (perm[key]) btn.classList.remove('tab-hidden');
+        else btn.classList.add('tab-hidden');
+    }
+    renderAdminPanel();
+}
+
+// ── ADMIN-ONLY EMPLOYEE MANAGEMENT (v37, SET tab) ────────────
+var adminEmployees = [];
+function renderAdminPanel() {
+    var section = document.getElementById('admin-panel-section');
+    if (!section) return;
+    if (!state.session || state.session.role !== 'ADMIN') {
+        section.style.display = 'none';
+        return;
+    }
+    section.style.display = 'block';
+    loadAdminEmployees();
+}
+function loadAdminEmployees() {
+    var tableEl = document.getElementById('admin-emp-table');
+    if (!tableEl) return;
+    if (!db) { tableEl.innerHTML = '<div class="settings-info">Database unreachable — cannot load employees.</div>'; return; }
+    tableEl.innerHTML = '<div class="settings-info">Loading...</div>';
+    db.from('oms_employees').select('employee_code,display_name,role,active,last_login_at,locked_until,failed_pin_count').order('employee_code')
+        .then(function(res) {
+            if (res.error) { tableEl.innerHTML = '<div class="settings-info">Error: ' + res.error.message + '</div>'; return; }
+            adminEmployees = res.data || [];
+            renderAdminEmpTable();
+        }).catch(function() {
+            tableEl.innerHTML = '<div class="settings-info">Error loading employees.</div>';
+        });
+}
+function renderAdminEmpTable() {
+    var tableEl = document.getElementById('admin-emp-table');
+    if (!tableEl) return;
+    if (!adminEmployees.length) { tableEl.innerHTML = '<div class="settings-info">No employees yet.</div>'; return; }
+    var html = '';
+    for (var i = 0; i < adminEmployees.length; i++) {
+        var e = adminEmployees[i];
+        var lastLogin = e.last_login_at ? new Date(e.last_login_at).toLocaleString('en-IN') : 'Never';
+        var chipColor = e.active ? '#27AE60' : '#BDC3C7';
+        // v38: show an Unlock button only while locked_until is still in the
+        // future — a past/never-set locked_until means nothing to unlock, so
+        // omit the button entirely rather than showing a disabled one.
+        var isLocked = !!(e.locked_until && new Date(e.locked_until).getTime() > Date.now());
+        var unlockBtn = isLocked
+            ? '<button class="settings-btn danger" onclick="adminUnlockEmployee(\'' + e.employee_code + '\')">&#128275; Unlock</button>'
+            : '';
+        html += '<div class="admin-emp-row">' +
+            '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;">' +
+                '<div><strong style="color:#1B4F8A;">' + e.employee_code + '</strong> &mdash; ' + (e.display_name || '') + '</div>' +
+                '<span class="settings-chip" style="margin-bottom:0;background:' + chipColor + ';">' + (e.active ? 'Active' : 'Inactive') + '</span>' +
+            '</div>' +
+            '<div style="font-size:11px;color:#888;margin:4px 0;">Role: ' + e.role + ' &bull; Last login: ' + lastLogin +
+                (isLocked ? ' &bull; <strong style="color:#c0392b;">Locked until ' + new Date(e.locked_until).toLocaleString('en-IN') + '</strong>' : '') +
+            '</div>' +
+            '<div class="admin-emp-actions">' +
+                '<button class="settings-btn" onclick="adminToggleActive(\'' + e.employee_code + '\',' + (e.active ? 'true' : 'false') + ')">' + (e.active ? 'Deactivate' : 'Reactivate') + '</button>' +
+                '<button class="settings-btn" onclick="adminShowResetPin(\'' + e.employee_code + '\')">Reset PIN</button>' +
+                unlockBtn +
+            '</div>' +
+            '<div id="admin-resetpin-' + e.employee_code + '" style="display:none;margin-top:8px;"></div>' +
+            '<div class="move-result" id="admin-unlock-result-' + e.employee_code + '"></div>' +
+        '</div>';
+    }
+    tableEl.innerHTML = html;
+}
+function adminToggleActive(code, currentActive) {
+    if (!db) return;
+    db.from('oms_employees').update({ active: !currentActive }).eq('employee_code', code).then(function(res) {
+        if (res.error) { alert('Could not update: ' + res.error.message); return; }
+        loadAdminEmployees();
+    });
+}
+// v38: clears an employee's PIN lockout (oms_admin_unlock RPC). ADMIN-only
+// from the UI (not enforced server-side yet — same MVP trade-off as the
+// other RPCs in this app, e.g. oms_set_pin).
+function adminUnlockEmployee(code) {
+    if (!db) return;
+    var resEl = document.getElementById('admin-unlock-result-' + code);
+    if (resEl) { resEl.className = 'move-result'; resEl.textContent = 'Unlocking...'; }
+    db.rpc('oms_admin_unlock', { p_employee_code: code }).then(function(res) {
+        if (res.error) {
+            if (resEl) { resEl.className = 'move-result err'; resEl.textContent = 'Error: ' + res.error.message; }
+            return;
+        }
+        if (resEl) { resEl.className = 'move-result ok'; resEl.textContent = '✓ Unlocked.'; }
+        loadAdminEmployees();
+    }).catch(function(err) {
+        if (resEl) { resEl.className = 'move-result err'; resEl.textContent = 'Error: ' + String(err); }
+    });
+}
+function adminShowResetPin(code) {
+    var container = document.getElementById('admin-resetpin-' + code);
+    if (!container) return;
+    if (container.style.display === 'block') { container.style.display = 'none'; container.innerHTML = ''; return; }
+    container.innerHTML =
+        '<div class="settings-row">' +
+            '<input type="tel" inputmode="numeric" maxlength="4" class="settings-input" id="admin-resetpin-input-' + code + '" placeholder="New 4-digit PIN" style="max-width:140px">' +
+            '<button class="settings-btn" onclick="adminSubmitResetPin(\'' + code + '\')">Save</button>' +
+        '</div>' +
+        '<div class="move-result" id="admin-resetpin-result-' + code + '"></div>';
+    container.style.display = 'block';
+    setTimeout(function() { try { document.getElementById('admin-resetpin-input-' + code).focus(); } catch (e) {} }, 50);
+}
+function adminSubmitResetPin(code) {
+    var input = document.getElementById('admin-resetpin-input-' + code);
+    var resEl = document.getElementById('admin-resetpin-result-' + code);
+    var pin = (input.value || '').trim();
+    if (!/^\d{4}$/.test(pin)) { resEl.className = 'move-result err'; resEl.textContent = 'PIN must be exactly 4 digits.'; return; }
+    if (!db) return;
+    resEl.className = 'move-result'; resEl.textContent = 'Saving...';
+    db.rpc('oms_set_pin', { p_employee_code: code, p_new_pin: pin }).then(function(res) {
+        if (res.error) { resEl.className = 'move-result err'; resEl.textContent = 'Error: ' + res.error.message; return; }
+        resEl.className = 'move-result ok'; resEl.textContent = '✓ PIN updated.';
+        setTimeout(function() {
+            var c = document.getElementById('admin-resetpin-' + code);
+            if (c) { c.style.display = 'none'; c.innerHTML = ''; }
+        }, 1200);
+    }).catch(function() {
+        resEl.className = 'move-result err'; resEl.textContent = 'Error resetting PIN.';
+    });
+}
+function adminAddEmployee() {
+    var codeEl = document.getElementById('admin-add-code');
+    var nameEl = document.getElementById('admin-add-name');
+    var roleEl = document.getElementById('admin-add-role');
+    var pinEl  = document.getElementById('admin-add-pin');
+    var resEl  = document.getElementById('admin-add-result');
+    var code = (codeEl.value || '').trim().toUpperCase();
+    var name = (nameEl.value || '').trim();
+    var role = roleEl.value;
+    var pin  = (pinEl.value || '').trim();
+    if (!code) { resEl.className = 'move-result err'; resEl.textContent = 'Enter an employee code.'; return; }
+    if (!name) { resEl.className = 'move-result err'; resEl.textContent = 'Enter a display name.'; return; }
+    if (!/^\d{4}$/.test(pin)) { resEl.className = 'move-result err'; resEl.textContent = 'PIN must be exactly 4 digits.'; return; }
+    if (!db) { resEl.className = 'move-result err'; resEl.textContent = 'Database unreachable.'; return; }
+
+    resEl.className = 'move-result'; resEl.textContent = 'Saving...';
+    db.from('oms_employees').insert({
+        company_id: 'artzfolio', employee_code: code, display_name: name, role: role, active: true
+    }).select().then(function(res) {
+        if (res.error) {
+            resEl.className = 'move-result err';
+            var msg = res.error.message || '';
+            resEl.textContent = (res.error.code === '23505' || /duplicate|unique/i.test(msg))
+                ? 'This employee code already exists.' : 'Error: ' + msg;
+            return;
+        }
+        db.rpc('oms_set_pin', { p_employee_code: code, p_new_pin: pin }).then(function(res2) {
+            if (res2.error) {
+                resEl.className = 'move-result err';
+                resEl.textContent = 'Employee added, but PIN could not be set: ' + res2.error.message;
+                loadAdminEmployees();
+                return;
+            }
+            resEl.className = 'move-result ok'; resEl.textContent = '✓ Employee added.';
+            codeEl.value = ''; nameEl.value = ''; pinEl.value = ''; roleEl.value = 'WAREHOUSE_STAFF';
+            loadAdminEmployees();
+        }).catch(function() {
+            resEl.className = 'move-result err'; resEl.textContent = 'Employee added, but PIN could not be set.';
+            loadAdminEmployees();
+        });
+    }).catch(function(err) {
+        resEl.className = 'move-result err'; resEl.textContent = 'Error adding employee: ' + String(err);
+    });
 }
 
 // ── LOG PERSISTENCE ──────────────────────────────────────────
@@ -621,6 +1214,239 @@ function formatTs(d) {
     return yyyy + '-' + mmm + '-' + dd + ' ' + ('0'+hh).slice(-2) + ':' + min + ':' + sec + ' ' + ampm;
 }
 
+// ── LIVE DATABASE (Supabase) — the source of truth for stock ────────────
+// Core principle: inventory_transactions is APPEND-ONLY. We never read a
+// balance, subtract, and write a balance back — that pattern is unsafe the
+// moment two people scan at once. Every function below only ever INSERTs
+// one new row. Current stock is always derived server-side by summing the
+// ledger (oms.current_stock view) — see the 2026-07-25 decision log.
+
+function setDbOffline(reason) {
+    dbOnline = false;
+    var banners = document.querySelectorAll('.db-offline-banner');
+    for (var i = 0; i < banners.length; i++) banners[i].classList.add('visible');
+    console.warn('DB offline:', reason);
+}
+function setDbOnline() {
+    dbOnline = true;
+    var banners = document.querySelectorAll('.db-offline-banner');
+    for (var i = 0; i < banners.length; i++) banners[i].classList.remove('visible');
+}
+
+// Look up a scanned/typed value against the live SKU master by SKU code
+// OR ASIN (whichever matches) — returns a Promise resolving to the
+// sku_master row, or null if not found.
+function resolveSkuOrAsin(value) {
+    if (!db) return Promise.resolve(null);
+    var v = (value || '').trim().toUpperCase();
+    if (!v) return Promise.resolve(null);
+    return db.from('oms_sku_master').select('sku_code,asin,product_name,active')
+        .or('sku_code.eq.' + v + ',asin.eq.' + v)
+        .limit(1)
+        .then(function(res) {
+            if (res.error) { setDbOffline(res.error.message); return null; }
+            setDbOnline();
+            return (res.data && res.data.length) ? res.data[0] : null;
+        })
+        .catch(function(err) { setDbOffline(err); return null; });
+}
+
+// The one and only function anywhere in this file that writes a stock
+// movement. txnType must be one of the 6 allowed by the database's own
+// check constraint (oms.inventory_transactions.txn_type) — if this ever
+// gets out of sync with the schema, the insert fails loudly with a clear
+// Postgres error rather than silently corrupting data.
+function writeLedgerTxn(opts) {
+    // opts: { skuCode, asin, qtyDelta, txnType, channel, orderId, binCode, note }
+    if (!db) return Promise.resolve({ ok: false, reason: 'Database not loaded (offline).' });
+    var emp = loadEmployee();
+    var row = {
+        sku_code: (opts.skuCode || '').toUpperCase().trim(),
+        asin: opts.asin || null,
+        qty_delta: opts.qtyDelta,
+        txn_type: opts.txnType,
+        channel: opts.channel || null,
+        order_id: opts.orderId || null,
+        bin_code: opts.binCode || null,
+        employee_code: emp ? emp.code : null,
+        note: opts.note || null
+    };
+    return db.from('oms_inventory_transactions').insert(row).select().then(function(res) {
+        if (res.error) { setDbOffline(res.error.message); return { ok: false, reason: res.error.message }; }
+        setDbOnline();
+        return { ok: true, row: res.data && res.data[0] };
+    }).catch(function(err) {
+        setDbOffline(err);
+        return { ok: false, reason: String(err) };
+    });
+}
+
+// ── MOVE TAB (New Stock / Returns / Found / Lost-Theft) ─────────────────
+var MOVE_MODES = {
+    NEW_STOCK_IN:          { title: '&#128230; New Stock In',  desc: 'Scan or type the SKU or ASIN of the product being brought into stock, enter the quantity, then submit. This adds to live stock immediately.', sign: 1 },
+    RETURN_IN:             { title: '&#8617; Returns In',      desc: 'Scan or type the SKU or ASIN of a returned product, enter the quantity, then submit. This adds the returned units back to live stock immediately.', sign: 1 },
+    ADJUSTMENT_FOUND:      { title: '&#10133; Found Units',     desc: 'Scan or type the SKU or ASIN of units found during a stock check that weren’t in the system. Always add a note explaining why.', sign: 1 },
+    ADJUSTMENT_LOST_THEFT: { title: '&#10134; Lost / Theft',    desc: 'Scan or type the SKU or ASIN of units confirmed lost, damaged beyond sale, or stolen. Always add a note explaining why — this permanently reduces live stock.', sign: -1, requireNote: true },
+    QC_HOLD:               { title: '&#128295; QC Hold',        desc: 'Remove stock found damaged or failing QC — always logged with a reason. Does not delete the units, just removes them from sellable count.', sign: -1, requireNote: true }
+};
+var moveMode = 'NEW_STOCK_IN';
+function setMoveMode(mode) {
+    if (!MOVE_MODES[mode]) return;
+    moveMode = mode;
+    for (var key in MOVE_MODES) {
+        var pill = document.getElementById('move-pill-' + key);
+        if (pill) pill.classList.toggle('active', key === mode);
+    }
+    document.getElementById('move-mode-title').innerHTML = MOVE_MODES[mode].title;
+    document.getElementById('move-mode-desc').textContent = MOVE_MODES[mode].desc.replace(/&#\d+;/g, '');
+    document.getElementById('move-result').textContent = '';
+    document.getElementById('move-sku-input').value = '';
+    document.getElementById('move-qty-input').value = '1';
+    document.getElementById('move-note-input').value = '';
+    try { document.getElementById('move-sku-input').focus(); } catch(e) {}
+}
+function submitMoveTransaction() {
+    var resEl = document.getElementById('move-result');
+    var skuVal = (document.getElementById('move-sku-input').value || '').trim();
+    var qtyVal = parseInt(document.getElementById('move-qty-input').value, 10);
+    var note   = (document.getElementById('move-note-input').value || '').trim();
+    var cfg    = MOVE_MODES[moveMode];
+
+    if (!skuVal) { resEl.className = 'move-result err'; resEl.textContent = 'Scan or type a SKU/ASIN first.'; return; }
+    if (!qtyVal || qtyVal < 1) { resEl.className = 'move-result err'; resEl.textContent = 'Enter a valid quantity (1 or more).'; return; }
+    if (cfg.requireNote && !note) { resEl.className = 'move-result err'; resEl.textContent = 'A note is required for ' + cfg.title.replace(/&#\d+;/g, '').trim() + ' adjustments.'; return; }
+    var emp = loadEmployee();
+    if (!emp || !emp.code) { resEl.className = 'move-result err'; resEl.textContent = 'Set your employee code first (Settings tab).'; return; }
+
+    resEl.className = 'move-result'; resEl.textContent = 'Checking database...';
+    resolveSkuOrAsin(skuVal).then(function(sku) {
+        if (!sku) {
+            resEl.className = 'move-result err';
+            resEl.textContent = '❌ "' + skuVal + '" not found in the SKU database. Check the code and try again.';
+            return;
+        }
+        resEl.textContent = 'Saving...';
+        writeLedgerTxn({
+            skuCode: sku.sku_code,
+            asin: sku.asin,
+            qtyDelta: cfg.sign * qtyVal,
+            txnType: moveMode,
+            note: note || null
+        }).then(function(result) {
+            if (!result.ok) {
+                resEl.className = 'move-result err';
+                resEl.textContent = '❌ Could not save: ' + result.reason;
+                return;
+            }
+            resEl.className = 'move-result ok';
+            resEl.textContent = '✓ Saved — ' + (cfg.sign > 0 ? '+' : '') + (cfg.sign * qtyVal) + ' units of ' + sku.sku_code + ' (' + (sku.product_name || '') + ')';
+            logEvent(sku.sku_code, MOVE_MODES[moveMode].title.replace(/&#\d+;/g, '').trim() + ': ' + (cfg.sign > 0 ? '+' : '') + (cfg.sign * qtyVal) + (note ? ' — ' + note : ''));
+            document.getElementById('move-sku-input').value = '';
+            document.getElementById('move-qty-input').value = '1';
+            document.getElementById('move-note-input').value = '';
+            try { document.getElementById('move-sku-input').focus(); } catch(e) {}
+        });
+    });
+}
+
+// ── STOCK TAB (live, read-only) ──────────────────────────────────────
+var stockData = [];
+var stockRealtimeChannel = null;
+// v38: set of sku_code currently at/below their reorder_threshold, sourced
+// from the new oms_low_stock view. Kept as a separate small query rather
+// than joining reorder_threshold into the existing oms_current_stock query,
+// so the existing STOCK query (already reading all ~11k SKUs) is untouched
+// and this stays cheap — oms_low_stock only ever returns a handful of rows.
+var lowStockSet = {};
+function loadStockTab(manualRefresh) {
+    if (!db) { setDbOffline('no client'); return; }
+    if (manualRefresh) document.getElementById('stock-list').innerHTML = '<div style="text-align:center;color:#aaa;font-size:12px;padding:20px 0;">Refreshing...</div>';
+    db.from('oms_current_stock').select('sku_code,asin,qty_on_hand,last_movement_at').order('sku_code').then(function(res) {
+        if (res.error) { setDbOffline(res.error.message); return; }
+        setDbOnline();
+        stockData = res.data || [];
+        loadLowStock();
+        renderStockList();
+        setupStockRealtime();
+    }).catch(function(err) { setDbOffline(err); });
+}
+function loadLowStock() {
+    if (!db) return;
+    db.from('oms_low_stock').select('sku_code').then(function(res) {
+        var banner = document.getElementById('low-stock-banner');
+        var textEl = document.getElementById('low-stock-banner-text');
+        if (res.error) {
+            // Non-fatal — the main stock list already loaded fine; just skip
+            // the low-stock flagging rather than blocking the whole tab.
+            lowStockSet = {};
+            if (banner) banner.classList.remove('visible');
+            renderStockList();
+            return;
+        }
+        var rows = res.data || [];
+        lowStockSet = {};
+        for (var i = 0; i < rows.length; i++) { lowStockSet[(rows[i].sku_code || '').toUpperCase()] = true; }
+        if (banner && textEl) {
+            if (rows.length > 0) {
+                textEl.innerHTML = '&#9888; ' + rows.length + ' SKU' + (rows.length === 1 ? '' : 's') + ' at or below reorder point';
+                banner.classList.add('visible');
+            } else {
+                banner.classList.remove('visible');
+            }
+        }
+        renderStockList();
+    }).catch(function() { lowStockSet = {}; renderStockList(); });
+}
+function renderStockList() {
+    var filter = (document.getElementById('stock-search-input').value || '').toUpperCase().trim();
+    var list = document.getElementById('stock-list');
+    var countEl = document.getElementById('stock-count');
+    var rows = stockData;
+    if (filter) {
+        rows = rows.filter(function(r) {
+            return (r.sku_code || '').toUpperCase().indexOf(filter) !== -1 ||
+                   (r.asin || '').toUpperCase().indexOf(filter) !== -1;
+        });
+    }
+    countEl.textContent = stockData.length;
+    if (!rows.length) {
+        list.innerHTML = '<div style="text-align:center;color:#aaa;font-size:12px;padding:20px 0;">No matching SKUs.</div>';
+        return;
+    }
+    var html = '';
+    for (var i = 0; i < rows.length; i++) {
+        var r = rows[i];
+        var isLowThreshold = !!lowStockSet[(r.sku_code || '').toUpperCase()];
+        var lowCls = ((r.qty_on_hand !== null && r.qty_on_hand <= 0) || isLowThreshold) ? ' low' : '';
+        html += '<div class="stock-row">' +
+            '<div><div class="stock-sku">' + (r.sku_code || '') + (isLowThreshold ? ' &#9888;' : '') + '</div><div class="stock-asin">' + (r.asin || '') + '</div></div>' +
+            '<div class="stock-qty' + lowCls + '">' + r.qty_on_hand + '</div>' +
+            '</div>';
+    }
+    list.innerHTML = html;
+}
+function setupStockRealtime() {
+    if (!db || stockRealtimeChannel) { // already subscribed
+        var dot = document.getElementById('stock-live-dot');
+        if (dot && stockRealtimeChannel) dot.style.display = 'inline-block';
+        return;
+    }
+    try {
+        stockRealtimeChannel = db.channel('oms-inventory-live')
+            .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'oms_inventory_transactions' }, function() {
+                // Any scan by anyone, anywhere, re-pulls the live view. Simple and
+                // correct — the view always reflects reality, so re-querying it on
+                // every event (rather than trying to patch state.log client-side)
+                // can never drift out of sync.
+                loadStockTab(false);
+            })
+            .subscribe(function(status) {
+                var dot = document.getElementById('stock-live-dot');
+                if (dot) dot.style.display = (status === 'SUBSCRIBED') ? 'inline-block' : 'none';
+            });
+    } catch (e) { console.warn('Realtime subscribe failed:', e); }
+}
+
 // ── GOOGLE SHEETS WEBHOOK ────────────────────────────────────
 function loadGsUrl() {
     // Uses the URL saved in Settings if present, else the ArtzFolio default (live).
@@ -676,10 +1502,11 @@ function testGsUrl() {
 
 // ── CSV EXPORT ───────────────────────────────────────────────
 function exportCSV() {
-    if (!state.log.length) { alert('No log entries to export.'); return; }
+    var srcRows = scopedLogRows();
+    if (!srcRows.length) { alert('No log entries to export.'); return; }
     var rows = ['Timestamp,Employee Name,Employee Code,Order ID,SKU,Channel,Qty,Bin,Action'];
-    for (var i = 0; i < state.log.length; i++) {
-        var e = state.log[i];
+    for (var i = 0; i < srcRows.length; i++) {
+        var e = srcRows[i];
         var csvAction = '"' + ((e.action || '').replace(/<[^>]+>/g,'').replace(/"/g,'""')) + '"';
         rows.push([
             e.ts       || '',
@@ -892,7 +1719,11 @@ function processScan(value) {
             var normalise = function(s) { return (s || '').toLowerCase().replace(/[\s\-_\.]/g, ''); };
             var exp = normalise(state.order.bin);
             var got = normalise(scannedBin);
-            if (exp === got || got.indexOf(exp) !== -1 || exp.indexOf(got) !== -1) {
+            if (exp === got) {  // v34 FIX: was exp===got || got.indexOf(exp)!==-1 || exp.indexOf(got)!==-1
+                                 // the two indexOf() substring checks let ANY fragment of the correct
+                                 // bin code (e.g. typing "B" for "B-04") pass as a verified match.
+                                 // Strict equality only, now that normalise() already handles
+                                 // formatting differences (spaces/dashes/underscores/dots).
                 state.bin       = { binID: scannedBin };
                 state.pickState = 'NEED_SKU';
                 var qtyNote = state.order.qty > 1
@@ -928,8 +1759,17 @@ function processScan(value) {
             var v = value.toUpperCase().trim();
             var s = state.order.sku.toUpperCase().trim();
             var a = (state.order.asin || '').toUpperCase().trim();
-            var skuMatch  = (v === s || v.indexOf(s) !== -1 || s.indexOf(v) !== -1);
-            var asinMatch = (a.length > 0 && (v === a || v.indexOf(a) !== -1 || a.indexOf(v) !== -1));
+            var skuMatch  = (v === s);   // v35 FIX: was v===s || v.indexOf(s)!==-1 || s.indexOf(v)!==-1
+            var asinMatch = (a.length > 0 && v === a);  // v35 FIX: was v===a || v.indexOf(a)!==-1 || a.indexOf(v)!==-1
+                                 // Same bug class as the v34 bin-code fix (see NEED_BIN handler above), just never
+                                 // applied here. The two indexOf() substring checks meant ANY scan that was a
+                                 // fragment of the correct SKU/ASIN (or that CONTAINED it) passed as verified —
+                                 // e.g. scanning a random string that happened to include "123" while the real
+                                 // SKU was "AF-123" would match. Because a verified match increments
+                                 // state.skuScanned (the qty counter), this is also the direct cause of the
+                                 // reported "quantity accepts random values" symptom — it's the same root
+                                 // cause, not a separate bug. Strict equality only, now that v/s/a are already
+                                 // uppercased+trimmed above.
 
             if (skuMatch || asinMatch) {
                 var matchType = (asinMatch && !skuMatch) ? 'ASIN' : 'SKU';
@@ -953,6 +1793,26 @@ function processScan(value) {
                     );
                 } else {
                     hideScanOptions();
+                    // v36: this line's required scans are now fully verified picked — write
+                    // the stock deduction to the live database HERE, not at the final
+                    // CONFIRM tap, so a multi-line order that stops partway still correctly
+                    // deducts exactly what was actually picked and packed for this line.
+                    (function(lineOrder, lineBin) {
+                        writeLedgerTxn({
+                            skuCode:  lineOrder.sku,
+                            asin:     lineOrder.asin,
+                            qtyDelta: -(lineOrder.qty || 1),
+                            txnType:  'SCAN_OUT_ORDER',
+                            channel:  lineOrder.channel,
+                            orderId:  lineOrder.marketOrderID,
+                            binCode:  lineBin ? lineBin.binID : null,
+                            note:     'Pick-and-pack, line ' + lineOrder.lineNum + '/' + lineOrder.totalLines
+                        }).then(function(result) {
+                            if (!result.ok) {
+                                logEvent(lineOrder.internalID, '⚠ Stock deduction NOT saved to live database (' + result.reason + ') — record manually.');
+                            }
+                        });
+                    })(state.order, state.bin);
                     state.groupDone++;
                     var allDone = (state.groupDone >= state.groupTotal);
 
@@ -1544,19 +2404,36 @@ function logEvent(orderID, action) {
     pushToGoogleSheets(entry);
 }
 
+// ── LOG SCOPING (v37) — own-only for WAREHOUSE_STAFF / BILLING_OPERATOR ──
+// state.log itself is untouched (still the full local audit trail used by
+// writeLedgerTxn/logEvent); this only decides what a given role is SHOWN.
+function scopedLogRows() {
+    if (state.session) {
+        var perm = ROLE_PERMISSIONS[state.session.role] || {};
+        if (perm.logScope === 'own') {
+            return state.log.filter(function(e) { return e.empCode === state.session.employee_code; });
+        }
+    }
+    return state.log;
+}
+
 // ── RENDER LOG ───────────────────────────────────────────────
 function renderLog() {
     var ul      = document.getElementById('log-list');
     var countEl = document.getElementById('log-count');
-    if (countEl) countEl.textContent = state.log.length;
+    var noteEl  = document.getElementById('log-scope-note');
+    var rows    = scopedLogRows();
+    var isScoped = rows !== state.log;
+    if (noteEl) noteEl.style.display = isScoped ? 'block' : 'none';
+    if (countEl) countEl.textContent = rows.length;
 
-    if (!state.log.length) {
+    if (!rows.length) {
         ul.innerHTML = '<li style="text-align:center;color:#aaa;font-size:12px;padding:20px;">No scans yet</li>';
         return;
     }
     var html = '';
-    for (var i = 0; i < state.log.length; i++) {
-        var e = state.log[i];
+    for (var i = 0; i < rows.length; i++) {
+        var e = rows[i];
         // Time: show HH:MM:SS from ISO or stored format
         var tDisp = '';
         if (e.ts) {
@@ -1590,10 +2467,91 @@ function renderLog() {
     ul.innerHTML = html;
 }
 
+// ── DAILY RECONCILIATION (v38, LOG tab) ──────────────────────
+// Store-wide summary — only shown to roles with logScope:'all' (same set
+// that already sees the full, unscoped LOG list): INVENTORY_LEAD,
+// PRODUCTION_LEAD, ADMIN. WAREHOUSE_STAFF/BILLING_OPERATOR (logScope:'own')
+// never see this, since it's aggregate data across all employees' activity,
+// not "their own".
+function canSeeReconciliation() {
+    if (!state.session) return false;
+    var perm = ROLE_PERMISSIONS[state.session.role] || {};
+    return perm.logScope === 'all';
+}
+function loadReconciliation() {
+    var section = document.getElementById('reconciliation-section');
+    if (!section) return;
+    if (!canSeeReconciliation()) { section.style.display = 'none'; return; }
+    section.style.display = 'block';
+    var bodyEl = document.getElementById('reconciliation-body');
+    var negBanner = document.getElementById('negative-stock-banner');
+    var negText = document.getElementById('negative-stock-text');
+    if (!db) {
+        bodyEl.textContent = 'Database unreachable — cannot load reconciliation.';
+        if (negBanner) negBanner.classList.remove('visible');
+        return;
+    }
+    bodyEl.textContent = 'Loading...';
+    if (negBanner) negBanner.classList.remove('visible');
+
+    db.from('oms_daily_reconciliation')
+        .select('sku_code,picked_today,new_stock_in_today,returns_in_today,found_today,lost_theft_today,qc_hold_today,net_change_today,txn_count_today')
+        .then(function(res) {
+            if (res.error) { bodyEl.textContent = 'Error loading reconciliation: ' + res.error.message; return; }
+            var rows = res.data || [];
+            var totals = { picked: 0, newStock: 0, returns: 0, found: 0, lostTheft: 0, qcHold: 0, txnCount: 0 };
+            for (var i = 0; i < rows.length; i++) {
+                var r = rows[i];
+                totals.picked    += Number(r.picked_today)        || 0;
+                totals.newStock  += Number(r.new_stock_in_today)  || 0;
+                totals.returns   += Number(r.returns_in_today)    || 0;
+                totals.found     += Number(r.found_today)         || 0;
+                totals.lostTheft += Number(r.lost_theft_today)    || 0;
+                totals.qcHold    += Number(r.qc_hold_today)       || 0;
+                totals.txnCount  += Number(r.txn_count_today)     || 0;
+            }
+            bodyEl.innerHTML =
+                '<div class="card-row"><span class="card-label">Picked today</span><span class="card-value">' + totals.picked + '</span></div>' +
+                '<div class="card-row"><span class="card-label">New stock in</span><span class="card-value">' + totals.newStock + '</span></div>' +
+                '<div class="card-row"><span class="card-label">Returns in</span><span class="card-value">' + totals.returns + '</span></div>' +
+                '<div class="card-row"><span class="card-label">Found</span><span class="card-value">' + totals.found + '</span></div>' +
+                '<div class="card-row"><span class="card-label">Lost / Theft</span><span class="card-value">' + totals.lostTheft + '</span></div>' +
+                '<div class="card-row"><span class="card-label">QC Hold</span><span class="card-value">' + totals.qcHold + '</span></div>' +
+                '<div class="card-row"><span class="card-label">Total transactions</span><span class="card-value">' + totals.txnCount + '</span></div>';
+        }).catch(function(err) {
+            bodyEl.textContent = 'Error loading reconciliation: ' + String(err);
+        });
+
+    db.from('oms_negative_stock_flags').select('sku_code,qty_on_hand').then(function(res) {
+        if (res.error || !negBanner || !negText) return;
+        var rows = res.data || [];
+        if (rows.length > 0) {
+            var codes = [];
+            for (var i = 0; i < rows.length; i++) { codes.push(rows[i].sku_code + ' (' + rows[i].qty_on_hand + ')'); }
+            negText.textContent = rows.length + ' SKU' + (rows.length === 1 ? '' : 's') + ' show negative stock — a scan may have been mis-recorded, review the Log: ' + codes.join(', ');
+            negBanner.classList.add('visible');
+        } else {
+            negBanner.classList.remove('visible');
+        }
+    }).catch(function() {});
+}
+
 // ── TAB SWITCHING ────────────────────────────────────────────
 function switchTab(tab) {
+    // v37 RBAC guard — refuses to enter a tab the logged-in role can't
+    // access, independent of whether the nav button is hidden. This is the
+    // enforcement layer; applyRolePermissions() hiding buttons is the UI
+    // layer, but a stale reference or a direct switchTab('move') call must
+    // not be able to bypass this.
+    if (state.session) {
+        var permCheck = ROLE_PERMISSIONS[state.session.role] || {};
+        if (permCheck[tab] !== true) {
+            console.warn('Role ' + state.session.role + ' cannot access tab: ' + tab);
+            return;
+        }
+    }
     state.tab = tab;
-    var tabs = ['pick', 'log', 'guide', 'settings'];
+    var tabs = ['pick', 'move', 'stock', 'log', 'guide', 'settings'];
     for (var i = 0; i < tabs.length; i++) {
         var tc = document.getElementById(tabs[i] + '-tab');
         var tb = document.getElementById('tab-' + tabs[i]);
@@ -1610,6 +2568,17 @@ function switchTab(tab) {
     }
     if (tab === 'settings') {
         refreshSettingsTab();
+        renderAdminPanel();
+    }
+    if (tab === 'move') {
+        if (!dbOnline && db) { /* let a fresh call retry */ }
+        setMoveMode(moveMode);
+    }
+    if (tab === 'stock') {
+        loadStockTab(false);
+    }
+    if (tab === 'log') {
+        loadReconciliation();
     }
 }
 
@@ -1648,15 +2617,32 @@ document.addEventListener('DOMContentLoaded', function() {
     renderLog();
     syncScanBar();
 
+    // Live database connectivity check — a lightweight read, just to set the
+    // online/offline banner state correctly before the user ever opens MOVE/STOCK.
+    if (db) {
+        db.from('oms_sku_master').select('sku_code', { count: 'exact', head: true }).then(function(res) {
+            if (res.error) { setDbOffline(res.error.message); } else { setDbOnline(); }
+        }).catch(function(err) { setDbOffline(err); });
+    } else {
+        setDbOffline('Supabase client script did not load');
+    }
+
     // Keyboard / Bluetooth scanner support
     document.getElementById('scan-input').addEventListener('keydown', function(e) {
         if (e.key === 'Enter') { processScan(e.target.value); }
     });
 
-    // Check employee — show modal if not set
-    var emp = loadEmployee();
-    if (!emp || !emp.name) {
-        setTimeout(showEmployeeModal, 300);
+    // v37: real login. If a valid session already exists in sessionStorage
+    // (e.g. page refresh mid-shift), skip straight into the app — the PIN
+    // was already verified server-side at the original login, so no
+    // re-verification is needed here (documented, acceptable for this MVP).
+    // Otherwise show the login screen; there is no offline bypass.
+    var existingSession = loadSessionFromStorage();
+    if (existingSession) {
+        state.session = existingSession;
+        enterApp();
+    } else {
+        showLoginModal();
     }
 
     window.addEventListener('beforeunload', releaseCamera);
