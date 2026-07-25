@@ -226,6 +226,18 @@
         .admin-emp-row:last-child{border-bottom:none}
         .admin-emp-actions{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
         .admin-emp-actions .settings-btn{font-size:11px;padding:6px 10px}
+        /* DASH TAB (v39, ADMIN only) — owner dashboard stat tiles + tables */
+        .dash-tiles{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px}
+        .dash-tile{flex:1 1 45%;min-width:45%;background:linear-gradient(135deg,#eef2f8,#e4ebf5);border:1px solid #dce4f0;border-radius:12px;padding:12px 10px;text-align:center}
+        .dash-tile-val{font-size:19px;font-weight:800;color:#1B4F8A;line-height:1.2}
+        .dash-tile-label{font-size:10px;color:#666;text-transform:uppercase;font-weight:700;margin-top:3px;letter-spacing:.3px}
+        .dash-row{display:flex;justify-content:space-between;align-items:center;padding:9px 10px;border-bottom:1px solid #f0f2f5;font-size:12px;gap:8px}
+        .dash-row:last-child{border-bottom:none}
+        .dash-row-emp{font-weight:700;color:#1B4F8A}
+        .dash-row-stats{font-size:11px;color:#555;text-align:right}
+        /* STOCK ROW — print-label button (v39) */
+        .print-label-btn{background:#fff;border:1.5px solid #c5d0de;border-radius:7px;font-size:14px;padding:5px 9px;margin-left:8px;cursor:pointer;touch-action:manipulation;flex-shrink:0}
+        .print-label-btn:active{background:#eef2f8}
     </style>
 </head>
 <body>
@@ -404,6 +416,35 @@
             </ul>
         </div>
 
+        <!-- DASH TAB (v39) — ADMIN-only owner dashboard. Hidden entirely for
+             every other role via ROLE_PERMISSIONS + applyRolePermissions(),
+             same tab-hiding pattern as the other role-gated tabs, and
+             switchTab() itself refuses entry for non-ADMIN roles too. -->
+        <div id="dash-tab" class="tab-content">
+            <div class="db-offline-banner" id="dash-offline-banner">&#9888; Live database not reachable right now. Dashboard data cannot be loaded until this reconnects.</div>
+            <div class="cam-error-banner" id="dash-low-stock-banner" style="margin-bottom:10px;"><strong id="dash-low-stock-text">&#9888; 0 SKUs at or below reorder point</strong></div>
+            <div class="cam-error-banner" id="dash-negative-stock-banner" style="margin-bottom:10px;">
+                <strong>&#9888; Negative stock detected</strong>
+                <span id="dash-negative-stock-text"></span>
+            </div>
+            <div class="log-header">
+                <h2>&#128202; Owner Dashboard</h2>
+                <button class="csv-btn" onclick="loadDashboard(true)">&#8635; Refresh</button>
+            </div>
+            <div class="dash-tiles" id="dash-tiles">
+                <div class="settings-info">Loading...</div>
+            </div>
+            <div class="settings-section">
+                <h3>&#128100; Today &mdash; Staff Breakdown</h3>
+                <div id="dash-staff-today"><div class="settings-info">Loading...</div></div>
+            </div>
+            <div class="settings-section">
+                <h3>&#128197; Last 14 Days &mdash; Staff Performance</h3>
+                <div id="dash-staff-14d"><div class="settings-info">Loading...</div></div>
+                <div class="settings-notice">Active hours are estimated from scan activity, not shift records &mdash; use as a rough guide, not a precise measure.</div>
+            </div>
+        </div>
+
         <!-- GUIDE TAB -->
         <div id="guide-tab" class="tab-content">
             <div class="guide-section">
@@ -526,8 +567,8 @@
 
             <!-- Version -->
             <div class="ver-badge">
-                <div class="ver-name">&#128230; ArtzFolio Scan-Pick-Pack v38</div>
-                <div class="ver-sub">QC Hold/Damage &bull; Low-Stock Alerts &bull; Daily Reconciliation &bull; Admin PIN-Lock Unlock &bull; Real Employee Login (PIN) &bull; RBAC &bull; Live Database (Supabase)</div>
+                <div class="ver-name">&#128230; ArtzFolio Scan-Pick-Pack v39</div>
+                <div class="ver-sub">Owner Dashboard (DASH) &bull; 14-Day Staff Performance &bull; Print Product/Bin Labels &bull; QC Hold/Damage &bull; Low-Stock Alerts &bull; Daily Reconciliation &bull; Admin PIN-Lock Unlock &bull; Real Employee Login (PIN) &bull; RBAC &bull; Live Database (Supabase)</div>
             </div>
         </div>
     </div>
@@ -540,6 +581,7 @@
         <button class="tab-btn"        id="tab-log"      onclick="switchTab('log')">&#128220; LOG</button>
         <button class="tab-btn"        id="tab-guide"    onclick="switchTab('guide')">&#10067; GUIDE</button>
         <button class="tab-btn"        id="tab-settings" onclick="switchTab('settings')">&#9881; SET</button>
+        <button class="tab-btn tab-hidden" id="tab-dash" onclick="switchTab('dash')">&#128202; DASH</button>
     </div>
 
     <!-- CAMERA OVERLAY -->
@@ -707,6 +749,43 @@
 //      adminUnlockEmployee() which invokes oms_admin_unlock() then reloads
 //      the row. oms_verify_login()'s lockout messages already flow through
 //      unchanged via the existing login-err element.
+// v39 (2026-07-25): 3 additive features, built on 3 new DB views. NONE of
+// the v36/v37/v38 pick, move, stock, login, or RBAC logic below was
+// rewritten — only extended in place, following the exact existing
+// patterns:
+//   1. New 7th bottom-nav tab "DASH" — Owner Dashboard, ADMIN-only. Added a
+//      new "dash" key to ROLE_PERMISSIONS (true only for ADMIN), a new entry
+//      in applyRolePermissions()'s tabMap, and a new tab name in
+//      switchTab()'s tabs array — the exact same 3 touch-points every other
+//      role-gated tab already uses, so the hide-button + refuse-entry guard
+//      pattern is unchanged, just extended. Shows: stat tiles (picks today,
+//      moves today, active staff today, inventory value — summed client-side
+//      from the new oms_staff_activity_today / oms_stock_value views), a
+//      compact reused copy of the low-stock (oms_low_stock) and negative-
+//      stock (oms_negative_stock_flags) banners already used in STOCK/LOG
+//      (see loadDashLowStock/loadDashNegativeStock — they reuse
+//      lowStockCache/negativeStockCache, small module-level caches
+//      populated the first time loadLowStock()/loadReconciliation() run in
+//      this page session, with a fresh fetch as fallback if neither tab has
+//      been opened yet), and a per-employee today table.
+//   2. Employee performance section (inside DASH) — new
+//      oms_employee_performance_14d view aggregated client-side per
+//      employee_code (total picks, avg picks/active-hour, distinct active
+//      days), sorted by total picks descending. Explicit note under this
+//      section: active hours are an estimate from scan activity, not shift
+//      records — this is for coaching, not punitive tracking, per house
+//      rule.
+//   3. Print Label button (STOCK tab) — renderStockList() rows now include
+//      a small 🖨 button (printLabel()) that looks up the product name via
+//      the already-existing resolveSkuOrAsin() (no new SKU query needed)
+//      and opens a new window with a QR code (plain SKU code payload, NOT
+//      the AF2 pick-list format) rendered via the qrcode@1.5.3 CDN library,
+//      loaded lazily only inside that new window — never added to the main
+//      page's <head>. Label print styling assumes a ~50mm x 30mm adhesive
+//      label (exact printer/label size not specified — see inline comment
+//      in openLabelWindow()). Shows a "Print" button rather than
+//      auto-triggering window.print(), since an unexpected print dialog on
+//      a shared warehouse device is more surprising than one extra tap.
 // =============================================================
 
 // ── LIVE DATABASE CONFIG ─────────────────────────────────────
@@ -768,12 +847,14 @@ var CH_NAME = {
 // Adjust here only — switchTab() and applyRolePermissions() both read this.
 // logScope: 'own' = LOG tab filters to the logged-in employee's own entries;
 // 'all' = sees everything (matches v36 behaviour).
+// v39: added "dash" key (Owner Dashboard tab) — true only for ADMIN. Every
+// other existing key/value on every role is unchanged.
 var ROLE_PERMISSIONS = {
-    WAREHOUSE_STAFF:  { pick:true,  move:false, stock:false, log:true, guide:true, settings:false, logScope:'own' },
-    BILLING_OPERATOR: { pick:true,  move:false, stock:true,  log:true, guide:true, settings:false, logScope:'own' },
-    INVENTORY_LEAD:   { pick:true,  move:true,  stock:true,  log:true, guide:true, settings:false, logScope:'all' },
-    PRODUCTION_LEAD:  { pick:false, move:false, stock:true,  log:true, guide:true, settings:false, logScope:'all' },
-    ADMIN:            { pick:true,  move:true,  stock:true,  log:true, guide:true, settings:true,  logScope:'all' }
+    WAREHOUSE_STAFF:  { pick:true,  move:false, stock:false, log:true, guide:true, settings:false, dash:false, logScope:'own' },
+    BILLING_OPERATOR: { pick:true,  move:false, stock:true,  log:true, guide:true, settings:false, dash:false, logScope:'own' },
+    INVENTORY_LEAD:   { pick:true,  move:true,  stock:true,  log:true, guide:true, settings:false, dash:false, logScope:'all' },
+    PRODUCTION_LEAD:  { pick:false, move:false, stock:true,  log:true, guide:true, settings:false, dash:false, logScope:'all' },
+    ADMIN:            { pick:true,  move:true,  stock:true,  log:true, guide:true, settings:true,  dash:true,  logScope:'all' }
 };
 
 // ── LOCALSTORAGE KEYS ────────────────────────────────────────
@@ -981,7 +1062,7 @@ function logout() {
 function applyRolePermissions() {
     if (!state.session) return;
     var perm = ROLE_PERMISSIONS[state.session.role] || {};
-    var tabMap = { pick: 'tab-pick', move: 'tab-move', stock: 'tab-stock', log: 'tab-log', guide: 'tab-guide', settings: 'tab-settings' };
+    var tabMap = { pick: 'tab-pick', move: 'tab-move', stock: 'tab-stock', log: 'tab-log', guide: 'tab-guide', settings: 'tab-settings', dash: 'tab-dash' };
     for (var key in tabMap) {
         var btn = document.getElementById(tabMap[key]);
         if (!btn) continue;
@@ -1358,6 +1439,11 @@ var stockRealtimeChannel = null;
 // so the existing STOCK query (already reading all ~11k SKUs) is untouched
 // and this stays cheap — oms_low_stock only ever returns a handful of rows.
 var lowStockSet = {};
+// v39: session-lifetime caches of the last oms_low_stock / oms_negative_stock_flags
+// fetch, so the DASH tab can reuse whatever STOCK/LOG already loaded this session
+// instead of re-querying, while still fetching fresh if neither tab was opened yet.
+var lowStockCache = null;
+var negativeStockCache = null;
 function loadStockTab(manualRefresh) {
     if (!db) { setDbOffline('no client'); return; }
     if (manualRefresh) document.getElementById('stock-list').innerHTML = '<div style="text-align:center;color:#aaa;font-size:12px;padding:20px 0;">Refreshing...</div>';
@@ -1385,6 +1471,7 @@ function loadLowStock() {
         }
         var rows = res.data || [];
         lowStockSet = {};
+        lowStockCache = rows; // v39: cache so DASH tab can reuse this fetch instead of re-querying
         for (var i = 0; i < rows.length; i++) { lowStockSet[(rows[i].sku_code || '').toUpperCase()] = true; }
         if (banner && textEl) {
             if (rows.length > 0) {
@@ -1418,9 +1505,15 @@ function renderStockList() {
         var r = rows[i];
         var isLowThreshold = !!lowStockSet[(r.sku_code || '').toUpperCase()];
         var lowCls = ((r.qty_on_hand !== null && r.qty_on_hand <= 0) || isLowThreshold) ? ' low' : '';
+        // v39: print-label button per row — reuses resolveSkuOrAsin() at click time
+        // to fetch the product name, no change to this query/loop's own data needed.
+        var skuForOnclick = (r.sku_code || '').replace(/'/g, "\\'");
         html += '<div class="stock-row">' +
             '<div><div class="stock-sku">' + (r.sku_code || '') + (isLowThreshold ? ' &#9888;' : '') + '</div><div class="stock-asin">' + (r.asin || '') + '</div></div>' +
+            '<div style="display:flex;align-items:center;">' +
             '<div class="stock-qty' + lowCls + '">' + r.qty_on_hand + '</div>' +
+            '<button class="print-label-btn" onclick="printLabel(\'' + skuForOnclick + '\')" title="Print label">&#128424;</button>' +
+            '</div>' +
             '</div>';
     }
     list.innerHTML = html;
@@ -1445,6 +1538,82 @@ function setupStockRealtime() {
                 if (dot) dot.style.display = (status === 'SUBSCRIBED') ? 'inline-block' : 'none';
             });
     } catch (e) { console.warn('Realtime subscribe failed:', e); }
+}
+
+// ── PRINT LABEL (v39, STOCK tab) ─────────────────────────────────────────
+// Standalone reprintable product/bin label — QR payload is the PLAIN SKU
+// CODE STRING ONLY (not the AF2 pick-list format used elsewhere in this
+// app). Library is loaded lazily, inside the popup window itself, so the
+// main app page never pays for a blocking synchronous <script> tag for a
+// feature most sessions won't use.
+var QR_LIB_URL = 'https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js';
+
+function printLabel(skuCode) {
+    if (!skuCode) return;
+    // Product name comes from the already-existing resolveSkuOrAsin() lookup
+    // (used elsewhere for MOVE tab SKU/ASIN matching) — no new query needed.
+    resolveSkuOrAsin(skuCode).then(function(sku) {
+        openLabelWindow(skuCode, sku ? (sku.product_name || '') : '');
+    }).catch(function() {
+        openLabelWindow(skuCode, '');
+    });
+}
+
+function openLabelWindow(skuCode, productName) {
+    var w = window.open('', '_blank', 'width=420,height=380');
+    if (!w) { alert('Could not open the print window — check your browser’s popup blocker.'); return; }
+    var esc = function(s) { return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); };
+    w.document.open();
+    w.document.write(
+        '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Label - ' + esc(skuCode) + '</title>' +
+        '<style>' +
+        'body{font-family:Arial,Helvetica,sans-serif;margin:0;padding:18px;text-align:center;background:#fff;color:#111}' +
+        '.label-box{display:inline-block;padding:12px 16px;border:1px dashed #999;border-radius:8px}' +
+        '#qr-canvas{margin:0 auto;display:block}' +
+        '.label-sku{font-size:22px;font-weight:800;letter-spacing:.4px;margin-top:8px}' +
+        '.label-name{font-size:12px;color:#555;margin-top:3px;max-width:230px;word-wrap:break-word}' +
+        '.print-btn{margin-top:18px;padding:11px 26px;font-size:14px;font-weight:700;background:#1B4F8A;color:#fff;border:none;border-radius:8px;cursor:pointer}' +
+        '.qr-fail{color:#c0392b;font-size:11px;margin-bottom:6px;}' +
+        /* Printer/label size assumption: Rajat's exact label stock is unknown,
+           so this targets a common small adhesive/thermal product label,
+           roughly 50mm x 30mm. If a different size is used, adjust the
+           .label-box width/height and font sizes below. */
+        '@media print {' +
+        '  body{padding:0}' +
+        '  .print-btn{display:none}' +
+        '  .label-box{border:none;width:50mm;height:30mm;padding:2mm;box-sizing:border-box;page-break-after:always;display:flex;flex-direction:column;align-items:center;justify-content:center}' +
+        '  .label-sku{font-size:13pt;margin-top:1mm}' +
+        '  .label-name{font-size:7pt;margin-top:1mm}' +
+        '  #qr-canvas{width:14mm!important;height:14mm!important}' +
+        '}' +
+        '</style></head><body>' +
+        '<div class="label-box">' +
+        '<canvas id="qr-canvas"></canvas>' +
+        '<div class="label-sku">' + esc(skuCode) + '</div>' +
+        '<div class="label-name">' + esc(productName) + '</div>' +
+        '</div><br>' +
+        // A visible Print button rather than an auto window.print() call — an
+        // unannounced print dialog popping up on a shared warehouse device is
+        // more surprising than one extra tap, and lets staff double-check the
+        // label before committing paper/labels to it.
+        '<button class="print-btn" onclick="window.print()">&#128424; Print Label</button>' +
+        '</body></html>'
+    );
+    w.document.close();
+    var script = w.document.createElement('script');
+    script.src = QR_LIB_URL;
+    script.onload = function() {
+        try {
+            w.QRCode.toCanvas(w.document.getElementById('qr-canvas'), skuCode, { width: 150, margin: 1 }, function(err) {
+                if (err) console.warn('QR render error:', err);
+            });
+        } catch (e) { console.warn('QR render exception:', e); }
+    };
+    script.onerror = function() {
+        var box = w.document.querySelector('.label-box');
+        if (box) box.insertAdjacentHTML('afterbegin', '<div class="qr-fail">QR code failed to load (offline?) &mdash; SKU text above is still valid for manual entry.</div>');
+    };
+    w.document.head.appendChild(script);
 }
 
 // ── GOOGLE SHEETS WEBHOOK ────────────────────────────────────
@@ -2523,8 +2692,10 @@ function loadReconciliation() {
         });
 
     db.from('oms_negative_stock_flags').select('sku_code,qty_on_hand').then(function(res) {
-        if (res.error || !negBanner || !negText) return;
+        if (res.error) return;
         var rows = res.data || [];
+        negativeStockCache = rows; // v39: cache so DASH tab can reuse this fetch instead of re-querying
+        if (!negBanner || !negText) return;
         if (rows.length > 0) {
             var codes = [];
             for (var i = 0; i < rows.length; i++) { codes.push(rows[i].sku_code + ' (' + rows[i].qty_on_hand + ')'); }
@@ -2534,6 +2705,225 @@ function loadReconciliation() {
             negBanner.classList.remove('visible');
         }
     }).catch(function() {});
+}
+
+// ── OWNER DASHBOARD (v39, DASH tab, ADMIN only) ──────────────────────────
+// Currency formatting: no existing currency formatter elsewhere in this
+// file to reuse, so a small one is added here. Indian digit grouping
+// (e.g. 12,34,567) for the exact figure, with a "your call" abbreviation
+// (₹12.3L / ₹1.23Cr) above ₹1 lakh so the stat tile stays readable on a
+// small phone screen — the exact/unabbreviated total is still available by
+// reading the per-SKU oms_stock_value view directly if ever needed.
+function formatIndianGrouping(n) {
+    var s = String(Math.round(Math.abs(n)));
+    var lastThree = s.slice(-3);
+    var rest = s.slice(0, -3);
+    if (rest !== '') {
+        rest = rest.replace(/\B(?=(\d{2})+(?!\d)(?!$))/g, ',').replace(/^,/, '');
+        // Ensure grouping in pairs of 2 for the "rest" portion (Indian system)
+        rest = rest.replace(/(\d)(?=(\d{2})+(?!\d))/g, '$1,');
+        lastThree = ',' + lastThree;
+    }
+    return (n < 0 ? '-' : '') + rest + lastThree;
+}
+function formatINR(n) {
+    n = Number(n) || 0;
+    var abs = Math.abs(n);
+    if (abs >= 10000000) return (n < 0 ? '-' : '') + '₹' + (abs / 10000000).toFixed(2) + 'Cr';
+    if (abs >= 100000)   return (n < 0 ? '-' : '') + '₹' + (abs / 100000).toFixed(2) + 'L';
+    return '₹' + formatIndianGrouping(n);
+}
+
+function showDashOffline() {
+    var b = document.getElementById('dash-offline-banner');
+    if (b) b.classList.add('visible');
+}
+function hideDashOffline() {
+    var b = document.getElementById('dash-offline-banner');
+    if (b) b.classList.remove('visible');
+}
+
+// Reuses lowStockCache/negativeStockCache (populated by loadLowStock() /
+// loadReconciliation() in the STOCK/LOG tabs) when available this session;
+// otherwise fetches fresh — see the v39 changelog note above for why.
+function loadDashLowStock() {
+    var banner = document.getElementById('dash-low-stock-banner');
+    var textEl = document.getElementById('dash-low-stock-text');
+    function render(rows) {
+        if (!banner || !textEl) return;
+        if (rows.length > 0) {
+            textEl.innerHTML = '&#9888; ' + rows.length + ' SKU' + (rows.length === 1 ? '' : 's') + ' at or below reorder point';
+            banner.classList.add('visible');
+        } else {
+            banner.classList.remove('visible');
+        }
+    }
+    if (lowStockCache) { render(lowStockCache); return; }
+    if (!db) { if (banner) banner.classList.remove('visible'); return; }
+    db.from('oms_low_stock').select('sku_code').then(function(res) {
+        var rows = res.data || [];
+        if (!res.error) lowStockCache = rows;
+        render(rows);
+    }).catch(function() {});
+}
+function loadDashNegativeStock() {
+    var banner = document.getElementById('dash-negative-stock-banner');
+    var textEl = document.getElementById('dash-negative-stock-text');
+    function render(rows) {
+        if (!banner || !textEl) return;
+        if (rows.length > 0) {
+            var codes = [];
+            for (var i = 0; i < rows.length; i++) { codes.push(rows[i].sku_code + ' (' + rows[i].qty_on_hand + ')'); }
+            textEl.textContent = rows.length + ' SKU' + (rows.length === 1 ? '' : 's') + ' show negative stock: ' + codes.join(', ');
+            banner.classList.add('visible');
+        } else {
+            banner.classList.remove('visible');
+        }
+    }
+    if (negativeStockCache) { render(negativeStockCache); return; }
+    if (!db) { if (banner) banner.classList.remove('visible'); return; }
+    db.from('oms_negative_stock_flags').select('sku_code,qty_on_hand').then(function(res) {
+        var rows = res.data || [];
+        if (!res.error) negativeStockCache = rows;
+        render(rows);
+    }).catch(function() {});
+}
+
+function renderDashTiles(picksToday, movesToday, activeStaffToday, inventoryValueMrp) {
+    var el = document.getElementById('dash-tiles');
+    if (!el) return;
+    el.innerHTML =
+        '<div class="dash-tile"><div class="dash-tile-val">' + picksToday + '</div><div class="dash-tile-label">Picked Today</div></div>' +
+        '<div class="dash-tile"><div class="dash-tile-val">' + movesToday + '</div><div class="dash-tile-label">Moves Today</div></div>' +
+        '<div class="dash-tile"><div class="dash-tile-val">' + activeStaffToday + '</div><div class="dash-tile-label">Active Staff Today</div></div>' +
+        '<div class="dash-tile"><div class="dash-tile-val">' + formatINR(inventoryValueMrp) + '</div><div class="dash-tile-label">Inventory Value (MRP)</div></div>';
+}
+function renderDashStaffToday(rows) {
+    var el = document.getElementById('dash-staff-today');
+    if (!el) return;
+    if (!rows.length) { el.innerHTML = '<div class="settings-info">No staff activity recorded yet today.</div>'; return; }
+    var sorted = rows.slice().sort(function(a, b) {
+        return (Number(b.total_txns_today) || 0) - (Number(a.total_txns_today) || 0);
+    });
+    var html = '';
+    for (var i = 0; i < sorted.length; i++) {
+        var r = sorted[i];
+        html += '<div class="dash-row">' +
+            '<div class="dash-row-emp">' + (r.employee_code || '') + '</div>' +
+            '<div class="dash-row-stats">Picks: <b>' + (r.picks_today || 0) + '</b> &bull; Moves: <b>' + (r.moves_today || 0) + '</b> &bull; Total: <b>' + (r.total_txns_today || 0) + '</b></div>' +
+            '</div>';
+    }
+    el.innerHTML = html;
+}
+function loadDashStatsAndStaffToday() {
+    var tilesEl = document.getElementById('dash-tiles');
+    var staffEl = document.getElementById('dash-staff-today');
+    if (!db) {
+        if (tilesEl) tilesEl.innerHTML = '<div class="settings-info">Database unreachable.</div>';
+        if (staffEl) staffEl.innerHTML = '<div class="settings-info">Database unreachable.</div>';
+        return;
+    }
+    Promise.all([
+        db.from('oms_staff_activity_today').select('employee_code,picks_today,moves_today,total_txns_today'),
+        db.from('oms_stock_value').select('value_at_mrp')
+    ]).then(function(results) {
+        var actRes = results[0], valRes = results[1];
+        if (actRes.error || valRes.error) {
+            var msg = (actRes.error && actRes.error.message) || (valRes.error && valRes.error.message) || 'Unknown error';
+            if (tilesEl) tilesEl.innerHTML = '<div class="settings-info">Error loading dashboard stats: ' + msg + '</div>';
+            if (staffEl) staffEl.innerHTML = '';
+            return;
+        }
+        var actRows = actRes.data || [];
+        var valRows = valRes.data || [];
+        var totalPicks = 0, totalMoves = 0;
+        for (var i = 0; i < actRows.length; i++) {
+            totalPicks += Number(actRows[i].picks_today) || 0;
+            totalMoves += Number(actRows[i].moves_today) || 0;
+        }
+        var totalValue = 0;
+        for (var j = 0; j < valRows.length; j++) { totalValue += Number(valRows[j].value_at_mrp) || 0; }
+        renderDashTiles(totalPicks, totalMoves, actRows.length, totalValue);
+        renderDashStaffToday(actRows);
+    }).catch(function(err) {
+        if (tilesEl) tilesEl.innerHTML = '<div class="settings-info">Error: ' + String(err) + '</div>';
+        if (staffEl) staffEl.innerHTML = '';
+    });
+}
+
+function renderDash14d(list) {
+    var el = document.getElementById('dash-staff-14d');
+    if (!el) return;
+    if (!list.length) { el.innerHTML = '<div class="settings-info">No staff activity recorded in the last 14 days.</div>'; return; }
+    var html = '';
+    for (var i = 0; i < list.length; i++) {
+        var r = list[i];
+        var avgTxt = r.avgPicksPerHour > 0 ? r.avgPicksPerHour.toFixed(1) : '—';
+        html += '<div class="dash-row">' +
+            '<div class="dash-row-emp">' + r.code + '</div>' +
+            '<div class="dash-row-stats">Picks: <b>' + r.picks + '</b> &bull; Avg picks/active-hr: <b>' + avgTxt + '</b> &bull; Active days: <b>' + r.activeDays + '</b></div>' +
+            '</div>';
+    }
+    el.innerHTML = html;
+}
+function loadDash14dPerformance() {
+    var el = document.getElementById('dash-staff-14d');
+    if (!db) { if (el) el.innerHTML = '<div class="settings-info">Database unreachable.</div>'; return; }
+    if (el) el.innerHTML = '<div class="settings-info">Loading...</div>';
+    db.from('oms_employee_performance_14d').select('employee_code,activity_date,picks,active_hours,distinct_orders')
+        .then(function(res) {
+            if (res.error) { if (el) el.innerHTML = '<div class="settings-info">Error: ' + res.error.message + '</div>'; return; }
+            var rows = res.data || [];
+            // Aggregate client-side to one row per employee, per the spec:
+            // total picks, avg picks per active-hour (guarded against /0), distinct active days.
+            var agg = {};
+            for (var i = 0; i < rows.length; i++) {
+                var r = rows[i];
+                var code = r.employee_code;
+                if (!code) continue;
+                if (!agg[code]) agg[code] = { code: code, picks: 0, hours: 0, days: {} };
+                agg[code].picks += Number(r.picks) || 0;
+                agg[code].hours += Number(r.active_hours) || 0;
+                if (r.activity_date) agg[code].days[r.activity_date] = true;
+            }
+            var list = [];
+            for (var k in agg) {
+                var a = agg[k];
+                list.push({
+                    code: a.code,
+                    picks: a.picks,
+                    avgPicksPerHour: a.hours > 0 ? (a.picks / a.hours) : 0,
+                    activeDays: Object.keys(a.days).length
+                });
+            }
+            list.sort(function(x, y) { return y.picks - x.picks; }); // sort by total picks descending
+            renderDash14d(list);
+        }).catch(function(err) {
+            if (el) el.innerHTML = '<div class="settings-info">Error: ' + String(err) + '</div>';
+        });
+}
+
+// Entry point, called from switchTab('dash') and the DASH tab's Refresh
+// button. No realtime subscription (spec says refresh-on-open is enough).
+function loadDashboard(manualRefresh) {
+    if (!state.session || state.session.role !== 'ADMIN') return; // belt-and-braces, mirrors renderAdminPanel()
+    if (!db) { showDashOffline(); return; }
+    hideDashOffline();
+    if (manualRefresh) {
+        var tilesEl = document.getElementById('dash-tiles');
+        var staffEl = document.getElementById('dash-staff-today');
+        var d14El = document.getElementById('dash-staff-14d');
+        if (tilesEl) tilesEl.innerHTML = '<div class="settings-info">Refreshing...</div>';
+        if (staffEl) staffEl.innerHTML = '<div class="settings-info">Refreshing...</div>';
+        if (d14El) d14El.innerHTML = '<div class="settings-info">Refreshing...</div>';
+        // A manual refresh should re-pull the shared caches too, not just re-render stale ones.
+        lowStockCache = null;
+        negativeStockCache = null;
+    }
+    loadDashLowStock();
+    loadDashNegativeStock();
+    loadDashStatsAndStaffToday();
+    loadDash14dPerformance();
 }
 
 // ── TAB SWITCHING ────────────────────────────────────────────
@@ -2551,7 +2941,7 @@ function switchTab(tab) {
         }
     }
     state.tab = tab;
-    var tabs = ['pick', 'move', 'stock', 'log', 'guide', 'settings'];
+    var tabs = ['pick', 'move', 'stock', 'log', 'guide', 'settings', 'dash'];
     for (var i = 0; i < tabs.length; i++) {
         var tc = document.getElementById(tabs[i] + '-tab');
         var tb = document.getElementById('tab-' + tabs[i]);
@@ -2579,6 +2969,9 @@ function switchTab(tab) {
     }
     if (tab === 'log') {
         loadReconciliation();
+    }
+    if (tab === 'dash') {
+        loadDashboard(false);
     }
 }
 
