@@ -38,7 +38,7 @@
         /* CONTENT */
         .content{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:10px 14px 90px}
         /* TABS */
-        .tab-nav{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:520px;display:flex;background:#fff;border-top:1px solid #e0e0e0;z-index:100}
+        .ver-corner{position:fixed;top:6px;right:8px;z-index:150;background:rgba(0,0,0,.55);color:#fff;font-size:10px;font-family:sans-serif;padding:2px 7px;border-radius:10px;pointer-events:none;letter-spacing:.3px}.tab-nav{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:520px;display:flex;background:#fff;border-top:1px solid #e0e0e0;z-index:100}
         .tab-btn{flex:1;padding:10px 4px 8px;border:none;background:transparent;cursor:pointer;font-size:11px;border-top:3px solid transparent;transition:all .15s;color:#888;touch-action:manipulation}
         .tab-btn.active{border-top-color:#1B4F8A;color:#1B4F8A;font-weight:700;background:#f7f9ff}
         .tab-content{display:none}
@@ -226,7 +226,7 @@
         .admin-emp-row:last-child{border-bottom:none}
         .admin-emp-actions{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
         .admin-emp-actions .settings-btn{font-size:11px;padding:6px 10px}
-        /* DASH TAB (v39, ADMIN only) — owner dashboard stat tiles + tables */
+        /* DASH TAB (v40, ADMIN only) — owner dashboard stat tiles + tables */
         .dash-tiles{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px}
         .dash-tile{flex:1 1 45%;min-width:45%;background:linear-gradient(135deg,#eef2f8,#e4ebf5);border:1px solid #dce4f0;border-radius:12px;padding:12px 10px;text-align:center}
         .dash-tile-val{font-size:19px;font-weight:800;color:#1B4F8A;line-height:1.2}
@@ -235,12 +235,13 @@
         .dash-row:last-child{border-bottom:none}
         .dash-row-emp{font-weight:700;color:#1B4F8A}
         .dash-row-stats{font-size:11px;color:#555;text-align:right}
-        /* STOCK ROW — print-label button (v39) */
+        /* STOCK ROW — print-label button (v40) */
         .print-label-btn{background:#fff;border:1.5px solid #c5d0de;border-radius:7px;font-size:14px;padding:5px 9px;margin-left:8px;cursor:pointer;touch-action:manipulation;flex-shrink:0}
         .print-label-btn:active{background:#eef2f8}
     </style>
 </head>
 <body>
+<div class="ver-corner" id="verCornerBadge">v40</div>
 <div class="app">
     <!-- HEADER -->
     <div class="header">
@@ -416,7 +417,7 @@
             </ul>
         </div>
 
-        <!-- DASH TAB (v39) — ADMIN-only owner dashboard. Hidden entirely for
+        <!-- DASH TAB (v40) — ADMIN-only owner dashboard. Hidden entirely for
              every other role via ROLE_PERMISSIONS + applyRolePermissions(),
              same tab-hiding pattern as the other role-gated tabs, and
              switchTab() itself refuses entry for non-ADMIN roles too. -->
@@ -567,7 +568,7 @@
 
             <!-- Version -->
             <div class="ver-badge">
-                <div class="ver-name">&#128230; ArtzFolio Scan-Pick-Pack v39</div>
+                <div class="ver-name">&#128230; ArtzFolio Scan-Pick-Pack v40</div>
                 <div class="ver-sub">Owner Dashboard (DASH) &bull; 14-Day Staff Performance &bull; Print Product/Bin Labels &bull; QC Hold/Damage &bull; Low-Stock Alerts &bull; Daily Reconciliation &bull; Admin PIN-Lock Unlock &bull; Real Employee Login (PIN) &bull; RBAC &bull; Live Database (Supabase)</div>
             </div>
         </div>
@@ -749,7 +750,7 @@
 //      adminUnlockEmployee() which invokes oms_admin_unlock() then reloads
 //      the row. oms_verify_login()'s lockout messages already flow through
 //      unchanged via the existing login-err element.
-// v39 (2026-07-25): 3 additive features, built on 3 new DB views. NONE of
+// v40 (2026-07-25): 3 additive features, built on 3 new DB views. NONE of
 // the v36/v37/v38 pick, move, stock, login, or RBAC logic below was
 // rewritten — only extended in place, following the exact existing
 // patterns:
@@ -795,8 +796,8 @@
 // project, re-run the same "oms_live_inventory_foundation" migration
 // there, then change ONLY the two constants below — nothing else in this
 // file needs to change.
-var DB_URL     = 'https://vvtwcggcfopnfddiffxb.supabase.co';
-var DB_ANON_KEY = 'sb_publishable_eccWE8_s6ozNzewz6_5o1w_XIvFSovQ';
+var DB_URL     = 'https://yrxvuikpudqnpicsthlg.supabase.co';
+var DB_ANON_KEY = 'sb_publishable_oQqHfUWzbnHYeSaicxnBWw_EfgH7nJU';
 var db = null;
 var dbOnline = false;
 try {
@@ -847,7 +848,7 @@ var CH_NAME = {
 // Adjust here only — switchTab() and applyRolePermissions() both read this.
 // logScope: 'own' = LOG tab filters to the logged-in employee's own entries;
 // 'all' = sees everything (matches v36 behaviour).
-// v39: added "dash" key (Owner Dashboard tab) — true only for ADMIN. Every
+// v40: added "dash" key (Owner Dashboard tab) — true only for ADMIN. Every
 // other existing key/value on every role is unchanged.
 var ROLE_PERMISSIONS = {
     WAREHOUSE_STAFF:  { pick:true,  move:false, stock:false, log:true, guide:true, settings:false, dash:false, logScope:'own' },
@@ -1439,7 +1440,7 @@ var stockRealtimeChannel = null;
 // so the existing STOCK query (already reading all ~11k SKUs) is untouched
 // and this stays cheap — oms_low_stock only ever returns a handful of rows.
 var lowStockSet = {};
-// v39: session-lifetime caches of the last oms_low_stock / oms_negative_stock_flags
+// v40: session-lifetime caches of the last oms_low_stock / oms_negative_stock_flags
 // fetch, so the DASH tab can reuse whatever STOCK/LOG already loaded this session
 // instead of re-querying, while still fetching fresh if neither tab was opened yet.
 var lowStockCache = null;
@@ -1471,7 +1472,7 @@ function loadLowStock() {
         }
         var rows = res.data || [];
         lowStockSet = {};
-        lowStockCache = rows; // v39: cache so DASH tab can reuse this fetch instead of re-querying
+        lowStockCache = rows; // v40: cache so DASH tab can reuse this fetch instead of re-querying
         for (var i = 0; i < rows.length; i++) { lowStockSet[(rows[i].sku_code || '').toUpperCase()] = true; }
         if (banner && textEl) {
             if (rows.length > 0) {
@@ -1505,7 +1506,7 @@ function renderStockList() {
         var r = rows[i];
         var isLowThreshold = !!lowStockSet[(r.sku_code || '').toUpperCase()];
         var lowCls = ((r.qty_on_hand !== null && r.qty_on_hand <= 0) || isLowThreshold) ? ' low' : '';
-        // v39: print-label button per row — reuses resolveSkuOrAsin() at click time
+        // v40: print-label button per row — reuses resolveSkuOrAsin() at click time
         // to fetch the product name, no change to this query/loop's own data needed.
         var skuForOnclick = (r.sku_code || '').replace(/'/g, "\\'");
         html += '<div class="stock-row">' +
@@ -1540,7 +1541,7 @@ function setupStockRealtime() {
     } catch (e) { console.warn('Realtime subscribe failed:', e); }
 }
 
-// ── PRINT LABEL (v39, STOCK tab) ─────────────────────────────────────────
+// ── PRINT LABEL (v40, STOCK tab) ─────────────────────────────────────────
 // Standalone reprintable product/bin label — QR payload is the PLAIN SKU
 // CODE STRING ONLY (not the AF2 pick-list format used elsewhere in this
 // app). Library is loaded lazily, inside the popup window itself, so the
@@ -2694,7 +2695,7 @@ function loadReconciliation() {
     db.from('oms_negative_stock_flags').select('sku_code,qty_on_hand').then(function(res) {
         if (res.error) return;
         var rows = res.data || [];
-        negativeStockCache = rows; // v39: cache so DASH tab can reuse this fetch instead of re-querying
+        negativeStockCache = rows; // v40: cache so DASH tab can reuse this fetch instead of re-querying
         if (!negBanner || !negText) return;
         if (rows.length > 0) {
             var codes = [];
@@ -2707,7 +2708,7 @@ function loadReconciliation() {
     }).catch(function() {});
 }
 
-// ── OWNER DASHBOARD (v39, DASH tab, ADMIN only) ──────────────────────────
+// ── OWNER DASHBOARD (v40, DASH tab, ADMIN only) ──────────────────────────
 // Currency formatting: no existing currency formatter elsewhere in this
 // file to reuse, so a small one is added here. Indian digit grouping
 // (e.g. 12,34,567) for the exact figure, with a "your call" abbreviation
@@ -2745,7 +2746,7 @@ function hideDashOffline() {
 
 // Reuses lowStockCache/negativeStockCache (populated by loadLowStock() /
 // loadReconciliation() in the STOCK/LOG tabs) when available this session;
-// otherwise fetches fresh — see the v39 changelog note above for why.
+// otherwise fetches fresh — see the v40 changelog note above for why.
 function loadDashLowStock() {
     var banner = document.getElementById('dash-low-stock-banner');
     var textEl = document.getElementById('dash-low-stock-text');
