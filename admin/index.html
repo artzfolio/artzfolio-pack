@@ -191,7 +191,7 @@ tbody tr:hover{background:#f9fbfd}
     </ul>
     <div class="sidebar-footer">
       <button class="logout-btn" onclick="adminLogout()">⎋ Logout</button>
-      <div class="ver-footer">ArtzFolio Admin Panel v1<br>2026-07-26</div>
+      <div class="ver-footer">ArtzFolio Admin Panel v1.1<br>2026-07-27 &bull; Hardened Employee Writes (Admin-RPC-Only)</div>
     </div>
   </div>
 
@@ -838,9 +838,19 @@ function toggleEmployeeActive(code, currentActive) {
   if (!confirm('Are you sure you want to ' + verb + ' employee ' + code + '?')) return;
   var resEl = empResultEl(code);
   if (resEl) { resEl.className = 'result-msg'; resEl.textContent = 'Saving...'; }
-  db.from('oms_employees').update({ active: !currentActive }).eq('employee_code', code).then(function (res) {
-    if (res.error) { if (resEl) { resEl.className = 'result-msg err'; resEl.textContent = 'Error: ' + res.error.message; } return; }
-    writeAuditLog(currentActive ? 'EMPLOYEE_DEACTIVATED' : 'EMPLOYEE_REACTIVATED', { details: { target_employee_code: code } });
+  // v1.1: oms_employees can no longer be updated directly by anon — this now
+  // goes through the admin-secret-gated oms_admin_toggle_employee_active RPC
+  // (reuses getAdminSecret() like the rest of this panel). The RPC writes its
+  // own EMPLOYEE_ACTIVATED/EMPLOYEE_DEACTIVATED audit row internally, so the
+  // separate writeAuditLog() call that used to live here is removed to avoid
+  // a duplicate log entry.
+  var secret = getAdminSecret();
+  db.rpc('oms_admin_toggle_employee_active', { p_admin_secret: secret, p_employee_code: code, p_active: !currentActive }).then(function (res) {
+    if (res.error) {
+      if (isBadSecretError(res.error)) { handleBadSecret('toggling employee status'); return; }
+      if (resEl) { resEl.className = 'result-msg err'; resEl.textContent = 'Error: ' + res.error.message; }
+      return;
+    }
     if (resEl) { resEl.className = 'result-msg ok'; resEl.textContent = '✓ Updated.'; }
     loadEmployees();
   }).catch(function (err) { if (resEl) { resEl.className = 'result-msg err'; resEl.textContent = 'Error: ' + String(err); } });
@@ -898,31 +908,24 @@ function submitAddEmployee() {
   var secret = getAdminSecret();
   resEl.className = 'result-msg'; resEl.textContent = 'Saving...';
 
-  db.from('oms_employees').insert({
-    company_id: 'artzfolio', employee_code: code, display_name: name, role: role, active: true
-  }).select().then(function (res) {
+  // v1.1: oms_employees can no longer be inserted directly by anon — this now
+  // goes through the single atomic oms_admin_add_employee RPC (insert + PIN
+  // set in one transaction, admin-secret-gated), replacing the old two-step
+  // insert-then-oms_set_pin flow (whose INSERT step was unauthenticated). The
+  // RPC writes its own EMPLOYEE_ADDED audit row internally, so the separate
+  // writeAuditLog() call that used to live here is removed to avoid a
+  // duplicate log entry.
+  db.rpc('oms_admin_add_employee', { p_admin_secret: secret, p_employee_code: code, p_display_name: name, p_role: role, p_initial_pin: pin }).then(function (res) {
     if (res.error) {
+      if (isBadSecretError(res.error)) { handleBadSecret('adding an employee'); return; }
       var msg = res.error.message || '';
       resEl.className = 'result-msg err';
       resEl.textContent = (res.error.code === '23505' || /duplicate|unique/i.test(msg)) ? 'This employee code already exists.' : 'Error: ' + msg;
       return;
     }
-    db.rpc('oms_set_pin', { p_employee_code: code, p_new_pin: pin, p_admin_secret: secret }).then(function (res2) {
-      if (res2.error) {
-        if (isBadSecretError(res2.error)) { handleBadSecret('adding an employee (employee record was created, but PIN could not be set)'); return; }
-        resEl.className = 'result-msg err';
-        resEl.textContent = 'Employee added, but PIN could not be set: ' + res2.error.message;
-        loadEmployees();
-        return;
-      }
-      writeAuditLog('EMPLOYEE_ADDED', { details: { added_employee_code: code, added_employee_name: name, role: role } });
-      resEl.className = 'result-msg ok'; resEl.textContent = '✓ Employee added.';
-      codeEl.value = ''; nameEl.value = ''; pinEl.value = ''; roleEl.value = 'WAREHOUSE_STAFF';
-      loadEmployees();
-    }).catch(function (err) {
-      resEl.className = 'result-msg err'; resEl.textContent = 'Employee added, but PIN could not be set: ' + String(err);
-      loadEmployees();
-    });
+    resEl.className = 'result-msg ok'; resEl.textContent = '✓ Employee added.';
+    codeEl.value = ''; nameEl.value = ''; pinEl.value = ''; roleEl.value = 'WAREHOUSE_STAFF';
+    loadEmployees();
   }).catch(function (err) { resEl.className = 'result-msg err'; resEl.textContent = 'Error: ' + String(err); });
 }
 
