@@ -241,7 +241,7 @@
     </style>
 </head>
 <body>
-<div class="ver-corner" id="verCornerBadge">v40</div>
+<div class="ver-corner" id="verCornerBadge">v41</div>
 <div class="app">
     <!-- HEADER -->
     <div class="header">
@@ -568,8 +568,8 @@
 
             <!-- Version -->
             <div class="ver-badge">
-                <div class="ver-name">&#128230; ArtzFolio Scan-Pick-Pack v40</div>
-                <div class="ver-sub">Owner Dashboard (DASH) &bull; 14-Day Staff Performance &bull; Print Product/Bin Labels &bull; QC Hold/Damage &bull; Low-Stock Alerts &bull; Daily Reconciliation &bull; Admin PIN-Lock Unlock &bull; Real Employee Login (PIN) &bull; RBAC &bull; Live Database (Supabase)</div>
+                <div class="ver-name">&#128230; ArtzFolio Scan-Pick-Pack v41</div>
+                <div class="ver-sub">Owner Dashboard (DASH) &bull; 14-Day Staff Performance &bull; Print Product/Bin Labels &bull; QC Hold/Damage &bull; Low-Stock Alerts &bull; Daily Reconciliation &bull; Admin PIN-Lock Unlock &bull; Real Employee Login (PIN) &bull; RBAC &bull; Live Database (Supabase) &bull; Admin-Secret-Gated PIN Recovery &bull; Permanent Audit Log</div>
             </div>
         </div>
     </div>
@@ -811,6 +811,33 @@ try {
     }
 } catch (e) { console.warn('DB init failed:', e); dbOnline = false; }
 
+// ── PERMANENT AUDIT LOG (v41) ────────────────────────────────
+// Fire-and-forget insert into oms_audit_log — a separate, permanent,
+// unclearable-by-this-app record (no SELECT/DELETE/UPDATE policy for the
+// anon role) used for HR/business-conduct accountability, distinct from the
+// existing local state.log/localStorage audit trail above (which stays
+// exactly as-is; this is additive, not a replacement). Never throws into
+// the calling code and never blocks the user-facing action — if this
+// fails (e.g. offline), the real action still completes normally.
+function writeAuditLog(actionType, opts) {
+    try {
+        if (!db) return;
+        opts = opts || {};
+        var emp = loadEmployee();
+        var row = {
+            employee_code: (emp && emp.code) ? emp.code : (opts.employeeCode || null),
+            employee_name: (emp && emp.name) ? emp.name : (opts.employeeName || null),
+            action_type:   actionType,
+            order_id:      opts.orderId  || null,
+            sku_code:      opts.skuCode  || null,
+            channel:       opts.channel  || null,
+            details:       opts.details  || null,
+            device_hint:   (navigator.userAgent || '').slice(0, 180)
+        };
+        db.from('oms_audit_log').insert(row).then(function() {}).catch(function() {});
+    } catch (e) { /* best-effort only — never let audit logging break the app */ }
+}
+
 // ── STATE ────────────────────────────────────────────────────
 var state = {
     tab:          'pick',
@@ -971,12 +998,14 @@ function attemptLogin() {
             return;
         }
         if (!row.ok) {
+            writeAuditLog('LOGIN_FAILED', { employeeCode: code, details: { message: row.message || null } });
             errEl.textContent = row.message || 'Login failed. Check your code and PIN.';
             return;
         }
         var sess = { employee_code: row.employee_code, display_name: row.display_name, role: row.role };
         state.session = sess;
         saveSessionToStorage(sess);
+        writeAuditLog('LOGIN_SUCCESS', { employeeCode: row.employee_code, employeeName: row.display_name, details: { role: row.role } });
         errEl.textContent = '';
         pinEl.value = '';
         enterApp();
@@ -1020,6 +1049,7 @@ function submitFirstTimeSetup() {
                 errEl.textContent = 'Account created, but the PIN could not be set (' + res2.error.message + '). Contact support.';
                 return;
             }
+            writeAuditLog('PIN_SET_BOOTSTRAP', { employeeCode: code, employeeName: name, details: { role: 'ADMIN' } });
             codeEl.value = ''; nameEl.value = ''; pin1El.value = ''; pin2El.value = '';
             document.getElementById('login-code-input').value = code;
             showLoginView();
@@ -1052,6 +1082,9 @@ function enterApp() {
 }
 
 function logout() {
+    if (state.session) {
+        writeAuditLog('LOGOUT', { employeeCode: state.session.employee_code, employeeName: state.session.display_name });
+    }
     clearSessionStorage();
     state.session = null;
     location.reload();
@@ -1138,22 +1171,32 @@ function adminToggleActive(code, currentActive) {
     if (!db) return;
     db.from('oms_employees').update({ active: !currentActive }).eq('employee_code', code).then(function(res) {
         if (res.error) { alert('Could not update: ' + res.error.message); return; }
+        writeAuditLog(currentActive ? 'EMPLOYEE_DEACTIVATED' : 'EMPLOYEE_REACTIVATED', { employeeCode: state.session ? state.session.employee_code : null, employeeName: state.session ? state.session.display_name : null, details: { target_employee_code: code } });
         loadAdminEmployees();
     });
 }
 // v38: clears an employee's PIN lockout (oms_admin_unlock RPC). ADMIN-only
 // from the UI (not enforced server-side yet — same MVP trade-off as the
 // other RPCs in this app, e.g. oms_set_pin).
+// v41: oms_admin_unlock now REQUIRES p_admin_secret server-side (bcrypt
+// checked, errcode 28000 on mismatch) — prompt the logged-in admin for it
+// at the point of action; it is never stored in this app.
 function adminUnlockEmployee(code) {
     if (!db) return;
     var resEl = document.getElementById('admin-unlock-result-' + code);
+    var secret = prompt('Enter the admin secret to unlock ' + code + ':');
+    if (secret === null) return; // cancelled
+    if (!secret) { if (resEl) { resEl.className = 'move-result err'; resEl.textContent = 'Admin secret is required.'; } return; }
     if (resEl) { resEl.className = 'move-result'; resEl.textContent = 'Unlocking...'; }
-    db.rpc('oms_admin_unlock', { p_employee_code: code }).then(function(res) {
+    db.rpc('oms_admin_unlock', { p_employee_code: code, p_admin_secret: secret }).then(function(res) {
         if (res.error) {
-            if (resEl) { resEl.className = 'move-result err'; resEl.textContent = 'Error: ' + res.error.message; }
+            var msg = (res.error.code === '28000' || /invalid admin secret/i.test(res.error.message || ''))
+                ? 'Incorrect admin secret.' : ('Error: ' + res.error.message);
+            if (resEl) { resEl.className = 'move-result err'; resEl.textContent = msg; }
             return;
         }
         if (resEl) { resEl.className = 'move-result ok'; resEl.textContent = '✓ Unlocked.'; }
+        writeAuditLog('ADMIN_UNLOCK', { employeeCode: state.session ? state.session.employee_code : null, employeeName: state.session ? state.session.display_name : null, details: { unlocked_employee_code: code } });
         loadAdminEmployees();
     }).catch(function(err) {
         if (resEl) { resEl.className = 'move-result err'; resEl.textContent = 'Error: ' + String(err); }
@@ -1178,10 +1221,20 @@ function adminSubmitResetPin(code) {
     var pin = (input.value || '').trim();
     if (!/^\d{4}$/.test(pin)) { resEl.className = 'move-result err'; resEl.textContent = 'PIN must be exactly 4 digits.'; return; }
     if (!db) return;
+    // v41: oms_set_pin now REQUIRES p_admin_secret once any employees exist
+    // (i.e. every call site except first-time bootstrap) — prompt for it here.
+    var secret = prompt('Enter the admin secret to reset the PIN for ' + code + ':');
+    if (secret === null) return; // cancelled
+    if (!secret) { resEl.className = 'move-result err'; resEl.textContent = 'Admin secret is required.'; return; }
     resEl.className = 'move-result'; resEl.textContent = 'Saving...';
-    db.rpc('oms_set_pin', { p_employee_code: code, p_new_pin: pin }).then(function(res) {
-        if (res.error) { resEl.className = 'move-result err'; resEl.textContent = 'Error: ' + res.error.message; return; }
+    db.rpc('oms_set_pin', { p_employee_code: code, p_new_pin: pin, p_admin_secret: secret }).then(function(res) {
+        if (res.error) {
+            var msg = (res.error.code === '28000' || /invalid admin secret/i.test(res.error.message || ''))
+                ? 'Incorrect admin secret.' : ('Error: ' + res.error.message);
+            resEl.className = 'move-result err'; resEl.textContent = msg; return;
+        }
         resEl.className = 'move-result ok'; resEl.textContent = '✓ PIN updated.';
+        writeAuditLog('PIN_RESET_ADMIN', { employeeCode: state.session ? state.session.employee_code : null, employeeName: state.session ? state.session.display_name : null, details: { reset_employee_code: code } });
         setTimeout(function() {
             var c = document.getElementById('admin-resetpin-' + code);
             if (c) { c.style.display = 'none'; c.innerHTML = ''; }
@@ -1205,6 +1258,13 @@ function adminAddEmployee() {
     if (!/^\d{4}$/.test(pin)) { resEl.className = 'move-result err'; resEl.textContent = 'PIN must be exactly 4 digits.'; return; }
     if (!db) { resEl.className = 'move-result err'; resEl.textContent = 'Database unreachable.'; return; }
 
+    // v41: oms_set_pin now REQUIRES p_admin_secret once any employees exist
+    // (which they do, by definition, since an admin is logged in to add one) —
+    // prompt for it up front so it's available for the PIN-set step below.
+    var secret = prompt('Enter the admin secret to add this employee:');
+    if (secret === null) return; // cancelled
+    if (!secret) { resEl.className = 'move-result err'; resEl.textContent = 'Admin secret is required.'; return; }
+
     resEl.className = 'move-result'; resEl.textContent = 'Saving...';
     db.from('oms_employees').insert({
         company_id: 'artzfolio', employee_code: code, display_name: name, role: role, active: true
@@ -1216,14 +1276,17 @@ function adminAddEmployee() {
                 ? 'This employee code already exists.' : 'Error: ' + msg;
             return;
         }
-        db.rpc('oms_set_pin', { p_employee_code: code, p_new_pin: pin }).then(function(res2) {
+        db.rpc('oms_set_pin', { p_employee_code: code, p_new_pin: pin, p_admin_secret: secret }).then(function(res2) {
             if (res2.error) {
                 resEl.className = 'move-result err';
-                resEl.textContent = 'Employee added, but PIN could not be set: ' + res2.error.message;
+                var pinMsg = (res2.error.code === '28000' || /invalid admin secret/i.test(res2.error.message || ''))
+                    ? 'Employee added, but the admin secret was incorrect — PIN could not be set.' : ('Employee added, but PIN could not be set: ' + res2.error.message);
+                resEl.textContent = pinMsg;
                 loadAdminEmployees();
                 return;
             }
             resEl.className = 'move-result ok'; resEl.textContent = '✓ Employee added.';
+            writeAuditLog('EMPLOYEE_ADDED', { employeeCode: state.session ? state.session.employee_code : null, employeeName: state.session ? state.session.display_name : null, details: { added_employee_code: code, added_employee_name: name, role: role } });
             codeEl.value = ''; nameEl.value = ''; pinEl.value = ''; roleEl.value = 'WAREHOUSE_STAFF';
             loadAdminEmployees();
         }).catch(function() {
@@ -1423,6 +1486,7 @@ function submitMoveTransaction() {
             resEl.className = 'move-result ok';
             resEl.textContent = '✓ Saved — ' + (cfg.sign > 0 ? '+' : '') + (cfg.sign * qtyVal) + ' units of ' + sku.sku_code + ' (' + (sku.product_name || '') + ')';
             logEvent(sku.sku_code, MOVE_MODES[moveMode].title.replace(/&#\d+;/g, '').trim() + ': ' + (cfg.sign > 0 ? '+' : '') + (cfg.sign * qtyVal) + (note ? ' — ' + note : ''));
+            writeAuditLog(moveMode, { skuCode: sku.sku_code, details: { qty_delta: cfg.sign * qtyVal, note: note || null, product_name: sku.product_name || null } });
             document.getElementById('move-sku-input').value = '';
             document.getElementById('move-qty-input').value = '1';
             document.getElementById('move-note-input').value = '';
@@ -2231,6 +2295,12 @@ function confirmOrder() {
     var id    = state.groupOrderID || (state.order ? state.order.internalID : '?');
     var items = state.groupTotal;
     logEvent(id, '&#9989; CONFIRMED &amp; PACKED (' + items + ' item' + (items > 1 ? 's' : '') + ')');
+    writeAuditLog('PICK_CONFIRMED', {
+        orderId: id,
+        skuCode: state.order ? state.order.sku : null,
+        channel: state.order ? state.order.channel : null,
+        details: { items: items, qty: state.order ? state.order.qty : null }
+    });
     setStatus('&#9989; Order confirmed and packed. Ready for the next order.', 'success');
     vibrate([100, 60, 100]);
     pulse('s');
@@ -2239,6 +2309,12 @@ function confirmOrder() {
 function reportIssue() {
     var id = state.groupOrderID || (state.order ? state.order.internalID : '?');
     logEvent(id, '&#9888; ISSUE REPORTED');
+    writeAuditLog('PICK_ISSUE_REPORTED', {
+        orderId: id,
+        skuCode: state.order ? state.order.sku : null,
+        channel: state.order ? state.order.channel : null,
+        details: { qty: state.order ? state.order.qty : null, bin: state.bin ? state.bin.binID : null }
+    });
     setStatus('&#9888; Issue logged. Please inform your supervisor.', 'error');
     vibrate([100, 50, 100, 50, 200]);
     resetPick();

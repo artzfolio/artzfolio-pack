@@ -1,0 +1,1302 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ArtzFolio Admin Panel</title>
+<!-- Supabase JS client — same live inventory database as the phone app.
+     Loaded async; the page still renders (with an offline banner) if this
+     fails to load or the network is down. -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;background:#f0f2f5;color:#222;font-size:14px}
+a{color:inherit}
+::-webkit-scrollbar{width:10px;height:10px}
+::-webkit-scrollbar-thumb{background:#c5d0de;border-radius:6px}
+
+/* ── DB OFFLINE BANNER (same pattern as App_v41) ─────────────── */
+.db-offline-banner{display:none;background:#fdedec;border:2px solid #c0392b;border-radius:10px;padding:10px 14px;margin:0 0 14px;font-size:12.5px;color:#7b241c;font-weight:600}
+.db-offline-banner.visible{display:block}
+
+/* ── LOGIN SCREEN ─────────────────────────────────────────────── */
+.login-wrap{min-height:100vh;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#1B4F8A,#153C6E)}
+.login-card{background:#fff;border-radius:16px;padding:36px 34px 30px;width:min(380px,90vw);box-shadow:0 12px 44px rgba(0,0,0,.3)}
+.login-brand{text-align:center;margin-bottom:22px}
+.login-brand-sub{font-size:11px;letter-spacing:1.5px;text-transform:uppercase;color:#888;margin-bottom:4px}
+.login-brand-title{font-size:20px;font-weight:800;color:#1B4F8A}
+.login-field label{display:block;font-size:11px;font-weight:700;color:#555;margin-bottom:6px;text-transform:uppercase;letter-spacing:.5px}
+.login-field input{width:100%;border:2px solid #dce4f0;border-radius:10px;padding:12px 14px;font-size:15px;outline:none;color:#222;transition:border-color .15s}
+.login-field input:focus{border-color:#1B4F8A}
+.login-btn{width:100%;background:linear-gradient(135deg,#1B4F8A,#2980B9);color:#fff;border:none;padding:13px;border-radius:10px;font-size:15px;font-weight:800;cursor:pointer;margin-top:16px;letter-spacing:.3px}
+.login-btn:hover{opacity:.92}
+.login-err{color:#c0392b;font-size:12.5px;text-align:center;margin-top:10px;min-height:16px;font-weight:600}
+.login-hint{font-size:11.5px;color:#999;text-align:center;margin-top:16px;line-height:1.5}
+
+/* ── APP SHELL ────────────────────────────────────────────────── */
+.shell{display:flex;min-height:100vh}
+.sidebar{width:230px;flex-shrink:0;background:linear-gradient(180deg,#1B4F8A,#153C6E);color:#fff;display:flex;flex-direction:column;position:fixed;top:0;bottom:0;left:0;overflow-y:auto}
+.sidebar-brand{padding:20px 18px 16px;border-bottom:1px solid rgba(255,255,255,.15)}
+.sidebar-brand-sub{font-size:10px;letter-spacing:1.2px;text-transform:uppercase;opacity:.65}
+.sidebar-brand-title{font-size:16px;font-weight:800;margin-top:3px}
+.nav-list{list-style:none;padding:10px 0;flex:1}
+.nav-item{padding:12px 18px;cursor:pointer;font-size:13.5px;font-weight:600;display:flex;align-items:center;gap:10px;border-left:3px solid transparent;opacity:.82;transition:all .12s}
+.nav-item:hover{background:rgba(255,255,255,.08);opacity:1}
+.nav-item.active{background:rgba(255,255,255,.13);border-left-color:#F39C12;opacity:1}
+.nav-icon{font-size:16px;width:18px;text-align:center}
+.sidebar-footer{padding:14px 18px 18px;border-top:1px solid rgba(255,255,255,.15)}
+.logout-btn{width:100%;background:rgba(231,76,60,.85);color:#fff;border:none;padding:9px;border-radius:8px;font-size:12.5px;font-weight:700;cursor:pointer}
+.logout-btn:hover{background:#c0392b}
+.ver-footer{font-size:10px;opacity:.55;margin-top:10px;text-align:center;line-height:1.5}
+
+.main{margin-left:230px;flex:1;padding:24px 30px 60px;max-width:1500px}
+.page{display:none}
+.page.active{display:block}
+.page-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;flex-wrap:wrap;gap:10px}
+.page-title{font-size:21px;font-weight:800;color:#1B4F8A}
+.page-sub{font-size:12.5px;color:#777;margin-top:2px}
+
+/* ── CARDS / TILES ────────────────────────────────────────────── */
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px;margin-bottom:22px}
+.tile{background:#fff;border-radius:12px;padding:16px 18px;box-shadow:0 1px 4px rgba(0,0,0,.08);border-left:4px solid #1B4F8A}
+.tile.warn{border-left-color:#F39C12}
+.tile.danger{border-left-color:#E74C3C;background:#fdf3f2}
+.tile-label{font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:#888;font-weight:700;margin-bottom:6px}
+.tile-val{font-size:24px;font-weight:800;color:#1B4F8A}
+.tile.danger .tile-val{color:#c0392b}
+.tile.warn .tile-val{color:#d68910}
+.tile-sub{font-size:11px;color:#999;margin-top:4px}
+
+.card{background:#fff;border-radius:12px;padding:18px 20px;box-shadow:0 1px 4px rgba(0,0,0,.08);margin-bottom:20px}
+.card h3{font-size:14.5px;color:#1B4F8A;font-weight:800;margin-bottom:12px;padding-bottom:8px;border-bottom:1px solid #eef1f5}
+
+/* ── FILTER BAR ───────────────────────────────────────────────── */
+.filter-bar{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-bottom:16px;background:#fff;border-radius:12px;padding:14px 16px;box-shadow:0 1px 4px rgba(0,0,0,.08)}
+.filter-field{display:flex;flex-direction:column;gap:4px}
+.filter-field label{font-size:10.5px;font-weight:700;color:#666;text-transform:uppercase;letter-spacing:.4px}
+.filter-field input,.filter-field select{border:1.5px solid #d5dce6;border-radius:8px;padding:8px 10px;font-size:12.5px;outline:none;min-width:130px;color:#222}
+.filter-field input:focus,.filter-field select:focus{border-color:#1B4F8A}
+.filter-actions{display:flex;gap:8px;margin-left:auto}
+.preset-row{display:flex;gap:6px;flex-wrap:wrap}
+.preset-btn{background:#eef2f8;border:1.5px solid #dce4f0;border-radius:16px;padding:5px 12px;font-size:11.5px;font-weight:700;color:#546e7a;cursor:pointer}
+.preset-btn:hover,.preset-btn.active{background:#1B4F8A;border-color:#1B4F8A;color:#fff}
+
+/* ── BUTTONS ──────────────────────────────────────────────────── */
+.btn{border:none;border-radius:8px;padding:9px 16px;font-size:12.5px;font-weight:700;cursor:pointer;transition:opacity .12s;white-space:nowrap}
+.btn:hover{opacity:.88}
+.btn-primary{background:#1B4F8A;color:#fff}
+.btn-gold{background:#F39C12;color:#fff}
+.btn-green{background:#27AE60;color:#fff}
+.btn-red{background:#E74C3C;color:#fff}
+.btn-grey{background:#e4e9f0;color:#455;}
+.btn-sm{padding:5px 10px;font-size:11px}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+
+/* ── TABLE ────────────────────────────────────────────────────── */
+.table-wrap{overflow-x:auto;background:#fff;border-radius:12px;box-shadow:0 1px 4px rgba(0,0,0,.08)}
+table{width:100%;border-collapse:collapse;font-size:12.5px}
+thead th{background:#f7f9fc;color:#546e7a;font-weight:700;text-align:left;padding:10px 12px;border-bottom:2px solid #e5eaf1;white-space:nowrap;position:sticky;top:0}
+tbody td{padding:9px 12px;border-bottom:1px solid #f0f2f5;vertical-align:top}
+tbody tr:hover{background:#f9fbfd}
+.mono{font-family:"SFMono-Regular",Consolas,monospace;font-size:11.5px}
+.num-pos{color:#1e8449;font-weight:700}
+.num-neg{color:#c0392b;font-weight:700}
+.qty-low{color:#c0392b;font-weight:800;background:#fdedec;padding:2px 7px;border-radius:6px}
+.qty-warn{color:#d68910;font-weight:800;background:#fef5e7;padding:2px 7px;border-radius:6px}
+.qty-ok{color:#1e8449;font-weight:700}
+.badge{display:inline-block;padding:3px 9px;border-radius:12px;font-size:10.5px;font-weight:700;color:#fff;white-space:nowrap}
+.badge-green{background:#27AE60}
+.badge-amber{background:#F39C12}
+.badge-blue{background:#2980B9}
+.badge-grey{background:#95a5a6}
+.badge-red{background:#E74C3C}
+.link-btn{background:none;border:none;color:#1B4F8A;font-weight:700;font-size:11.5px;cursor:pointer;text-decoration:underline;padding:0}
+.empty-row td{text-align:center;color:#aaa;padding:30px 0;font-size:12.5px}
+
+/* ── PAGINATION ───────────────────────────────────────────────── */
+.pagination{display:flex;align-items:center;gap:10px;justify-content:flex-end;padding:12px 14px;font-size:12px;color:#555}
+.pagination button{background:#eef2f8;border:1.5px solid #dce4f0;border-radius:6px;padding:5px 12px;font-size:12px;font-weight:700;cursor:pointer;color:#1B4F8A}
+.pagination button:disabled{opacity:.4;cursor:not-allowed}
+
+/* ── SUMMARY CAPTION ──────────────────────────────────────────── */
+.summary-caption{font-size:11px;color:#999;margin:-8px 0 14px;font-style:italic}
+
+/* ── MODAL ────────────────────────────────────────────────────── */
+.modal-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:500;align-items:center;justify-content:center;padding:20px}
+.modal-bg.active{display:flex}
+.modal{background:#fff;border-radius:14px;padding:22px 24px;width:min(560px,94vw);max-height:85vh;overflow-y:auto;box-shadow:0 12px 44px rgba(0,0,0,.3)}
+.modal h3{color:#1B4F8A;font-size:16px;margin-bottom:12px}
+.modal pre{background:#f7f9fc;border-radius:8px;padding:12px;font-size:11.5px;white-space:pre-wrap;word-break:break-word;font-family:Consolas,monospace}
+.modal-close{margin-top:16px;text-align:right}
+
+/* ── FORMS ────────────────────────────────────────────────────── */
+.form-row{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:10px}
+.form-field{display:flex;flex-direction:column;gap:4px;flex:1;min-width:160px}
+.form-field label{font-size:10.5px;font-weight:700;color:#666;text-transform:uppercase;letter-spacing:.4px}
+.form-field input,.form-field select{border:1.5px solid #d5dce6;border-radius:8px;padding:9px 11px;font-size:13px;outline:none}
+.form-field input:focus,.form-field select:focus{border-color:#1B4F8A}
+.result-msg{font-size:12px;margin-top:8px;min-height:16px;font-weight:600}
+.result-msg.ok{color:#1e8449}
+.result-msg.err{color:#c0392b}
+
+/* ── CSV IMPORT ───────────────────────────────────────────────── */
+.dropzone{border:2px dashed #c5d0de;border-radius:10px;padding:24px;text-align:center;color:#888;font-size:12.5px;margin-bottom:14px;background:#fafbfd}
+.dropzone.drag{border-color:#1B4F8A;background:#eef2f8}
+.import-preview-wrap{max-height:340px;overflow-y:auto;margin-bottom:14px}
+.hint-text{font-size:11.5px;color:#888;margin-bottom:10px;line-height:1.5}
+
+@media (max-width: 900px){
+  .sidebar{width:64px}
+  .sidebar-brand-title,.nav-item span.nav-label,.ver-footer,.sidebar-brand-sub{display:none}
+  .nav-item{justify-content:center}
+  .logout-btn{font-size:0}
+  .logout-btn::after{content:"⎋";font-size:16px}
+  .main{margin-left:64px;padding:18px}
+  .filter-bar{gap:8px}
+}
+</style>
+</head>
+<body>
+
+<!-- ═══════════════════════ LOGIN SCREEN ═══════════════════════ -->
+<div class="login-wrap" id="login-screen">
+  <div class="login-card">
+    <div class="login-brand">
+      <div class="login-brand-sub">ArtzFolio &middot; Vishnu Image Folio Pvt. Ltd.</div>
+      <div class="login-brand-title">🔐 Admin Panel</div>
+    </div>
+    <div class="login-field">
+      <label for="login-secret-input">Admin Secret</label>
+      <input type="password" id="login-secret-input" placeholder="Enter admin passphrase" autocomplete="off" autofocus>
+    </div>
+    <button class="login-btn" onclick="attemptAdminLogin()">Enter Admin Panel</button>
+    <div class="login-err" id="login-err-msg"></div>
+    <div class="login-hint">Your admin secret is kept only in this browser tab's memory (sessionStorage) — it is never saved to disk and is cleared automatically when the tab closes.</div>
+  </div>
+</div>
+
+<!-- ═══════════════════════ APP SHELL ═══════════════════════ -->
+<div class="shell" id="app-shell" style="display:none;">
+  <div class="sidebar">
+    <div class="sidebar-brand">
+      <div class="sidebar-brand-sub">ArtzFolio OMS</div>
+      <div class="sidebar-brand-title">⚙ Admin Panel</div>
+    </div>
+    <ul class="nav-list">
+      <li class="nav-item active" data-page="dashboard" onclick="switchPage('dashboard')"><span class="nav-icon">📊</span><span class="nav-label">Dashboard</span></li>
+      <li class="nav-item" data-page="audit" onclick="switchPage('audit')"><span class="nav-icon">📜</span><span class="nav-label">Audit Log</span></li>
+      <li class="nav-item" data-page="employees" onclick="switchPage('employees')"><span class="nav-icon">👥</span><span class="nav-label">Employees</span></li>
+      <li class="nav-item" data-page="sku" onclick="switchPage('sku')"><span class="nav-icon">📦</span><span class="nav-label">SKU &amp; Stock</span></li>
+      <li class="nav-item" data-page="reports" onclick="switchPage('reports')"><span class="nav-icon">📈</span><span class="nav-label">Reports</span></li>
+    </ul>
+    <div class="sidebar-footer">
+      <button class="logout-btn" onclick="adminLogout()">⎋ Logout</button>
+      <div class="ver-footer">ArtzFolio Admin Panel v1<br>2026-07-26</div>
+    </div>
+  </div>
+
+  <div class="main">
+    <div class="db-offline-banner" id="db-offline-banner">⚠ Live database not reachable right now. Data cannot be loaded or saved until this reconnects — check your internet connection.</div>
+
+    <!-- ══════════════ DASHBOARD ══════════════ -->
+    <div class="page active" id="page-dashboard">
+      <div class="page-header">
+        <div>
+          <div class="page-title">Dashboard</div>
+          <div class="page-sub">Live overview of stock, staff activity, and warehouse health</div>
+        </div>
+        <button class="btn btn-primary" onclick="loadDashboard()">↻ Refresh</button>
+      </div>
+      <div class="tiles" id="dash-tiles"><div class="tile"><div class="tile-label">Loading...</div></div></div>
+      <div class="card">
+        <h3>👤 Staff Activity Today</h3>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Employee</th><th>Name</th><th>Picks Today</th><th>Moves Today</th><th>Total Txns</th><th>First Activity</th><th>Last Activity</th></tr></thead>
+            <tbody id="dash-staff-body"><tr class="empty-row"><td colspan="7">Loading...</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══════════════ AUDIT LOG ══════════════ -->
+    <div class="page" id="page-audit">
+      <div class="page-header">
+        <div>
+          <div class="page-title">Audit Log</div>
+          <div class="page-sub">Permanent, unclearable business-conduct record — every meaningful action, who did it, and when.</div>
+        </div>
+        <button class="btn btn-gold" onclick="exportAuditCSV()">⬇ Export CSV (loaded page)</button>
+      </div>
+      <div class="filter-bar">
+        <div class="filter-field"><label>From</label><input type="date" id="audit-from"></div>
+        <div class="filter-field"><label>To</label><input type="date" id="audit-to"></div>
+        <div class="filter-field"><label>Employee</label>
+          <select id="audit-employee"><option value="">All</option></select>
+        </div>
+        <div class="filter-field"><label>Action Type</label>
+          <select id="audit-action">
+            <option value="">All</option>
+            <option>LOGIN_SUCCESS</option><option>LOGIN_FAILED</option>
+            <option>PIN_SET_BOOTSTRAP</option><option>PIN_RESET_ADMIN</option>
+            <option>ADMIN_UNLOCK</option><option>PICK_CONFIRMED</option>
+            <option>PICK_ISSUE_REPORTED</option><option>NEW_STOCK_IN</option>
+            <option>RETURN_IN</option><option>ADJUSTMENT_FOUND</option>
+            <option>ADJUSTMENT_LOST_THEFT</option><option>QC_HOLD</option>
+            <option>EMPLOYEE_ADDED</option><option>EMPLOYEE_DEACTIVATED</option>
+            <option>EMPLOYEE_REACTIVATED</option><option>LOGOUT</option>
+            <option>ADMIN_BULK_SKU_UPDATE</option>
+          </select>
+        </div>
+        <div class="filter-actions">
+          <button class="btn btn-grey" onclick="resetAuditFilters()">Reset</button>
+          <button class="btn btn-primary" onclick="loadAuditLog(0)">Apply Filters</button>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Timestamp</th><th>Employee</th><th>Action</th><th>Order ID</th><th>SKU</th><th>Channel</th><th>Details</th></tr></thead>
+          <tbody id="audit-body"><tr class="empty-row"><td colspan="7">Enter your admin secret via login to load the audit log.</td></tr></tbody>
+        </table>
+        <div class="pagination">
+          <span id="audit-page-info">Page 1</span>
+          <button id="audit-prev-btn" onclick="auditPagePrev()">← Prev</button>
+          <button id="audit-next-btn" onclick="auditPageNext()">Next →</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══════════════ EMPLOYEES ══════════════ -->
+    <div class="page" id="page-employees">
+      <div class="page-header">
+        <div>
+          <div class="page-title">Employee / User Management</div>
+          <div class="page-sub">Manage warehouse staff accounts, roles, PINs, and lock status.</div>
+        </div>
+        <button class="btn btn-primary" onclick="loadEmployees()">↻ Refresh</button>
+      </div>
+      <div class="filter-bar">
+        <div class="filter-field" style="min-width:220px"><label>Search</label><input type="text" id="emp-search" placeholder="Name, code, or role..." oninput="renderEmployees()"></div>
+        <div class="filter-field"><label>Status</label>
+          <select id="emp-status-filter" onchange="renderEmployees()">
+            <option value="">All</option>
+            <option value="active">Active only</option>
+            <option value="inactive">Inactive only</option>
+            <option value="locked">Locked only</option>
+          </select>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Code</th><th>Name</th><th>Role</th><th>Status</th><th>Locked</th><th>Last Login</th><th>Actions</th></tr></thead>
+          <tbody id="emp-body"><tr class="empty-row"><td colspan="7">Loading...</td></tr></tbody>
+        </table>
+      </div>
+
+      <div class="card" style="margin-top:20px;">
+        <h3>➕ Add Employee</h3>
+        <div class="form-row">
+          <div class="form-field"><label>Employee Code</label><input type="text" id="add-emp-code" placeholder="e.g. EMP009" oninput="this.value=this.value.toUpperCase()"></div>
+          <div class="form-field"><label>Display Name</label><input type="text" id="add-emp-name" placeholder="e.g. Suresh Kumar"></div>
+          <div class="form-field"><label>Role</label>
+            <select id="add-emp-role">
+              <option value="WAREHOUSE_STAFF">Warehouse Staff</option>
+              <option value="BILLING_OPERATOR">Billing Operator</option>
+              <option value="INVENTORY_LEAD">Inventory Lead</option>
+              <option value="PRODUCTION_LEAD">Production Lead</option>
+              <option value="ADMIN">Admin</option>
+            </select>
+          </div>
+          <div class="form-field"><label>Initial PIN (4-digit)</label><input type="tel" inputmode="numeric" maxlength="4" id="add-emp-pin" placeholder="1234"></div>
+        </div>
+        <button class="btn btn-primary" onclick="submitAddEmployee()">✓ Add Employee</button>
+        <div class="result-msg" id="add-emp-result"></div>
+      </div>
+    </div>
+
+    <!-- ══════════════ SKU & STOCK ══════════════ -->
+    <div class="page" id="page-sku">
+      <div class="page-header">
+        <div>
+          <div class="page-title">SKU &amp; Stock Search</div>
+          <div class="page-sub">11,192 SKUs live — searched and paginated server-side, not pulled all at once.</div>
+        </div>
+        <button class="btn btn-gold" onclick="exportSkuCSV()">⬇ Export CSV (loaded page)</button>
+      </div>
+      <div class="filter-bar">
+        <div class="filter-field" style="min-width:240px"><label>Search (SKU / ASIN / Product Name)</label><input type="text" id="sku-search" placeholder="Type to search..."></div>
+        <div class="filter-field"><label>Status</label>
+          <select id="sku-status-filter">
+            <option value="">All</option>
+            <option value="active">Active only</option>
+            <option value="inactive">Inactive only</option>
+          </select>
+        </div>
+        <div class="filter-field"><label>Stock Level</label>
+          <select id="sku-stock-filter">
+            <option value="">All</option>
+            <option value="negative">Negative</option>
+            <option value="low">At/below reorder</option>
+          </select>
+        </div>
+        <div class="filter-actions">
+          <button class="btn btn-primary" onclick="loadSkuStock(0)">Search</button>
+        </div>
+      </div>
+      <div class="summary-caption">CSV export covers only the currently-loaded page (up to 100 rows), not the full filtered result set.</div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>SKU Code</th><th>ASIN</th><th>Product Name</th><th>Type</th><th>Qty On Hand</th><th>Reorder Thr.</th><th>Cost Price</th><th>MRP</th><th>Status</th></tr></thead>
+          <tbody id="sku-body"><tr class="empty-row"><td colspan="9">Enter a search term or click Search to load SKUs.</td></tr></tbody>
+        </table>
+        <div class="pagination">
+          <span id="sku-page-info">Page 1</span>
+          <button id="sku-prev-btn" onclick="skuPagePrev()">← Prev</button>
+          <button id="sku-next-btn" onclick="skuPageNext()">Next →</button>
+        </div>
+      </div>
+
+      <div class="card" style="margin-top:20px;">
+        <h3>⬆ Bulk CSV Import — Update Existing SKUs</h3>
+        <div class="hint-text">
+          Upload a CSV with a <code>sku_code</code> column plus any of <code>reorder_threshold</code>, <code>cost_price</code>, <code>mrp</code>, <code>active</code> (true/false).
+          Only these four fields can be changed here — new SKUs are <strong>not</strong> created, and product name / ASIN / bin / set size are <strong>not</strong> touched, even if present in your file (extra columns are simply ignored).
+        </div>
+        <input type="file" id="csv-file-input" accept=".csv" onchange="handleCsvFileSelect(event)">
+        <div id="csv-preview-area" style="margin-top:14px;"></div>
+      </div>
+    </div>
+
+    <!-- ══════════════ REPORTS / TRANSACTIONS ══════════════ -->
+    <div class="page" id="page-reports">
+      <div class="page-header">
+        <div>
+          <div class="page-title">Reports &amp; Transactions Explorer</div>
+          <div class="page-sub">Raw inventory ledger (oms_inventory_transactions) with full filters.</div>
+        </div>
+        <button class="btn btn-gold" onclick="exportTxnCSV()">⬇ Export CSV (loaded page)</button>
+      </div>
+      <div class="filter-bar">
+        <div class="preset-row" style="width:100%;margin-bottom:4px;">
+          <button class="preset-btn" onclick="applyTxnPreset('today')">Today</button>
+          <button class="preset-btn" onclick="applyTxnPreset('week')">This Week</button>
+          <button class="preset-btn" onclick="applyTxnPreset('month')">This Month</button>
+          <button class="preset-btn" onclick="applyTxnPreset('all')">All Time</button>
+        </div>
+        <div class="filter-field"><label>From</label><input type="date" id="txn-from"></div>
+        <div class="filter-field"><label>To</label><input type="date" id="txn-to"></div>
+        <div class="filter-field"><label>Employee</label><select id="txn-employee"><option value="">All</option></select></div>
+        <div class="filter-field"><label>SKU (contains)</label><input type="text" id="txn-sku" placeholder="e.g. ART-1234"></div>
+        <div class="filter-field"><label>Channel</label>
+          <select id="txn-channel">
+            <option value="">All</option>
+            <option>AMZES</option><option>AMZVC</option><option>AMZSF</option>
+            <option>SHOPIFY</option><option>FLIPKART</option><option>MYNTRA</option>
+            <option>PRIVATE</option><option>ETRADE</option><option>COCOBLU</option>
+            <option>FLEX</option><option>SELLERFLEX</option><option>EASYSHIP</option>
+            <option>DIRECT</option><option>MEESHO</option><option>GLOWROAD</option><option>B2B</option>
+          </select>
+        </div>
+        <div class="filter-field"><label>Txn Type</label>
+          <select id="txn-type">
+            <option value="">All</option>
+            <option>SCAN_OUT_ORDER</option><option>RETURN_IN</option>
+            <option>NEW_STOCK_IN</option><option>ADJUSTMENT_FOUND</option>
+            <option>ADJUSTMENT_LOST_THEFT</option><option>MANUAL_CORRECTION</option>
+            <option>QC_HOLD</option>
+          </select>
+        </div>
+        <div class="filter-actions">
+          <button class="btn btn-grey" onclick="resetTxnFilters()">Reset</button>
+          <button class="btn btn-primary" onclick="loadTransactions(0)">Apply Filters</button>
+        </div>
+      </div>
+      <div class="tiles" id="txn-summary-tiles" style="margin-bottom:10px;"></div>
+      <div class="summary-caption">Summary tiles above and totals are computed from the currently-loaded page only (not the full filtered dataset) — if pagination is active, this is a page-level summary.</div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Timestamp</th><th>Type</th><th>SKU</th><th>Qty Δ</th><th>Channel</th><th>Order ID</th><th>Bin</th><th>Employee</th><th>Note</th></tr></thead>
+          <tbody id="txn-body"><tr class="empty-row"><td colspan="9">Apply filters to load transactions.</td></tr></tbody>
+        </table>
+        <div class="pagination">
+          <span id="txn-page-info">Page 1</span>
+          <button id="txn-prev-btn" onclick="txnPagePrev()">← Prev</button>
+          <button id="txn-next-btn" onclick="txnPageNext()">Next →</button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ═══════════════════════ DETAILS MODAL (Audit Log JSON viewer) ═══════════════════════ -->
+<div class="modal-bg" id="details-modal-bg">
+  <div class="modal">
+    <h3>Audit Entry Details</h3>
+    <pre id="details-modal-content">{}</pre>
+    <div class="modal-close"><button class="btn btn-grey" onclick="closeDetailsModal()">Close</button></div>
+  </div>
+</div>
+
+<script>
+'use strict';
+
+// ── LIVE DATABASE CONFIG (same project as the phone app) ────────
+var DB_URL = 'https://yrxvuikpudqnpicsthlg.supabase.co';
+var DB_ANON_KEY = 'sb_publishable_oQqHfUWzbnHYeSaicxnBWw_EfgH7nJU';
+var db = null;
+var dbOnline = false;
+try {
+  if (window.supabase && window.supabase.createClient) {
+    db = window.supabase.createClient(DB_URL, DB_ANON_KEY);
+    dbOnline = true;
+  }
+} catch (e) { console.warn('DB init failed:', e); dbOnline = false; }
+
+function refreshOfflineBanner() {
+  var el = document.getElementById('db-offline-banner');
+  if (!el) return;
+  if (!dbOnline) { el.classList.add('visible'); } else { el.classList.remove('visible'); }
+}
+refreshOfflineBanner();
+
+// ── ADMIN SECRET / SESSION ───────────────────────────────────────
+var ADMIN_SECRET_KEY = 'oms_admin_secret';
+
+function getAdminSecret() {
+  try { return sessionStorage.getItem(ADMIN_SECRET_KEY) || ''; } catch (e) { return ''; }
+}
+function setAdminSecret(v) {
+  try { sessionStorage.setItem(ADMIN_SECRET_KEY, v); } catch (e) {}
+}
+function clearAdminSecret() {
+  try { sessionStorage.removeItem(ADMIN_SECRET_KEY); } catch (e) {}
+}
+
+// Detects the "wrong admin secret" server response (bcrypt-checked RPC,
+// Postgres errcode 28000 on mismatch) — same pattern used across the
+// ArtzFolio scan-pick-pack app. On this failure we bounce the whole panel
+// back to the login screen rather than leaving the user stuck.
+function isBadSecretError(error) {
+  if (!error) return false;
+  return error.code === '28000' || /invalid admin secret/i.test(error.message || '');
+}
+function handleBadSecret(context) {
+  clearAdminSecret();
+  showLoginScreen('Your admin secret was rejected while loading ' + context + '. Please re-enter it.');
+}
+
+function attemptAdminLogin() {
+  var input = document.getElementById('login-secret-input');
+  var errEl = document.getElementById('login-err-msg');
+  var val = (input.value || '').trim();
+  if (!val) { errEl.textContent = 'Please enter the admin secret.'; return; }
+  errEl.textContent = '';
+  setAdminSecret(val);
+  showAppShell();
+}
+document.addEventListener('DOMContentLoaded', function () {
+  var input = document.getElementById('login-secret-input');
+  if (input) input.addEventListener('keydown', function (e) { if (e.key === 'Enter') attemptAdminLogin(); });
+});
+
+function showLoginScreen(message) {
+  document.getElementById('app-shell').style.display = 'none';
+  document.getElementById('login-screen').style.display = 'flex';
+  var errEl = document.getElementById('login-err-msg');
+  if (errEl) errEl.textContent = message || '';
+  var input = document.getElementById('login-secret-input');
+  if (input) { input.value = ''; input.focus(); }
+}
+function showAppShell() {
+  document.getElementById('login-screen').style.display = 'none';
+  document.getElementById('app-shell').style.display = 'flex';
+  initAppShell();
+}
+function adminLogout() {
+  clearAdminSecret();
+  showLoginScreen('');
+}
+
+// On load: if this tab already has a secret (e.g. page reload), skip straight
+// to the app shell. The secret itself is only validated when the first
+// secret-gated action (audit log fetch, PIN reset, etc.) actually runs.
+(function bootstrap() {
+  if (getAdminSecret()) { showAppShell(); } else { showLoginScreen(''); }
+})();
+
+// ── NAVIGATION ────────────────────────────────────────────────
+var appInitialized = false;
+function initAppShell() {
+  if (appInitialized) return;
+  appInitialized = true;
+  loadDashboard();
+  populateEmployeeDropdowns();
+  var today = new Date().toISOString().slice(0, 10);
+  document.getElementById('audit-to').value = today;
+  document.getElementById('txn-to').value = today;
+}
+function switchPage(name) {
+  document.querySelectorAll('.page').forEach(function (p) { p.classList.remove('active'); });
+  document.querySelectorAll('.nav-item').forEach(function (n) { n.classList.remove('active'); });
+  document.getElementById('page-' + name).classList.add('active');
+  document.querySelector('.nav-item[data-page="' + name + '"]').classList.add('active');
+  if (name === 'audit' && !auditLoadedOnce) { loadAuditLog(0); }
+  if (name === 'employees' && !empLoadedOnce) { loadEmployees(); }
+}
+
+// ── SHARED HELPERS ────────────────────────────────────────────
+function fmtMoney(n) {
+  if (n === null || n === undefined || isNaN(n)) return '—';
+  return '₹' + Number(n).toLocaleString('en-IN', { maximumFractionDigits: 2 });
+}
+function fmtNum(n) {
+  if (n === null || n === undefined || isNaN(n)) return '—';
+  return Number(n).toLocaleString('en-IN');
+}
+function fmtDateTime(iso) {
+  if (!iso) return '—';
+  try {
+    var d = new Date(iso);
+    return d.toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+  } catch (e) { return iso; }
+}
+function esc(s) {
+  if (s === null || s === undefined) return '';
+  return String(s).replace(/[&<>"']/g, function (c) {
+    return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+  });
+}
+function downloadCSV(filename, rows) {
+  if (!rows || !rows.length) { alert('Nothing to export.'); return; }
+  var headers = Object.keys(rows[0]);
+  var lines = [headers.join(',')];
+  rows.forEach(function (r) {
+    lines.push(headers.map(function (h) {
+      var v = r[h];
+      if (v === null || v === undefined) v = '';
+      v = String(v).replace(/"/g, '""');
+      if (/[",\n]/.test(v)) v = '"' + v + '"';
+      return v;
+    }).join(','));
+  });
+  var blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8;' });
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement('a');
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+function actionBadgeClass(action) {
+  if (!action) return 'badge-grey';
+  if (/FAIL|LOST|THEFT|ISSUE|DEACTIVAT/i.test(action)) return 'badge-amber';
+  if (/SUCCESS|CONFIRMED|ADDED|REACTIVAT|FOUND|UNLOCK|BULK|RESET|STOCK_IN|RETURN_IN/i.test(action)) return 'badge-green';
+  return 'badge-blue';
+}
+function txnBadgeClass(t) {
+  if (/LOST|THEFT|QC_HOLD/i.test(t)) return 'badge-red';
+  if (/RETURN|FOUND|NEW_STOCK/i.test(t)) return 'badge-green';
+  if (/SCAN_OUT/i.test(t)) return 'badge-blue';
+  return 'badge-grey';
+}
+
+var employeeDirectory = {}; // code -> {display_name, ...}
+function populateEmployeeDropdowns() {
+  if (!db) return;
+  db.from('oms_employees').select('employee_code, display_name, active').order('employee_code').then(function (res) {
+    if (res.error || !res.data) return;
+    employeeDirectory = {};
+    res.data.forEach(function (e) { employeeDirectory[e.employee_code] = e; });
+    var opts = res.data.map(function (e) {
+      return '<option value="' + esc(e.employee_code) + '">' + esc(e.employee_code) + ' — ' + esc(e.display_name) + '</option>';
+    }).join('');
+    ['audit-employee', 'txn-employee'].forEach(function (id) {
+      var sel = document.getElementById(id);
+      if (sel) sel.innerHTML = '<option value="">All</option>' + opts;
+    });
+  }).catch(function () {});
+}
+
+// ═══════════════════════ DASHBOARD ═══════════════════════
+function loadDashboard() {
+  if (!db) { refreshOfflineBanner(); return; }
+  var tilesEl = document.getElementById('dash-tiles');
+  tilesEl.innerHTML = '<div class="tile"><div class="tile-label">Loading...</div></div>';
+
+  Promise.all([
+    db.from('oms_stock_value').select('qty_on_hand, value_at_mrp, value_at_cost'),
+    db.from('oms_low_stock').select('sku_code'),
+    db.from('oms_negative_stock_flags').select('sku_code, qty_on_hand'),
+    db.from('oms_daily_reconciliation').select('txn_count_today, picked_today'),
+    db.from('oms_staff_activity_today').select('employee_code, picks_today, moves_today, total_txns_today, first_txn_at, last_txn_at'),
+    db.from('oms_sku_master').select('sku_code', { count: 'exact', head: true }),
+    db.from('oms_employees').select('employee_code', { count: 'exact', head: true }).eq('active', true)
+  ]).then(function (results) {
+    var stockValueRes = results[0], lowStockRes = results[1], negStockRes = results[2],
+        reconRes = results[3], staffRes = results[4], skuCountRes = results[5], empCountRes = results[6];
+
+    var anyErr = results.find(function (r) { return r.error; });
+    if (anyErr) { renderDashError(anyErr.error); return; }
+
+    var totalSkus = skuCountRes.count || 0;
+    var activeEmp = empCountRes.count || 0;
+    var valueAtCost = (stockValueRes.data || []).reduce(function (s, r) { return s + (Number(r.value_at_cost) || 0); }, 0);
+    var valueAtMrp = (stockValueRes.data || []).reduce(function (s, r) { return s + (Number(r.value_at_mrp) || 0); }, 0);
+    var lowStockCount = (lowStockRes.data || []).length;
+    var negStockCount = (negStockRes.data || []).length;
+    var totalTxnsToday = (reconRes.data || []).reduce(function (s, r) { return s + (Number(r.txn_count_today) || 0); }, 0);
+    var totalPicksToday = (reconRes.data || []).reduce(function (s, r) { return s + (Number(r.picked_today) || 0); }, 0);
+
+    var tiles = [
+      { label: 'Total SKUs', val: fmtNum(totalSkus), cls: '' },
+      { label: 'Stock Value (Cost)', val: fmtMoney(valueAtCost), cls: '' },
+      { label: 'Stock Value (MRP)', val: fmtMoney(valueAtMrp), cls: '' },
+      { label: 'Low Stock SKUs', val: fmtNum(lowStockCount), cls: lowStockCount > 0 ? 'warn' : '' },
+      { label: 'Negative Stock Flags', val: fmtNum(negStockCount), cls: negStockCount > 0 ? 'danger' : '' },
+      { label: "Today's Transactions", val: fmtNum(totalTxnsToday), sub: fmtNum(totalPicksToday) + ' picks', cls: '' },
+      { label: 'Active Employees', val: fmtNum(activeEmp), cls: '' }
+    ];
+    tilesEl.innerHTML = tiles.map(function (t) {
+      return '<div class="tile ' + t.cls + '"><div class="tile-label">' + esc(t.label) + '</div><div class="tile-val">' + t.val + '</div>' +
+        (t.sub ? '<div class="tile-sub">' + esc(t.sub) + '</div>' : '') + '</div>';
+    }).join('');
+
+    var staffBody = document.getElementById('dash-staff-body');
+    var staffRows = staffRes.data || [];
+    if (!staffRows.length) {
+      staffBody.innerHTML = '<tr class="empty-row"><td colspan="7">No staff activity recorded yet today.</td></tr>';
+    } else {
+      staffBody.innerHTML = staffRows.map(function (r) {
+        var name = employeeDirectory[r.employee_code] ? employeeDirectory[r.employee_code].display_name : '—';
+        return '<tr><td class="mono">' + esc(r.employee_code) + '</td><td>' + esc(name) + '</td>' +
+          '<td>' + fmtNum(r.picks_today) + '</td><td>' + fmtNum(r.moves_today) + '</td><td>' + fmtNum(r.total_txns_today) + '</td>' +
+          '<td>' + fmtDateTime(r.first_txn_at) + '</td><td>' + fmtDateTime(r.last_txn_at) + '</td></tr>';
+      }).join('');
+    }
+  }).catch(function (err) { renderDashError(err); });
+}
+function renderDashError(err) {
+  document.getElementById('dash-tiles').innerHTML = '<div class="tile danger"><div class="tile-label">Error loading dashboard</div><div class="tile-sub">' + esc(String(err && err.message || err)) + '</div></div>';
+}
+
+// ═══════════════════════ AUDIT LOG ═══════════════════════
+var auditPage = 0;
+var auditPageSize = 50;
+var auditLoadedOnce = false;
+var auditLastRows = [];
+
+function resetAuditFilters() {
+  document.getElementById('audit-from').value = '';
+  document.getElementById('audit-to').value = new Date().toISOString().slice(0, 10);
+  document.getElementById('audit-employee').value = '';
+  document.getElementById('audit-action').value = '';
+  loadAuditLog(0);
+}
+function auditPagePrev() { if (auditPage > 0) loadAuditLog(auditPage - 1); }
+function auditPageNext() { loadAuditLog(auditPage + 1); }
+
+function loadAuditLog(page) {
+  if (!db) { refreshOfflineBanner(); return; }
+  auditLoadedOnce = true;
+  auditPage = page;
+  var body = document.getElementById('audit-body');
+  body.innerHTML = '<tr class="empty-row"><td colspan="7">Loading...</td></tr>';
+
+  var secret = getAdminSecret();
+  var fromVal = document.getElementById('audit-from').value;
+  var toVal = document.getElementById('audit-to').value;
+  var empVal = document.getElementById('audit-employee').value;
+  var actionVal = document.getElementById('audit-action').value;
+
+  var params = {
+    p_admin_secret: secret,
+    p_from: fromVal ? new Date(fromVal + 'T00:00:00').toISOString() : null,
+    p_to: toVal ? new Date(toVal + 'T23:59:59').toISOString() : null,
+    p_employee_code: empVal || null,
+    p_action_type: actionVal || null,
+    p_limit: auditPageSize,
+    p_offset: page * auditPageSize
+  };
+
+  db.rpc('oms_get_audit_log', params).then(function (res) {
+    if (res.error) {
+      if (isBadSecretError(res.error)) { handleBadSecret('the Audit Log'); return; }
+      body.innerHTML = '<tr class="empty-row"><td colspan="7">Error: ' + esc(res.error.message) + '</td></tr>';
+      return;
+    }
+    var rows = res.data || [];
+    auditLastRows = rows;
+    if (!rows.length) {
+      body.innerHTML = '<tr class="empty-row"><td colspan="7">No audit entries match these filters' + (page > 0 ? ' on this page.' : '.') + '</td></tr>';
+    } else {
+      body.innerHTML = rows.map(function (r, idx) {
+        var empName = r.employee_name || (employeeDirectory[r.employee_code] ? employeeDirectory[r.employee_code].display_name : '');
+        var detailsStr = r.details ? JSON.stringify(r.details) : '';
+        var shortDetails = detailsStr.length > 40 ? detailsStr.slice(0, 40) + '…' : detailsStr;
+        return '<tr>' +
+          '<td class="mono">' + esc(fmtDateTime(r.created_at)) + '</td>' +
+          '<td>' + esc(r.employee_code || '—') + (empName ? '<br><span class="mono" style="color:#888">' + esc(empName) + '</span>' : '') + '</td>' +
+          '<td><span class="badge ' + actionBadgeClass(r.action_type) + '">' + esc(r.action_type || '—') + '</span></td>' +
+          '<td>' + esc(r.order_id || '—') + '</td>' +
+          '<td class="mono">' + esc(r.sku_code || '—') + '</td>' +
+          '<td>' + esc(r.channel || '—') + '</td>' +
+          '<td>' + (detailsStr ? ('<span class="mono" title="' + esc(detailsStr) + '">' + esc(shortDetails) + '</span> <button class="link-btn" onclick="showDetailsModal(' + idx + ')">view</button>') : '—') + '</td>' +
+          '</tr>';
+      }).join('');
+    }
+    document.getElementById('audit-page-info').textContent = 'Page ' + (page + 1) + (rows.length < auditPageSize ? ' (end)' : '');
+    document.getElementById('audit-prev-btn').disabled = page === 0;
+    document.getElementById('audit-next-btn').disabled = rows.length < auditPageSize;
+  }).catch(function (err) {
+    body.innerHTML = '<tr class="empty-row"><td colspan="7">Error: ' + esc(String(err)) + '</td></tr>';
+  });
+}
+function showDetailsModal(idx) {
+  var row = auditLastRows[idx];
+  if (!row) return;
+  document.getElementById('details-modal-content').textContent = JSON.stringify(row.details, null, 2);
+  document.getElementById('details-modal-bg').classList.add('active');
+}
+function closeDetailsModal() { document.getElementById('details-modal-bg').classList.remove('active'); }
+
+function exportAuditCSV() {
+  if (!auditLastRows.length) { alert('No audit rows loaded to export.'); return; }
+  var rows = auditLastRows.map(function (r) {
+    return {
+      timestamp: r.created_at, employee_code: r.employee_code, employee_name: r.employee_name,
+      action_type: r.action_type, order_id: r.order_id, sku_code: r.sku_code, channel: r.channel,
+      details: r.details ? JSON.stringify(r.details) : '', device_hint: r.device_hint
+    };
+  });
+  downloadCSV('artzfolio_audit_log_page' + (auditPage + 1) + '.csv', rows);
+}
+
+// ═══════════════════════ EMPLOYEES ═══════════════════════
+var empLoadedOnce = false;
+var employeesCache = [];
+
+function loadEmployees() {
+  if (!db) { refreshOfflineBanner(); return; }
+  empLoadedOnce = true;
+  var body = document.getElementById('emp-body');
+  body.innerHTML = '<tr class="empty-row"><td colspan="7">Loading...</td></tr>';
+  db.from('oms_employees').select('*').order('employee_code').then(function (res) {
+    if (res.error) { body.innerHTML = '<tr class="empty-row"><td colspan="7">Error: ' + esc(res.error.message) + '</td></tr>'; return; }
+    employeesCache = res.data || [];
+    populateEmployeeDropdowns();
+    renderEmployees();
+  }).catch(function (err) { body.innerHTML = '<tr class="empty-row"><td colspan="7">Error: ' + esc(String(err)) + '</td></tr>'; });
+}
+function renderEmployees() {
+  var body = document.getElementById('emp-body');
+  var q = (document.getElementById('emp-search').value || '').toLowerCase().trim();
+  var statusFilter = document.getElementById('emp-status-filter').value;
+  var now = new Date();
+
+  var rows = employeesCache.filter(function (e) {
+    var isLocked = e.locked_until && new Date(e.locked_until) > now;
+    if (statusFilter === 'active' && !e.active) return false;
+    if (statusFilter === 'inactive' && e.active) return false;
+    if (statusFilter === 'locked' && !isLocked) return false;
+    if (q) {
+      var hay = (e.employee_code + ' ' + e.display_name + ' ' + e.role).toLowerCase();
+      if (hay.indexOf(q) === -1) return false;
+    }
+    return true;
+  });
+
+  if (!rows.length) { body.innerHTML = '<tr class="empty-row"><td colspan="7">No employees match this filter.</td></tr>'; return; }
+
+  body.innerHTML = rows.map(function (e) {
+    var isLocked = e.locked_until && new Date(e.locked_until) > now;
+    var statusBadge = e.active ? '<span class="badge badge-green">ACTIVE</span>' : '<span class="badge badge-grey">INACTIVE</span>';
+    var lockBadge = isLocked ? '<span class="badge badge-red">LOCKED</span>' : '<span class="badge badge-grey">—</span>';
+    var code = esc(e.employee_code);
+    return '<tr>' +
+      '<td class="mono">' + code + '</td>' +
+      '<td>' + esc(e.display_name) + '</td>' +
+      '<td>' + esc(e.role) + '</td>' +
+      '<td>' + statusBadge + '</td>' +
+      '<td>' + lockBadge + '</td>' +
+      '<td>' + fmtDateTime(e.last_login_at) + '</td>' +
+      '<td>' +
+        '<div style="display:flex;gap:6px;flex-wrap:wrap;">' +
+        '<button class="btn btn-sm ' + (e.active ? 'btn-grey' : 'btn-green') + '" onclick="toggleEmployeeActive(\'' + code + '\', ' + !!e.active + ')">' + (e.active ? 'Deactivate' : 'Reactivate') + '</button>' +
+        '<button class="btn btn-sm btn-primary" onclick="resetEmployeePin(\'' + code + '\')">Reset PIN</button>' +
+        '<button class="btn btn-sm btn-gold" onclick="unlockEmployee(\'' + code + '\')">Unlock</button>' +
+        '</div>' +
+        '<div class="result-msg" id="emp-result-' + code + '"></div>' +
+      '</td>' +
+      '</tr>';
+  }).join('');
+}
+function empResultEl(code) { return document.getElementById('emp-result-' + code); }
+
+function toggleEmployeeActive(code, currentActive) {
+  if (!db) return;
+  var verb = currentActive ? 'deactivate' : 'reactivate';
+  if (!confirm('Are you sure you want to ' + verb + ' employee ' + code + '?')) return;
+  var resEl = empResultEl(code);
+  if (resEl) { resEl.className = 'result-msg'; resEl.textContent = 'Saving...'; }
+  db.from('oms_employees').update({ active: !currentActive }).eq('employee_code', code).then(function (res) {
+    if (res.error) { if (resEl) { resEl.className = 'result-msg err'; resEl.textContent = 'Error: ' + res.error.message; } return; }
+    writeAuditLog(currentActive ? 'EMPLOYEE_DEACTIVATED' : 'EMPLOYEE_REACTIVATED', { details: { target_employee_code: code } });
+    if (resEl) { resEl.className = 'result-msg ok'; resEl.textContent = '✓ Updated.'; }
+    loadEmployees();
+  }).catch(function (err) { if (resEl) { resEl.className = 'result-msg err'; resEl.textContent = 'Error: ' + String(err); } });
+}
+function resetEmployeePin(code) {
+  if (!db) return;
+  var pin = prompt('Enter a new 4-digit PIN for ' + code + ':');
+  if (pin === null) return;
+  if (!/^\d{4}$/.test(pin)) { alert('PIN must be exactly 4 digits.'); return; }
+  var secret = getAdminSecret();
+  var resEl = empResultEl(code);
+  if (resEl) { resEl.className = 'result-msg'; resEl.textContent = 'Saving...'; }
+  db.rpc('oms_set_pin', { p_employee_code: code, p_new_pin: pin, p_admin_secret: secret }).then(function (res) {
+    if (res.error) {
+      if (isBadSecretError(res.error)) { handleBadSecret('a PIN reset'); return; }
+      if (resEl) { resEl.className = 'result-msg err'; resEl.textContent = 'Error: ' + res.error.message; }
+      return;
+    }
+    writeAuditLog('PIN_RESET_ADMIN', { details: { reset_employee_code: code } });
+    if (resEl) { resEl.className = 'result-msg ok'; resEl.textContent = '✓ PIN updated.'; }
+  }).catch(function (err) { if (resEl) { resEl.className = 'result-msg err'; resEl.textContent = 'Error: ' + String(err); } });
+}
+function unlockEmployee(code) {
+  if (!db) return;
+  var secret = getAdminSecret();
+  var resEl = empResultEl(code);
+  if (resEl) { resEl.className = 'result-msg'; resEl.textContent = 'Unlocking...'; }
+  db.rpc('oms_admin_unlock', { p_employee_code: code, p_admin_secret: secret }).then(function (res) {
+    if (res.error) {
+      if (isBadSecretError(res.error)) { handleBadSecret('an unlock action'); return; }
+      if (resEl) { resEl.className = 'result-msg err'; resEl.textContent = 'Error: ' + res.error.message; }
+      return;
+    }
+    writeAuditLog('ADMIN_UNLOCK', { details: { unlocked_employee_code: code } });
+    if (resEl) { resEl.className = 'result-msg ok'; resEl.textContent = '✓ Unlocked.'; }
+    loadEmployees();
+  }).catch(function (err) { if (resEl) { resEl.className = 'result-msg err'; resEl.textContent = 'Error: ' + String(err); } });
+}
+function submitAddEmployee() {
+  if (!db) return;
+  var codeEl = document.getElementById('add-emp-code');
+  var nameEl = document.getElementById('add-emp-name');
+  var roleEl = document.getElementById('add-emp-role');
+  var pinEl = document.getElementById('add-emp-pin');
+  var resEl = document.getElementById('add-emp-result');
+  var code = (codeEl.value || '').trim().toUpperCase();
+  var name = (nameEl.value || '').trim();
+  var role = roleEl.value;
+  var pin = (pinEl.value || '').trim();
+
+  if (!code) { resEl.className = 'result-msg err'; resEl.textContent = 'Enter an employee code.'; return; }
+  if (!name) { resEl.className = 'result-msg err'; resEl.textContent = 'Enter a display name.'; return; }
+  if (!/^\d{4}$/.test(pin)) { resEl.className = 'result-msg err'; resEl.textContent = 'PIN must be exactly 4 digits.'; return; }
+
+  var secret = getAdminSecret();
+  resEl.className = 'result-msg'; resEl.textContent = 'Saving...';
+
+  db.from('oms_employees').insert({
+    company_id: 'artzfolio', employee_code: code, display_name: name, role: role, active: true
+  }).select().then(function (res) {
+    if (res.error) {
+      var msg = res.error.message || '';
+      resEl.className = 'result-msg err';
+      resEl.textContent = (res.error.code === '23505' || /duplicate|unique/i.test(msg)) ? 'This employee code already exists.' : 'Error: ' + msg;
+      return;
+    }
+    db.rpc('oms_set_pin', { p_employee_code: code, p_new_pin: pin, p_admin_secret: secret }).then(function (res2) {
+      if (res2.error) {
+        if (isBadSecretError(res2.error)) { handleBadSecret('adding an employee (employee record was created, but PIN could not be set)'); return; }
+        resEl.className = 'result-msg err';
+        resEl.textContent = 'Employee added, but PIN could not be set: ' + res2.error.message;
+        loadEmployees();
+        return;
+      }
+      writeAuditLog('EMPLOYEE_ADDED', { details: { added_employee_code: code, added_employee_name: name, role: role } });
+      resEl.className = 'result-msg ok'; resEl.textContent = '✓ Employee added.';
+      codeEl.value = ''; nameEl.value = ''; pinEl.value = ''; roleEl.value = 'WAREHOUSE_STAFF';
+      loadEmployees();
+    }).catch(function (err) {
+      resEl.className = 'result-msg err'; resEl.textContent = 'Employee added, but PIN could not be set: ' + String(err);
+      loadEmployees();
+    });
+  }).catch(function (err) { resEl.className = 'result-msg err'; resEl.textContent = 'Error: ' + String(err); });
+}
+
+// writeAuditLog — fire-and-forget insert into oms_audit_log (anon INSERT
+// only; reads go through oms_get_audit_log). Uses the 'ADMIN_PANEL' /
+// 'Admin Panel (Web)' placeholder identity since this panel has no
+// per-admin employee login of its own — only the shared admin secret.
+function writeAuditLog(actionType, opts) {
+  try {
+    if (!db) return;
+    opts = opts || {};
+    var row = {
+      employee_code: opts.employeeCode || 'ADMIN_PANEL',
+      employee_name: opts.employeeName || 'Admin Panel (Web)',
+      action_type: actionType,
+      order_id: opts.orderId || null,
+      sku_code: opts.skuCode || null,
+      channel: opts.channel || null,
+      details: opts.details || null,
+      device_hint: (navigator.userAgent || '').slice(0, 180)
+    };
+    db.from('oms_audit_log').insert(row).then(function () {}).catch(function () {});
+  } catch (e) { /* best-effort only */ }
+}
+
+// ═══════════════════════ SKU & STOCK ═══════════════════════
+var skuPage = 0;
+var skuPageSize = 100;
+var skuLastRows = [];
+var skuLastHadMore = false;
+
+function skuPagePrev() { if (skuPage > 0) loadSkuStock(skuPage - 1); }
+function skuPageNext() { if (skuLastHadMore) loadSkuStock(skuPage + 1); }
+
+function loadSkuStock(page) {
+  if (!db) { refreshOfflineBanner(); return; }
+  skuPage = page;
+  var body = document.getElementById('sku-body');
+  body.innerHTML = '<tr class="empty-row"><td colspan="9">Loading...</td></tr>';
+
+  var q = (document.getElementById('sku-search').value || '').trim();
+  var statusFilter = document.getElementById('sku-status-filter').value;
+  var stockFilter = document.getElementById('sku-stock-filter').value;
+
+  var from = page * skuPageSize;
+  var to = from + skuPageSize - 1;
+
+  var query = db.from('oms_sku_master').select('sku_code, asin, product_name, product_type, reorder_threshold, cost_price, mrp, active');
+  if (q) {
+    var esc2 = q.replace(/[%_]/g, '\\$&');
+    query = query.or('sku_code.ilike.%' + esc2 + '%,asin.ilike.%' + esc2 + '%,product_name.ilike.%' + esc2 + '%');
+  }
+  if (statusFilter === 'active') query = query.eq('active', true);
+  if (statusFilter === 'inactive') query = query.eq('active', false);
+  query = query.order('sku_code').range(from, to + 1); // fetch one extra to detect "more"
+
+  query.then(function (res) {
+    if (res.error) { body.innerHTML = '<tr class="empty-row"><td colspan="9">Error: ' + esc(res.error.message) + '</td></tr>'; return; }
+    var skus = res.data || [];
+    skuLastHadMore = skus.length > skuPageSize;
+    if (skuLastHadMore) skus = skus.slice(0, skuPageSize);
+
+    if (!skus.length) {
+      body.innerHTML = '<tr class="empty-row"><td colspan="9">No SKUs match this search.</td></tr>';
+      skuLastRows = [];
+      document.getElementById('sku-page-info').textContent = 'Page ' + (page + 1);
+      document.getElementById('sku-prev-btn').disabled = page === 0;
+      document.getElementById('sku-next-btn').disabled = true;
+      return;
+    }
+
+    var codes = skus.map(function (s) { return s.sku_code; });
+    db.from('oms_current_stock').select('sku_code, qty_on_hand').in('sku_code', codes).then(function (stockRes) {
+      var stockMap = {};
+      (stockRes.data || []).forEach(function (s) { stockMap[s.sku_code] = s.qty_on_hand; });
+
+      var merged = skus.map(function (s) {
+        var qty = stockMap.hasOwnProperty(s.sku_code) ? stockMap[s.sku_code] : null;
+        var passesStockFilter = true;
+        if (stockFilter === 'negative') passesStockFilter = qty !== null && qty < 0;
+        if (stockFilter === 'low') passesStockFilter = qty !== null && s.reorder_threshold !== null && qty <= s.reorder_threshold;
+        return Object.assign({}, s, { qty_on_hand: qty, _pass: passesStockFilter });
+      });
+      var filtered = stockFilter ? merged.filter(function (m) { return m._pass; }) : merged;
+      skuLastRows = filtered;
+
+      if (!filtered.length) {
+        body.innerHTML = '<tr class="empty-row"><td colspan="9">No SKUs match this search + stock filter combination on this page.</td></tr>';
+      } else {
+        body.innerHTML = filtered.map(function (s) {
+          var qtyCell = '—';
+          if (s.qty_on_hand !== null) {
+            if (s.qty_on_hand < 0) qtyCell = '<span class="qty-low">' + fmtNum(s.qty_on_hand) + '</span>';
+            else if (s.reorder_threshold !== null && s.qty_on_hand <= s.reorder_threshold) qtyCell = '<span class="qty-warn">' + fmtNum(s.qty_on_hand) + '</span>';
+            else qtyCell = '<span class="qty-ok">' + fmtNum(s.qty_on_hand) + '</span>';
+          }
+          return '<tr>' +
+            '<td class="mono">' + esc(s.sku_code) + '</td>' +
+            '<td class="mono">' + esc(s.asin || '—') + '</td>' +
+            '<td>' + esc(s.product_name || '—') + '</td>' +
+            '<td>' + esc(s.product_type || '—') + '</td>' +
+            '<td>' + qtyCell + '</td>' +
+            '<td>' + fmtNum(s.reorder_threshold) + '</td>' +
+            '<td>' + fmtMoney(s.cost_price) + '</td>' +
+            '<td>' + fmtMoney(s.mrp) + '</td>' +
+            '<td>' + (s.active ? '<span class="badge badge-green">ACTIVE</span>' : '<span class="badge badge-grey">INACTIVE</span>') + '</td>' +
+            '</tr>';
+        }).join('');
+      }
+      document.getElementById('sku-page-info').textContent = 'Page ' + (page + 1);
+      document.getElementById('sku-prev-btn').disabled = page === 0;
+      document.getElementById('sku-next-btn').disabled = !skuLastHadMore;
+    }).catch(function (err) { body.innerHTML = '<tr class="empty-row"><td colspan="9">Error loading stock: ' + esc(String(err)) + '</td></tr>'; });
+  }).catch(function (err) { body.innerHTML = '<tr class="empty-row"><td colspan="9">Error: ' + esc(String(err)) + '</td></tr>'; });
+}
+function exportSkuCSV() {
+  if (!skuLastRows.length) { alert('No SKU rows loaded to export.'); return; }
+  var rows = skuLastRows.map(function (s) {
+    return {
+      sku_code: s.sku_code, asin: s.asin, product_name: s.product_name, product_type: s.product_type,
+      qty_on_hand: s.qty_on_hand, reorder_threshold: s.reorder_threshold, cost_price: s.cost_price,
+      mrp: s.mrp, active: s.active
+    };
+  });
+  downloadCSV('artzfolio_sku_stock_page' + (skuPage + 1) + '.csv', rows);
+}
+
+// ── CSV IMPORT (bulk SKU field update) ────────────────────────
+var ALLOWED_IMPORT_FIELDS = ['reorder_threshold', 'cost_price', 'mrp', 'active'];
+var parsedImportRows = [];
+
+// Simple CSV parser handling quoted fields with embedded commas/newlines —
+// sufficient for the small admin-maintained CSVs this panel expects
+// (not a general-purpose RFC4180 parser, but handles the common cases).
+function parseCSV(text) {
+  var rows = [];
+  var row = [];
+  var field = '';
+  var inQuotes = false;
+  for (var i = 0; i < text.length; i++) {
+    var c = text[i];
+    if (inQuotes) {
+      if (c === '"') {
+        if (text[i + 1] === '"') { field += '"'; i++; }
+        else { inQuotes = false; }
+      } else { field += c; }
+    } else {
+      if (c === '"') { inQuotes = true; }
+      else if (c === ',') { row.push(field); field = ''; }
+      else if (c === '\n' || c === '\r') {
+        if (c === '\r' && text[i + 1] === '\n') i++;
+        row.push(field); field = '';
+        if (row.length > 1 || row[0] !== '') rows.push(row);
+        row = [];
+      } else { field += c; }
+    }
+  }
+  if (field !== '' || row.length) { row.push(field); rows.push(row); }
+  return rows;
+}
+
+function handleCsvFileSelect(evt) {
+  var file = evt.target.files[0];
+  if (!file) return;
+  var reader = new FileReader();
+  reader.onload = function (e) {
+    try {
+      var rows = parseCSV(e.target.result);
+      if (!rows.length) { renderImportError('CSV file is empty.'); return; }
+      var header = rows[0].map(function (h) { return h.trim(); });
+      var skuIdx = header.indexOf('sku_code');
+      if (skuIdx === -1) { renderImportError('CSV must contain a "sku_code" column.'); return; }
+
+      var fieldIdx = {};
+      ALLOWED_IMPORT_FIELDS.forEach(function (f) { var idx = header.indexOf(f); if (idx !== -1) fieldIdx[f] = idx; });
+      if (!Object.keys(fieldIdx).length) { renderImportError('CSV must contain at least one of: reorder_threshold, cost_price, mrp, active.'); return; }
+
+      parsedImportRows = [];
+      for (var r = 1; r < rows.length; r++) {
+        var line = rows[r];
+        if (!line.length || (line.length === 1 && line[0].trim() === '')) continue;
+        var sku = (line[skuIdx] || '').trim();
+        if (!sku) continue;
+        var update = { sku_code: sku };
+        Object.keys(fieldIdx).forEach(function (f) {
+          var raw = (line[fieldIdx[f]] || '').trim();
+          if (raw === '') return;
+          if (f === 'active') { update.active = /^(true|1|yes)$/i.test(raw); }
+          else { var n = Number(raw); if (!isNaN(n)) update[f] = n; }
+        });
+        parsedImportRows.push(update);
+      }
+      renderImportPreview();
+    } catch (err) { renderImportError('Could not parse CSV: ' + String(err)); }
+  };
+  reader.readAsText(file);
+}
+function renderImportError(msg) {
+  document.getElementById('csv-preview-area').innerHTML = '<div class="result-msg err">' + esc(msg) + '</div>';
+}
+function renderImportPreview() {
+  var area = document.getElementById('csv-preview-area');
+  if (!parsedImportRows.length) { area.innerHTML = '<div class="result-msg err">No valid rows found (need a sku_code plus at least one changed field per row).</div>'; return; }
+  var cols = ALLOWED_IMPORT_FIELDS;
+  var html = '<div class="hint-text"><strong>' + parsedImportRows.length + ' row(s)</strong> ready to preview. Review below, then submit.</div>';
+  html += '<div class="import-preview-wrap"><table><thead><tr><th>SKU Code</th>' + cols.map(function (c) { return '<th>' + c + '</th>'; }).join('') + '</tr></thead><tbody>';
+  html += parsedImportRows.map(function (r) {
+    return '<tr><td class="mono">' + esc(r.sku_code) + '</td>' + cols.map(function (c) {
+      return '<td>' + (r.hasOwnProperty(c) ? esc(String(r[c])) : '<span style="color:#ccc">unchanged</span>') + '</td>';
+    }).join('') + '</tr>';
+  }).join('');
+  html += '</tbody></table></div>';
+  html += '<button class="btn btn-primary" onclick="submitImport()">✓ Submit Update to ' + parsedImportRows.length + ' SKU(s)</button>';
+  html += '<div class="result-msg" id="import-result"></div>';
+  area.innerHTML = html;
+}
+function submitImport() {
+  if (!db) return;
+  if (!parsedImportRows.length) return;
+  var resEl = document.getElementById('import-result');
+  var secret = getAdminSecret();
+  resEl.className = 'result-msg'; resEl.textContent = 'Submitting ' + parsedImportRows.length + ' row(s)...';
+
+  db.rpc('oms_admin_bulk_update_sku_fields', {
+    p_admin_secret: secret,
+    p_updates: parsedImportRows,
+    p_employee_code: 'ADMIN_PANEL',
+    p_employee_name: 'Admin Panel (Web)'
+  }).then(function (res) {
+    if (res.error) {
+      if (isBadSecretError(res.error)) { handleBadSecret('the SKU bulk import'); return; }
+      resEl.className = 'result-msg err'; resEl.textContent = 'Error: ' + res.error.message;
+      return;
+    }
+    var results = res.data || [];
+    var okCount = results.filter(function (r) { return r.updated; }).length;
+    var failCount = results.length - okCount;
+    resEl.className = 'result-msg ok';
+    resEl.textContent = '✓ Done. ' + okCount + ' updated, ' + failCount + ' failed.';
+
+    var area = document.getElementById('csv-preview-area');
+    var extra = document.createElement('div');
+    extra.style.marginTop = '14px';
+    extra.innerHTML = '<div class="table-wrap"><table><thead><tr><th>SKU Code</th><th>Result</th><th>Reason</th></tr></thead><tbody>' +
+      results.map(function (r) {
+        return '<tr><td class="mono">' + esc(r.sku_code) + '</td><td>' + (r.updated ? '<span class="badge badge-green">UPDATED</span>' : '<span class="badge badge-red">FAILED</span>') + '</td><td>' + esc(r.reason || '—') + '</td></tr>';
+      }).join('') + '</tbody></table></div>';
+    area.appendChild(extra);
+    parsedImportRows = [];
+    document.getElementById('csv-file-input').value = '';
+  }).catch(function (err) { resEl.className = 'result-msg err'; resEl.textContent = 'Error: ' + String(err); });
+}
+
+// ═══════════════════════ REPORTS / TRANSACTIONS ═══════════════════════
+var txnPage = 0;
+var txnPageSize = 100;
+var txnLastRows = [];
+var txnLastHadMore = false;
+
+function txnPagePrev() { if (txnPage > 0) loadTransactions(txnPage - 1); }
+function txnPageNext() { if (txnLastHadMore) loadTransactions(txnPage + 1); }
+
+function resetTxnFilters() {
+  document.getElementById('txn-from').value = '';
+  document.getElementById('txn-to').value = new Date().toISOString().slice(0, 10);
+  document.getElementById('txn-employee').value = '';
+  document.getElementById('txn-sku').value = '';
+  document.getElementById('txn-channel').value = '';
+  document.getElementById('txn-type').value = '';
+  loadTransactions(0);
+}
+function applyTxnPreset(preset) {
+  var now = new Date();
+  var from, to = now;
+  if (preset === 'today') {
+    from = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  } else if (preset === 'week') {
+    var day = now.getDay() || 7;
+    from = new Date(now); from.setDate(now.getDate() - day + 1);
+  } else if (preset === 'month') {
+    from = new Date(now.getFullYear(), now.getMonth(), 1);
+  } else {
+    from = null;
+  }
+  document.getElementById('txn-from').value = from ? from.toISOString().slice(0, 10) : '';
+  document.getElementById('txn-to').value = preset === 'all' ? '' : to.toISOString().slice(0, 10);
+  loadTransactions(0);
+}
+
+function loadTransactions(page) {
+  if (!db) { refreshOfflineBanner(); return; }
+  txnPage = page;
+  var body = document.getElementById('txn-body');
+  body.innerHTML = '<tr class="empty-row"><td colspan="9">Loading...</td></tr>';
+
+  var fromVal = document.getElementById('txn-from').value;
+  var toVal = document.getElementById('txn-to').value;
+  var empVal = document.getElementById('txn-employee').value;
+  var skuVal = (document.getElementById('txn-sku').value || '').trim();
+  var channelVal = document.getElementById('txn-channel').value;
+  var typeVal = document.getElementById('txn-type').value;
+
+  var from = page * txnPageSize;
+  var to = from + txnPageSize - 1;
+
+  var query = db.from('oms_inventory_transactions').select('*');
+  if (fromVal) query = query.gte('created_at', new Date(fromVal + 'T00:00:00').toISOString());
+  if (toVal) query = query.lte('created_at', new Date(toVal + 'T23:59:59').toISOString());
+  if (empVal) query = query.eq('employee_code', empVal);
+  if (skuVal) query = query.ilike('sku_code', '%' + skuVal.replace(/[%_]/g, '\\$&') + '%');
+  if (channelVal) query = query.eq('channel', channelVal);
+  if (typeVal) query = query.eq('txn_type', typeVal);
+  query = query.order('created_at', { ascending: false }).range(from, to + 1);
+
+  query.then(function (res) {
+    if (res.error) { body.innerHTML = '<tr class="empty-row"><td colspan="9">Error: ' + esc(res.error.message) + '</td></tr>'; return; }
+    var rows = res.data || [];
+    txnLastHadMore = rows.length > txnPageSize;
+    if (txnLastHadMore) rows = rows.slice(0, txnPageSize);
+    txnLastRows = rows;
+
+    if (!rows.length) {
+      body.innerHTML = '<tr class="empty-row"><td colspan="9">No transactions match these filters.</td></tr>';
+    } else {
+      body.innerHTML = rows.map(function (t) {
+        var qtyClass = Number(t.qty_delta) >= 0 ? 'num-pos' : 'num-neg';
+        var qtyStr = (Number(t.qty_delta) >= 0 ? '+' : '') + fmtNum(t.qty_delta);
+        return '<tr>' +
+          '<td class="mono">' + esc(fmtDateTime(t.created_at)) + '</td>' +
+          '<td><span class="badge ' + txnBadgeClass(t.txn_type) + '">' + esc(t.txn_type) + '</span></td>' +
+          '<td class="mono">' + esc(t.sku_code) + '</td>' +
+          '<td class="' + qtyClass + '">' + qtyStr + '</td>' +
+          '<td>' + esc(t.channel || '—') + '</td>' +
+          '<td>' + esc(t.order_id || '—') + '</td>' +
+          '<td class="mono">' + esc(t.bin_code || '—') + '</td>' +
+          '<td class="mono">' + esc(t.employee_code || '—') + '</td>' +
+          '<td>' + esc(t.note || '—') + '</td>' +
+          '</tr>';
+      }).join('');
+    }
+    document.getElementById('txn-page-info').textContent = 'Page ' + (page + 1);
+    document.getElementById('txn-prev-btn').disabled = page === 0;
+    document.getElementById('txn-next-btn').disabled = !txnLastHadMore;
+
+    renderTxnSummary(rows);
+  }).catch(function (err) { body.innerHTML = '<tr class="empty-row"><td colspan="9">Error: ' + esc(String(err)) + '</td></tr>'; });
+}
+function renderTxnSummary(rows) {
+  var tilesEl = document.getElementById('txn-summary-tiles');
+  if (!rows.length) { tilesEl.innerHTML = ''; return; }
+  var sumQty = rows.reduce(function (s, r) { return s + (Number(r.qty_delta) || 0); }, 0);
+  var uniqueSkus = new Set(rows.map(function (r) { return r.sku_code; })).size;
+  var uniqueEmps = new Set(rows.map(function (r) { return r.employee_code; }).filter(Boolean)).size;
+  var tiles = [
+    { label: 'Transactions (this page)', val: fmtNum(rows.length) },
+    { label: 'Sum of Qty Δ (this page)', val: (sumQty >= 0 ? '+' : '') + fmtNum(sumQty) },
+    { label: 'Unique SKUs Touched', val: fmtNum(uniqueSkus) },
+    { label: 'Unique Employees', val: fmtNum(uniqueEmps) }
+  ];
+  tilesEl.innerHTML = tiles.map(function (t) {
+    return '<div class="tile"><div class="tile-label">' + esc(t.label) + '</div><div class="tile-val">' + t.val + '</div></div>';
+  }).join('');
+}
+function exportTxnCSV() {
+  if (!txnLastRows.length) { alert('No transaction rows loaded to export.'); return; }
+  var rows = txnLastRows.map(function (t) {
+    return {
+      timestamp: t.created_at, txn_type: t.txn_type, sku_code: t.sku_code, asin: t.asin,
+      qty_delta: t.qty_delta, channel: t.channel, order_id: t.order_id, bin_code: t.bin_code,
+      employee_code: t.employee_code, note: t.note
+    };
+  });
+  downloadCSV('artzfolio_transactions_page' + (txnPage + 1) + '.csv', rows);
+}
+</script>
+</body>
+</html>
