@@ -241,7 +241,7 @@
     </style>
 </head>
 <body>
-<div class="ver-corner" id="verCornerBadge">v42</div>
+<div class="ver-corner" id="verCornerBadge">v43</div>
 <div class="app">
     <!-- HEADER -->
     <div class="header">
@@ -386,9 +386,11 @@
                 <button class="csv-btn" onclick="loadStockTab(true)">&#8635; Refresh</button>
             </div>
             <div class="stock-toolbar">
-                <input type="text" class="stock-search" id="stock-search-input" placeholder="Filter by SKU, ASIN, or product name..." oninput="renderStockList()">
+                <input type="text" class="stock-search" id="stock-search-input" placeholder="Filter by SKU, ASIN, or product name..." oninput="onStockSearchInput()">
             </div>
             <div id="stock-list"><div style="text-align:center;color:#aaa;font-size:12px;padding:20px 0;">Loading...</div></div>
+            <!-- v43 fix: Prev/Next pagination controls for the (now paginated) stock list -->
+            <div id="stock-pagination"></div>
         </div>
 
         <!-- LOG TAB -->
@@ -568,8 +570,8 @@
 
             <!-- Version -->
             <div class="ver-badge">
-                <div class="ver-name">&#128230; ArtzFolio Scan-Pick-Pack v42</div>
-                <div class="ver-sub">Owner Dashboard (DASH) &bull; 14-Day Staff Performance &bull; Print Product/Bin Labels &bull; QC Hold/Damage &bull; Low-Stock Alerts &bull; Daily Reconciliation &bull; Admin PIN-Lock Unlock &bull; Real Employee Login (PIN) &bull; RBAC &bull; Live Database (Supabase) &bull; Admin-Secret-Gated PIN Recovery &bull; Permanent Audit Log &bull; Hardened Employee Writes (Admin-RPC-Only)</div>
+                <div class="ver-name">&#128230; ArtzFolio Scan-Pick-Pack v43</div>
+                <div class="ver-sub">Owner Dashboard (DASH) &bull; 14-Day Staff Performance &bull; Print Product/Bin Labels &bull; QC Hold/Damage &bull; Low-Stock Alerts &bull; Daily Reconciliation &bull; Admin PIN-Lock Unlock &bull; Real Employee Login (PIN) &bull; RBAC &bull; Live Database (Supabase) &bull; Admin-Secret-Gated PIN Recovery &bull; Permanent Audit Log &bull; Hardened Employee Writes (Admin-RPC-Only) &bull; Call Timeouts &amp; Error Handling (Performance Fix)</div>
             </div>
         </div>
     </div>
@@ -811,6 +813,23 @@ try {
     }
 } catch (e) { console.warn('DB init failed:', e); dbOnline = false; }
 
+// v43 fix: every Supabase call now races against a timeout. Root-caused a
+// real production issue - on degraded WiFi, a request could hang
+// indefinitely with the UI stuck on "Loading.../Checking..." forever,
+// which is what surfaced as multi-minute hangs on scans and stock
+// refreshes. This does not change any successful-path behavior - it only
+// ensures a slow/stuck request eventually fails cleanly with a clear
+// timeout error instead of hanging forever.
+function withTimeout(promise, ms, label) {
+    ms = ms || 10000;
+    return Promise.race([
+        promise,
+        new Promise(function (_, reject) {
+            setTimeout(function () { reject(new Error((label || 'Request') + ' timed out after ' + (ms / 1000) + 's. Check your connection and try again.')); }, ms);
+        })
+    ]);
+}
+
 // ── PERMANENT AUDIT LOG (v41) ────────────────────────────────
 // Fire-and-forget insert into oms_audit_log — a separate, permanent,
 // unclearable-by-this-app record (no SELECT/DELETE/UPDATE policy for the
@@ -834,7 +853,7 @@ function writeAuditLog(actionType, opts) {
             details:       opts.details  || null,
             device_hint:   (navigator.userAgent || '').slice(0, 180)
         };
-        db.from('oms_audit_log').insert(row).then(function() {}).catch(function() {});
+        withTimeout(db.from('oms_audit_log').insert(row), 10000, 'Audit log').then(function() {}).catch(function() {});
     } catch (e) { /* best-effort only — never let audit logging break the app */ }
 }
 
@@ -983,11 +1002,11 @@ function attemptLogin() {
         return;
     }
     errEl.textContent = 'Checking...';
-    db.rpc('oms_verify_login', {
+    withTimeout(db.rpc('oms_verify_login', {
         p_employee_code: code,
         p_pin: pin,
         p_device_hint: navigator.userAgent.slice(0, 120)
-    }).then(function(res) {
+    }), 10000, 'Login').then(function(res) {
         if (res.error) {
             errEl.textContent = 'Cannot verify login — database unreachable. Check connection and retry.';
             return;
@@ -1038,7 +1057,7 @@ function submitFirstTimeSetup() {
     // longer "empty" from the RPC's point of view). No admin secret here —
     // by definition none can exist yet for a true first-time setup; the RPC
     // itself enforces that oms_employees is completely empty (errcode 28000).
-    db.rpc('oms_bootstrap_first_admin', { p_employee_code: code, p_display_name: name, p_pin: pin1 }).then(function(res) {
+    withTimeout(db.rpc('oms_bootstrap_first_admin', { p_employee_code: code, p_display_name: name, p_pin: pin1 }), 10000, 'Account setup').then(function(res) {
         if (res.error) {
             var msg = res.error.message || '';
             if (res.error.code === '28000') {
@@ -1121,7 +1140,7 @@ function loadAdminEmployees() {
     if (!tableEl) return;
     if (!db) { tableEl.innerHTML = '<div class="settings-info">Database unreachable — cannot load employees.</div>'; return; }
     tableEl.innerHTML = '<div class="settings-info">Loading...</div>';
-    db.from('oms_employees').select('employee_code,display_name,role,active,last_login_at,locked_until,failed_pin_count').order('employee_code')
+    withTimeout(db.from('oms_employees').select('employee_code,display_name,role,active,last_login_at,locked_until,failed_pin_count').order('employee_code'), 10000, 'Employee list')
         .then(function(res) {
             if (res.error) { tableEl.innerHTML = '<div class="settings-info">Error: ' + res.error.message + '</div>'; return; }
             adminEmployees = res.data || [];
@@ -1176,7 +1195,7 @@ function adminToggleActive(code, currentActive) {
     var secret = prompt('Enter the admin secret to ' + (currentActive ? 'deactivate' : 'reactivate') + ' ' + code + ':');
     if (secret === null) return; // cancelled
     if (!secret) { alert('Admin secret is required.'); return; }
-    db.rpc('oms_admin_toggle_employee_active', { p_admin_secret: secret, p_employee_code: code, p_active: !currentActive }).then(function(res) {
+    withTimeout(db.rpc('oms_admin_toggle_employee_active', { p_admin_secret: secret, p_employee_code: code, p_active: !currentActive }), 10000, 'Employee update').then(function(res) {
         if (res.error) {
             var msg = (res.error.code === '28000' || /invalid admin secret/i.test(res.error.message || ''))
                 ? 'Incorrect admin secret.' : ('Could not update: ' + res.error.message);
@@ -1184,6 +1203,8 @@ function adminToggleActive(code, currentActive) {
             return;
         }
         loadAdminEmployees();
+    }).catch(function(err) {
+        alert('Could not update: ' + String(err));
     });
 }
 // v38: clears an employee's PIN lockout (oms_admin_unlock RPC). ADMIN-only
@@ -1199,7 +1220,7 @@ function adminUnlockEmployee(code) {
     if (secret === null) return; // cancelled
     if (!secret) { if (resEl) { resEl.className = 'move-result err'; resEl.textContent = 'Admin secret is required.'; } return; }
     if (resEl) { resEl.className = 'move-result'; resEl.textContent = 'Unlocking...'; }
-    db.rpc('oms_admin_unlock', { p_employee_code: code, p_admin_secret: secret }).then(function(res) {
+    withTimeout(db.rpc('oms_admin_unlock', { p_employee_code: code, p_admin_secret: secret }), 10000, 'Unlock employee').then(function(res) {
         if (res.error) {
             var msg = (res.error.code === '28000' || /invalid admin secret/i.test(res.error.message || ''))
                 ? 'Incorrect admin secret.' : ('Error: ' + res.error.message);
@@ -1238,7 +1259,7 @@ function adminSubmitResetPin(code) {
     if (secret === null) return; // cancelled
     if (!secret) { resEl.className = 'move-result err'; resEl.textContent = 'Admin secret is required.'; return; }
     resEl.className = 'move-result'; resEl.textContent = 'Saving...';
-    db.rpc('oms_set_pin', { p_employee_code: code, p_new_pin: pin, p_admin_secret: secret }).then(function(res) {
+    withTimeout(db.rpc('oms_set_pin', { p_employee_code: code, p_new_pin: pin, p_admin_secret: secret }), 10000, 'PIN reset').then(function(res) {
         if (res.error) {
             var msg = (res.error.code === '28000' || /invalid admin secret/i.test(res.error.message || ''))
                 ? 'Incorrect admin secret.' : ('Error: ' + res.error.message);
@@ -1284,7 +1305,7 @@ function adminAddEmployee() {
     // The RPC writes its own EMPLOYEE_ADDED audit row internally, so the
     // separate writeAuditLog() call that used to live here is removed to
     // avoid a duplicate log entry.
-    db.rpc('oms_admin_add_employee', { p_admin_secret: secret, p_employee_code: code, p_display_name: name, p_role: role, p_initial_pin: pin }).then(function(res) {
+    withTimeout(db.rpc('oms_admin_add_employee', { p_admin_secret: secret, p_employee_code: code, p_display_name: name, p_role: role, p_initial_pin: pin }), 10000, 'Add employee').then(function(res) {
         if (res.error) {
             resEl.className = 'move-result err';
             var msg = res.error.message || '';
@@ -1392,9 +1413,9 @@ function resolveSkuOrAsin(value) {
     if (!db) return Promise.resolve(null);
     var v = (value || '').trim().toUpperCase();
     if (!v) return Promise.resolve(null);
-    return db.from('oms_sku_master').select('sku_code,asin,product_name,active')
+    return withTimeout(db.from('oms_sku_master').select('sku_code,asin,product_name,active')
         .or('sku_code.eq.' + v + ',asin.eq.' + v)
-        .limit(1)
+        .limit(1), 10000, 'SKU lookup')
         .then(function(res) {
             if (res.error) { setDbOffline(res.error.message); return null; }
             setDbOnline();
@@ -1423,7 +1444,7 @@ function writeLedgerTxn(opts) {
         employee_code: emp ? emp.code : null,
         note: opts.note || null
     };
-    return db.from('oms_inventory_transactions').insert(row).select().then(function(res) {
+    return withTimeout(db.from('oms_inventory_transactions').insert(row).select(), 10000, 'Stock transaction').then(function(res) {
         if (res.error) { setDbOffline(res.error.message); return { ok: false, reason: res.error.message }; }
         setDbOnline();
         return { ok: true, row: res.data && res.data[0] };
@@ -1516,13 +1537,76 @@ var lowStockSet = {};
 // instead of re-querying, while still fetching fresh if neither tab was opened yet.
 var lowStockCache = null;
 var negativeStockCache = null;
+// v43 fix: oms_current_stock has 11,000+ rows and growing — pulling the WHOLE
+// table into the browser on every STOCK tab open (and then again on every
+// single realtime INSERT event, see setupStockRealtime() below) was pulling
+// and re-rendering 11k+ rows many times a minute on a busy warehouse floor.
+// Now paginated (STOCK_PAGE_SIZE rows per page, Prev/Next) for normal
+// browsing. The search box switches to a separate bounded server-side search
+// (still matches across ALL SKUs, not just the current page, capped at 200
+// results) instead of filtering the full in-memory table, since the full
+// table is no longer held in memory.
+var STOCK_PAGE_SIZE = 75;
+var stockPage = 0;
+var stockHasMore = false;
+var stockSearchActive = false;
+var stockSearchDebounceTimer = null;
+function onStockSearchInput() {
+    if (stockSearchDebounceTimer) clearTimeout(stockSearchDebounceTimer);
+    stockSearchDebounceTimer = setTimeout(function() {
+        stockPage = 0;
+        loadStockTab(false);
+    }, 400);
+}
+function stockPrevPage() {
+    if (stockPage <= 0) return;
+    stockPage--;
+    loadStockTab(false);
+}
+function stockNextPage() {
+    if (!stockHasMore) return;
+    stockPage++;
+    loadStockTab(false);
+}
 function loadStockTab(manualRefresh) {
     if (!db) { setDbOffline('no client'); return; }
-    if (manualRefresh) document.getElementById('stock-list').innerHTML = '<div style="text-align:center;color:#aaa;font-size:12px;padding:20px 0;">Refreshing...</div>';
-    db.from('oms_current_stock').select('sku_code,asin,qty_on_hand,last_movement_at').order('sku_code').then(function(res) {
+    if (manualRefresh) {
+        stockPage = 0;
+        document.getElementById('stock-list').innerHTML = '<div style="text-align:center;color:#aaa;font-size:12px;padding:20px 0;">Refreshing...</div>';
+    }
+    var searchVal = (document.getElementById('stock-search-input').value || '').trim();
+    if (searchVal) {
+        runStockSearch(searchVal);
+        return;
+    }
+    stockSearchActive = false;
+    var from = stockPage * STOCK_PAGE_SIZE;
+    var to = from + STOCK_PAGE_SIZE - 1;
+    withTimeout(db.from('oms_current_stock').select('sku_code,asin,qty_on_hand,last_movement_at').order('sku_code').range(from, to), 10000, 'Stock list').then(function(res) {
+        if (res.error) { setDbOffline(res.error.message); return; }
+        setDbOnline();
+        var rows = res.data || [];
+        stockHasMore = rows.length === STOCK_PAGE_SIZE;
+        stockData = rows;
+        loadLowStock();
+        renderStockList();
+        setupStockRealtime();
+    }).catch(function(err) { setDbOffline(err); });
+}
+// Server-side search across ALL SKUs (not just the current page), capped at
+// 200 results so a broad/blank-ish filter still can't pull the whole table.
+function runStockSearch(term) {
+    if (!db) return;
+    stockSearchActive = true;
+    var v = term.toUpperCase().replace(/[,%]/g, '');
+    withTimeout(db.from('oms_current_stock').select('sku_code,asin,qty_on_hand,last_movement_at')
+        .or('sku_code.ilike.%' + v + '%,asin.ilike.%' + v + '%')
+        .order('sku_code')
+        .limit(200), 10000, 'Stock search').then(function(res) {
         if (res.error) { setDbOffline(res.error.message); return; }
         setDbOnline();
         stockData = res.data || [];
+        stockHasMore = false;
         loadLowStock();
         renderStockList();
         setupStockRealtime();
@@ -1530,7 +1614,7 @@ function loadStockTab(manualRefresh) {
 }
 function loadLowStock() {
     if (!db) return;
-    db.from('oms_low_stock').select('sku_code').then(function(res) {
+    withTimeout(db.from('oms_low_stock').select('sku_code'), 10000, 'Low stock').then(function(res) {
         var banner = document.getElementById('low-stock-banner');
         var textEl = document.getElementById('low-stock-banner-text');
         if (res.error) {
@@ -1556,20 +1640,20 @@ function loadLowStock() {
         renderStockList();
     }).catch(function() { lowStockSet = {}; renderStockList(); });
 }
+// v43 fix: stockData now holds only the currently-loaded page (or the current
+// search results) — filtering/rendering here no longer re-filters an 11k-row
+// in-memory array on every keystroke, since the search itself is now a
+// separate bounded server-side query (see runStockSearch() above). The
+// search box's oninput now debounces into onStockSearchInput() instead of
+// calling this function directly.
 function renderStockList() {
-    var filter = (document.getElementById('stock-search-input').value || '').toUpperCase().trim();
     var list = document.getElementById('stock-list');
     var countEl = document.getElementById('stock-count');
     var rows = stockData;
-    if (filter) {
-        rows = rows.filter(function(r) {
-            return (r.sku_code || '').toUpperCase().indexOf(filter) !== -1 ||
-                   (r.asin || '').toUpperCase().indexOf(filter) !== -1;
-        });
-    }
-    countEl.textContent = stockData.length;
+    countEl.textContent = rows.length;
     if (!rows.length) {
         list.innerHTML = '<div style="text-align:center;color:#aaa;font-size:12px;padding:20px 0;">No matching SKUs.</div>';
+        renderStockPagination();
         return;
     }
     var html = '';
@@ -1589,7 +1673,35 @@ function renderStockList() {
             '</div>';
     }
     list.innerHTML = html;
+    renderStockPagination();
 }
+// v43 fix: Prev/Next controls for the paginated stock list. Hidden (replaced
+// with a small note) while a search is active, since search results are a
+// separate bounded (up to 200) result set, not paginated.
+function renderStockPagination() {
+    var el = document.getElementById('stock-pagination');
+    if (!el) return;
+    if (stockSearchActive) {
+        el.innerHTML = '<div style="text-align:center;color:#888;font-size:11px;padding:6px 0;">Search results (up to 200 matches) &mdash; clear the search box to browse all stock by page.</div>';
+        return;
+    }
+    el.innerHTML =
+        '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:8px 0;">' +
+        '<button class="settings-btn"' + (stockPage === 0 ? ' disabled style="opacity:.5"' : '') + ' onclick="stockPrevPage()">&larr; Prev</button>' +
+        '<span style="font-size:11px;color:#666;">Page ' + (stockPage + 1) + '</span>' +
+        '<button class="settings-btn"' + (!stockHasMore ? ' disabled style="opacity:.5"' : '') + ' onclick="stockNextPage()">Next &rarr;</button>' +
+        '</div>';
+}
+// v43 fix: debounced realtime reload trigger. Previously EVERY single INSERT
+// event on oms_inventory_transactions (i.e. every scan, by anyone, anywhere)
+// called loadStockTab(false) immediately — on a busy warehouse floor this
+// could re-fetch and re-render the stock list many times a minute. Now a
+// burst of events collapses into a single reload, fired ~2.5s after the LAST
+// event in the burst (standard debounce: each new event clears and restarts
+// the timer). Note this is a debounce on the RELOAD, not the subscription —
+// the subscription itself is unchanged and still long-lived (not wrapped in
+// withTimeout, per the note below).
+var stockRealtimeDebounceTimer = null;
 function setupStockRealtime() {
     if (!db || stockRealtimeChannel) { // already subscribed
         var dot = document.getElementById('stock-live-dot');
@@ -1597,13 +1709,20 @@ function setupStockRealtime() {
         return;
     }
     try {
+        // NOTE: db.channel(...).subscribe(...) is a long-lived realtime
+        // subscription, not a one-shot request — deliberately NOT wrapped in
+        // withTimeout().
         stockRealtimeChannel = db.channel('oms-inventory-live')
             .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'oms_inventory_transactions' }, function() {
                 // Any scan by anyone, anywhere, re-pulls the live view. Simple and
                 // correct — the view always reflects reality, so re-querying it on
                 // every event (rather than trying to patch state.log client-side)
-                // can never drift out of sync.
-                loadStockTab(false);
+                // can never drift out of sync. Debounced so a burst of scans
+                // triggers ONE reload, not one per scan.
+                if (stockRealtimeDebounceTimer) clearTimeout(stockRealtimeDebounceTimer);
+                stockRealtimeDebounceTimer = setTimeout(function() {
+                    loadStockTab(false);
+                }, 2500);
             })
             .subscribe(function(status) {
                 var dot = document.getElementById('stock-live-dot');
@@ -2747,8 +2866,8 @@ function loadReconciliation() {
     bodyEl.textContent = 'Loading...';
     if (negBanner) negBanner.classList.remove('visible');
 
-    db.from('oms_daily_reconciliation')
-        .select('sku_code,picked_today,new_stock_in_today,returns_in_today,found_today,lost_theft_today,qc_hold_today,net_change_today,txn_count_today')
+    withTimeout(db.from('oms_daily_reconciliation')
+        .select('sku_code,picked_today,new_stock_in_today,returns_in_today,found_today,lost_theft_today,qc_hold_today,net_change_today,txn_count_today'), 10000, 'Reconciliation')
         .then(function(res) {
             if (res.error) { bodyEl.textContent = 'Error loading reconciliation: ' + res.error.message; return; }
             var rows = res.data || [];
@@ -2775,7 +2894,7 @@ function loadReconciliation() {
             bodyEl.textContent = 'Error loading reconciliation: ' + String(err);
         });
 
-    db.from('oms_negative_stock_flags').select('sku_code,qty_on_hand').then(function(res) {
+    withTimeout(db.from('oms_negative_stock_flags').select('sku_code,qty_on_hand'), 10000, 'Negative stock check').then(function(res) {
         if (res.error) return;
         var rows = res.data || [];
         negativeStockCache = rows; // v40: cache so DASH tab can reuse this fetch instead of re-querying
@@ -2844,7 +2963,7 @@ function loadDashLowStock() {
     }
     if (lowStockCache) { render(lowStockCache); return; }
     if (!db) { if (banner) banner.classList.remove('visible'); return; }
-    db.from('oms_low_stock').select('sku_code').then(function(res) {
+    withTimeout(db.from('oms_low_stock').select('sku_code'), 10000, 'Low stock').then(function(res) {
         var rows = res.data || [];
         if (!res.error) lowStockCache = rows;
         render(rows);
@@ -2866,7 +2985,7 @@ function loadDashNegativeStock() {
     }
     if (negativeStockCache) { render(negativeStockCache); return; }
     if (!db) { if (banner) banner.classList.remove('visible'); return; }
-    db.from('oms_negative_stock_flags').select('sku_code,qty_on_hand').then(function(res) {
+    withTimeout(db.from('oms_negative_stock_flags').select('sku_code,qty_on_hand'), 10000, 'Negative stock check').then(function(res) {
         var rows = res.data || [];
         if (!res.error) negativeStockCache = rows;
         render(rows);
@@ -2907,10 +3026,10 @@ function loadDashStatsAndStaffToday() {
         if (staffEl) staffEl.innerHTML = '<div class="settings-info">Database unreachable.</div>';
         return;
     }
-    Promise.all([
+    withTimeout(Promise.all([
         db.from('oms_staff_activity_today').select('employee_code,picks_today,moves_today,total_txns_today'),
         db.from('oms_stock_value').select('value_at_mrp')
-    ]).then(function(results) {
+    ]), 10000, 'Dashboard stats').then(function(results) {
         var actRes = results[0], valRes = results[1];
         if (actRes.error || valRes.error) {
             var msg = (actRes.error && actRes.error.message) || (valRes.error && valRes.error.message) || 'Unknown error';
@@ -2954,7 +3073,7 @@ function loadDash14dPerformance() {
     var el = document.getElementById('dash-staff-14d');
     if (!db) { if (el) el.innerHTML = '<div class="settings-info">Database unreachable.</div>'; return; }
     if (el) el.innerHTML = '<div class="settings-info">Loading...</div>';
-    db.from('oms_employee_performance_14d').select('employee_code,activity_date,picks,active_hours,distinct_orders')
+    withTimeout(db.from('oms_employee_performance_14d').select('employee_code,activity_date,picks,active_hours,distinct_orders'), 10000, '14-day performance')
         .then(function(res) {
             if (res.error) { if (el) el.innerHTML = '<div class="settings-info">Error: ' + res.error.message + '</div>'; return; }
             var rows = res.data || [];
@@ -3097,7 +3216,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // Live database connectivity check — a lightweight read, just to set the
     // online/offline banner state correctly before the user ever opens MOVE/STOCK.
     if (db) {
-        db.from('oms_sku_master').select('sku_code', { count: 'exact', head: true }).then(function(res) {
+        withTimeout(db.from('oms_sku_master').select('sku_code', { count: 'exact', head: true }), 10000, 'Connectivity check').then(function(res) {
             if (res.error) { setDbOffline(res.error.message); } else { setDbOnline(); }
         }).catch(function(err) { setDbOffline(err); });
     } else {
