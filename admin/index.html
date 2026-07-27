@@ -169,7 +169,7 @@ tbody tr:hover{background:#f9fbfd}
       <label for="login-secret-input">Admin Secret</label>
       <input type="password" id="login-secret-input" placeholder="Enter admin passphrase" autocomplete="off" autofocus>
     </div>
-    <button class="login-btn" onclick="attemptAdminLogin()">Enter Admin Panel</button>
+    <button class="login-btn" id="login-submit-btn" onclick="attemptAdminLogin()">Enter Admin Panel</button>
     <div class="login-err" id="login-err-msg"></div>
     <div class="login-hint">Your admin secret is kept only in this browser tab's memory (sessionStorage) — it is never saved to disk and is cleared automatically when the tab closes.</div>
   </div>
@@ -191,7 +191,7 @@ tbody tr:hover{background:#f9fbfd}
     </ul>
     <div class="sidebar-footer">
       <button class="logout-btn" onclick="adminLogout()">⎋ Logout</button>
-      <div class="ver-footer">ArtzFolio Admin Panel v1.1<br>2026-07-27 &bull; Hardened Employee Writes (Admin-RPC-Only)</div>
+      <div class="ver-footer">ArtzFolio Admin Panel v1.2<br>2026-07-27 &bull; Hardened Employee Writes &bull; Real Server-Verified Login</div>
     </div>
   </div>
 
@@ -486,14 +486,46 @@ function handleBadSecret(context) {
   showLoginScreen('Your admin secret was rejected while loading ' + context + '. Please re-enter it.');
 }
 
+// v1.2 fix: the secret is now genuinely verified server-side BEFORE the app
+// shell (Dashboard/SKU&Stock/Reports — all of which use plain anon-readable
+// SELECTs with no secret gate of their own) is ever shown. The old v1.1
+// behaviour showed the full app shell the instant ANY string was typed,
+// and only failed later when a truly gated action (Audit Log, PIN reset)
+// happened to run — meaning stock levels, SKU costs/prices, and the
+// employee roster were briefly visible to anyone who typed garbage. This
+// verification call (oms_get_audit_log with p_limit:1) is cheap, returns
+// at most one row, and its ONLY purpose here is to confirm the secret is
+// correct via the same bcrypt check every other admin RPC uses.
+function verifyAdminSecret(val, onOk, onFail) {
+  db.rpc('oms_get_audit_log', { p_admin_secret: val, p_limit: 1, p_offset: 0 }).then(function (res) {
+    if (res.error) {
+      if (isBadSecretError(res.error)) { onFail('Incorrect admin secret.'); }
+      else { onFail('Could not verify the secret right now (' + res.error.message + '). Check your connection and try again.'); }
+      return;
+    }
+    onOk();
+  }).catch(function (e) {
+    onFail('Could not reach the database to verify the secret. Check your connection and try again.');
+  });
+}
+
 function attemptAdminLogin() {
   var input = document.getElementById('login-secret-input');
+  var btn = document.getElementById('login-submit-btn');
   var errEl = document.getElementById('login-err-msg');
   var val = (input.value || '').trim();
   if (!val) { errEl.textContent = 'Please enter the admin secret.'; return; }
-  errEl.textContent = '';
-  setAdminSecret(val);
-  showAppShell();
+  errEl.textContent = 'Verifying...';
+  if (btn) btn.disabled = true;
+  verifyAdminSecret(val, function () {
+    if (btn) btn.disabled = false;
+    setAdminSecret(val);
+    showAppShell();
+  }, function (msg) {
+    if (btn) btn.disabled = false;
+    clearAdminSecret();
+    errEl.textContent = msg;
+  });
 }
 document.addEventListener('DOMContentLoaded', function () {
   var input = document.getElementById('login-secret-input');
@@ -518,11 +550,22 @@ function adminLogout() {
   showLoginScreen('');
 }
 
-// On load: if this tab already has a secret (e.g. page reload), skip straight
-// to the app shell. The secret itself is only validated when the first
-// secret-gated action (audit log fetch, PIN reset, etc.) actually runs.
+// v1.2 fix: on load, if this tab already has a stored secret (e.g. page
+// reload), it is now RE-VERIFIED server-side before the app shell is shown
+// — never trusted just because something is present in sessionStorage.
+// This closes the "cosmetic gate" issue and also means a stale/wrong
+// cached value fails immediately and clearly, right at load, instead of
+// confusingly surfacing later when a specific gated action happens to run.
 (function bootstrap() {
-  if (getAdminSecret()) { showAppShell(); } else { showLoginScreen(''); }
+  var cached = getAdminSecret();
+  if (!cached) { showLoginScreen(''); return; }
+  showLoginScreen('Verifying saved session...');
+  verifyAdminSecret(cached, function () {
+    showAppShell();
+  }, function (msg) {
+    clearAdminSecret();
+    showLoginScreen(msg);
+  });
 })();
 
 // ── NAVIGATION ────────────────────────────────────────────────
