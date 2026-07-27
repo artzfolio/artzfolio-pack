@@ -30,6 +30,7 @@ a{color:inherit}
 .login-field input:focus{border-color:#1B4F8A}
 .login-btn{width:100%;background:linear-gradient(135deg,#1B4F8A,#2980B9);color:#fff;border:none;padding:13px;border-radius:10px;font-size:15px;font-weight:800;cursor:pointer;margin-top:16px;letter-spacing:.3px}
 .login-btn:hover{opacity:.92}
+.login-btn:disabled{opacity:.5;cursor:not-allowed}
 .login-err{color:#c0392b;font-size:12.5px;text-align:center;margin-top:10px;min-height:16px;font-weight:600}
 .login-hint{font-size:11.5px;color:#999;text-align:center;margin-top:16px;line-height:1.5}
 
@@ -145,6 +146,26 @@ tbody tr:hover{background:#f9fbfd}
 .import-preview-wrap{max-height:340px;overflow-y:auto;margin-bottom:14px}
 .hint-text{font-size:11.5px;color:#888;margin-bottom:10px;line-height:1.5}
 
+/* ── SETTINGS PAGE (v2) ───────────────────────────────────────── */
+.info-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px}
+.info-item{background:#f7f9fc;border-radius:8px;padding:10px 12px}
+.info-item-label{font-size:10.5px;text-transform:uppercase;letter-spacing:.4px;color:#888;font-weight:700;margin-bottom:4px}
+.info-item-val{font-size:14px;font-weight:700;color:#1B4F8A}
+.conn-ok{color:#1e8449}
+.conn-bad{color:#c0392b}
+
+/* ── BULK ACTION BAR (Employees, v2) ─────────────────────────── */
+.bulk-bar{display:none;align-items:center;gap:10px;flex-wrap:wrap;background:#eef2f8;border:1.5px solid #1B4F8A;border-radius:10px;padding:10px 14px;margin-bottom:12px;font-size:12.5px;font-weight:700;color:#1B4F8A}
+.bulk-bar.visible{display:flex}
+.chk-col{width:32px;text-align:center}
+
+/* ── EXPORT PROGRESS (v2) ─────────────────────────────────────── */
+.export-progress{font-size:11.5px;color:#888;margin-left:6px;font-weight:600}
+
+/* ── REALTIME BANNER (v2) ─────────────────────────────────────── */
+.live-banner{display:none;background:#eafaf1;border:1.5px solid #27AE60;color:#1e8449;border-radius:8px;padding:8px 12px;margin-bottom:10px;font-size:12px;font-weight:700;cursor:pointer;text-align:center}
+.live-banner.visible{display:block}
+
 @media (max-width: 900px){
   .sidebar{width:64px}
   .sidebar-brand-title,.nav-item span.nav-label,.ver-footer,.sidebar-brand-sub{display:none}
@@ -188,10 +209,11 @@ tbody tr:hover{background:#f9fbfd}
       <li class="nav-item" data-page="employees" onclick="switchPage('employees')"><span class="nav-icon">👥</span><span class="nav-label">Employees</span></li>
       <li class="nav-item" data-page="sku" onclick="switchPage('sku')"><span class="nav-icon">📦</span><span class="nav-label">SKU &amp; Stock</span></li>
       <li class="nav-item" data-page="reports" onclick="switchPage('reports')"><span class="nav-icon">📈</span><span class="nav-label">Reports</span></li>
+      <li class="nav-item" data-page="settings" onclick="switchPage('settings')"><span class="nav-icon">⚙</span><span class="nav-label">Settings</span></li>
     </ul>
     <div class="sidebar-footer">
       <button class="logout-btn" onclick="adminLogout()">⎋ Logout</button>
-      <div class="ver-footer">ArtzFolio Admin Panel v1.2<br>2026-07-27 &bull; Hardened Employee Writes &bull; Real Server-Verified Login</div>
+      <div class="ver-footer">ArtzFolio Admin Panel v2<br>2026-07-27 &bull; Call Timeouts &bull; Settings &amp; Self-Service Secret Rotation &bull; Session Security &bull; Full CSV Export &bull; Realtime Dashboard/Audit Log &bull; Bulk Employee Actions &bull; Deeper Reports</div>
     </div>
   </div>
 
@@ -226,7 +248,11 @@ tbody tr:hover{background:#f9fbfd}
           <div class="page-title">Audit Log</div>
           <div class="page-sub">Permanent, unclearable business-conduct record — every meaningful action, who did it, and when.</div>
         </div>
-        <button class="btn btn-gold" onclick="exportAuditCSV()">⬇ Export CSV (loaded page)</button>
+        <div>
+          <button class="btn btn-gold" onclick="exportAuditCSV()">⬇ Export CSV (loaded page)</button>
+          <button class="btn btn-gold" onclick="exportAuditFullCSV()">⬇ Export Full CSV (filtered)</button>
+          <span class="export-progress" id="audit-export-progress"></span>
+        </div>
       </div>
       <div class="filter-bar">
         <div class="filter-field"><label>From</label><input type="date" id="audit-from"></div>
@@ -245,7 +271,7 @@ tbody tr:hover{background:#f9fbfd}
             <option>ADJUSTMENT_LOST_THEFT</option><option>QC_HOLD</option>
             <option>EMPLOYEE_ADDED</option><option>EMPLOYEE_DEACTIVATED</option>
             <option>EMPLOYEE_REACTIVATED</option><option>LOGOUT</option>
-            <option>ADMIN_BULK_SKU_UPDATE</option>
+            <option>ADMIN_BULK_SKU_UPDATE</option><option>ADMIN_SECRET_ROTATED</option>
           </select>
         </div>
         <div class="filter-actions">
@@ -253,6 +279,7 @@ tbody tr:hover{background:#f9fbfd}
           <button class="btn btn-primary" onclick="loadAuditLog(0)">Apply Filters</button>
         </div>
       </div>
+      <div class="live-banner" id="audit-live-banner" onclick="refreshAuditFromBanner()">🔄 New audit entries have come in — click to refresh</div>
       <div class="table-wrap">
         <table>
           <thead><tr><th>Timestamp</th><th>Employee</th><th>Action</th><th>Order ID</th><th>SKU</th><th>Channel</th><th>Details</th></tr></thead>
@@ -286,10 +313,16 @@ tbody tr:hover{background:#f9fbfd}
           </select>
         </div>
       </div>
+      <div class="bulk-bar" id="emp-bulk-bar">
+        <span id="emp-bulk-count">0 selected</span>
+        <button class="btn btn-sm btn-green" onclick="bulkToggleEmployees(true)">Reactivate Selected</button>
+        <button class="btn btn-sm btn-grey" onclick="bulkToggleEmployees(false)">Deactivate Selected</button>
+        <span class="result-msg" id="emp-bulk-result"></span>
+      </div>
       <div class="table-wrap">
         <table>
-          <thead><tr><th>Code</th><th>Name</th><th>Role</th><th>Status</th><th>Locked</th><th>Last Login</th><th>Actions</th></tr></thead>
-          <tbody id="emp-body"><tr class="empty-row"><td colspan="7">Loading...</td></tr></tbody>
+          <thead><tr><th class="chk-col"><input type="checkbox" id="emp-select-all" onchange="toggleSelectAllEmployees(this)"></th><th>Code</th><th>Name</th><th>Role</th><th>Status</th><th>Locked</th><th>Last Login</th><th>Actions</th></tr></thead>
+          <tbody id="emp-body"><tr class="empty-row"><td colspan="8">Loading...</td></tr></tbody>
         </table>
       </div>
 
@@ -321,7 +354,11 @@ tbody tr:hover{background:#f9fbfd}
           <div class="page-title">SKU &amp; Stock Search</div>
           <div class="page-sub">11,192 SKUs live — searched and paginated server-side, not pulled all at once.</div>
         </div>
-        <button class="btn btn-gold" onclick="exportSkuCSV()">⬇ Export CSV (loaded page)</button>
+        <div>
+          <button class="btn btn-gold" onclick="exportSkuCSV()">⬇ Export CSV (loaded page)</button>
+          <button class="btn btn-gold" onclick="exportSkuFullCSV()">⬇ Export Full CSV (filtered)</button>
+          <span class="export-progress" id="sku-export-progress"></span>
+        </div>
       </div>
       <div class="filter-bar">
         <div class="filter-field" style="min-width:240px"><label>Search (SKU / ASIN / Product Name)</label><input type="text" id="sku-search" placeholder="Type to search..."></div>
@@ -343,7 +380,7 @@ tbody tr:hover{background:#f9fbfd}
           <button class="btn btn-primary" onclick="loadSkuStock(0)">Search</button>
         </div>
       </div>
-      <div class="summary-caption">CSV export covers only the currently-loaded page (up to 100 rows), not the full filtered result set.</div>
+      <div class="summary-caption">"Export CSV (loaded page)" covers only the currently-loaded page (up to 100 rows). "Export Full CSV" walks every page of the current filtered result (capped at 20,000 rows) — this can take a few seconds.</div>
       <div class="table-wrap">
         <table>
           <thead><tr><th>SKU Code</th><th>ASIN</th><th>Product Name</th><th>Type</th><th>Qty On Hand</th><th>Reorder Thr.</th><th>Cost Price</th><th>MRP</th><th>Status</th></tr></thead>
@@ -374,7 +411,11 @@ tbody tr:hover{background:#f9fbfd}
           <div class="page-title">Reports &amp; Transactions Explorer</div>
           <div class="page-sub">Raw inventory ledger (oms_inventory_transactions) with full filters.</div>
         </div>
-        <button class="btn btn-gold" onclick="exportTxnCSV()">⬇ Export CSV (loaded page)</button>
+        <div>
+          <button class="btn btn-gold" onclick="exportTxnCSV()">⬇ Export CSV (loaded page)</button>
+          <button class="btn btn-gold" onclick="exportTxnFullCSV()">⬇ Export Full CSV (filtered)</button>
+          <span class="export-progress" id="txn-export-progress"></span>
+        </div>
       </div>
       <div class="filter-bar">
         <div class="preset-row" style="width:100%;margin-bottom:4px;">
@@ -413,6 +454,30 @@ tbody tr:hover{background:#f9fbfd}
       </div>
       <div class="tiles" id="txn-summary-tiles" style="margin-bottom:10px;"></div>
       <div class="summary-caption">Summary tiles above and totals are computed from the currently-loaded page only (not the full filtered dataset) — if pagination is active, this is a page-level summary.</div>
+
+      <div class="card" id="txn-grouped-summary-card" style="display:none;">
+        <h3>📊 Grouped Summary (loaded/paginated dataset only)</h3>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:16px;">
+          <div>
+            <h4 style="font-size:12px;color:#546e7a;margin-bottom:6px;">By Day</h4>
+            <div class="table-wrap"><table><thead><tr><th>Date</th><th>Count</th><th>Net Qty</th></tr></thead><tbody id="txn-group-day-body"></tbody></table></div>
+          </div>
+          <div>
+            <h4 style="font-size:12px;color:#546e7a;margin-bottom:6px;">By Channel</h4>
+            <div class="table-wrap"><table><thead><tr><th>Channel</th><th>Count</th><th>Net Qty</th></tr></thead><tbody id="txn-group-channel-body"></tbody></table></div>
+          </div>
+          <div>
+            <h4 style="font-size:12px;color:#546e7a;margin-bottom:6px;">By Employee</h4>
+            <div class="table-wrap"><table><thead><tr><th>Employee</th><th>Count</th><th>Net Qty</th></tr></thead><tbody id="txn-group-employee-body"></tbody></table></div>
+          </div>
+          <div>
+            <h4 style="font-size:12px;color:#546e7a;margin-bottom:6px;">Top SKUs by Txn Count</h4>
+            <div class="table-wrap"><table><thead><tr><th>SKU</th><th>Count</th><th>Net Qty</th></tr></thead><tbody id="txn-group-sku-body"></tbody></table></div>
+          </div>
+        </div>
+        <div class="summary-caption">Grouped summaries above are a client-side aggregation of the currently loaded/paginated transaction rows only — same known limitation as the page-level totals above, not the full filtered dataset. For full-dataset totals, use "Export Full CSV" and aggregate externally.</div>
+      </div>
+
       <div class="table-wrap">
         <table>
           <thead><tr><th>Timestamp</th><th>Type</th><th>SKU</th><th>Qty Δ</th><th>Channel</th><th>Order ID</th><th>Bin</th><th>Employee</th><th>Note</th></tr></thead>
@@ -422,6 +487,43 @@ tbody tr:hover{background:#f9fbfd}
           <span id="txn-page-info">Page 1</span>
           <button id="txn-prev-btn" onclick="txnPagePrev()">← Prev</button>
           <button id="txn-next-btn" onclick="txnPageNext()">Next →</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══════════════ SETTINGS ══════════════ -->
+    <div class="page" id="page-settings">
+      <div class="page-header">
+        <div>
+          <div class="page-title">Settings</div>
+          <div class="page-sub">Admin secret rotation, company info, and system diagnostics.</div>
+        </div>
+        <button class="btn btn-primary" onclick="loadSettingsPage()">↻ Refresh</button>
+      </div>
+
+      <div class="card">
+        <h3>🔑 Rotate Admin Secret</h3>
+        <div class="hint-text">Changing the admin secret immediately affects everyone using this panel — anyone still holding the old secret will be rejected the next time they load the page or their session re-verifies. Save the new secret somewhere safe (e.g. a password manager) — it cannot be recovered if lost, only reset again with the current one.</div>
+        <div class="form-row">
+          <div class="form-field"><label>Current Secret</label><input type="password" id="rotate-current-secret" autocomplete="off"></div>
+          <div class="form-field"><label>New Secret</label><input type="password" id="rotate-new-secret" autocomplete="off"></div>
+          <div class="form-field"><label>Confirm New Secret</label><input type="password" id="rotate-confirm-secret" autocomplete="off"></div>
+        </div>
+        <button class="btn btn-primary" id="rotate-secret-btn" onclick="submitRotateSecret()">✓ Rotate Secret</button>
+        <div class="result-msg" id="rotate-secret-result"></div>
+      </div>
+
+      <div class="card">
+        <h3>🏢 Company Info</h3>
+        <div class="info-grid" id="settings-company-info">
+          <div class="info-item"><div class="info-item-label">Loading...</div></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>🖥 System Info</h3>
+        <div class="info-grid" id="settings-system-info">
+          <div class="info-item"><div class="info-item-label">Loading...</div></div>
         </div>
       </div>
     </div>
@@ -460,6 +562,22 @@ function refreshOfflineBanner() {
 }
 refreshOfflineBanner();
 
+// ── v2: UNIVERSAL CALL TIMEOUT ───────────────────────────────────
+// Same fix pattern just applied to the phone app: every db.rpc()/db.from()
+// call chain is wrapped in this so a hung/slow network request fails loudly
+// and clearly after a bounded time instead of leaving the screen stuck on
+// "Loading..." forever. This directly targets a diagnosed real cause of
+// severe slowness reported by the owner.
+function withTimeout(promise, ms, label) {
+  ms = ms || 10000;
+  return Promise.race([
+    promise,
+    new Promise(function (_, reject) {
+      setTimeout(function () { reject(new Error((label || 'Request') + ' timed out after ' + (ms / 1000) + 's. Check your connection and try again.')); }, ms);
+    })
+  ]);
+}
+
 // ── ADMIN SECRET / SESSION ───────────────────────────────────────
 var ADMIN_SECRET_KEY = 'oms_admin_secret';
 
@@ -483,6 +601,8 @@ function isBadSecretError(error) {
 }
 function handleBadSecret(context) {
   clearAdminSecret();
+  unsubscribeDashboardRealtime();
+  unsubscribeAuditRealtime();
   showLoginScreen('Your admin secret was rejected while loading ' + context + '. Please re-enter it.');
 }
 
@@ -497,7 +617,7 @@ function handleBadSecret(context) {
 // at most one row, and its ONLY purpose here is to confirm the secret is
 // correct via the same bcrypt check every other admin RPC uses.
 function verifyAdminSecret(val, onOk, onFail) {
-  db.rpc('oms_get_audit_log', { p_admin_secret: val, p_limit: 1, p_offset: 0 }).then(function (res) {
+  withTimeout(db.rpc('oms_get_audit_log', { p_admin_secret: val, p_limit: 1, p_offset: 0 }), 10000, 'Login verification').then(function (res) {
     if (res.error) {
       if (isBadSecretError(res.error)) { onFail('Incorrect admin secret.'); }
       else { onFail('Could not verify the secret right now (' + res.error.message + '). Check your connection and try again.'); }
@@ -505,26 +625,54 @@ function verifyAdminSecret(val, onOk, onFail) {
     }
     onOk();
   }).catch(function (e) {
-    onFail('Could not reach the database to verify the secret. Check your connection and try again.');
+    onFail((e && e.message) ? e.message : 'Could not reach the database to verify the secret. Check your connection and try again.');
   });
+}
+
+// ── v2: CLIENT-SIDE LOGIN RATE LIMIT ─────────────────────────────
+// NOTE (honest limitation): this is a client-side speed bump only. It is
+// trivially bypassed by reloading the page, clearing sessionStorage, or
+// using devtools — there is no backend/Edge Function rate-limit RPC behind
+// it. Real brute-force protection would need server-side throttling. This
+// only slows down casual repeated typos from the same open tab.
+var LOGIN_MAX_ATTEMPTS = 5;
+var LOGIN_WINDOW_MS = 60000;
+var loginFailTimestamps = [];
+function recordLoginFailure() {
+  var now = Date.now();
+  loginFailTimestamps.push(now);
+  loginFailTimestamps = loginFailTimestamps.filter(function (t) { return now - t < LOGIN_WINDOW_MS; });
+}
+function clearLoginFailures() { loginFailTimestamps = []; }
+function isLoginRateLimited() {
+  var now = Date.now();
+  loginFailTimestamps = loginFailTimestamps.filter(function (t) { return now - t < LOGIN_WINDOW_MS; });
+  return loginFailTimestamps.length >= LOGIN_MAX_ATTEMPTS;
 }
 
 function attemptAdminLogin() {
   var input = document.getElementById('login-secret-input');
   var btn = document.getElementById('login-submit-btn');
   var errEl = document.getElementById('login-err-msg');
+  if (isLoginRateLimited()) {
+    errEl.textContent = 'Too many attempts — wait a moment and try again.';
+    if (btn) btn.disabled = true;
+    return;
+  }
   var val = (input.value || '').trim();
   if (!val) { errEl.textContent = 'Please enter the admin secret.'; return; }
   errEl.textContent = 'Verifying...';
   if (btn) btn.disabled = true;
   verifyAdminSecret(val, function () {
     if (btn) btn.disabled = false;
+    clearLoginFailures();
     setAdminSecret(val);
     showAppShell();
   }, function (msg) {
-    if (btn) btn.disabled = false;
+    recordLoginFailure();
+    if (btn) btn.disabled = isLoginRateLimited();
     clearAdminSecret();
-    errEl.textContent = msg;
+    errEl.textContent = isLoginRateLimited() ? 'Too many attempts — wait a moment and try again.' : msg;
   });
 }
 document.addEventListener('DOMContentLoaded', function () {
@@ -539,6 +687,8 @@ function showLoginScreen(message) {
   if (errEl) errEl.textContent = message || '';
   var input = document.getElementById('login-secret-input');
   if (input) { input.value = ''; input.focus(); }
+  var btn = document.getElementById('login-submit-btn');
+  if (btn) btn.disabled = isLoginRateLimited();
 }
 function showAppShell() {
   document.getElementById('login-screen').style.display = 'none';
@@ -547,8 +697,29 @@ function showAppShell() {
 }
 function adminLogout() {
   clearAdminSecret();
+  unsubscribeDashboardRealtime();
+  unsubscribeAuditRealtime();
   showLoginScreen('');
 }
+
+// ── v2: SESSION INACTIVITY AUTO-LOGOUT ───────────────────────────
+// Tracks the last click/keypress. If the app shell is open and nothing
+// happens for 30 minutes, the session is logged out automatically and the
+// login screen explains why, rather than leaving a secret-holding tab
+// open and unattended indefinitely.
+var lastActivityAt = Date.now();
+var SESSION_IDLE_LIMIT_MS = 30 * 60 * 1000;
+document.addEventListener('click', function () { lastActivityAt = Date.now(); }, true);
+document.addEventListener('keydown', function () { lastActivityAt = Date.now(); }, true);
+setInterval(function () {
+  var shell = document.getElementById('app-shell');
+  if (!shell || shell.style.display === 'none') return;
+  if (Date.now() - lastActivityAt >= SESSION_IDLE_LIMIT_MS) {
+    adminLogout();
+    var errEl = document.getElementById('login-err-msg');
+    if (errEl) errEl.textContent = 'Session expired due to inactivity.';
+  }
+}, 30000);
 
 // v1.2 fix: on load, if this tab already has a stored secret (e.g. page
 // reload), it is now RE-VERIFIED server-side before the app shell is shown
@@ -561,6 +732,7 @@ function adminLogout() {
   if (!cached) { showLoginScreen(''); return; }
   showLoginScreen('Verifying saved session...');
   verifyAdminSecret(cached, function () {
+    lastActivityAt = Date.now();
     showAppShell();
   }, function (msg) {
     clearAdminSecret();
@@ -570,22 +742,38 @@ function adminLogout() {
 
 // ── NAVIGATION ────────────────────────────────────────────────
 var appInitialized = false;
+var currentPage = 'dashboard';
 function initAppShell() {
-  if (appInitialized) return;
+  if (appInitialized) {
+    subscribeDashboardRealtime();
+    return;
+  }
   appInitialized = true;
   loadDashboard();
   populateEmployeeDropdowns();
   var today = new Date().toISOString().slice(0, 10);
   document.getElementById('audit-to').value = today;
   document.getElementById('txn-to').value = today;
+  subscribeDashboardRealtime();
 }
 function switchPage(name) {
   document.querySelectorAll('.page').forEach(function (p) { p.classList.remove('active'); });
   document.querySelectorAll('.nav-item').forEach(function (n) { n.classList.remove('active'); });
   document.getElementById('page-' + name).classList.add('active');
   document.querySelector('.nav-item[data-page="' + name + '"]').classList.add('active');
+
+  // v2: realtime subscriptions are only kept alive for the pages that use
+  // them, and torn down when leaving so a long admin session doesn't leak
+  // channel subscriptions.
+  if (currentPage === 'dashboard' && name !== 'dashboard') unsubscribeDashboardRealtime();
+  if (currentPage === 'audit' && name !== 'audit') unsubscribeAuditRealtime();
+  if (name === 'dashboard') subscribeDashboardRealtime();
+  if (name === 'audit') subscribeAuditRealtime();
+  currentPage = name;
+
   if (name === 'audit' && !auditLoadedOnce) { loadAuditLog(0); }
   if (name === 'employees' && !empLoadedOnce) { loadEmployees(); }
+  if (name === 'settings' && !settingsLoadedOnce) { loadSettingsPage(); }
 }
 
 // ── SHARED HELPERS ────────────────────────────────────────────
@@ -633,7 +821,7 @@ function downloadCSV(filename, rows) {
 function actionBadgeClass(action) {
   if (!action) return 'badge-grey';
   if (/FAIL|LOST|THEFT|ISSUE|DEACTIVAT/i.test(action)) return 'badge-amber';
-  if (/SUCCESS|CONFIRMED|ADDED|REACTIVAT|FOUND|UNLOCK|BULK|RESET|STOCK_IN|RETURN_IN/i.test(action)) return 'badge-green';
+  if (/SUCCESS|CONFIRMED|ADDED|REACTIVAT|FOUND|UNLOCK|BULK|RESET|STOCK_IN|RETURN_IN|ROTATED/i.test(action)) return 'badge-green';
   return 'badge-blue';
 }
 function txnBadgeClass(t) {
@@ -646,7 +834,7 @@ function txnBadgeClass(t) {
 var employeeDirectory = {}; // code -> {display_name, ...}
 function populateEmployeeDropdowns() {
   if (!db) return;
-  db.from('oms_employees').select('employee_code, display_name, active').order('employee_code').then(function (res) {
+  withTimeout(db.from('oms_employees').select('employee_code, display_name, active').order('employee_code'), 10000, 'Employee directory').then(function (res) {
     if (res.error || !res.data) return;
     employeeDirectory = {};
     res.data.forEach(function (e) { employeeDirectory[e.employee_code] = e; });
@@ -660,6 +848,59 @@ function populateEmployeeDropdowns() {
   }).catch(function () {});
 }
 
+// ═══════════════════════ REALTIME (v2) ═══════════════════════
+// Mirrors the pattern already proven in the phone app: subscribe to
+// postgres_changes INSERT events and react without requiring a manual
+// refresh click. Bursts of rapid inserts are batched into a single
+// debounced reload so a flurry of scans doesn't hammer the dashboard with
+// reloads.
+var dashboardChannel = null;
+var dashboardReloadTimer = null;
+function subscribeDashboardRealtime() {
+  if (!db || dashboardChannel) return;
+  try {
+    dashboardChannel = db.channel('admin-dash-txn-changes')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'oms_inventory_transactions' }, function () {
+        if (dashboardReloadTimer) clearTimeout(dashboardReloadTimer);
+        dashboardReloadTimer = setTimeout(function () { loadDashboard(); }, 2500);
+      })
+      .subscribe();
+  } catch (e) { console.warn('Dashboard realtime subscribe failed:', e); }
+}
+function unsubscribeDashboardRealtime() {
+  if (dashboardReloadTimer) { clearTimeout(dashboardReloadTimer); dashboardReloadTimer = null; }
+  if (dashboardChannel && db) {
+    try { db.removeChannel(dashboardChannel); } catch (e) {}
+    dashboardChannel = null;
+  }
+}
+
+var auditChannel = null;
+function subscribeAuditRealtime() {
+  if (!db || auditChannel) return;
+  try {
+    auditChannel = db.channel('admin-audit-changes')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'oms_audit_log' }, function () {
+        var banner = document.getElementById('audit-live-banner');
+        if (banner) banner.classList.add('visible');
+      })
+      .subscribe();
+  } catch (e) { console.warn('Audit realtime subscribe failed:', e); }
+}
+function unsubscribeAuditRealtime() {
+  if (auditChannel && db) {
+    try { db.removeChannel(auditChannel); } catch (e) {}
+    auditChannel = null;
+  }
+  var banner = document.getElementById('audit-live-banner');
+  if (banner) banner.classList.remove('visible');
+}
+function refreshAuditFromBanner() {
+  var banner = document.getElementById('audit-live-banner');
+  if (banner) banner.classList.remove('visible');
+  loadAuditLog(0);
+}
+
 // ═══════════════════════ DASHBOARD ═══════════════════════
 function loadDashboard() {
   if (!db) { refreshOfflineBanner(); return; }
@@ -667,13 +908,13 @@ function loadDashboard() {
   tilesEl.innerHTML = '<div class="tile"><div class="tile-label">Loading...</div></div>';
 
   Promise.all([
-    db.from('oms_stock_value').select('qty_on_hand, value_at_mrp, value_at_cost'),
-    db.from('oms_low_stock').select('sku_code'),
-    db.from('oms_negative_stock_flags').select('sku_code, qty_on_hand'),
-    db.from('oms_daily_reconciliation').select('txn_count_today, picked_today'),
-    db.from('oms_staff_activity_today').select('employee_code, picks_today, moves_today, total_txns_today, first_txn_at, last_txn_at'),
-    db.from('oms_sku_master').select('sku_code', { count: 'exact', head: true }),
-    db.from('oms_employees').select('employee_code', { count: 'exact', head: true }).eq('active', true)
+    withTimeout(db.from('oms_stock_value').select('qty_on_hand, value_at_mrp, value_at_cost'), 10000, 'Dashboard (stock value)'),
+    withTimeout(db.from('oms_low_stock').select('sku_code'), 10000, 'Dashboard (low stock)'),
+    withTimeout(db.from('oms_negative_stock_flags').select('sku_code, qty_on_hand'), 10000, 'Dashboard (negative stock)'),
+    withTimeout(db.from('oms_daily_reconciliation').select('txn_count_today, picked_today'), 10000, 'Dashboard (reconciliation)'),
+    withTimeout(db.from('oms_staff_activity_today').select('employee_code, picks_today, moves_today, total_txns_today, first_txn_at, last_txn_at'), 10000, 'Dashboard (staff activity)'),
+    withTimeout(db.from('oms_sku_master').select('sku_code', { count: 'exact', head: true }), 10000, 'Dashboard (SKU count)'),
+    withTimeout(db.from('oms_employees').select('employee_code', { count: 'exact', head: true }).eq('active', true), 10000, 'Dashboard (employee count)')
   ]).then(function (results) {
     var stockValueRes = results[0], lowStockRes = results[1], negStockRes = results[2],
         reconRes = results[3], staffRes = results[4], skuCountRes = results[5], empCountRes = results[6];
@@ -738,6 +979,23 @@ function resetAuditFilters() {
 function auditPagePrev() { if (auditPage > 0) loadAuditLog(auditPage - 1); }
 function auditPageNext() { loadAuditLog(auditPage + 1); }
 
+// v2: pulled out of loadAuditLog so the full-export function can reuse the
+// exact same filter logic instead of duplicating it.
+function buildAuditFilterParams() {
+  var secret = getAdminSecret();
+  var fromVal = document.getElementById('audit-from').value;
+  var toVal = document.getElementById('audit-to').value;
+  var empVal = document.getElementById('audit-employee').value;
+  var actionVal = document.getElementById('audit-action').value;
+  return {
+    p_admin_secret: secret,
+    p_from: fromVal ? new Date(fromVal + 'T00:00:00').toISOString() : null,
+    p_to: toVal ? new Date(toVal + 'T23:59:59').toISOString() : null,
+    p_employee_code: empVal || null,
+    p_action_type: actionVal || null
+  };
+}
+
 function loadAuditLog(page) {
   if (!db) { refreshOfflineBanner(); return; }
   auditLoadedOnce = true;
@@ -745,23 +1003,11 @@ function loadAuditLog(page) {
   var body = document.getElementById('audit-body');
   body.innerHTML = '<tr class="empty-row"><td colspan="7">Loading...</td></tr>';
 
-  var secret = getAdminSecret();
-  var fromVal = document.getElementById('audit-from').value;
-  var toVal = document.getElementById('audit-to').value;
-  var empVal = document.getElementById('audit-employee').value;
-  var actionVal = document.getElementById('audit-action').value;
+  var params = buildAuditFilterParams();
+  params.p_limit = auditPageSize;
+  params.p_offset = page * auditPageSize;
 
-  var params = {
-    p_admin_secret: secret,
-    p_from: fromVal ? new Date(fromVal + 'T00:00:00').toISOString() : null,
-    p_to: toVal ? new Date(toVal + 'T23:59:59').toISOString() : null,
-    p_employee_code: empVal || null,
-    p_action_type: actionVal || null,
-    p_limit: auditPageSize,
-    p_offset: page * auditPageSize
-  };
-
-  db.rpc('oms_get_audit_log', params).then(function (res) {
+  withTimeout(db.rpc('oms_get_audit_log', params), 10000, 'Audit Log').then(function (res) {
     if (res.error) {
       if (isBadSecretError(res.error)) { handleBadSecret('the Audit Log'); return; }
       body.innerHTML = '<tr class="empty-row"><td colspan="7">Error: ' + esc(res.error.message) + '</td></tr>';
@@ -791,7 +1037,7 @@ function loadAuditLog(page) {
     document.getElementById('audit-prev-btn').disabled = page === 0;
     document.getElementById('audit-next-btn').disabled = rows.length < auditPageSize;
   }).catch(function (err) {
-    body.innerHTML = '<tr class="empty-row"><td colspan="7">Error: ' + esc(String(err)) + '</td></tr>';
+    body.innerHTML = '<tr class="empty-row"><td colspan="7">Error: ' + esc(String(err && err.message || err)) + '</td></tr>';
   });
 }
 function showDetailsModal(idx) {
@@ -814,21 +1060,74 @@ function exportAuditCSV() {
   downloadCSV('artzfolio_audit_log_page' + (auditPage + 1) + '.csv', rows);
 }
 
+// ── v2: FULL-DATASET CSV EXPORT (Audit Log) ─────────────────────
+var EXPORT_MAX_ROWS = 20000;
+var EXPORT_PAGE_SIZE = 500;
+
+function exportAuditFullCSV() {
+  if (!db) return;
+  var progEl = document.getElementById('audit-export-progress');
+  var params = buildAuditFilterParams();
+  var accumulated = [];
+  progEl.textContent = 'Exporting... 0 rows so far';
+
+  function fetchPage(offset) {
+    var p = Object.assign({}, params, { p_limit: EXPORT_PAGE_SIZE, p_offset: offset });
+    return withTimeout(db.rpc('oms_get_audit_log', p), 15000, 'Audit full export').then(function (res) {
+      if (res.error) {
+        if (isBadSecretError(res.error)) { handleBadSecret('the full audit export'); return Promise.reject(new Error('bad secret')); }
+        throw new Error(res.error.message);
+      }
+      var rows = res.data || [];
+      accumulated = accumulated.concat(rows);
+      progEl.textContent = 'Exporting... ' + accumulated.length + ' rows so far';
+      if (accumulated.length >= EXPORT_MAX_ROWS) {
+        progEl.textContent = accumulated.length + ' rows hit the ' + EXPORT_MAX_ROWS + '-row cap — narrow your filters for a complete export.';
+        accumulated = accumulated.slice(0, EXPORT_MAX_ROWS);
+        return;
+      }
+      if (rows.length === EXPORT_PAGE_SIZE) {
+        return fetchPage(offset + EXPORT_PAGE_SIZE);
+      }
+    });
+  }
+
+  fetchPage(0).then(function () {
+    if (!accumulated.length) { progEl.textContent = ''; alert('No audit rows match these filters.'); return; }
+    var csvRows = accumulated.map(function (r) {
+      return {
+        timestamp: r.created_at, employee_code: r.employee_code, employee_name: r.employee_name,
+        action_type: r.action_type, order_id: r.order_id, sku_code: r.sku_code, channel: r.channel,
+        details: r.details ? JSON.stringify(r.details) : '', device_hint: r.device_hint
+      };
+    });
+    downloadCSV('artzfolio_audit_log_full.csv', csvRows);
+    progEl.textContent = 'Done — ' + accumulated.length + ' rows exported.';
+    setTimeout(function () { progEl.textContent = ''; }, 6000);
+  }).catch(function (err) {
+    if (err && err.message === 'bad secret') return;
+    progEl.textContent = 'Export failed: ' + (err && err.message ? err.message : String(err));
+  });
+}
+
 // ═══════════════════════ EMPLOYEES ═══════════════════════
 var empLoadedOnce = false;
 var employeesCache = [];
+var selectedEmployeeCodes = {}; // code -> true
 
 function loadEmployees() {
   if (!db) { refreshOfflineBanner(); return; }
   empLoadedOnce = true;
   var body = document.getElementById('emp-body');
-  body.innerHTML = '<tr class="empty-row"><td colspan="7">Loading...</td></tr>';
-  db.from('oms_employees').select('*').order('employee_code').then(function (res) {
-    if (res.error) { body.innerHTML = '<tr class="empty-row"><td colspan="7">Error: ' + esc(res.error.message) + '</td></tr>'; return; }
+  body.innerHTML = '<tr class="empty-row"><td colspan="8">Loading...</td></tr>';
+  withTimeout(db.from('oms_employees').select('*').order('employee_code'), 10000, 'Employees').then(function (res) {
+    if (res.error) { body.innerHTML = '<tr class="empty-row"><td colspan="8">Error: ' + esc(res.error.message) + '</td></tr>'; return; }
     employeesCache = res.data || [];
+    selectedEmployeeCodes = {};
+    updateEmpBulkBar();
     populateEmployeeDropdowns();
     renderEmployees();
-  }).catch(function (err) { body.innerHTML = '<tr class="empty-row"><td colspan="7">Error: ' + esc(String(err)) + '</td></tr>'; });
+  }).catch(function (err) { body.innerHTML = '<tr class="empty-row"><td colspan="8">Error: ' + esc(String(err && err.message || err)) + '</td></tr>'; });
 }
 function renderEmployees() {
   var body = document.getElementById('emp-body');
@@ -848,14 +1147,16 @@ function renderEmployees() {
     return true;
   });
 
-  if (!rows.length) { body.innerHTML = '<tr class="empty-row"><td colspan="7">No employees match this filter.</td></tr>'; return; }
+  if (!rows.length) { body.innerHTML = '<tr class="empty-row"><td colspan="8">No employees match this filter.</td></tr>'; return; }
 
   body.innerHTML = rows.map(function (e) {
     var isLocked = e.locked_until && new Date(e.locked_until) > now;
     var statusBadge = e.active ? '<span class="badge badge-green">ACTIVE</span>' : '<span class="badge badge-grey">INACTIVE</span>';
     var lockBadge = isLocked ? '<span class="badge badge-red">LOCKED</span>' : '<span class="badge badge-grey">—</span>';
     var code = esc(e.employee_code);
+    var checked = selectedEmployeeCodes[e.employee_code] ? ' checked' : '';
     return '<tr>' +
+      '<td class="chk-col"><input type="checkbox" class="emp-row-chk" data-code="' + code + '"' + checked + ' onchange="toggleEmployeeSelected(\'' + code + '\', this.checked)"></td>' +
       '<td class="mono">' + code + '</td>' +
       '<td>' + esc(e.display_name) + '</td>' +
       '<td>' + esc(e.role) + '</td>' +
@@ -872,8 +1173,70 @@ function renderEmployees() {
       '</td>' +
       '</tr>';
   }).join('');
+  var selectAll = document.getElementById('emp-select-all');
+  if (selectAll) selectAll.checked = rows.length > 0 && rows.every(function (e) { return !!selectedEmployeeCodes[e.employee_code]; });
 }
 function empResultEl(code) { return document.getElementById('emp-result-' + code); }
+
+// ── v2: BULK EMPLOYEE ACTIONS ────────────────────────────────────
+function toggleEmployeeSelected(code, checked) {
+  if (checked) selectedEmployeeCodes[code] = true; else delete selectedEmployeeCodes[code];
+  updateEmpBulkBar();
+}
+function toggleSelectAllEmployees(cb) {
+  document.querySelectorAll('.emp-row-chk').forEach(function (el) {
+    el.checked = cb.checked;
+    var code = el.getAttribute('data-code');
+    if (cb.checked) selectedEmployeeCodes[code] = true; else delete selectedEmployeeCodes[code];
+  });
+  updateEmpBulkBar();
+}
+function updateEmpBulkBar() {
+  var count = Object.keys(selectedEmployeeCodes).length;
+  var bar = document.getElementById('emp-bulk-bar');
+  var countEl = document.getElementById('emp-bulk-count');
+  if (!bar || !countEl) return;
+  countEl.textContent = count + ' selected';
+  if (count > 0) bar.classList.add('visible'); else bar.classList.remove('visible');
+}
+function bulkToggleEmployees(activate) {
+  var codes = Object.keys(selectedEmployeeCodes);
+  if (!codes.length) return;
+  var verb = activate ? 'reactivate' : 'deactivate';
+  if (!confirm('Are you sure you want to ' + verb + ' ' + codes.length + ' employee(s)?')) return;
+  var resultEl = document.getElementById('emp-bulk-result');
+  var secret = getAdminSecret();
+  var done = 0, okCount = 0, failCount = 0;
+  resultEl.className = 'result-msg';
+  resultEl.textContent = 'Processing 0 of ' + codes.length + '...';
+
+  function next(i) {
+    if (i >= codes.length) {
+      resultEl.className = failCount ? 'result-msg err' : 'result-msg ok';
+      resultEl.textContent = 'Done. ' + okCount + ' updated, ' + failCount + ' failed.';
+      selectedEmployeeCodes = {};
+      loadEmployees();
+      return;
+    }
+    var code = codes[i];
+    withTimeout(db.rpc('oms_admin_toggle_employee_active', { p_admin_secret: secret, p_employee_code: code, p_active: activate }), 10000, 'Bulk employee update').then(function (res) {
+      done++;
+      if (res.error) {
+        if (isBadSecretError(res.error)) { handleBadSecret('bulk employee actions'); return; }
+        failCount++;
+      } else {
+        okCount++;
+      }
+      resultEl.textContent = 'Processing ' + done + ' of ' + codes.length + '...';
+      next(i + 1);
+    }).catch(function () {
+      done++; failCount++;
+      resultEl.textContent = 'Processing ' + done + ' of ' + codes.length + '...';
+      next(i + 1);
+    });
+  }
+  next(0);
+}
 
 function toggleEmployeeActive(code, currentActive) {
   if (!db) return;
@@ -888,7 +1251,7 @@ function toggleEmployeeActive(code, currentActive) {
   // separate writeAuditLog() call that used to live here is removed to avoid
   // a duplicate log entry.
   var secret = getAdminSecret();
-  db.rpc('oms_admin_toggle_employee_active', { p_admin_secret: secret, p_employee_code: code, p_active: !currentActive }).then(function (res) {
+  withTimeout(db.rpc('oms_admin_toggle_employee_active', { p_admin_secret: secret, p_employee_code: code, p_active: !currentActive }), 10000, 'Toggle employee status').then(function (res) {
     if (res.error) {
       if (isBadSecretError(res.error)) { handleBadSecret('toggling employee status'); return; }
       if (resEl) { resEl.className = 'result-msg err'; resEl.textContent = 'Error: ' + res.error.message; }
@@ -896,7 +1259,7 @@ function toggleEmployeeActive(code, currentActive) {
     }
     if (resEl) { resEl.className = 'result-msg ok'; resEl.textContent = '✓ Updated.'; }
     loadEmployees();
-  }).catch(function (err) { if (resEl) { resEl.className = 'result-msg err'; resEl.textContent = 'Error: ' + String(err); } });
+  }).catch(function (err) { if (resEl) { resEl.className = 'result-msg err'; resEl.textContent = 'Error: ' + String(err && err.message || err); } });
 }
 function resetEmployeePin(code) {
   if (!db) return;
@@ -906,7 +1269,7 @@ function resetEmployeePin(code) {
   var secret = getAdminSecret();
   var resEl = empResultEl(code);
   if (resEl) { resEl.className = 'result-msg'; resEl.textContent = 'Saving...'; }
-  db.rpc('oms_set_pin', { p_employee_code: code, p_new_pin: pin, p_admin_secret: secret }).then(function (res) {
+  withTimeout(db.rpc('oms_set_pin', { p_employee_code: code, p_new_pin: pin, p_admin_secret: secret }), 10000, 'PIN reset').then(function (res) {
     if (res.error) {
       if (isBadSecretError(res.error)) { handleBadSecret('a PIN reset'); return; }
       if (resEl) { resEl.className = 'result-msg err'; resEl.textContent = 'Error: ' + res.error.message; }
@@ -914,14 +1277,14 @@ function resetEmployeePin(code) {
     }
     writeAuditLog('PIN_RESET_ADMIN', { details: { reset_employee_code: code } });
     if (resEl) { resEl.className = 'result-msg ok'; resEl.textContent = '✓ PIN updated.'; }
-  }).catch(function (err) { if (resEl) { resEl.className = 'result-msg err'; resEl.textContent = 'Error: ' + String(err); } });
+  }).catch(function (err) { if (resEl) { resEl.className = 'result-msg err'; resEl.textContent = 'Error: ' + String(err && err.message || err); } });
 }
 function unlockEmployee(code) {
   if (!db) return;
   var secret = getAdminSecret();
   var resEl = empResultEl(code);
   if (resEl) { resEl.className = 'result-msg'; resEl.textContent = 'Unlocking...'; }
-  db.rpc('oms_admin_unlock', { p_employee_code: code, p_admin_secret: secret }).then(function (res) {
+  withTimeout(db.rpc('oms_admin_unlock', { p_employee_code: code, p_admin_secret: secret }), 10000, 'Employee unlock').then(function (res) {
     if (res.error) {
       if (isBadSecretError(res.error)) { handleBadSecret('an unlock action'); return; }
       if (resEl) { resEl.className = 'result-msg err'; resEl.textContent = 'Error: ' + res.error.message; }
@@ -930,7 +1293,7 @@ function unlockEmployee(code) {
     writeAuditLog('ADMIN_UNLOCK', { details: { unlocked_employee_code: code } });
     if (resEl) { resEl.className = 'result-msg ok'; resEl.textContent = '✓ Unlocked.'; }
     loadEmployees();
-  }).catch(function (err) { if (resEl) { resEl.className = 'result-msg err'; resEl.textContent = 'Error: ' + String(err); } });
+  }).catch(function (err) { if (resEl) { resEl.className = 'result-msg err'; resEl.textContent = 'Error: ' + String(err && err.message || err); } });
 }
 function submitAddEmployee() {
   if (!db) return;
@@ -958,7 +1321,7 @@ function submitAddEmployee() {
   // RPC writes its own EMPLOYEE_ADDED audit row internally, so the separate
   // writeAuditLog() call that used to live here is removed to avoid a
   // duplicate log entry.
-  db.rpc('oms_admin_add_employee', { p_admin_secret: secret, p_employee_code: code, p_display_name: name, p_role: role, p_initial_pin: pin }).then(function (res) {
+  withTimeout(db.rpc('oms_admin_add_employee', { p_admin_secret: secret, p_employee_code: code, p_display_name: name, p_role: role, p_initial_pin: pin }), 10000, 'Add employee').then(function (res) {
     if (res.error) {
       if (isBadSecretError(res.error)) { handleBadSecret('adding an employee'); return; }
       var msg = res.error.message || '';
@@ -969,7 +1332,7 @@ function submitAddEmployee() {
     resEl.className = 'result-msg ok'; resEl.textContent = '✓ Employee added.';
     codeEl.value = ''; nameEl.value = ''; pinEl.value = ''; roleEl.value = 'WAREHOUSE_STAFF';
     loadEmployees();
-  }).catch(function (err) { resEl.className = 'result-msg err'; resEl.textContent = 'Error: ' + String(err); });
+  }).catch(function (err) { resEl.className = 'result-msg err'; resEl.textContent = 'Error: ' + String(err && err.message || err); });
 }
 
 // writeAuditLog — fire-and-forget insert into oms_audit_log (anon INSERT
@@ -990,7 +1353,7 @@ function writeAuditLog(actionType, opts) {
       details: opts.details || null,
       device_hint: (navigator.userAgent || '').slice(0, 180)
     };
-    db.from('oms_audit_log').insert(row).then(function () {}).catch(function () {});
+    withTimeout(db.from('oms_audit_log').insert(row), 10000, 'Audit log write').then(function () {}).catch(function () {});
   } catch (e) { /* best-effort only */ }
 }
 
@@ -1003,19 +1366,11 @@ var skuLastHadMore = false;
 function skuPagePrev() { if (skuPage > 0) loadSkuStock(skuPage - 1); }
 function skuPageNext() { if (skuLastHadMore) loadSkuStock(skuPage + 1); }
 
-function loadSkuStock(page) {
-  if (!db) { refreshOfflineBanner(); return; }
-  skuPage = page;
-  var body = document.getElementById('sku-body');
-  body.innerHTML = '<tr class="empty-row"><td colspan="9">Loading...</td></tr>';
-
+// v2: pulled out of loadSkuStock so the full-export function can reuse the
+// exact same query-building logic instead of duplicating it.
+function buildSkuBaseQuery() {
   var q = (document.getElementById('sku-search').value || '').trim();
   var statusFilter = document.getElementById('sku-status-filter').value;
-  var stockFilter = document.getElementById('sku-stock-filter').value;
-
-  var from = page * skuPageSize;
-  var to = from + skuPageSize - 1;
-
   var query = db.from('oms_sku_master').select('sku_code, asin, product_name, product_type, reorder_threshold, cost_price, mrp, active');
   if (q) {
     var esc2 = q.replace(/[%_]/g, '\\$&');
@@ -1023,9 +1378,23 @@ function loadSkuStock(page) {
   }
   if (statusFilter === 'active') query = query.eq('active', true);
   if (statusFilter === 'inactive') query = query.eq('active', false);
-  query = query.order('sku_code').range(from, to + 1); // fetch one extra to detect "more"
+  return query.order('sku_code');
+}
 
-  query.then(function (res) {
+function loadSkuStock(page) {
+  if (!db) { refreshOfflineBanner(); return; }
+  skuPage = page;
+  var body = document.getElementById('sku-body');
+  body.innerHTML = '<tr class="empty-row"><td colspan="9">Loading...</td></tr>';
+
+  var stockFilter = document.getElementById('sku-stock-filter').value;
+
+  var from = page * skuPageSize;
+  var to = from + skuPageSize - 1;
+
+  var query = buildSkuBaseQuery().range(from, to + 1); // fetch one extra to detect "more"
+
+  withTimeout(query, 10000, 'SKU search').then(function (res) {
     if (res.error) { body.innerHTML = '<tr class="empty-row"><td colspan="9">Error: ' + esc(res.error.message) + '</td></tr>'; return; }
     var skus = res.data || [];
     skuLastHadMore = skus.length > skuPageSize;
@@ -1041,7 +1410,7 @@ function loadSkuStock(page) {
     }
 
     var codes = skus.map(function (s) { return s.sku_code; });
-    db.from('oms_current_stock').select('sku_code, qty_on_hand').in('sku_code', codes).then(function (stockRes) {
+    withTimeout(db.from('oms_current_stock').select('sku_code, qty_on_hand').in('sku_code', codes), 10000, 'SKU stock join').then(function (stockRes) {
       var stockMap = {};
       (stockRes.data || []).forEach(function (s) { stockMap[s.sku_code] = s.qty_on_hand; });
 
@@ -1081,8 +1450,8 @@ function loadSkuStock(page) {
       document.getElementById('sku-page-info').textContent = 'Page ' + (page + 1);
       document.getElementById('sku-prev-btn').disabled = page === 0;
       document.getElementById('sku-next-btn').disabled = !skuLastHadMore;
-    }).catch(function (err) { body.innerHTML = '<tr class="empty-row"><td colspan="9">Error loading stock: ' + esc(String(err)) + '</td></tr>'; });
-  }).catch(function (err) { body.innerHTML = '<tr class="empty-row"><td colspan="9">Error: ' + esc(String(err)) + '</td></tr>'; });
+    }).catch(function (err) { body.innerHTML = '<tr class="empty-row"><td colspan="9">Error loading stock: ' + esc(String(err && err.message || err)) + '</td></tr>'; });
+  }).catch(function (err) { body.innerHTML = '<tr class="empty-row"><td colspan="9">Error: ' + esc(String(err && err.message || err)) + '</td></tr>'; });
 }
 function exportSkuCSV() {
   if (!skuLastRows.length) { alert('No SKU rows loaded to export.'); return; }
@@ -1094,6 +1463,67 @@ function exportSkuCSV() {
     };
   });
   downloadCSV('artzfolio_sku_stock_page' + (skuPage + 1) + '.csv', rows);
+}
+
+// ── v2: FULL-DATASET CSV EXPORT (SKU & Stock) ────────────────────
+// Note: the stock-level filter (negative / at-or-below-reorder) is applied
+// after joining oms_current_stock per page, same as the on-screen search —
+// so the row count reported during export reflects rows kept AFTER that
+// filter, and pages that come back empty after filtering still count
+// toward pagination progress correctly since we page the base SKU query.
+function exportSkuFullCSV() {
+  if (!db) return;
+  var progEl = document.getElementById('sku-export-progress');
+  var stockFilter = document.getElementById('sku-stock-filter').value;
+  var accumulated = [];
+  progEl.textContent = 'Exporting... 0 rows so far';
+
+  function fetchPage(offset) {
+    var query = withTimeout(buildSkuBaseQuery().range(offset, offset + EXPORT_PAGE_SIZE - 1), 15000, 'SKU full export');
+    return query.then(function (res) {
+      if (res.error) throw new Error(res.error.message);
+      var skus = res.data || [];
+      if (!skus.length) return;
+      var codes = skus.map(function (s) { return s.sku_code; });
+      return withTimeout(db.from('oms_current_stock').select('sku_code, qty_on_hand').in('sku_code', codes), 15000, 'SKU full export (stock)').then(function (stockRes) {
+        var stockMap = {};
+        (stockRes.data || []).forEach(function (s) { stockMap[s.sku_code] = s.qty_on_hand; });
+        var merged = skus.map(function (s) {
+          var qty = stockMap.hasOwnProperty(s.sku_code) ? stockMap[s.sku_code] : null;
+          return Object.assign({}, s, { qty_on_hand: qty });
+        });
+        var filtered = merged.filter(function (s) {
+          if (stockFilter === 'negative') return s.qty_on_hand !== null && s.qty_on_hand < 0;
+          if (stockFilter === 'low') return s.qty_on_hand !== null && s.reorder_threshold !== null && s.qty_on_hand <= s.reorder_threshold;
+          return true;
+        });
+        accumulated = accumulated.concat(filtered);
+        progEl.textContent = 'Exporting... ' + accumulated.length + ' of ~' + (offset + skus.length) + ' rows scanned';
+        if (accumulated.length >= EXPORT_MAX_ROWS) {
+          progEl.textContent = accumulated.length + ' rows hit the ' + EXPORT_MAX_ROWS + '-row cap — narrow your filters for a complete export.';
+          accumulated = accumulated.slice(0, EXPORT_MAX_ROWS);
+          return;
+        }
+        if (skus.length === EXPORT_PAGE_SIZE) return fetchPage(offset + EXPORT_PAGE_SIZE);
+      });
+    });
+  }
+
+  fetchPage(0).then(function () {
+    if (!accumulated.length) { progEl.textContent = ''; alert('No SKUs match these filters.'); return; }
+    var rows = accumulated.map(function (s) {
+      return {
+        sku_code: s.sku_code, asin: s.asin, product_name: s.product_name, product_type: s.product_type,
+        qty_on_hand: s.qty_on_hand, reorder_threshold: s.reorder_threshold, cost_price: s.cost_price,
+        mrp: s.mrp, active: s.active
+      };
+    });
+    downloadCSV('artzfolio_sku_stock_full.csv', rows);
+    progEl.textContent = 'Done — ' + accumulated.length + ' rows exported.';
+    setTimeout(function () { progEl.textContent = ''; }, 6000);
+  }).catch(function (err) {
+    progEl.textContent = 'Export failed: ' + (err && err.message ? err.message : String(err));
+  });
 }
 
 // ── CSV IMPORT (bulk SKU field update) ────────────────────────
@@ -1192,12 +1622,12 @@ function submitImport() {
   var secret = getAdminSecret();
   resEl.className = 'result-msg'; resEl.textContent = 'Submitting ' + parsedImportRows.length + ' row(s)...';
 
-  db.rpc('oms_admin_bulk_update_sku_fields', {
+  withTimeout(db.rpc('oms_admin_bulk_update_sku_fields', {
     p_admin_secret: secret,
     p_updates: parsedImportRows,
     p_employee_code: 'ADMIN_PANEL',
     p_employee_name: 'Admin Panel (Web)'
-  }).then(function (res) {
+  }), 20000, 'Bulk SKU import').then(function (res) {
     if (res.error) {
       if (isBadSecretError(res.error)) { handleBadSecret('the SKU bulk import'); return; }
       resEl.className = 'result-msg err'; resEl.textContent = 'Error: ' + res.error.message;
@@ -1219,7 +1649,7 @@ function submitImport() {
     area.appendChild(extra);
     parsedImportRows = [];
     document.getElementById('csv-file-input').value = '';
-  }).catch(function (err) { resEl.className = 'result-msg err'; resEl.textContent = 'Error: ' + String(err); });
+  }).catch(function (err) { resEl.className = 'result-msg err'; resEl.textContent = 'Error: ' + String(err && err.message || err); });
 }
 
 // ═══════════════════════ REPORTS / TRANSACTIONS ═══════════════════════
@@ -1258,21 +1688,15 @@ function applyTxnPreset(preset) {
   loadTransactions(0);
 }
 
-function loadTransactions(page) {
-  if (!db) { refreshOfflineBanner(); return; }
-  txnPage = page;
-  var body = document.getElementById('txn-body');
-  body.innerHTML = '<tr class="empty-row"><td colspan="9">Loading...</td></tr>';
-
+// v2: pulled out of loadTransactions so the full-export function can reuse
+// the exact same filter/query-building logic instead of duplicating it.
+function buildTxnBaseQuery() {
   var fromVal = document.getElementById('txn-from').value;
   var toVal = document.getElementById('txn-to').value;
   var empVal = document.getElementById('txn-employee').value;
   var skuVal = (document.getElementById('txn-sku').value || '').trim();
   var channelVal = document.getElementById('txn-channel').value;
   var typeVal = document.getElementById('txn-type').value;
-
-  var from = page * txnPageSize;
-  var to = from + txnPageSize - 1;
 
   var query = db.from('oms_inventory_transactions').select('*');
   if (fromVal) query = query.gte('created_at', new Date(fromVal + 'T00:00:00').toISOString());
@@ -1281,9 +1705,21 @@ function loadTransactions(page) {
   if (skuVal) query = query.ilike('sku_code', '%' + skuVal.replace(/[%_]/g, '\\$&') + '%');
   if (channelVal) query = query.eq('channel', channelVal);
   if (typeVal) query = query.eq('txn_type', typeVal);
-  query = query.order('created_at', { ascending: false }).range(from, to + 1);
+  return query.order('created_at', { ascending: false });
+}
 
-  query.then(function (res) {
+function loadTransactions(page) {
+  if (!db) { refreshOfflineBanner(); return; }
+  txnPage = page;
+  var body = document.getElementById('txn-body');
+  body.innerHTML = '<tr class="empty-row"><td colspan="9">Loading...</td></tr>';
+
+  var from = page * txnPageSize;
+  var to = from + txnPageSize - 1;
+
+  var query = buildTxnBaseQuery().range(from, to + 1);
+
+  withTimeout(query, 10000, 'Transactions').then(function (res) {
     if (res.error) { body.innerHTML = '<tr class="empty-row"><td colspan="9">Error: ' + esc(res.error.message) + '</td></tr>'; return; }
     var rows = res.data || [];
     txnLastHadMore = rows.length > txnPageSize;
@@ -1314,7 +1750,8 @@ function loadTransactions(page) {
     document.getElementById('txn-next-btn').disabled = !txnLastHadMore;
 
     renderTxnSummary(rows);
-  }).catch(function (err) { body.innerHTML = '<tr class="empty-row"><td colspan="9">Error: ' + esc(String(err)) + '</td></tr>'; });
+    renderTxnGroupedSummaries(rows);
+  }).catch(function (err) { body.innerHTML = '<tr class="empty-row"><td colspan="9">Error: ' + esc(String(err && err.message || err)) + '</td></tr>'; });
 }
 function renderTxnSummary(rows) {
   var tilesEl = document.getElementById('txn-summary-tiles');
@@ -1332,6 +1769,57 @@ function renderTxnSummary(rows) {
     return '<div class="tile"><div class="tile-label">' + esc(t.label) + '</div><div class="tile-val">' + t.val + '</div></div>';
   }).join('');
 }
+
+// ── v2: DEEPER REPORTS — GROUPED SUMMARIES ───────────────────────
+// Client-side aggregation of the currently loaded/paginated rows only —
+// same documented scope limit as the page-level summary tiles above. A
+// true full-dataset aggregation would need a server-side GROUP BY (out of
+// scope for this pass); "Export Full CSV" + external aggregation is the
+// documented workaround for whole-dataset totals.
+function renderTxnGroupedSummaries(rows) {
+  var card = document.getElementById('txn-grouped-summary-card');
+  if (!rows || !rows.length) { card.style.display = 'none'; return; }
+  card.style.display = 'block';
+
+  function groupBy(keyFn) {
+    var map = {};
+    rows.forEach(function (r) {
+      var key = keyFn(r) || '—';
+      if (!map[key]) map[key] = { count: 0, netQty: 0 };
+      map[key].count++;
+      map[key].netQty += Number(r.qty_delta) || 0;
+    });
+    return map;
+  }
+  function renderRows(map, sortByCountDesc) {
+    var keys = Object.keys(map);
+    keys.sort(function (a, b) { return sortByCountDesc ? map[b].count - map[a].count : (a < b ? -1 : 1); });
+    return keys.map(function (k) {
+      var m = map[k];
+      var qtyClass = m.netQty >= 0 ? 'num-pos' : 'num-neg';
+      var qtyStr = (m.netQty >= 0 ? '+' : '') + fmtNum(m.netQty);
+      return '<tr><td class="mono">' + esc(k) + '</td><td>' + fmtNum(m.count) + '</td><td class="' + qtyClass + '">' + qtyStr + '</td></tr>';
+    }).join('');
+  }
+
+  var byDay = groupBy(function (r) { return r.created_at ? r.created_at.slice(0, 10) : null; });
+  var byChannel = groupBy(function (r) { return r.channel; });
+  var byEmployee = groupBy(function (r) { return r.employee_code; });
+  var bySku = groupBy(function (r) { return r.sku_code; });
+
+  document.getElementById('txn-group-day-body').innerHTML = renderRows(byDay, false) || '<tr class="empty-row"><td colspan="3">No data.</td></tr>';
+  document.getElementById('txn-group-channel-body').innerHTML = renderRows(byChannel, true) || '<tr class="empty-row"><td colspan="3">No data.</td></tr>';
+  document.getElementById('txn-group-employee-body').innerHTML = renderRows(byEmployee, true) || '<tr class="empty-row"><td colspan="3">No data.</td></tr>';
+
+  var skuKeys = Object.keys(bySku).sort(function (a, b) { return bySku[b].count - bySku[a].count; }).slice(0, 10);
+  document.getElementById('txn-group-sku-body').innerHTML = skuKeys.length ? skuKeys.map(function (k) {
+    var m = bySku[k];
+    var qtyClass = m.netQty >= 0 ? 'num-pos' : 'num-neg';
+    var qtyStr = (m.netQty >= 0 ? '+' : '') + fmtNum(m.netQty);
+    return '<tr><td class="mono">' + esc(k) + '</td><td>' + fmtNum(m.count) + '</td><td class="' + qtyClass + '">' + qtyStr + '</td></tr>';
+  }).join('') : '<tr class="empty-row"><td colspan="3">No data.</td></tr>';
+}
+
 function exportTxnCSV() {
   if (!txnLastRows.length) { alert('No transaction rows loaded to export.'); return; }
   var rows = txnLastRows.map(function (t) {
@@ -1342,6 +1830,144 @@ function exportTxnCSV() {
     };
   });
   downloadCSV('artzfolio_transactions_page' + (txnPage + 1) + '.csv', rows);
+}
+
+// ── v2: FULL-DATASET CSV EXPORT (Transactions) ───────────────────
+function exportTxnFullCSV() {
+  if (!db) return;
+  var progEl = document.getElementById('txn-export-progress');
+  var accumulated = [];
+  progEl.textContent = 'Exporting... 0 rows so far';
+
+  function fetchPage(offset) {
+    var query = withTimeout(buildTxnBaseQuery().range(offset, offset + EXPORT_PAGE_SIZE - 1), 15000, 'Transactions full export');
+    return query.then(function (res) {
+      if (res.error) throw new Error(res.error.message);
+      var rows = res.data || [];
+      accumulated = accumulated.concat(rows);
+      progEl.textContent = 'Exporting... ' + accumulated.length + ' rows so far';
+      if (accumulated.length >= EXPORT_MAX_ROWS) {
+        progEl.textContent = accumulated.length + ' rows hit the ' + EXPORT_MAX_ROWS + '-row cap — narrow your filters for a complete export.';
+        accumulated = accumulated.slice(0, EXPORT_MAX_ROWS);
+        return;
+      }
+      if (rows.length === EXPORT_PAGE_SIZE) return fetchPage(offset + EXPORT_PAGE_SIZE);
+    });
+  }
+
+  fetchPage(0).then(function () {
+    if (!accumulated.length) { progEl.textContent = ''; alert('No transactions match these filters.'); return; }
+    var rows = accumulated.map(function (t) {
+      return {
+        timestamp: t.created_at, txn_type: t.txn_type, sku_code: t.sku_code, asin: t.asin,
+        qty_delta: t.qty_delta, channel: t.channel, order_id: t.order_id, bin_code: t.bin_code,
+        employee_code: t.employee_code, note: t.note
+      };
+    });
+    downloadCSV('artzfolio_transactions_full.csv', rows);
+    progEl.textContent = 'Done — ' + accumulated.length + ' rows exported.';
+    setTimeout(function () { progEl.textContent = ''; }, 6000);
+  }).catch(function (err) {
+    progEl.textContent = 'Export failed: ' + (err && err.message ? err.message : String(err));
+  });
+}
+
+// ═══════════════════════ SETTINGS (v2) ═══════════════════════
+var settingsLoadedOnce = false;
+
+function loadSettingsPage() {
+  settingsLoadedOnce = true;
+  loadCompanyInfo();
+  loadSystemInfo();
+}
+
+function submitRotateSecret() {
+  if (!db) return;
+  var curEl = document.getElementById('rotate-current-secret');
+  var newEl = document.getElementById('rotate-new-secret');
+  var confEl = document.getElementById('rotate-confirm-secret');
+  var btn = document.getElementById('rotate-secret-btn');
+  var resEl = document.getElementById('rotate-secret-result');
+
+  var cur = (curEl.value || '').trim();
+  var neu = (newEl.value || '').trim();
+  var conf = (confEl.value || '').trim();
+
+  if (!cur) { resEl.className = 'result-msg err'; resEl.textContent = 'Enter the current admin secret.'; return; }
+  if (!neu) { resEl.className = 'result-msg err'; resEl.textContent = 'Enter a new admin secret.'; return; }
+  if (neu !== conf) { resEl.className = 'result-msg err'; resEl.textContent = 'New secret and confirmation do not match.'; return; }
+  if (neu === cur) { resEl.className = 'result-msg err'; resEl.textContent = 'New secret must be different from the current one.'; return; }
+
+  btn.disabled = true;
+  resEl.className = 'result-msg'; resEl.textContent = 'Rotating secret...';
+
+  withTimeout(db.rpc('oms_admin_rotate_secret', { p_current_secret: cur, p_new_secret: neu }), 10000, 'Secret rotation').then(function (res) {
+    btn.disabled = false;
+    if (res.error) {
+      // On a wrong current secret we show the error inline and deliberately
+      // do NOT clear the existing session — the admin is still logged in
+      // with the old (still-valid) secret; only the rotation attempt failed.
+      if (isBadSecretError(res.error)) {
+        resEl.className = 'result-msg err';
+        resEl.textContent = 'Incorrect current secret. Your session was not affected.';
+        return;
+      }
+      resEl.className = 'result-msg err';
+      resEl.textContent = 'Error: ' + res.error.message;
+      return;
+    }
+    // Success: update the locally-stored session secret immediately so the
+    // admin isn't logged out by their own rotation.
+    setAdminSecret(neu);
+    resEl.className = 'result-msg ok';
+    resEl.textContent = '✓ Admin secret rotated successfully. Save the new secret somewhere safe now — it will be needed on the next login and cannot be recovered if lost.';
+    curEl.value = ''; newEl.value = ''; confEl.value = '';
+  }).catch(function (err) {
+    btn.disabled = false;
+    resEl.className = 'result-msg err';
+    resEl.textContent = 'Error: ' + String(err && err.message || err);
+  });
+}
+
+function loadCompanyInfo() {
+  if (!db) return;
+  var el = document.getElementById('settings-company-info');
+  el.innerHTML = '<div class="info-item"><div class="info-item-label">Loading...</div></div>';
+  withTimeout(db.from('oms_companies').select('company_id, company_name').limit(1), 10000, 'Company info').then(function (res) {
+    if (res.error || !res.data || !res.data.length) {
+      el.innerHTML = '<div class="info-item"><div class="info-item-label">Error</div><div class="info-item-val">' + esc(res.error ? res.error.message : 'No company record found.') + '</div></div>';
+      return;
+    }
+    var c = res.data[0];
+    el.innerHTML =
+      '<div class="info-item"><div class="info-item-label">Company ID</div><div class="info-item-val mono">' + esc(c.company_id) + '</div></div>' +
+      '<div class="info-item"><div class="info-item-label">Company Name</div><div class="info-item-val">' + esc(c.company_name) + '</div></div>';
+  }).catch(function (err) {
+    el.innerHTML = '<div class="info-item"><div class="info-item-label">Error</div><div class="info-item-val">' + esc(String(err && err.message || err)) + '</div></div>';
+  });
+}
+
+function loadSystemInfo() {
+  if (!db) return;
+  var el = document.getElementById('settings-system-info');
+  el.innerHTML = '<div class="info-item"><div class="info-item-label">Loading...</div></div>';
+
+  Promise.all([
+    withTimeout(db.from('oms_sku_master').select('sku_code', { count: 'exact', head: true }), 10000, 'System info (SKUs)'),
+    withTimeout(db.from('oms_employees').select('employee_code', { count: 'exact', head: true }), 10000, 'System info (employees)'),
+    withTimeout(db.from('oms_inventory_transactions').select('txn_id', { count: 'exact', head: true }), 10000, 'System info (transactions)'),
+    withTimeout(db.from('oms_companies').select('company_id', { count: 'exact', head: true }), 5000, 'System info (connectivity check)')
+  ]).then(function (results) {
+    var skuRes = results[0], empRes = results[1], txnRes = results[2], connRes = results[3];
+    var connected = !connRes.error;
+    el.innerHTML =
+      '<div class="info-item"><div class="info-item-label">Total SKUs</div><div class="info-item-val">' + (skuRes.error ? '—' : fmtNum(skuRes.count)) + '</div></div>' +
+      '<div class="info-item"><div class="info-item-label">Total Employees</div><div class="info-item-val">' + (empRes.error ? '—' : fmtNum(empRes.count)) + '</div></div>' +
+      '<div class="info-item"><div class="info-item-label">Total Transactions Logged</div><div class="info-item-val">' + (txnRes.error ? '—' : fmtNum(txnRes.count)) + '</div></div>' +
+      '<div class="info-item"><div class="info-item-label">Database Connection</div><div class="info-item-val ' + (connected ? 'conn-ok' : 'conn-bad') + '">' + (connected ? 'Connected' : 'Unreachable') + '</div></div>';
+  }).catch(function (err) {
+    el.innerHTML = '<div class="info-item"><div class="info-item-label">Error</div><div class="info-item-val">' + esc(String(err && err.message || err)) + '</div></div>';
+  });
 }
 </script>
 </body>
