@@ -241,7 +241,7 @@
     </style>
 </head>
 <body>
-<div class="ver-corner" id="verCornerBadge">v43</div>
+<div class="ver-corner" id="verCornerBadge">v45</div>
 <div class="app">
     <!-- HEADER -->
     <div class="header">
@@ -362,7 +362,17 @@
                 <h3 id="move-mode-title">&#128230; New Stock In</h3>
                 <div class="settings-info" id="move-mode-desc">Scan or type the SKU or ASIN barcode of the product being brought into stock, enter the quantity, then submit. This adds to live stock immediately.</div>
                 <div class="settings-row">
-                    <input type="text" class="settings-input" id="move-sku-input" placeholder="Scan or type SKU / ASIN" autocomplete="off" autocorrect="off" autocapitalize="off">
+                    <input type="text" class="settings-input" id="move-sku-input" placeholder="Scan or type SKU / ASIN" autocomplete="off" autocorrect="off" autocapitalize="off" onblur="prefillMoveBin()">
+                </div>
+                <!-- v44: Bin is now mandatory on every MOVE action. Auto-fills from the
+                     SKU's home bin (oms_sku_master.default_bin) when the SKU field loses
+                     focus, but staff can always overwrite it (e.g. New Stock arriving into
+                     RECEIVING, not the SKU's normal shelf bin). Suggestions come from the
+                     live oms_bins list via a datalist — free text is still allowed so a new
+                     bin isn't a hard blocker, but empty is not. -->
+                <div class="settings-row">
+                    <input type="text" class="settings-input" id="move-bin-input" placeholder="Bin location (required)" list="move-bin-list" autocomplete="off" autocorrect="off" autocapitalize="characters" style="text-transform:uppercase">
+                    <datalist id="move-bin-list"></datalist>
                 </div>
                 <div class="settings-row">
                     <input type="number" class="settings-input" id="move-qty-input" placeholder="Quantity" min="1" value="1" style="max-width:110px">
@@ -380,6 +390,23 @@
              a refresh here within moments. -->
         <div id="stock-tab" class="tab-content">
             <div class="db-offline-banner" id="stock-offline-banner">&#9888; Live database not reachable right now. Showing no data until this reconnects.</div>
+
+            <!-- v45: Bin Lookup — answers "which bin(s) hold this SKU" and "what's in
+                 this bin", from the live oms_bin_stock view (a running total per
+                 SKU+bin, computed straight from the transaction ledger — always
+                 current, no separate sync step). Self-contained: its own input,
+                 fetch, and render, so it can't interfere with the paginated stock
+                 list below. -->
+            <div class="settings-section" style="margin-bottom:10px;">
+                <h3 style="margin-bottom:6px;">&#128230; Bin Lookup</h3>
+                <div class="settings-info" style="margin-bottom:6px;">Type a SKU or ASIN to see every bin holding it, or a bin code to see everything in that bin. Bins are created automatically the first time you use them — there is no fixed list to be limited to.</div>
+                <div class="settings-row">
+                    <input type="text" class="settings-input" id="bin-lookup-input" placeholder="SKU, ASIN, or bin code..." autocomplete="off" autocorrect="off" autocapitalize="characters" onkeydown="if(event.key==='Enter')runBinLookup();">
+                    <button class="settings-btn" style="max-width:90px;" onclick="runBinLookup()">Search</button>
+                </div>
+                <div id="bin-lookup-result"></div>
+            </div>
+
             <div class="cam-error-banner" id="low-stock-banner" style="margin-bottom:10px;"><strong id="low-stock-banner-text">&#9888; 0 SKUs at or below reorder point</strong></div>
             <div class="log-header">
                 <h2><span class="stock-live-dot" id="stock-live-dot" style="display:none;"></span>Live Stock (<span id="stock-count">0</span>)</h2>
@@ -570,8 +597,8 @@
 
             <!-- Version -->
             <div class="ver-badge">
-                <div class="ver-name">&#128230; ArtzFolio Scan-Pick-Pack v43</div>
-                <div class="ver-sub">Owner Dashboard (DASH) &bull; 14-Day Staff Performance &bull; Print Product/Bin Labels &bull; QC Hold/Damage &bull; Low-Stock Alerts &bull; Daily Reconciliation &bull; Admin PIN-Lock Unlock &bull; Real Employee Login (PIN) &bull; RBAC &bull; Live Database (Supabase) &bull; Admin-Secret-Gated PIN Recovery &bull; Permanent Audit Log &bull; Hardened Employee Writes (Admin-RPC-Only) &bull; Call Timeouts &amp; Error Handling (Performance Fix)</div>
+                <div class="ver-name">&#128230; ArtzFolio Scan-Pick-Pack v45</div>
+                <div class="ver-sub">Live Bin Lookup (Single SKU / Single Bin / Bulk) &bull; Dynamic Bins (auto-created, no fixed list) &bull; Mandatory Bin on Every Stock Movement &bull; Owner Dashboard (DASH) &bull; 14-Day Staff Performance &bull; Print Product/Bin Labels &bull; QC Hold/Damage &bull; Low-Stock Alerts &bull; Daily Reconciliation &bull; Admin PIN-Lock Unlock &bull; Real Employee Login (PIN) &bull; RBAC &bull; Live Database (Supabase) &bull; Admin-Secret-Gated PIN Recovery &bull; Permanent Audit Log &bull; Hardened Employee Writes (Admin-RPC-Only) &bull; Call Timeouts &amp; Error Handling (Performance Fix)</div>
             </div>
         </div>
     </div>
@@ -1413,7 +1440,7 @@ function resolveSkuOrAsin(value) {
     if (!db) return Promise.resolve(null);
     var v = (value || '').trim().toUpperCase();
     if (!v) return Promise.resolve(null);
-    return withTimeout(db.from('oms_sku_master').select('sku_code,asin,product_name,active')
+    return withTimeout(db.from('oms_sku_master').select('sku_code,asin,product_name,active,default_bin')
         .or('sku_code.eq.' + v + ',asin.eq.' + v)
         .limit(1), 10000, 'SKU lookup')
         .then(function(res) {
@@ -1425,10 +1452,14 @@ function resolveSkuOrAsin(value) {
 }
 
 // The one and only function anywhere in this file that writes a stock
-// movement. txnType must be one of the 6 allowed by the database's own
-// check constraint (oms.inventory_transactions.txn_type) — if this ever
+// movement. txnType must be one of the values allowed by the database's own
+// check constraint (oms_inventory_transactions.txn_type) — if this ever
 // gets out of sync with the schema, the insert fails loudly with a clear
 // Postgres error rather than silently corrupting data.
+// v44: the database now ALSO requires bin_code to be non-null for every
+// txn_type except MANUAL_CORRECTION — a movement submitted without a bin
+// fails at the database level, not just in the UI, so this can't be
+// bypassed by a future call site that forgets to pass binCode.
 function writeLedgerTxn(opts) {
     // opts: { skuCode, asin, qtyDelta, txnType, channel, orderId, binCode, note }
     if (!db) return Promise.resolve({ ok: false, reason: 'Database not loaded (offline).' });
@@ -1463,6 +1494,46 @@ var MOVE_MODES = {
     QC_HOLD:               { title: '&#128295; QC Hold',        desc: 'Remove stock found damaged or failing QC — always logged with a reason. Does not delete the units, just removes them from sellable count.', sign: -1, requireNote: true }
 };
 var moveMode = 'NEW_STOCK_IN';
+
+// v44: bin is now mandatory on every MOVE action (New Stock, Returns, Found,
+// Lost/Theft, QC Hold) — matches how a real warehouse (and Amazon FCs) never
+// records a stock movement without a location. BIN_LIST is fetched once from
+// the live oms_bins table and used to power the datalist suggestions; the
+// database itself also enforces this (bin_code required for every txn_type
+// except MANUAL_CORRECTION), so a missing bin fails loudly, not silently.
+var BIN_LIST = null;
+function loadBinList() {
+    if (!db || BIN_LIST !== null) return; // already loaded, or offline (retried next tab open)
+    withTimeout(db.from('oms_bins').select('bin_code').eq('active', true).order('bin_code'), 10000, 'Bin list')
+        .then(function(res) {
+            if (res.error || !res.data) return;
+            BIN_LIST = res.data.map(function(r) { return r.bin_code; });
+            var dl = document.getElementById('move-bin-list');
+            if (dl) {
+                dl.innerHTML = '';
+                BIN_LIST.forEach(function(b) {
+                    var opt = document.createElement('option');
+                    opt.value = b;
+                    dl.appendChild(opt);
+                });
+            }
+        })
+        .catch(function() {});
+}
+// Auto-fills the bin field from the SKU's home bin the moment a valid SKU/ASIN
+// is scanned or typed — staff can always overwrite it (e.g. New Stock landing
+// in RECEIVING rather than the SKU's normal shelf bin). Never overwrites a
+// bin the user already typed.
+function prefillMoveBin() {
+    var binEl = document.getElementById('move-bin-input');
+    var skuVal = (document.getElementById('move-sku-input').value || '').trim();
+    if (!skuVal || (binEl.value || '').trim()) return;
+    resolveSkuOrAsin(skuVal).then(function(sku) {
+        if (sku && sku.default_bin && !(binEl.value || '').trim()) {
+            binEl.value = sku.default_bin;
+        }
+    });
+}
 function setMoveMode(mode) {
     if (!MOVE_MODES[mode]) return;
     moveMode = mode;
@@ -1474,18 +1545,25 @@ function setMoveMode(mode) {
     document.getElementById('move-mode-desc').textContent = MOVE_MODES[mode].desc.replace(/&#\d+;/g, '');
     document.getElementById('move-result').textContent = '';
     document.getElementById('move-sku-input').value = '';
+    document.getElementById('move-bin-input').value = '';
     document.getElementById('move-qty-input').value = '1';
     document.getElementById('move-note-input').value = '';
+    loadBinList();
     try { document.getElementById('move-sku-input').focus(); } catch(e) {}
 }
 function submitMoveTransaction() {
     var resEl = document.getElementById('move-result');
     var skuVal = (document.getElementById('move-sku-input').value || '').trim();
+    var binVal = (document.getElementById('move-bin-input').value || '').trim().toUpperCase();
     var qtyVal = parseInt(document.getElementById('move-qty-input').value, 10);
     var note   = (document.getElementById('move-note-input').value || '').trim();
     var cfg    = MOVE_MODES[moveMode];
 
     if (!skuVal) { resEl.className = 'move-result err'; resEl.textContent = 'Scan or type a SKU/ASIN first.'; return; }
+    // v44: bin is mandatory — the database itself now rejects any movement
+    // without one (except MANUAL_CORRECTION), so this check just gives a
+    // clear message instead of a raw database error.
+    if (!binVal) { resEl.className = 'move-result err'; resEl.textContent = 'Enter or confirm the bin location — this is now required for every stock movement.'; return; }
     if (!qtyVal || qtyVal < 1) { resEl.className = 'move-result err'; resEl.textContent = 'Enter a valid quantity (1 or more).'; return; }
     if (cfg.requireNote && !note) { resEl.className = 'move-result err'; resEl.textContent = 'A note is required for ' + cfg.title.replace(/&#\d+;/g, '').trim() + ' adjustments.'; return; }
     var emp = loadEmployee();
@@ -1504,6 +1582,7 @@ function submitMoveTransaction() {
             asin: sku.asin,
             qtyDelta: cfg.sign * qtyVal,
             txnType: moveMode,
+            binCode: binVal,
             note: note || null
         }).then(function(result) {
             if (!result.ok) {
@@ -1512,10 +1591,11 @@ function submitMoveTransaction() {
                 return;
             }
             resEl.className = 'move-result ok';
-            resEl.textContent = '✓ Saved — ' + (cfg.sign > 0 ? '+' : '') + (cfg.sign * qtyVal) + ' units of ' + sku.sku_code + ' (' + (sku.product_name || '') + ')';
-            logEvent(sku.sku_code, MOVE_MODES[moveMode].title.replace(/&#\d+;/g, '').trim() + ': ' + (cfg.sign > 0 ? '+' : '') + (cfg.sign * qtyVal) + (note ? ' — ' + note : ''));
-            writeAuditLog(moveMode, { skuCode: sku.sku_code, details: { qty_delta: cfg.sign * qtyVal, note: note || null, product_name: sku.product_name || null } });
+            resEl.textContent = '✓ Saved — ' + (cfg.sign > 0 ? '+' : '') + (cfg.sign * qtyVal) + ' units of ' + sku.sku_code + ' (' + (sku.product_name || '') + ') @ bin ' + binVal;
+            logEvent(sku.sku_code, MOVE_MODES[moveMode].title.replace(/&#\d+;/g, '').trim() + ': ' + (cfg.sign > 0 ? '+' : '') + (cfg.sign * qtyVal) + ' @ ' + binVal + (note ? ' — ' + note : ''));
+            writeAuditLog(moveMode, { skuCode: sku.sku_code, details: { qty_delta: cfg.sign * qtyVal, bin_code: binVal, note: note || null, product_name: sku.product_name || null } });
             document.getElementById('move-sku-input').value = '';
+            document.getElementById('move-bin-input').value = '';
             document.getElementById('move-qty-input').value = '1';
             document.getElementById('move-note-input').value = '';
             try { document.getElementById('move-sku-input').focus(); } catch(e) {}
@@ -1691,6 +1771,48 @@ function renderStockPagination() {
         '<span style="font-size:11px;color:#666;">Page ' + (stockPage + 1) + '</span>' +
         '<button class="settings-btn"' + (!stockHasMore ? ' disabled style="opacity:.5"' : '') + ' onclick="stockNextPage()">Next &rarr;</button>' +
         '</div>';
+}
+// v45: Bin Lookup — single SKU, single bin, or bulk (leave blank = whole
+// map, capped at 300 rows). Reads oms_bin_stock, a live view that sums the
+// full transaction ledger per SKU+bin on the fly — always exactly correct,
+// nothing to keep in sync. Answers all 3 directions Rajat asked for:
+// "which bin(s) hold this SKU", "what's in this bin", and the reverse.
+function runBinLookup() {
+    var el = document.getElementById('bin-lookup-result');
+    var raw = (document.getElementById('bin-lookup-input').value || '').trim().toUpperCase();
+    if (!db) { el.innerHTML = '<div class="move-result err">Live database not reachable right now.</div>'; return; }
+    el.innerHTML = '<div style="text-align:center;color:#aaa;font-size:12px;padding:10px 0;">Searching...</div>';
+
+    var q = db.from('oms_bin_stock').select('sku_code,product_name,asin,bin_code,qty_on_hand').order('bin_code');
+    if (raw) {
+        q = q.or('sku_code.eq.' + raw + ',asin.eq.' + raw + ',bin_code.eq.' + raw);
+    }
+    q = q.limit(300);
+
+    withTimeout(q, 10000, 'Bin lookup').then(function(res) {
+        if (res.error) { el.innerHTML = '<div class="move-result err">' + res.error.message + '</div>'; return; }
+        var rows = res.data || [];
+        if (!rows.length) {
+            el.innerHTML = '<div style="text-align:center;color:#aaa;font-size:12px;padding:10px 0;">' + (raw ? ('No stock found for "' + raw + '".') : 'No bin stock recorded yet.') + '</div>';
+            return;
+        }
+        var html = '<div style="max-height:260px;overflow-y:auto;border:1px solid #eee;border-radius:8px;margin-top:4px;">';
+        for (var i = 0; i < rows.length; i++) {
+            var r = rows[i];
+            html += '<div class="stock-row">' +
+                '<div><div class="stock-sku">' + (r.sku_code || '') + '</div><div class="stock-asin">' + (r.product_name || r.asin || '') + '</div></div>' +
+                '<div style="display:flex;align-items:center;gap:8px;">' +
+                '<span style="font-size:11px;color:#666;background:#f0f2f5;padding:3px 8px;border-radius:10px;">' + (r.bin_code || '') + '</span>' +
+                '<div class="stock-qty">' + r.qty_on_hand + '</div>' +
+                '</div>' +
+                '</div>';
+        }
+        html += '</div>';
+        if (rows.length === 300) html += '<div style="text-align:center;color:#888;font-size:10px;padding:4px 0;">Showing first 300 matches — search a specific SKU or bin to narrow this down.</div>';
+        el.innerHTML = html;
+    }).catch(function(err) {
+        el.innerHTML = '<div class="move-result err">' + String(err) + '</div>';
+    });
 }
 // v43 fix: debounced realtime reload trigger. Previously EVERY single INSERT
 // event on oms_inventory_transactions (i.e. every scan, by anyone, anywhere)
