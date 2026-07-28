@@ -383,8 +383,8 @@ tbody tr:hover{background:#f9fbfd}
       <div class="summary-caption">"Export CSV (loaded page)" covers only the currently-loaded page (up to 100 rows). "Export Full CSV" walks every page of the current filtered result (capped at 20,000 rows) — this can take a few seconds.</div>
       <div class="table-wrap">
         <table>
-          <thead><tr><th>SKU Code</th><th>ASIN</th><th>Product Name</th><th>Type</th><th>Qty On Hand</th><th>Reorder Thr.</th><th>Cost Price</th><th>MRP</th><th>Status</th></tr></thead>
-          <tbody id="sku-body"><tr class="empty-row"><td colspan="9">Enter a search term or click Search to load SKUs.</td></tr></tbody>
+          <thead><tr><th>SKU Code</th><th>ASIN</th><th>Product Name</th><th>Type</th><th>Qty On Hand</th><th>Reorder Thr.</th><th>Cost Price</th><th>MRP</th><th>Status</th><th>Actions</th></tr></thead>
+          <tbody id="sku-body"><tr class="empty-row"><td colspan="10">Enter a search term or click Search to load SKUs.</td></tr></tbody>
         </table>
         <div class="pagination">
           <span id="sku-page-info">Page 1</span>
@@ -537,6 +537,41 @@ tbody tr:hover{background:#f9fbfd}
     <h3>Audit Entry Details</h3>
     <pre id="details-modal-content">{}</pre>
     <div class="modal-close"><button class="btn btn-grey" onclick="closeDetailsModal()">Close</button></div>
+  </div>
+</div>
+
+<!-- ═══════════════════════ ADJUST STOCK MODAL (v2.1 NEW) ═══════════════════════
+     Same append-only, reason-coded pattern as the app and the bulk Excel tool -
+     this never edits or deletes a past transaction. Every correction here is a
+     brand-new row in oms_inventory_transactions, admin-secret-gated, logged to
+     oms_audit_log automatically by the oms_admin_adjust_stock RPC. -->
+<div class="modal-bg" id="adjust-stock-modal-bg">
+  <div class="modal">
+    <h3>Adjust Stock</h3>
+    <div class="hint-text">SKU: <strong class="mono" id="adjust-stock-sku">—</strong> · Current Qty On Hand: <strong id="adjust-stock-current-qty">—</strong></div>
+    <div class="hint-text">This adds a brand-new correction transaction — it never edits or deletes history. Enter a positive number to increase stock, or a negative number to decrease it.</div>
+    <div class="form-row">
+      <div class="form-field">
+        <label>Reason</label>
+        <select id="adjust-stock-reason">
+          <option value="ADJUSTMENT_FOUND">Found (extra stock located)</option>
+          <option value="ADJUSTMENT_LOST_THEFT">Lost / Theft</option>
+          <option value="ADJUSTMENT_REJECTED">Rejected / Written Off</option>
+          <option value="QC_HOLD">QC Hold (pull out of sellable count)</option>
+          <option value="ADJUSTMENT_QC_RELEASE">QC Release (back to sellable)</option>
+          <option value="NEW_STOCK_IN">New Stock In</option>
+          <option value="RETURN_IN">Return In</option>
+          <option value="MANUAL_CORRECTION">Manual Correction (other)</option>
+        </select>
+      </div>
+      <div class="form-field"><label>Qty Change (+ / -)</label><input type="number" id="adjust-stock-qty" placeholder="e.g. 5 or -3"></div>
+      <div class="form-field"><label>Bin</label><input type="text" id="adjust-stock-bin" placeholder="e.g. A12 (defaults to RECEIVING)"></div>
+      <div class="form-field"><label>Employee Code</label><input type="text" id="adjust-stock-emp" placeholder="e.g. EMP009" oninput="this.value=this.value.toUpperCase()"></div>
+      <div class="form-field" style="grid-column:1 / -1;"><label>Note (required)</label><input type="text" id="adjust-stock-note" placeholder="Why is this being adjusted?"></div>
+    </div>
+    <button class="btn btn-primary" id="adjust-stock-submit-btn" onclick="submitAdjustStock()">✓ Save Adjustment</button>
+    <div class="result-msg" id="adjust-stock-result"></div>
+    <div class="modal-close"><button class="btn btn-grey" onclick="closeAdjustStockModal()">Cancel</button></div>
   </div>
 </div>
 
@@ -1048,6 +1083,77 @@ function showDetailsModal(idx) {
 }
 function closeDetailsModal() { document.getElementById('details-modal-bg').classList.remove('active'); }
 
+// ── v2.1 NEW: Adjust Stock modal (Admin Panel stock-edit capability) ──
+// Append-only, same as everywhere else in this system: this never edits or
+// deletes a past transaction. Every correction is a brand-new row in
+// oms_inventory_transactions, written via the admin-secret-gated
+// oms_admin_adjust_stock RPC, which also writes its own ADMIN_STOCK_ADJUSTMENT
+// row to oms_audit_log — no separate writeAuditLog() call needed here.
+function openAdjustStockModal(skuCode, currentQty) {
+  document.getElementById('adjust-stock-sku').textContent = skuCode;
+  document.getElementById('adjust-stock-current-qty').textContent = (currentQty === null || currentQty === undefined) ? '— (no stock row yet)' : fmtNum(currentQty);
+  document.getElementById('adjust-stock-sku').dataset.sku = skuCode;
+  document.getElementById('adjust-stock-reason').value = 'MANUAL_CORRECTION';
+  document.getElementById('adjust-stock-qty').value = '';
+  document.getElementById('adjust-stock-bin').value = '';
+  document.getElementById('adjust-stock-emp').value = '';
+  document.getElementById('adjust-stock-note').value = '';
+  document.getElementById('adjust-stock-result').className = 'result-msg';
+  document.getElementById('adjust-stock-result').textContent = '';
+  document.getElementById('adjust-stock-modal-bg').classList.add('active');
+}
+function closeAdjustStockModal() { document.getElementById('adjust-stock-modal-bg').classList.remove('active'); }
+function submitAdjustStock() {
+  if (!db) return;
+  var sku = document.getElementById('adjust-stock-sku').dataset.sku;
+  var reason = document.getElementById('adjust-stock-reason').value;
+  var qtyEl = document.getElementById('adjust-stock-qty');
+  var binEl = document.getElementById('adjust-stock-bin');
+  var empEl = document.getElementById('adjust-stock-emp');
+  var noteEl = document.getElementById('adjust-stock-note');
+  var resEl = document.getElementById('adjust-stock-result');
+  var qty = parseInt(qtyEl.value, 10);
+  var bin = (binEl.value || '').trim().toUpperCase();
+  var emp = (empEl.value || '').trim().toUpperCase();
+  var note = (noteEl.value || '').trim();
+
+  if (!sku) { resEl.className = 'result-msg err'; resEl.textContent = 'No SKU selected.'; return; }
+  if (!qty || isNaN(qty) || qty === 0) { resEl.className = 'result-msg err'; resEl.textContent = 'Enter a non-zero whole number (e.g. 5 or -3).'; return; }
+  if (!note) { resEl.className = 'result-msg err'; resEl.textContent = 'A note is required — say why this is being adjusted.'; return; }
+  if (!emp) { resEl.className = 'result-msg err'; resEl.textContent = 'Enter your Employee Code.'; return; }
+
+  var secret = getAdminSecret();
+  var submitBtn = document.getElementById('adjust-stock-submit-btn');
+  submitBtn.disabled = true;
+  resEl.className = 'result-msg'; resEl.textContent = 'Saving...';
+
+  withTimeout(db.rpc('oms_admin_adjust_stock', {
+    p_admin_secret: secret,
+    p_sku_code: sku,
+    p_qty_delta: qty,
+    p_txn_type: reason,
+    p_bin_code: bin || 'RECEIVING',
+    p_note: note,
+    p_employee_code: emp,
+    p_employee_name: emp
+  }), 10000, 'Stock adjustment').then(function (res) {
+    submitBtn.disabled = false;
+    if (res.error) {
+      if (isBadSecretError(res.error)) { handleBadSecret('a stock adjustment'); return; }
+      resEl.className = 'result-msg err'; resEl.textContent = 'Error: ' + res.error.message; return;
+    }
+    var row = (res.data || [])[0];
+    if (!row || !row.success) {
+      resEl.className = 'result-msg err'; resEl.textContent = 'Not saved: ' + ((row && row.reason) || 'unknown error'); return;
+    }
+    resEl.className = 'result-msg ok'; resEl.textContent = '✓ Saved. New transaction recorded for ' + sku + '.';
+    setTimeout(function () { closeAdjustStockModal(); loadSkuStock(skuPage); }, 900);
+  }).catch(function (err) {
+    submitBtn.disabled = false;
+    resEl.className = 'result-msg err'; resEl.textContent = 'Error: ' + String(err && err.message || err);
+  });
+}
+
 function exportAuditCSV() {
   if (!auditLastRows.length) { alert('No audit rows loaded to export.'); return; }
   var rows = auditLastRows.map(function (r) {
@@ -1395,13 +1501,13 @@ function loadSkuStock(page) {
   var query = buildSkuBaseQuery().range(from, to + 1); // fetch one extra to detect "more"
 
   withTimeout(query, 10000, 'SKU search').then(function (res) {
-    if (res.error) { body.innerHTML = '<tr class="empty-row"><td colspan="9">Error: ' + esc(res.error.message) + '</td></tr>'; return; }
+    if (res.error) { body.innerHTML = '<tr class="empty-row"><td colspan="10">Error: ' + esc(res.error.message) + '</td></tr>'; return; }
     var skus = res.data || [];
     skuLastHadMore = skus.length > skuPageSize;
     if (skuLastHadMore) skus = skus.slice(0, skuPageSize);
 
     if (!skus.length) {
-      body.innerHTML = '<tr class="empty-row"><td colspan="9">No SKUs match this search.</td></tr>';
+      body.innerHTML = '<tr class="empty-row"><td colspan="10">No SKUs match this search.</td></tr>';
       skuLastRows = [];
       document.getElementById('sku-page-info').textContent = 'Page ' + (page + 1);
       document.getElementById('sku-prev-btn').disabled = page === 0;
@@ -1425,7 +1531,7 @@ function loadSkuStock(page) {
       skuLastRows = filtered;
 
       if (!filtered.length) {
-        body.innerHTML = '<tr class="empty-row"><td colspan="9">No SKUs match this search + stock filter combination on this page.</td></tr>';
+        body.innerHTML = '<tr class="empty-row"><td colspan="10">No SKUs match this search + stock filter combination on this page.</td></tr>';
       } else {
         body.innerHTML = filtered.map(function (s) {
           var qtyCell = '—';
@@ -1444,6 +1550,7 @@ function loadSkuStock(page) {
             '<td>' + fmtMoney(s.cost_price) + '</td>' +
             '<td>' + fmtMoney(s.mrp) + '</td>' +
             '<td>' + (s.active ? '<span class="badge badge-green">ACTIVE</span>' : '<span class="badge badge-grey">INACTIVE</span>') + '</td>' +
+            '<td><button class="btn btn-sm btn-primary" onclick="openAdjustStockModal(\'' + esc(s.sku_code).replace(/'/g, "\\'") + '\', ' + (s.qty_on_hand === null ? 'null' : s.qty_on_hand) + ')">Adjust Stock</button></td>' +
             '</tr>';
         }).join('');
       }
