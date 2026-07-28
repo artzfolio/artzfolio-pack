@@ -241,7 +241,7 @@
     </style>
 </head>
 <body>
-<div class="ver-corner" id="verCornerBadge">v45</div>
+<div class="ver-corner" id="verCornerBadge">v46</div>
 <div class="app">
     <!-- HEADER -->
     <div class="header">
@@ -382,6 +382,27 @@
                     <button class="settings-btn" style="flex:1" onclick="submitMoveTransaction()">&#10003; Submit</button>
                 </div>
                 <div class="move-result" id="move-result"></div>
+            </div>
+
+            <!-- v46: Bulk Upload (CSV) — for many rows at once, directly from the phone/
+                 desktop browser, no Excel needed. Same live table as everything else on
+                 this tab (oms_inventory_transactions) — this is not a separate import
+                 path, it just submits the same writeLedgerTxn() call many times in a row,
+                 one row of the CSV at a time, and reports OK/FAILED per row exactly like
+                 the Excel bulk tool does. -->
+            <div class="settings-section" style="margin-top:10px;">
+                <h3>&#128190; Bulk Upload (CSV)</h3>
+                <div class="settings-info">For many rows at once. Download the template, fill it in Excel or Sheets, then upload it here. ACTION can be: INBOUND, RETURN_IN, FOUND, LOST, REJECTED, QC_HOLD, QC_RELEASE, or TRANSFER (needs both Bin and ToBin).</div>
+                <div class="settings-row">
+                    <button class="settings-btn" style="flex:1" onclick="downloadBulkTemplate()">&#8681; Download Template</button>
+                </div>
+                <div class="settings-row">
+                    <input type="file" id="bulk-csv-input" accept=".csv" style="flex:1;font-size:12px;">
+                </div>
+                <div class="settings-row">
+                    <button class="settings-btn" style="flex:1" onclick="uploadBulkCsv()">&#8679; Upload &amp; Push</button>
+                </div>
+                <div id="bulk-csv-result"></div>
             </div>
         </div>
 
@@ -597,8 +618,8 @@
 
             <!-- Version -->
             <div class="ver-badge">
-                <div class="ver-name">&#128230; ArtzFolio Scan-Pick-Pack v45</div>
-                <div class="ver-sub">Live Bin Lookup (Single SKU / Single Bin / Bulk) &bull; Dynamic Bins (auto-created, no fixed list) &bull; Mandatory Bin on Every Stock Movement &bull; Owner Dashboard (DASH) &bull; 14-Day Staff Performance &bull; Print Product/Bin Labels &bull; QC Hold/Damage &bull; Low-Stock Alerts &bull; Daily Reconciliation &bull; Admin PIN-Lock Unlock &bull; Real Employee Login (PIN) &bull; RBAC &bull; Live Database (Supabase) &bull; Admin-Secret-Gated PIN Recovery &bull; Permanent Audit Log &bull; Hardened Employee Writes (Admin-RPC-Only) &bull; Call Timeouts &amp; Error Handling (Performance Fix)</div>
+                <div class="ver-name">&#128230; ArtzFolio Scan-Pick-Pack v46</div>
+                <div class="ver-sub">Bulk Upload from CSV (Inbound/Transfer/Found/Lost/Rejected/QC) &bull; Live Bin Lookup (Single SKU / Single Bin / Bulk) &bull; Dynamic Bins (auto-created, no fixed list) &bull; Mandatory Bin on Every Stock Movement &bull; Owner Dashboard (DASH) &bull; 14-Day Staff Performance &bull; Print Product/Bin Labels &bull; QC Hold/Damage &bull; Low-Stock Alerts &bull; Daily Reconciliation &bull; Admin PIN-Lock Unlock &bull; Real Employee Login (PIN) &bull; RBAC &bull; Live Database (Supabase) &bull; Admin-Secret-Gated PIN Recovery &bull; Permanent Audit Log &bull; Hardened Employee Writes (Admin-RPC-Only) &bull; Call Timeouts &amp; Error Handling (Performance Fix)</div>
             </div>
         </div>
     </div>
@@ -1771,6 +1792,144 @@ function renderStockPagination() {
         '<span style="font-size:11px;color:#666;">Page ' + (stockPage + 1) + '</span>' +
         '<button class="settings-btn"' + (!stockHasMore ? ' disabled style="opacity:.5"' : '') + ' onclick="stockNextPage()">Next &rarr;</button>' +
         '</div>';
+}
+// v46: Bulk Upload (CSV) — same live table, same action vocabulary as the
+// Excel bulk tool (Section: STOCK ACTIONS). Everything here funnels through
+// writeLedgerTxn(), the one function that ever writes a stock movement —
+// this is not a second code path, just the same one called many times.
+var ACTION_TXN_MAP = {
+    INBOUND:     { txnType: 'NEW_STOCK_IN',          sign: 1  },
+    RETURN_IN:   { txnType: 'RETURN_IN',              sign: 1  },
+    FOUND:       { txnType: 'ADJUSTMENT_FOUND',       sign: 1  },
+    LOST:        { txnType: 'ADJUSTMENT_LOST_THEFT',  sign: -1 },
+    REJECTED:    { txnType: 'ADJUSTMENT_REJECTED',    sign: -1 },
+    QC_HOLD:     { txnType: 'QC_HOLD',                sign: -1 },
+    QC_RELEASE:  { txnType: 'ADJUSTMENT_QC_RELEASE',  sign: 1  }
+};
+function downloadBulkTemplate() {
+    var csv = 'Action,SKU,Bin,ToBin,Qty,Note\r\n' +
+              'INBOUND,AZPER200596FRA_NM_01-S5_BL,A12,,50,Sample row - delete this\r\n';
+    var blob = new Blob([csv], { type: 'text/csv' });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url;
+    a.download = 'ArtzFolio_Bulk_Upload_Template.csv';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(function() { URL.revokeObjectURL(url); }, 1000);
+}
+// Minimal CSV parser — handles quoted fields (so a Note with a comma in it
+// doesn't break the row), no external library needed.
+function parseCsv(text) {
+    var rows = [], row = [], field = '', inQuotes = false;
+    for (var i = 0; i < text.length; i++) {
+        var c = text[i];
+        if (inQuotes) {
+            if (c === '"') {
+                if (text[i + 1] === '"') { field += '"'; i++; }
+                else { inQuotes = false; }
+            } else field += c;
+        } else {
+            if (c === '"') inQuotes = true;
+            else if (c === ',') { row.push(field); field = ''; }
+            else if (c === '\n' || c === '\r') {
+                if (c === '\r' && text[i + 1] === '\n') i++;
+                row.push(field); field = '';
+                if (row.length > 1 || row[0]) rows.push(row);
+                row = [];
+            } else field += c;
+        }
+    }
+    if (field.length || row.length) { row.push(field); rows.push(row); }
+    return rows;
+}
+function uploadBulkCsv() {
+    var fileInput = document.getElementById('bulk-csv-input');
+    var resultEl = document.getElementById('bulk-csv-result');
+    if (!fileInput.files || !fileInput.files.length) {
+        resultEl.innerHTML = '<div class="move-result err">Choose a CSV file first.</div>';
+        return;
+    }
+    var emp = loadEmployee();
+    if (!emp || !emp.code) {
+        resultEl.innerHTML = '<div class="move-result err">Set your employee code first (Settings tab).</div>';
+        return;
+    }
+    var reader = new FileReader();
+    reader.onload = function(e) {
+        var rows = parseCsv(e.target.result);
+        if (!rows.length) { resultEl.innerHTML = '<div class="move-result err">No rows found in the file.</div>'; return; }
+        var startIdx = ((rows[0][0] || '').trim().toUpperCase() === 'ACTION') ? 1 : 0;
+        var dataRows = rows.slice(startIdx).filter(function(r) { return (r[0] || '').trim(); });
+        if (!dataRows.length) { resultEl.innerHTML = '<div class="move-result err">No data rows found (only a header, or an empty file).</div>'; return; }
+        resultEl.innerHTML = '<div style="text-align:center;color:#aaa;font-size:12px;padding:8px 0;">Pushing ' + dataRows.length + ' rows...</div>';
+        processBulkRowsSequentially(dataRows, 0, emp.code, [], resultEl);
+    };
+    reader.onerror = function() {
+        resultEl.innerHTML = '<div class="move-result err">Could not read the file.</div>';
+    };
+    reader.readAsText(fileInput.files[0]);
+}
+// Rows are pushed ONE AT A TIME on purpose (not all at once) — keeps this
+// simple and gives an accurate, ordered per-row result list, matching how
+// the Excel bulk tool reports Status per row.
+function processBulkRowsSequentially(rows, idx, empCode, results, resultEl) {
+    if (idx >= rows.length) { renderBulkResults(results, resultEl); return; }
+    var r = rows[idx];
+    var action = (r[0] || '').trim().toUpperCase();
+    var sku = (r[1] || '').trim().toUpperCase();
+    var bin = (r[2] || '').trim().toUpperCase();
+    var toBin = (r[3] || '').trim().toUpperCase();
+    var qtyVal = parseFloat(r[4]);
+    var note = (r[5] || '').trim();
+
+    function finish(status) {
+        results.push({ row: idx + 1, sku: sku || '(blank)', action: action || '(blank)', status: status });
+        processBulkRowsSequentially(rows, idx + 1, empCode, results, resultEl);
+    }
+
+    if (!sku) { finish('FAILED - SKU is required'); return; }
+    if (!action) { finish('FAILED - Action is required'); return; }
+    if (!qtyVal || qtyVal <= 0) { finish('FAILED - Qty must be a positive number'); return; }
+
+    resolveSkuOrAsin(sku).then(function(skuRow) {
+        if (!skuRow) { finish('FAILED - SKU not found: ' + sku); return; }
+        var realSku = skuRow.sku_code;
+
+        if (action === 'TRANSFER') {
+            if (!bin || !toBin) { finish('FAILED - TRANSFER needs Bin and ToBin'); return; }
+            writeLedgerTxn({ skuCode: realSku, asin: skuRow.asin, qtyDelta: -qtyVal, txnType: 'BIN_TRANSFER_OUT', binCode: bin, note: note }).then(function(res1) {
+                if (!res1.ok) { finish('FAILED - ' + res1.reason); return; }
+                writeLedgerTxn({ skuCode: realSku, asin: skuRow.asin, qtyDelta: qtyVal, txnType: 'BIN_TRANSFER_IN', binCode: toBin, note: note }).then(function(res2) {
+                    finish(res2.ok ? 'OK' : 'FAILED - ' + res2.reason);
+                });
+            });
+            return;
+        }
+
+        var cfg = ACTION_TXN_MAP[action];
+        if (!cfg) { finish('FAILED - unknown Action: ' + action); return; }
+        if (!bin) { finish('FAILED - ' + action + ' needs a Bin'); return; }
+        writeLedgerTxn({ skuCode: realSku, asin: skuRow.asin, qtyDelta: cfg.sign * qtyVal, txnType: cfg.txnType, binCode: bin, note: note }).then(function(res) {
+            finish(res.ok ? 'OK' : 'FAILED - ' + res.reason);
+        });
+    });
+}
+function renderBulkResults(results, resultEl) {
+    var okCount = results.filter(function(r) { return r.status === 'OK'; }).length;
+    var failCount = results.length - okCount;
+    var html = '<div style="font-size:12px;font-weight:700;margin:6px 0;">Pushed: ' + okCount + ' &nbsp; Failed: ' + failCount + '</div>';
+    html += '<div style="max-height:220px;overflow-y:auto;border:1px solid #eee;border-radius:8px;">';
+    for (var i = 0; i < results.length; i++) {
+        var r = results[i];
+        var color = r.status === 'OK' ? '#27AE60' : '#E74C3C';
+        html += '<div style="padding:6px 10px;border-bottom:1px solid #f2f2f2;font-size:11px;">' +
+            'Row ' + r.row + ' (' + r.sku + ', ' + r.action + '): <span style="color:' + color + ';font-weight:700;">' + r.status + '</span></div>';
+    }
+    html += '</div>';
+    resultEl.innerHTML = html;
+    if (typeof logEvent === 'function') logEvent('BULK_UPLOAD', okCount + ' pushed, ' + failCount + ' failed from CSV upload');
 }
 // v45: Bin Lookup — single SKU, single bin, or bulk (leave blank = whole
 // map, capped at 300 rows). Reads oms_bin_stock, a live view that sums the
