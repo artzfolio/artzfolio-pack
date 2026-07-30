@@ -195,12 +195,25 @@
         .cam-frame span::after{bottom:0;right:0;border-width:0 3px 3px 0}
         .cam-scan-line{position:absolute;top:50%;left:50%;transform:translate(-50%,-55%);width:min(260px,72vw);height:2px;background:linear-gradient(90deg,transparent,#F39C12,transparent);animation:scanLine 1.8s ease-in-out infinite;pointer-events:none}
         @keyframes scanLine{0%{margin-top:-130px;opacity:0}10%{opacity:1}90%{opacity:1}100%{margin-top:130px;opacity:0}}
-        .cam-bottom{background:rgba(0,0,0,.82);padding:12px 16px 20px;display:flex;flex-direction:column;align-items:center;gap:8px}
+        /* v49: cam-bottom is taken OUT of the flex flow (position:fixed) and pinned
+           to the true bottom of the visible screen. Previously it was a normal flex
+           child stacked below a flex:1 video — on phones where the browser's URL
+           bar is still showing (address bar not yet auto-hidden), the layout
+           viewport used for a fixed inset:0 overlay can be taller than what's
+           actually visible on screen, pushing this bar (and its Close Camera
+           button) below the visible fold. Pinning it with position:fixed;bottom:0
+           guarantees it always renders inside the real visible viewport. */
+        .cam-bottom{position:fixed;left:0;right:0;bottom:0;z-index:205;background:rgba(0,0,0,.82);padding:12px 16px calc(20px + env(safe-area-inset-bottom,0px));display:flex;flex-direction:column;align-items:center;gap:8px}
         .cam-hint{color:rgba(255,255,255,.9);font-size:13px;text-align:center;line-height:1.4}
         .cam-hint strong{color:#F39C12}
         .cam-formats{color:rgba(255,255,255,.5);font-size:9px;text-align:center;letter-spacing:.3px;margin-top:2px}
         .cam-close{background:rgba(255,255,255,.15);border:1.5px solid rgba(255,255,255,.5);color:#fff;padding:11px 32px;border-radius:24px;font-size:14px;font-weight:700;cursor:pointer;touch-action:manipulation}
         .cam-close:active{background:rgba(255,255,255,.3)}
+        /* v49: redundant always-on-top escape button, independent of cam-bottom's
+           position, directly answering "there should be an option to escape... like
+           a cross" — pinned top-right, reachable regardless of screen size/notch. */
+        .cam-close-x{position:fixed;top:calc(14px + env(safe-area-inset-top,0px));right:14px;z-index:210;width:40px;height:40px;border-radius:50%;background:rgba(0,0,0,.55);border:1.5px solid rgba(255,255,255,.6);color:#fff;font-size:18px;line-height:1;display:flex;align-items:center;justify-content:center;cursor:pointer;touch-action:manipulation}
+        .cam-close-x:active{background:rgba(255,255,255,.25)}
         #flash{position:fixed;inset:0;pointer-events:none;opacity:0;z-index:300;transition:opacity .25s}
         #flash.s{background:rgba(39,174,96,.22)}
         #flash.e{background:rgba(192,57,43,.22)}
@@ -241,7 +254,7 @@
     </style>
 </head>
 <body>
-<div class="ver-corner" id="verCornerBadge">v46</div>
+<div class="ver-corner" id="verCornerBadge">v49</div>
 <div class="app">
     <!-- HEADER -->
     <div class="header">
@@ -357,12 +370,27 @@
                 <div class="pill-btn" id="move-pill-ADJUSTMENT_FOUND" onclick="setMoveMode('ADJUSTMENT_FOUND')">&#10133; Found</div>
                 <div class="pill-btn" id="move-pill-ADJUSTMENT_LOST_THEFT" onclick="setMoveMode('ADJUSTMENT_LOST_THEFT')">&#10134; Lost/Theft</div>
                 <div class="pill-btn" id="move-pill-QC_HOLD" onclick="setMoveMode('QC_HOLD')">&#128295; QC Hold</div>
+                <!-- v50: 6th MOVE mode — QC Release. Mirrors QC Hold exactly (same shared
+                     form below); previously this action was only reachable via Bulk CSV
+                     upload (ACTION_TXN_MAP.QC_RELEASE). The mode key itself doubles as the
+                     txn_type sent to writeLedgerTxn() in submitMoveTransaction(), so it is
+                     deliberately named ADJUSTMENT_QC_RELEASE to match the same txn_type the
+                     bulk path already writes — no special-casing needed. -->
+                <div class="pill-btn" id="move-pill-ADJUSTMENT_QC_RELEASE" onclick="setMoveMode('ADJUSTMENT_QC_RELEASE')">&#128275; QC Release</div>
             </div>
             <div class="settings-section">
                 <h3 id="move-mode-title">&#128230; New Stock In</h3>
                 <div class="settings-info" id="move-mode-desc">Scan or type the SKU or ASIN barcode of the product being brought into stock, enter the quantity, then submit. This adds to live stock immediately.</div>
                 <div class="settings-row">
-                    <input type="text" class="settings-input" id="move-sku-input" placeholder="Scan or type SKU / ASIN" autocomplete="off" autocorrect="off" autocapitalize="off" onblur="prefillMoveBin()">
+                    <!-- v50: Enter-key support for Bluetooth scanner guns — a gun types the
+                         code then sends Enter, so this now behaves like tabbing to the bin
+                         field (same prefillMoveBin() the onblur already uses) instead of
+                         doing nothing. -->
+                    <input type="text" class="settings-input" id="move-sku-input" placeholder="Scan or type SKU / ASIN" autocomplete="off" autocorrect="off" autocapitalize="off" onblur="prefillMoveBin()" onkeydown="if(event.key==='Enter'){prefillMoveBin();document.getElementById('move-bin-input').focus();}">
+                    <!-- v49: camera scan-to-fill, shared by New Stock/Returns/Found/Lost-Theft/QC Hold since they all reuse this one field -->
+                    <button class="scan-cam-btn" onclick="openScannerFor('move-sku-input')" title="Scan SKU/ASIN barcode">
+                        <svg viewBox="0 0 24 24"><path d="M12 9a4 4 0 1 0 4 4 4 4 0 0 0-4-4zm0 6a2 2 0 1 1 2-2 2 2 0 0 1-2 2z"/><path d="M20 4h-2.76l-1.63-2H8.39L6.76 4H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2zm0 15H4V6h3.56L9.19 4h5.62l1.63 2H20z"/></svg>
+                    </button>
                 </div>
                 <!-- v44: Bin is now mandatory on every MOVE action. Auto-fills from the
                      SKU's home bin (oms_sku_master.default_bin) when the SKU field loses
@@ -371,8 +399,14 @@
                      live oms_bins list via a datalist — free text is still allowed so a new
                      bin isn't a hard blocker, but empty is not. -->
                 <div class="settings-row">
-                    <input type="text" class="settings-input" id="move-bin-input" placeholder="Bin location (required)" list="move-bin-list" autocomplete="off" autocorrect="off" autocapitalize="characters" style="text-transform:uppercase">
+                    <!-- v50: Enter-key support for Bluetooth scanner guns — moves on to Qty
+                         rather than submitting, since Qty/Note may still need adjusting. -->
+                    <input type="text" class="settings-input" id="move-bin-input" placeholder="Bin location (required)" list="move-bin-list" autocomplete="off" autocorrect="off" autocapitalize="characters" style="text-transform:uppercase" onkeydown="if(event.key==='Enter'){document.getElementById('move-qty-input').focus();}">
                     <datalist id="move-bin-list"></datalist>
+                    <!-- v49: camera scan-to-fill for the bin label/QR sticker on the shelf -->
+                    <button class="scan-cam-btn" onclick="openScannerFor('move-bin-input')" title="Scan bin barcode/QR">
+                        <svg viewBox="0 0 24 24"><path d="M12 9a4 4 0 1 0 4 4 4 4 0 0 0-4-4zm0 6a2 2 0 1 1 2-2 2 2 0 0 1-2 2z"/><path d="M20 4h-2.76l-1.63-2H8.39L6.76 4H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2zm0 15H4V6h3.56L9.19 4h5.62l1.63 2H20z"/></svg>
+                    </button>
                 </div>
                 <div class="settings-row">
                     <input type="number" class="settings-input" id="move-qty-input" placeholder="Quantity" min="1" value="1" style="max-width:110px">
@@ -423,6 +457,10 @@
                 <div class="settings-info" style="margin-bottom:6px;">Type a SKU or ASIN to see every bin holding it, or a bin code to see everything in that bin. Bins are created automatically the first time you use them — there is no fixed list to be limited to.</div>
                 <div class="settings-row">
                     <input type="text" class="settings-input" id="bin-lookup-input" placeholder="SKU, ASIN, or bin code..." autocomplete="off" autocorrect="off" autocapitalize="characters" onkeydown="if(event.key==='Enter')runBinLookup();">
+                    <!-- v49: camera scan-to-fill for quick lookup by SKU/ASIN/bin barcode -->
+                    <button class="scan-cam-btn" onclick="openScannerFor('bin-lookup-input')" title="Scan SKU/ASIN/bin barcode">
+                        <svg viewBox="0 0 24 24"><path d="M12 9a4 4 0 1 0 4 4 4 4 0 0 0-4-4zm0 6a2 2 0 1 1 2-2 2 2 0 0 1-2 2z"/><path d="M20 4h-2.76l-1.63-2H8.39L6.76 4H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2zm0 15H4V6h3.56L9.19 4h5.62l1.63 2H20z"/></svg>
+                    </button>
                     <button class="settings-btn" style="max-width:90px;" onclick="runBinLookup()">Search</button>
                 </div>
                 <div id="bin-lookup-result"></div>
@@ -517,6 +555,8 @@
                     <li>Tap <strong>Allow</strong> when Chrome asks for camera permission</li>
                     <li>The camera overlay will open &mdash; point it at a barcode or QR code</li>
                     <li>Supported formats: <strong>QR Code, Code 128, Code 39, EAN-13, EAN-8, UPC-A, UPC-E, ITF, DataMatrix, PDF417, Aztec</strong></li>
+                    <!-- v50: floating close button + Back-button safety net were added to the camera overlay -->
+                    <li>Tap the floating <strong>&#10005;</strong> button (top of the camera view) to close the scanner anytime; the phone's <strong>Back button</strong> now also safely closes the scanner instead of exiting the app</li>
                     <li>If the camera button shows an error banner: use a Bluetooth scanner or type the code manually and press Enter</li>
                 </ol>
             </div>
@@ -540,7 +580,9 @@
             <div class="guide-section">
                 <h3>&#128260; MOVE / STOCK / Bulk Upload &mdash; Bin-Level Stock</h3>
                 <ul>
-                    <li><strong>MOVE tab</strong> &mdash; records one stock movement at a time (New Stock In / Returns In / Found / Lost-Theft / QC Hold). A <strong>Bin is now required on every movement</strong> &mdash; the app auto-fills the SKU's usual bin, but you can always overwrite it (e.g. new stock landing in RECEIVING instead of the SKU's normal shelf).</li>
+                    <li><strong>MOVE tab</strong> &mdash; records one stock movement at a time (New Stock In / Returns In / Found / Lost-Theft / QC Hold / QC Release). A <strong>Bin is now required on every movement</strong> &mdash; the app auto-fills the SKU's usual bin, but you can always overwrite it (e.g. new stock landing in RECEIVING instead of the SKU's normal shelf).</li>
+                    <!-- v50: QC Release used to be CSV/Bulk-only; note the new single-row screen -->
+                    <li><strong>QC Release</strong> &mdash; new 6th pill on the MOVE tab, previously only reachable via Bulk Upload (CSV). Releases stock that was QC-Held back into sellable count, using the same SKU/Bin/Qty/Note form as the rest of this tab.</li>
                     <li><strong>Bulk Upload (CSV)</strong> &mdash; on the MOVE tab: download the template, fill it, upload. Same actions as the Excel bulk tool (INBOUND / RETURN_IN / FOUND / LOST / REJECTED / QC_HOLD / QC_RELEASE / TRANSFER), same per-row OK/FAILED result.</li>
                     <li><strong>Bin-mismatch note</strong> &mdash; if the bin you use is different from that SKU's usual bin, the result still says OK (this is never blocked) but adds a short note so you can catch a typo, e.g. "OK (note: this SKU's usual bin is A12, this entry used B04)".</li>
                     <li><strong>STOCK tab</strong> &mdash; live, read-only view of current quantities. Search by SKU, ASIN, or Bin to find where something is right now.</li>
@@ -647,6 +689,9 @@
 
     <!-- CAMERA OVERLAY -->
     <div class="cam-overlay" id="cam-overlay">
+        <!-- v49: always-reachable close button, fixed top-right, independent of
+             cam-bottom's position — see .cam-close-x comment above. -->
+        <button class="cam-close-x" onclick="closeCamera()" title="Close scanner" aria-label="Close scanner">&#10005;</button>
         <video id="cam-video" playsinline autoplay muted></video>
         <div class="cam-frame"><span></span></div>
         <div class="cam-scan-line"></div>
@@ -950,7 +995,8 @@ var state = {
     groupDone:    0,
     log:          [],
     camStream:    null,
-    scanLoop:     null
+    scanLoop:     null,
+    scanTarget:   null    // v49: when set to an input id, the next successful scan fills that field instead of running the PICK flow
 };
 
 // Channel display helpers
@@ -1560,7 +1606,14 @@ var MOVE_MODES = {
     RETURN_IN:             { title: '&#8617; Returns In',      desc: 'Scan or type the SKU or ASIN of a returned product, enter the quantity, then submit. This adds the returned units back to live stock immediately.', sign: 1 },
     ADJUSTMENT_FOUND:      { title: '&#10133; Found Units',     desc: 'Scan or type the SKU or ASIN of units found during a stock check that weren’t in the system. Always add a note explaining why.', sign: 1 },
     ADJUSTMENT_LOST_THEFT: { title: '&#10134; Lost / Theft',    desc: 'Scan or type the SKU or ASIN of units confirmed lost, damaged beyond sale, or stolen. Always add a note explaining why — this permanently reduces live stock.', sign: -1, requireNote: true },
-    QC_HOLD:               { title: '&#128295; QC Hold',        desc: 'Remove stock found damaged or failing QC — always logged with a reason. Does not delete the units, just removes them from sellable count.', sign: -1, requireNote: true }
+    QC_HOLD:               { title: '&#128295; QC Hold',        desc: 'Remove stock found damaged or failing QC — always logged with a reason. Does not delete the units, just removes them from sellable count.', sign: -1, requireNote: true },
+    // v50: QC Release — new 6th MOVE mode, single-row equivalent of the existing
+    // Bulk CSV "QC_RELEASE" action. Key is ADJUSTMENT_QC_RELEASE (not QC_RELEASE)
+    // on purpose: submitMoveTransaction() passes moveMode straight through as
+    // txnType, and ACTION_TXN_MAP.QC_RELEASE.txnType is 'ADJUSTMENT_QC_RELEASE' —
+    // using the same key here means this pill writes the identical txn_type the
+    // bulk path already writes, with zero special-casing.
+    ADJUSTMENT_QC_RELEASE: { title: '&#128275; QC Release',    desc: 'Release previously-held stock back into sellable inventory. Scan or type the SKU/ASIN, confirm the bin, and submit.', sign: 1 }
 };
 var moveMode = 'NEW_STOCK_IN';
 
@@ -2880,6 +2933,30 @@ function showCamError(msg) {
     if (banner) banner.classList.add('visible');
 }
 
+// v49: Back-button safety net for the full-screen camera overlay. Mobile
+// browsers (and the Android gesture/hardware Back action) have no built-in
+// concept of "close this in-page modal" — by default, Back exits/reloads the
+// whole single-page app, which is why it was dropping the user back to the
+// login screen. Fix: push one harmless history entry (same URL) the moment
+// the camera opens; a popstate listener (registered in the DOMContentLoaded
+// init block below) catches the Back press and closes the camera instead of
+// letting the app itself navigate away.
+var CAM_HISTORY_MARKER = 'omsCameraOpen';
+function pushCameraHistoryState() {
+    if (history.state && history.state[CAM_HISTORY_MARKER]) return; // already pushed for this open
+    try {
+        var marker = {}; marker[CAM_HISTORY_MARKER] = true;
+        history.pushState(marker, '', location.href);
+    } catch (e) { /* pushState can fail in rare sandboxed contexts — camera still works, just without the Back trap */ }
+}
+// v49: opens the shared camera scanner and routes the next successful scan
+// into any input field, instead of the PICK-tab flow. Used by the new scan
+// buttons on MOVE (New Stock/Returns/Found/Lost-Theft/QC Hold all share the
+// same two fields) and STOCK's Bin Lookup.
+function openScannerFor(targetInputId) {
+    state.scanTarget = targetInputId;
+    openCamera();
+}
 function openCamera() {
     document.getElementById('cam-error-banner').classList.remove('visible');
     if (!navigator.mediaDevices || typeof navigator.mediaDevices.getUserMedia !== 'function') {
@@ -2887,6 +2964,7 @@ function openCamera() {
         return;
     }
     updateCamHint();
+    pushCameraHistoryState();
     if (state.camStream) { _showOverlay(); return; }
 
     document.getElementById('cam-overlay').classList.add('active');
@@ -2986,6 +3064,23 @@ function _showOverlay() {
 function updateCamHint() {
     var hint = document.getElementById('cam-hint');
     if (!hint) return;
+    // v49: scanning into a MOVE/STOCK field takes priority over the PICK-tab
+    // logic below — state.pickState is unrelated to those fields and would
+    // otherwise show a confusing PICK-flow message (e.g. "scan the same
+    // barcode again") while the user is really just scanning a SKU into the
+    // New Stock form.
+    if (state.scanTarget === 'move-sku-input') {
+        hint.innerHTML = 'Point at the <strong>SKU or ASIN barcode</strong> on the product';
+        return;
+    }
+    if (state.scanTarget === 'move-bin-input') {
+        hint.innerHTML = 'Point at the <strong>Bin QR sticker</strong> on the shelf';
+        return;
+    }
+    if (state.scanTarget === 'bin-lookup-input') {
+        hint.innerHTML = 'Point at a <strong>SKU, ASIN, or Bin</strong> barcode to look it up';
+        return;
+    }
     var hasAsin = state.order && state.order.asin && state.order.asin.trim().length > 0;
     if (state.pickState === 'IDLE' || state.pickState === 'NEXT_LINE') {
         hint.innerHTML = 'Point at the <strong>Pick List QR code</strong> &mdash; column H of the printed pick list';
@@ -3062,14 +3157,33 @@ function startScanLoop(video) {
 }
 
 function onCodeDetected(value) {
+    // v49: capture the pending scan target BEFORE closeCamera() runs, since
+    // closeCamera() clears state.scanTarget as its own cancel-safety-net.
+    var target = state.scanTarget;
     closeCamera();
     vibrate([200]);
+    if (target) {
+        var el = document.getElementById(target);
+        if (el) {
+            el.value = value;
+            el.dispatchEvent(new Event('input', { bubbles: true }));
+            el.dispatchEvent(new Event('blur',  { bubbles: true })); // triggers prefillMoveBin() when target is move-sku-input
+            try { el.focus(); } catch (e) {}
+        }
+        return;
+    }
     processScan(value);
 }
 function closeCamera() {
     if (state.scanLoop) { clearInterval(state.scanLoop); state.scanLoop = null; }
     document.getElementById('cam-overlay').classList.remove('active');
     setCamBtn(false);
+    state.scanTarget = null; // v49: cancel any pending scan-to-field target (e.g. user hit the X without scanning)
+    // v49: pop the history marker pushed on open, so the Back stack stays
+    // tidy and a second Back press doesn't feel "off by one".
+    if (history.state && history.state[CAM_HISTORY_MARKER]) {
+        try { history.back(); } catch (e) {}
+    }
 }
 function releaseCamera() {
     closeCamera();
@@ -3579,6 +3693,17 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     window.addEventListener('beforeunload', releaseCamera);
+    // v49: hardware/gesture Back button while the camera scanner is open must
+    // close the scanner, not exit the app (which was the direct cause of
+    // "back button logs me out" — the app has no other in-page history
+    // entries, so Back was tearing down the whole running app instead of
+    // just this one overlay).
+    window.addEventListener('popstate', function() {
+        var overlay = document.getElementById('cam-overlay');
+        if (overlay && overlay.classList.contains('active')) {
+            closeCamera();
+        }
+    });
     setTimeout(function() {
         try { document.getElementById('scan-input').focus(); } catch(e) {}
     }, 100);

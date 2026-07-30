@@ -273,6 +273,16 @@ tbody tr:hover{background:#f9fbfd}
             <option>EMPLOYEE_ADDED</option><option>EMPLOYEE_DEACTIVATED</option>
             <option>EMPLOYEE_REACTIVATED</option><option>LOGOUT</option>
             <option>ADMIN_BULK_SKU_UPDATE</option><option>ADMIN_SECRET_ROTATED</option>
+            <!-- v2.3: quick filter for the two highest-risk action families -
+                 direct stock quantity overrides and bin relocations. This is
+                 a client-side sentinel value, not a real action_type stored
+                 in the database - handled specially in loadAuditLog() /
+                 exportAuditFullCSV() by querying the 3 real action types
+                 (ADMIN_STOCK_ADJUSTMENT, BIN_TRANSFER_OUT, BIN_TRANSFER_IN -
+                 exact spelling per this panel's own comments on the RPCs
+                 that write them) and merging the results, since the
+                 oms_get_audit_log RPC only accepts a single p_action_type. -->
+            <option value="__HIGH_RISK__">⚠ High-Risk (Stock Adj. + Bin Transfers)</option>
           </select>
         </div>
         <div class="filter-actions">
@@ -572,6 +582,13 @@ tbody tr:hover{background:#f9fbfd}
   </div>
 </div>
 
+<!-- v2.3: shared bin-code suggestions for the Adjust Stock "Bin" field and
+     the Relocate/Merge "New Bin" field - populated from the same live bin
+     list as the existing "Old Bin" dropdown (see populateBinDatalists()).
+     A <datalist> (not a strict <select>) so a genuinely new bin code is
+     still typeable - only existing codes are suggested, never enforced. -->
+<datalist id="bin-suggestions-list"></datalist>
+
 <!-- ═══════════════════════ ADJUST STOCK MODAL (v2.1 NEW) ═══════════════════════
      Same append-only, reason-coded pattern as the app and the bulk Excel tool -
      this never edits or deletes a past transaction. Every correction here is a
@@ -597,10 +614,27 @@ tbody tr:hover{background:#f9fbfd}
         </select>
       </div>
       <div class="form-field"><label>Qty Change (+ / -)</label><input type="number" id="adjust-stock-qty" placeholder="e.g. 5 or -3"></div>
-      <div class="form-field"><label>Bin</label><input type="text" id="adjust-stock-bin" placeholder="e.g. A12 (defaults to RECEIVING)"></div>
-      <div class="form-field"><label>Employee Code</label><input type="text" id="adjust-stock-emp" placeholder="e.g. EMP009" oninput="this.value=this.value.toUpperCase()"></div>
+      <div class="form-field">
+        <label>Bin</label>
+        <!-- v2.3: datalist instead of plain free text - suggests existing bin
+             codes (same live bin list as Bin Management's "Old Bin" dropdown)
+             to catch typos, but a brand-new bin code is still typeable since
+             Adjust Stock legitimately needs to support moving stock into a
+             bin that doesn't exist yet. -->
+        <input type="text" id="adjust-stock-bin" list="bin-suggestions-list" placeholder="e.g. A12 (defaults to RECEIVING)" oninput="checkAdjustStockBinMismatch()">
+      </div>
+      <div class="form-field">
+        <label>Employee Code</label>
+        <!-- v2.3: dropdown of currently-active employees instead of free
+             text, to prevent typo'd/nonexistent employee codes on this
+             admin-secret-gated write - reuses the same employee data already
+             loaded for the Audit Log/Reports employee filters. -->
+        <select id="adjust-stock-emp"></select>
+      </div>
       <div class="form-field" style="grid-column:1 / -1;"><label>Note (required)</label><input type="text" id="adjust-stock-note" placeholder="Why is this being adjusted?"></div>
     </div>
+    <!-- v2.3: non-blocking bin-mismatch note - see checkAdjustStockBinMismatch() -->
+    <div class="hint-text" id="adjust-stock-bin-note" style="margin:-6px 0 10px;"></div>
     <button class="btn btn-primary" id="adjust-stock-submit-btn" onclick="submitAdjustStock()">✓ Save Adjustment</button>
     <div class="result-msg" id="adjust-stock-result"></div>
     <div class="modal-close"><button class="btn btn-grey" onclick="closeAdjustStockModal()">Cancel</button></div>
@@ -624,14 +658,53 @@ tbody tr:hover{background:#f9fbfd}
         <label>Old Bin (moving stock OUT of)</label>
         <select id="relocate-bin-old"><option value="">— choose a bin —</option></select>
       </div>
-      <div class="form-field"><label>New Bin (moving stock INTO)</label><input type="text" id="relocate-bin-new" placeholder="e.g. B-12" oninput="this.value=this.value.toUpperCase()"></div>
-      <div class="form-field"><label>Employee Code</label><input type="text" id="relocate-bin-emp" placeholder="e.g. EMP009" oninput="this.value=this.value.toUpperCase()"></div>
+      <div class="form-field">
+        <label>New Bin (moving stock INTO)</label>
+        <!-- v2.3: datalist suggests existing bins (same list as "Old Bin"
+             above) so an existing bin's exact spelling is easy to reuse, but
+             a deliberately new bin (genuine merge/rename target) stays
+             typeable - a strict select would block that legitimate case. -->
+        <input type="text" id="relocate-bin-new" list="bin-suggestions-list" placeholder="e.g. B-12" oninput="this.value=this.value.toUpperCase(); checkRelocateBinMismatch();">
+      </div>
+      <div class="form-field">
+        <label>Employee Code</label>
+        <!-- v2.3: dropdown of currently-active employees - see the same
+             comment on adjust-stock-emp above. -->
+        <select id="relocate-bin-emp"></select>
+      </div>
       <div class="form-field" style="grid-column:1 / -1;"><label>Note (optional)</label><input type="text" id="relocate-bin-note" placeholder="Why is this bin being merged/renamed?"></div>
     </div>
+    <!-- v2.3: non-blocking note if the typed New Bin doesn't match any known
+         existing bin - see checkRelocateBinMismatch(). Relocate/Merge has no
+         single SKU to compare a "default_bin" against (it moves every SKU
+         currently in the old bin), so this adapts the same non-blocking,
+         catch-a-typo idea to what IS known on this screen: the live bin list. -->
+    <div class="hint-text" id="relocate-bin-mismatch-note" style="margin:-6px 0 10px;"></div>
     <button class="btn btn-primary" id="relocate-bin-submit-btn" onclick="submitRelocateBin()">⇄ Relocate Stock</button>
     <div class="result-msg" id="relocate-bin-result"></div>
     <div id="relocate-bin-detail" style="margin-top:10px;max-height:200px;overflow:auto;"></div>
     <div class="modal-close"><button class="btn btn-grey" onclick="closeRelocateBinModal()">Cancel</button></div>
+  </div>
+</div>
+
+<!-- ═══════════════════════ BIN STATUS CHANGE MODAL (v2.3 NEW) ═══════════════════════
+     Replaces the old prompt()-based employee-code entry for Bin Management's
+     Deactivate/Reactivate action, since a bare browser prompt() cannot
+     contain a dropdown. Same modal structure/open-close pattern as Adjust
+     Stock and Relocate/Merge above. Confirms the acting employee from the
+     same active-employee list used elsewhere in this panel, then calls the
+     same oms_admin_set_bin_active RPC that was already being used - no
+     change to the underlying write path or its audit logging. -->
+<div class="modal-bg" id="bin-toggle-modal-bg">
+  <div class="modal">
+    <h3 id="bin-toggle-modal-title">Change Bin Status</h3>
+    <div class="hint-text" id="bin-toggle-modal-desc">—</div>
+    <div class="form-row">
+      <div class="form-field"><label>Employee Code</label><select id="bin-toggle-emp"></select></div>
+    </div>
+    <button class="btn btn-primary" id="bin-toggle-submit-btn" onclick="submitBinToggle()">✓ Confirm</button>
+    <div class="result-msg" id="bin-toggle-result"></div>
+    <div class="modal-close"><button class="btn btn-grey" onclick="closeBinToggleModal()">Cancel</button></div>
   </div>
 </div>
 
@@ -846,6 +919,12 @@ function initAppShell() {
   appInitialized = true;
   loadDashboard();
   populateEmployeeDropdowns();
+  // v2.3: loaded eagerly (not just when the Bin Management page is first
+  // opened) so the bin-code datalist used by Adjust Stock/Relocate, and the
+  // bin-mismatch check, are populated no matter which page the admin visits
+  // first. loadBins() itself sets binsLoadedOnce, so switchPage('bins')
+  // still won't redundantly reload it afterwards.
+  loadBins();
   var today = new Date().toISOString().slice(0, 10);
   document.getElementById('audit-to').value = today;
   document.getElementById('txn-to').value = today;
@@ -942,6 +1021,20 @@ function populateEmployeeDropdowns() {
       if (sel) sel.innerHTML = '<option value="">All</option>' + opts;
     });
   }).catch(function () {});
+}
+
+// v2.3: shared helper - fills a <select> with only the currently-active
+// employees, from the same employeeDirectory already loaded above (via
+// populateEmployeeDropdowns, called at init and after every Employees page
+// refresh). Reused by Adjust Stock, Relocate/Merge, and the Bin Status
+// Change modal so none of them run a duplicate employees query.
+function populateActiveEmployeeSelect(selectId) {
+  var sel = document.getElementById(selectId);
+  if (!sel) return;
+  var codes = Object.keys(employeeDirectory).filter(function (c) { return employeeDirectory[c] && employeeDirectory[c].active; }).sort();
+  sel.innerHTML = '<option value="">— choose employee —</option>' + codes.map(function (c) {
+    return '<option value="' + esc(c) + '">' + esc(c) + ' — ' + esc(employeeDirectory[c].display_name) + '</option>';
+  }).join('');
 }
 
 // ═══════════════════════ REALTIME (v2) ═══════════════════════
@@ -1075,6 +1168,13 @@ function resetAuditFilters() {
 function auditPagePrev() { if (auditPage > 0) loadAuditLog(auditPage - 1); }
 function auditPageNext() { loadAuditLog(auditPage + 1); }
 
+// v2.3: sentinel for the Audit Log's "High-Risk" quick filter (see the
+// <option value="__HIGH_RISK__"> in the Action Type select). Not a real
+// action_type - the 3 real ones it represents are queried separately and
+// merged, since oms_get_audit_log only accepts a single p_action_type.
+var AUDIT_HIGH_RISK_SENTINEL = '__HIGH_RISK__';
+var AUDIT_HIGH_RISK_TYPES = ['ADMIN_STOCK_ADJUSTMENT', 'BIN_TRANSFER_OUT', 'BIN_TRANSFER_IN'];
+
 // v2: pulled out of loadAuditLog so the full-export function can reuse the
 // exact same filter logic instead of duplicating it.
 function buildAuditFilterParams() {
@@ -1083,17 +1183,40 @@ function buildAuditFilterParams() {
   var toVal = document.getElementById('audit-to').value;
   var empVal = document.getElementById('audit-employee').value;
   var actionVal = document.getElementById('audit-action').value;
+  // v2.3: the High-Risk sentinel is never sent to the RPC as p_action_type —
+  // see loadAuditLogHighRisk()/exportAuditFullCSV() for how it's handled.
+  var isHighRisk = actionVal === AUDIT_HIGH_RISK_SENTINEL;
   return {
     p_admin_secret: secret,
     p_from: fromVal ? new Date(fromVal + 'T00:00:00').toISOString() : null,
     p_to: toVal ? new Date(toVal + 'T23:59:59').toISOString() : null,
     p_employee_code: empVal || null,
-    p_action_type: actionVal || null
+    p_action_type: isHighRisk ? null : (actionVal || null)
   };
+}
+
+// v2.3: pulled out of loadAuditLog so loadAuditLogHighRisk() can render the
+// same row markup for its merged result set without duplicating it.
+function auditRowHtml(r, idx) {
+  var empName = r.employee_name || (employeeDirectory[r.employee_code] ? employeeDirectory[r.employee_code].display_name : '');
+  var detailsStr = r.details ? JSON.stringify(r.details) : '';
+  var shortDetails = detailsStr.length > 40 ? detailsStr.slice(0, 40) + '…' : detailsStr;
+  return '<tr>' +
+    '<td class="mono">' + esc(fmtDateTime(r.created_at)) + '</td>' +
+    '<td>' + esc(r.employee_code || '—') + (empName ? '<br><span class="mono" style="color:#888">' + esc(empName) + '</span>' : '') + '</td>' +
+    '<td><span class="badge ' + actionBadgeClass(r.action_type) + '">' + esc(r.action_type || '—') + '</span></td>' +
+    '<td>' + esc(r.order_id || '—') + '</td>' +
+    '<td class="mono">' + esc(r.sku_code || '—') + '</td>' +
+    '<td>' + esc(r.channel || '—') + '</td>' +
+    '<td>' + (detailsStr ? ('<span class="mono" title="' + esc(detailsStr) + '">' + esc(shortDetails) + '</span> <button class="link-btn" onclick="showDetailsModal(' + idx + ')">view</button>') : '—') + '</td>' +
+    '</tr>';
 }
 
 function loadAuditLog(page) {
   if (!db) { refreshOfflineBanner(); return; }
+  // v2.3: the High-Risk quick filter needs 3 merged queries (single
+  // p_action_type doesn't cover it) - handled separately below.
+  if (document.getElementById('audit-action').value === AUDIT_HIGH_RISK_SENTINEL) { loadAuditLogHighRisk(); return; }
   auditLoadedOnce = true;
   auditPage = page;
   var body = document.getElementById('audit-body');
@@ -1114,24 +1237,55 @@ function loadAuditLog(page) {
     if (!rows.length) {
       body.innerHTML = '<tr class="empty-row"><td colspan="7">No audit entries match these filters' + (page > 0 ? ' on this page.' : '.') + '</td></tr>';
     } else {
-      body.innerHTML = rows.map(function (r, idx) {
-        var empName = r.employee_name || (employeeDirectory[r.employee_code] ? employeeDirectory[r.employee_code].display_name : '');
-        var detailsStr = r.details ? JSON.stringify(r.details) : '';
-        var shortDetails = detailsStr.length > 40 ? detailsStr.slice(0, 40) + '…' : detailsStr;
-        return '<tr>' +
-          '<td class="mono">' + esc(fmtDateTime(r.created_at)) + '</td>' +
-          '<td>' + esc(r.employee_code || '—') + (empName ? '<br><span class="mono" style="color:#888">' + esc(empName) + '</span>' : '') + '</td>' +
-          '<td><span class="badge ' + actionBadgeClass(r.action_type) + '">' + esc(r.action_type || '—') + '</span></td>' +
-          '<td>' + esc(r.order_id || '—') + '</td>' +
-          '<td class="mono">' + esc(r.sku_code || '—') + '</td>' +
-          '<td>' + esc(r.channel || '—') + '</td>' +
-          '<td>' + (detailsStr ? ('<span class="mono" title="' + esc(detailsStr) + '">' + esc(shortDetails) + '</span> <button class="link-btn" onclick="showDetailsModal(' + idx + ')">view</button>') : '—') + '</td>' +
-          '</tr>';
-      }).join('');
+      body.innerHTML = rows.map(function (r, idx) { return auditRowHtml(r, idx); }).join('');
     }
     document.getElementById('audit-page-info').textContent = 'Page ' + (page + 1) + (rows.length < auditPageSize ? ' (end)' : '');
     document.getElementById('audit-prev-btn').disabled = page === 0;
     document.getElementById('audit-next-btn').disabled = rows.length < auditPageSize;
+  }).catch(function (err) {
+    body.innerHTML = '<tr class="empty-row"><td colspan="7">Error: ' + esc(String(err && err.message || err)) + '</td></tr>';
+  });
+}
+
+// v2.3: High-Risk quick filter — isolates the two highest-risk audit action
+// families (direct stock quantity overrides via ADMIN_STOCK_ADJUSTMENT, and
+// bin relocations via the BIN_TRANSFER_OUT/BIN_TRANSFER_IN pair) without a
+// new backend RPC. Fetches each of the 3 real action types with the same
+// date/employee filters as the normal filter bar, then merges + sorts
+// client-side. Not server-paginated like the normal view (Prev/Next are
+// disabled here) - each type is capped at auditPageSize rows.
+function loadAuditLogHighRisk() {
+  if (!db) { refreshOfflineBanner(); return; }
+  auditLoadedOnce = true;
+  auditPage = 0;
+  var body = document.getElementById('audit-body');
+  body.innerHTML = '<tr class="empty-row"><td colspan="7">Loading...</td></tr>';
+
+  var baseParams = buildAuditFilterParams(); // p_action_type already null for the sentinel
+  var calls = AUDIT_HIGH_RISK_TYPES.map(function (t) {
+    var p = Object.assign({}, baseParams, { p_action_type: t, p_limit: auditPageSize, p_offset: 0 });
+    return withTimeout(db.rpc('oms_get_audit_log', p), 10000, 'Audit Log (high-risk)');
+  });
+
+  Promise.all(calls).then(function (results) {
+    var badSecret = results.filter(function (r) { return r.error && isBadSecretError(r.error); })[0];
+    if (badSecret) { handleBadSecret('the Audit Log'); return; }
+    var anyErr = results.filter(function (r) { return r.error; })[0];
+    if (anyErr) { body.innerHTML = '<tr class="empty-row"><td colspan="7">Error: ' + esc(anyErr.error.message) + '</td></tr>'; return; }
+
+    var rows = [];
+    results.forEach(function (r) { rows = rows.concat(r.data || []); });
+    rows.sort(function (a, b) { return new Date(b.created_at) - new Date(a.created_at); });
+    auditLastRows = rows;
+
+    if (!rows.length) {
+      body.innerHTML = '<tr class="empty-row"><td colspan="7">No high-risk (Stock Adjustment / Bin Transfer) entries match these filters.</td></tr>';
+    } else {
+      body.innerHTML = rows.map(function (r, idx) { return auditRowHtml(r, idx); }).join('');
+    }
+    document.getElementById('audit-page-info').textContent = 'High-risk view — ' + rows.length + ' row(s), not paginated';
+    document.getElementById('audit-prev-btn').disabled = true;
+    document.getElementById('audit-next-btn').disabled = true;
   }).catch(function (err) {
     body.innerHTML = '<tr class="empty-row"><td colspan="7">Error: ' + esc(String(err && err.message || err)) + '</td></tr>';
   });
@@ -1154,16 +1308,40 @@ function openAdjustStockModal(skuCode, currentQty) {
   document.getElementById('adjust-stock-sku').textContent = skuCode;
   document.getElementById('adjust-stock-current-qty').textContent = (currentQty === null || currentQty === undefined) ? '— (no stock row yet)' : fmtNum(currentQty);
   document.getElementById('adjust-stock-sku').dataset.sku = skuCode;
+  // v2.3: cache this SKU's recorded default_bin (already loaded alongside
+  // the rest of the SKU & Stock table row - see buildSkuBaseQuery - so no
+  // extra query is needed here) for the non-blocking bin-mismatch note.
+  var skuRow = skuLastRows.filter(function (r) { return r.sku_code === skuCode; })[0];
+  document.getElementById('adjust-stock-sku').dataset.defaultBin = (skuRow && skuRow.default_bin) ? skuRow.default_bin : '';
   document.getElementById('adjust-stock-reason').value = 'MANUAL_CORRECTION';
   document.getElementById('adjust-stock-qty').value = '';
   document.getElementById('adjust-stock-bin').value = '';
-  document.getElementById('adjust-stock-emp').value = '';
+  populateActiveEmployeeSelect('adjust-stock-emp'); // v2.3: active-employee dropdown instead of free text
   document.getElementById('adjust-stock-note').value = '';
   document.getElementById('adjust-stock-result').className = 'result-msg';
   document.getElementById('adjust-stock-result').textContent = '';
+  document.getElementById('adjust-stock-bin-note').textContent = ''; // v2.3
   document.getElementById('adjust-stock-modal-bg').classList.add('active');
 }
 function closeAdjustStockModal() { document.getElementById('adjust-stock-modal-bg').classList.remove('active'); }
+
+// v2.3: shared non-blocking bin-mismatch note text — same idea already used
+// in the App's MOVE tab and the Excel bulk tool (compares the bin actually
+// used against oms_sku_master.default_bin and returns a short note, never
+// blocking the action). Returns '' when there's nothing worth flagging.
+function binMismatchNoteText(defaultBin, usedBin) {
+  var usual = (defaultBin || '').trim().toUpperCase();
+  var used = (usedBin || '').trim().toUpperCase();
+  if (!usual || !used || usual === used) return '';
+  return 'Note: this SKU’s usual bin is ' + usual + ', this entry uses ' + used + '.';
+}
+function checkAdjustStockBinMismatch() {
+  var noteEl = document.getElementById('adjust-stock-bin-note');
+  if (!noteEl) return;
+  var defaultBin = document.getElementById('adjust-stock-sku').dataset.defaultBin || '';
+  var used = document.getElementById('adjust-stock-bin').value;
+  noteEl.textContent = binMismatchNoteText(defaultBin, used);
+}
 function submitAdjustStock() {
   if (!db) return;
   var sku = document.getElementById('adjust-stock-sku').dataset.sku;
@@ -1230,6 +1408,7 @@ function loadBins() {
     if (res.error) { body.innerHTML = '<tr class="empty-row"><td colspan="6">Error: ' + res.error.message + '</td></tr>'; return; }
     binsLastRows = res.data || [];
     binsLoadedOnce = true;
+    populateBinDatalists(); // v2.3: keep the shared bin-suggestions datalist in sync with the live bin list
     if (!binsLastRows.length) { body.innerHTML = '<tr class="empty-row"><td colspan="6">No bins found yet.</td></tr>'; return; }
     body.innerHTML = binsLastRows.map(function (b) {
       var statusHtml = b.active ? '<span class="badge badge-green">Active</span>' : '<span class="badge badge-grey">Inactive</span>';
@@ -1249,25 +1428,71 @@ function loadBins() {
   });
 }
 
+// v2.3: reworked to open the Bin Status Change modal (dropdown of active
+// employees) instead of using prompt() for the acting employee code — a
+// bare browser prompt() can't contain a <select>. The confirm() dialog and
+// the oms_admin_set_bin_active RPC call itself are unchanged; only how the
+// employee code is captured has changed. See openBinToggleModal/submitBinToggle.
 function toggleBinActive(binCode, newActive) {
   if (!db) return;
   var verb = newActive ? 'reactivate' : 'deactivate';
   if (!confirm('Are you sure you want to ' + verb + ' bin "' + binCode + '"? This never moves stock - it only flags the bin for the ' + verb + ' state.')) return;
-  var emp = (prompt('Your Employee Code (for the audit log):') || '').trim().toUpperCase();
-  if (!emp) return;
+  openBinToggleModal(binCode, newActive);
+}
+
+// v2.3: bin-code suggestions shared by the Adjust Stock "Bin" field and the
+// Relocate/Merge "New Bin" field — see the <datalist id="bin-suggestions-list">
+// in the HTML. Kept in sync every time loadBins() refreshes binsLastRows.
+function populateBinDatalists() {
+  var dl = document.getElementById('bin-suggestions-list');
+  if (!dl) return;
+  dl.innerHTML = binsLastRows.map(function (b) { return '<option value="' + esc(b.bin_code) + '"></option>'; }).join('');
+}
+
+// v2.3: Bin Status Change modal — see HTML block "bin-toggle-modal-bg" and
+// the comment above toggleBinActive() for why this replaced a prompt().
+function openBinToggleModal(binCode, newActive) {
+  var verb = newActive ? 'Reactivate' : 'Deactivate';
+  document.getElementById('bin-toggle-modal-title').textContent = verb + ' Bin';
+  document.getElementById('bin-toggle-modal-desc').textContent = 'Confirm your Employee Code to ' + verb.toLowerCase() + ' bin "' + binCode + '". This never moves stock - it only flags the bin for the ' + verb.toLowerCase() + ' state.';
+  var submitBtn = document.getElementById('bin-toggle-submit-btn');
+  submitBtn.dataset.bin = binCode;
+  submitBtn.dataset.active = newActive ? '1' : '0';
+  submitBtn.disabled = false;
+  populateActiveEmployeeSelect('bin-toggle-emp');
+  document.getElementById('bin-toggle-result').className = 'result-msg';
+  document.getElementById('bin-toggle-result').textContent = '';
+  document.getElementById('bin-toggle-modal-bg').classList.add('active');
+}
+function closeBinToggleModal() { document.getElementById('bin-toggle-modal-bg').classList.remove('active'); }
+function submitBinToggle() {
+  if (!db) return;
+  var submitBtn = document.getElementById('bin-toggle-submit-btn');
+  var binCode = submitBtn.dataset.bin;
+  var newActive = submitBtn.dataset.active === '1';
+  var emp = (document.getElementById('bin-toggle-emp').value || '').trim().toUpperCase();
+  var resEl = document.getElementById('bin-toggle-result');
+  if (!emp) { resEl.className = 'result-msg err'; resEl.textContent = 'Choose your Employee Code.'; return; }
+  submitBtn.disabled = true;
+  resEl.className = 'result-msg'; resEl.textContent = 'Saving...';
   withTimeout(db.rpc('oms_admin_set_bin_active', {
     p_admin_secret: getAdminSecret(),
     p_bin_code: binCode,
     p_active: newActive,
     p_employee_code: emp
   }), 10000, 'Bin status change').then(function (res) {
+    submitBtn.disabled = false;
     if (res.error) {
       if (isBadSecretError(res.error)) { handleBadSecret('a bin status change'); return; }
-      alert('Error: ' + res.error.message);
+      resEl.className = 'result-msg err'; resEl.textContent = 'Error: ' + res.error.message;
       return;
     }
-    loadBins();
-  }).catch(function (err) { alert('Error: ' + String(err && err.message || err)); });
+    resEl.className = 'result-msg ok'; resEl.textContent = '✓ Done.';
+    setTimeout(function () { closeBinToggleModal(); loadBins(); }, 700);
+  }).catch(function (err) {
+    submitBtn.disabled = false;
+    resEl.className = 'result-msg err'; resEl.textContent = 'Error: ' + String(err && err.message || err);
+  });
 }
 
 function openRelocateBinModal(prefillOldBin) {
@@ -1277,14 +1502,28 @@ function openRelocateBinModal(prefillOldBin) {
   }).join('');
   sel.value = prefillOldBin || '';
   document.getElementById('relocate-bin-new').value = '';
-  document.getElementById('relocate-bin-emp').value = '';
+  populateActiveEmployeeSelect('relocate-bin-emp'); // v2.3: active-employee dropdown instead of free text
   document.getElementById('relocate-bin-note').value = '';
   document.getElementById('relocate-bin-result').className = 'result-msg';
   document.getElementById('relocate-bin-result').textContent = '';
   document.getElementById('relocate-bin-detail').innerHTML = '';
+  document.getElementById('relocate-bin-mismatch-note').textContent = ''; // v2.3
   document.getElementById('relocate-bin-modal-bg').classList.add('active');
 }
 function closeRelocateBinModal() { document.getElementById('relocate-bin-modal-bg').classList.remove('active'); }
+
+// v2.3: non-blocking note when the typed New Bin doesn't match any bin
+// already on file — see the HTML comment above #relocate-bin-mismatch-note
+// for why this compares against the known bin list rather than a single
+// SKU's default_bin (Relocate/Merge has no single SKU context).
+function checkRelocateBinMismatch() {
+  var noteEl = document.getElementById('relocate-bin-mismatch-note');
+  if (!noteEl) return;
+  var newBin = (document.getElementById('relocate-bin-new').value || '').trim().toUpperCase();
+  if (!newBin) { noteEl.textContent = ''; return; }
+  var exists = binsLastRows.some(function (b) { return (b.bin_code || '').toUpperCase() === newBin; });
+  noteEl.textContent = exists ? '' : ('Note: "' + newBin + '" is not an existing bin — it will be created new.');
+}
 
 function submitRelocateBin() {
   if (!db) return;
@@ -1356,8 +1595,15 @@ function exportAuditFullCSV() {
   var accumulated = [];
   progEl.textContent = 'Exporting... 0 rows so far';
 
-  function fetchPage(offset) {
-    var p = Object.assign({}, params, { p_limit: EXPORT_PAGE_SIZE, p_offset: offset });
+  // v2.3: the High-Risk quick filter isn't a real p_action_type (see
+  // AUDIT_HIGH_RISK_SENTINEL) - when selected, this walks all 3 real action
+  // types in turn instead of just one, so the full export stays correct and
+  // isn't silently narrowed back to "all action types".
+  var isHighRisk = document.getElementById('audit-action').value === AUDIT_HIGH_RISK_SENTINEL;
+  var typesToFetch = isHighRisk ? AUDIT_HIGH_RISK_TYPES.slice() : [params.p_action_type];
+
+  function fetchPage(typeIdx, offset) {
+    var p = Object.assign({}, params, { p_action_type: typesToFetch[typeIdx], p_limit: EXPORT_PAGE_SIZE, p_offset: offset });
     return withTimeout(db.rpc('oms_get_audit_log', p), 15000, 'Audit full export').then(function (res) {
       if (res.error) {
         if (isBadSecretError(res.error)) { handleBadSecret('the full audit export'); return Promise.reject(new Error('bad secret')); }
@@ -1372,13 +1618,17 @@ function exportAuditFullCSV() {
         return;
       }
       if (rows.length === EXPORT_PAGE_SIZE) {
-        return fetchPage(offset + EXPORT_PAGE_SIZE);
+        return fetchPage(typeIdx, offset + EXPORT_PAGE_SIZE);
+      }
+      if (typeIdx + 1 < typesToFetch.length) {
+        return fetchPage(typeIdx + 1, 0);
       }
     });
   }
 
-  fetchPage(0).then(function () {
+  fetchPage(0, 0).then(function () {
     if (!accumulated.length) { progEl.textContent = ''; alert('No audit rows match these filters.'); return; }
+    if (isHighRisk) accumulated.sort(function (a, b) { return new Date(b.created_at) - new Date(a.created_at); });
     var csvRows = accumulated.map(function (r) {
       return {
         timestamp: r.created_at, employee_code: r.employee_code, employee_name: r.employee_name,
@@ -1657,7 +1907,9 @@ function skuPageNext() { if (skuLastHadMore) loadSkuStock(skuPage + 1); }
 function buildSkuBaseQuery() {
   var q = (document.getElementById('sku-search').value || '').trim();
   var statusFilter = document.getElementById('sku-status-filter').value;
-  var query = db.from('oms_sku_master').select('sku_code, asin, product_name, product_type, reorder_threshold, cost_price, mrp, active');
+  // v2.3: default_bin added so the Adjust Stock modal can show a non-blocking
+  // bin-mismatch note without a separate query - see openAdjustStockModal().
+  var query = db.from('oms_sku_master').select('sku_code, asin, product_name, product_type, reorder_threshold, cost_price, mrp, active, default_bin');
   if (q) {
     var esc2 = q.replace(/[%_]/g, '\\$&');
     query = query.or('sku_code.ilike.%' + esc2 + '%,asin.ilike.%' + esc2 + '%,product_name.ilike.%' + esc2 + '%');
