@@ -538,6 +538,16 @@
                 <div class="glossary-term"><strong>Set Size</strong> &mdash; Pieces inside one sellable unit (e.g. Set of 10 = 10 pieces packed together)</div>
             </div>
             <div class="guide-section">
+                <h3>&#128260; MOVE / STOCK / Bulk Upload &mdash; Bin-Level Stock</h3>
+                <ul>
+                    <li><strong>MOVE tab</strong> &mdash; records one stock movement at a time (New Stock In / Returns In / Found / Lost-Theft / QC Hold). A <strong>Bin is now required on every movement</strong> &mdash; the app auto-fills the SKU's usual bin, but you can always overwrite it (e.g. new stock landing in RECEIVING instead of the SKU's normal shelf).</li>
+                    <li><strong>Bulk Upload (CSV)</strong> &mdash; on the MOVE tab: download the template, fill it, upload. Same actions as the Excel bulk tool (INBOUND / RETURN_IN / FOUND / LOST / REJECTED / QC_HOLD / QC_RELEASE / TRANSFER), same per-row OK/FAILED result.</li>
+                    <li><strong>Bin-mismatch note</strong> &mdash; if the bin you use is different from that SKU's usual bin, the result still says OK (this is never blocked) but adds a short note so you can catch a typo, e.g. "OK (note: this SKU's usual bin is A12, this entry used B04)".</li>
+                    <li><strong>STOCK tab</strong> &mdash; live, read-only view of current quantities. Search by SKU, ASIN, or Bin to find where something is right now.</li>
+                    <li>MOVE / STOCK / Bulk Upload all write to the SAME live database as this Excel file and the Admin Panel &mdash; there is no separate copy anywhere, and every write is tagged with which tool made it (visible to an admin as "entry_source").</li>
+                </ul>
+            </div>
+            <div class="guide-section">
                 <h3>&#128295; Troubleshooting</h3>
                 <ul>
                     <li><strong>Camera button does nothing / black overlay</strong> &mdash; Tap the <em>blue button inside the app</em> (not the Chrome address bar icon). On first use, wait 2&ndash;3 s for permission prompt</li>
@@ -618,8 +628,8 @@
 
             <!-- Version -->
             <div class="ver-badge">
-                <div class="ver-name">&#128230; ArtzFolio Scan-Pick-Pack v46</div>
-                <div class="ver-sub">Bulk Upload from CSV (Inbound/Transfer/Found/Lost/Rejected/QC) &bull; Live Bin Lookup (Single SKU / Single Bin / Bulk) &bull; Dynamic Bins (auto-created, no fixed list) &bull; Mandatory Bin on Every Stock Movement &bull; Owner Dashboard (DASH) &bull; 14-Day Staff Performance &bull; Print Product/Bin Labels &bull; QC Hold/Damage &bull; Low-Stock Alerts &bull; Daily Reconciliation &bull; Admin PIN-Lock Unlock &bull; Real Employee Login (PIN) &bull; RBAC &bull; Live Database (Supabase) &bull; Admin-Secret-Gated PIN Recovery &bull; Permanent Audit Log &bull; Hardened Employee Writes (Admin-RPC-Only) &bull; Call Timeouts &amp; Error Handling (Performance Fix)</div>
+                <div class="ver-name">&#128230; ArtzFolio Scan-Pick-Pack v48</div>
+                <div class="ver-sub">Soft Bin-Mismatch Note (MOVE + Bulk Upload, never blocks) &bull; entry_source Audit Tag on Every Write &bull; Bulk Upload from CSV (Inbound/Transfer/Found/Lost/Rejected/QC) &bull; Live Bin Lookup (Single SKU / Single Bin / Bulk) &bull; Dynamic Bins (auto-created, no fixed list) &bull; Mandatory Bin on Every Stock Movement &bull; Owner Dashboard (DASH) &bull; 14-Day Staff Performance &bull; Print Product/Bin Labels &bull; QC Hold/Damage &bull; Low-Stock Alerts &bull; Daily Reconciliation &bull; Admin PIN-Lock Unlock &bull; Real Employee Login (PIN) &bull; RBAC &bull; Live Database (Supabase) &bull; Admin-Secret-Gated PIN Recovery &bull; Permanent Audit Log &bull; Hardened Employee Writes (Admin-RPC-Only) &bull; Call Timeouts &amp; Error Handling (Performance Fix)</div>
             </div>
         </div>
     </div>
@@ -837,6 +847,28 @@
 //      in openLabelWindow()). Shows a "Print" button rather than
 //      auto-triggering window.print(), since an unexpected print dialog on
 //      a shared warehouse device is more surprising than one extra tap.
+// v44 (2026-07-28): Bin is now mandatory on every stock movement (MOVE tab
+//      and the database itself via a NOT NULL-equivalent check) - matches
+//      how a real warehouse/Amazon FC never records a movement without a
+//      location. See inline "v44" comments near BIN_LIST/prefillMoveBin.
+// v45 (2026-07-28): Bin Lookup panel (STOCK tab) - single SKU, single bin,
+//      or bulk export of the full live bin map.
+// v46 (2026-07-28): Bulk Upload (CSV) on the MOVE tab - same action
+//      vocabulary as the Excel bulk tool (INBOUND/RETURN_IN/FOUND/LOST/
+//      REJECTED/QC_HOLD/QC_RELEASE/TRANSFER), same writeLedgerTxn() choke
+//      point, per-row OK/FAILED result list.
+// v47 (2026-07-30): every writeLedgerTxn() row now carries
+//      entry_source:'APP' - the database can now tell, for every single
+//      stock transaction, exactly which of the 4 write channels (App,
+//      Excel bulk tool, Excel daily sync/opening seed, Admin Panel) wrote
+//      it. No behavior change - purely an audit-trail addition.
+// v48 (2026-07-30): soft, NON-BLOCKING bin-mismatch note added to MOVE and
+//      Bulk Upload (CSV) - mirrors the Excel bulk tool's existing Status-
+//      column note. If a SKU's usual bin (oms_sku_master.default_bin) is
+//      known and differs from the bin actually used, the result still says
+//      OK (never blocked) but adds a short note so a typo can be caught
+//      without slowing anyone down. See binMismatchNote() - the one shared
+//      helper both MOVE and Bulk Upload call.
 // =============================================================
 
 // ── LIVE DATABASE CONFIG ─────────────────────────────────────
@@ -1507,6 +1539,21 @@ function writeLedgerTxn(opts) {
     });
 }
 
+// v48: soft, NON-BLOCKING bin-mismatch note — same idea as the Excel bulk
+// tool's Status-column note. If the SKU has a known usual bin
+// (oms_sku_master.default_bin) and the bin actually used on this entry is
+// different, this returns a short " (note: ...)" string to show alongside
+// the result — it NEVER blocks the write and never changes what is saved
+// to the database. Purely informational, catches typos without slowing
+// anyone down or refusing a real bin move.
+function binMismatchNote(skuRow, usedBin) {
+    if (!skuRow || !skuRow.default_bin) return '';
+    var usual = (skuRow.default_bin || '').trim().toUpperCase();
+    var used = (usedBin || '').trim().toUpperCase();
+    if (!usual || usual === used) return '';
+    return ' (note: this SKU’s usual bin is ' + usual + ', this entry used ' + used + ')';
+}
+
 // ── MOVE TAB (New Stock / Returns / Found / Lost-Theft) ─────────────────
 var MOVE_MODES = {
     NEW_STOCK_IN:          { title: '&#128230; New Stock In',  desc: 'Scan or type the SKU or ASIN of the product being brought into stock, enter the quantity, then submit. This adds to live stock immediately.', sign: 1 },
@@ -1613,7 +1660,7 @@ function submitMoveTransaction() {
                 return;
             }
             resEl.className = 'move-result ok';
-            resEl.textContent = '✓ Saved — ' + (cfg.sign > 0 ? '+' : '') + (cfg.sign * qtyVal) + ' units of ' + sku.sku_code + ' (' + (sku.product_name || '') + ') @ bin ' + binVal;
+            resEl.textContent = '✓ Saved — ' + (cfg.sign > 0 ? '+' : '') + (cfg.sign * qtyVal) + ' units of ' + sku.sku_code + ' (' + (sku.product_name || '') + ') @ bin ' + binVal + binMismatchNote(sku, binVal);
             logEvent(sku.sku_code, MOVE_MODES[moveMode].title.replace(/&#\d+;/g, '').trim() + ': ' + (cfg.sign > 0 ? '+' : '') + (cfg.sign * qtyVal) + ' @ ' + binVal + (note ? ' — ' + note : ''));
             writeAuditLog(moveMode, { skuCode: sku.sku_code, details: { qty_delta: cfg.sign * qtyVal, bin_code: binVal, note: note || null, product_name: sku.product_name || null } });
             document.getElementById('move-sku-input').value = '';
@@ -1898,12 +1945,17 @@ function processBulkRowsSequentially(rows, idx, empCode, results, resultEl) {
         if (!skuRow) { finish('FAILED - SKU not found: ' + sku); return; }
         var realSku = skuRow.sku_code;
 
+        // v48: soft bin-mismatch note (never blocks), same wording as the
+        // Excel bulk tool's Status column — matches skuRow.default_bin
+        // against the FROM bin (`bin`) used on this row.
+        var mismatchNote = binMismatchNote(skuRow, bin);
+
         if (action === 'TRANSFER') {
             if (!bin || !toBin) { finish('FAILED - TRANSFER needs Bin and ToBin'); return; }
             writeLedgerTxn({ skuCode: realSku, asin: skuRow.asin, qtyDelta: -qtyVal, txnType: 'BIN_TRANSFER_OUT', binCode: bin, note: note }).then(function(res1) {
                 if (!res1.ok) { finish('FAILED - ' + res1.reason); return; }
                 writeLedgerTxn({ skuCode: realSku, asin: skuRow.asin, qtyDelta: qtyVal, txnType: 'BIN_TRANSFER_IN', binCode: toBin, note: note }).then(function(res2) {
-                    finish(res2.ok ? 'OK' : 'FAILED - ' + res2.reason);
+                    finish(res2.ok ? ('OK' + mismatchNote) : 'FAILED - ' + res2.reason);
                 });
             });
             return;
@@ -1913,18 +1965,21 @@ function processBulkRowsSequentially(rows, idx, empCode, results, resultEl) {
         if (!cfg) { finish('FAILED - unknown Action: ' + action); return; }
         if (!bin) { finish('FAILED - ' + action + ' needs a Bin'); return; }
         writeLedgerTxn({ skuCode: realSku, asin: skuRow.asin, qtyDelta: cfg.sign * qtyVal, txnType: cfg.txnType, binCode: bin, note: note }).then(function(res) {
-            finish(res.ok ? 'OK' : 'FAILED - ' + res.reason);
+            finish(res.ok ? ('OK' + mismatchNote) : 'FAILED - ' + res.reason);
         });
     });
 }
 function renderBulkResults(results, resultEl) {
-    var okCount = results.filter(function(r) { return r.status === 'OK'; }).length;
+    // v48: status can now be "OK" or "OK (note: ...)" (bin-mismatch note) -
+    // match on a prefix, not exact equality, so a mismatch note doesn't get
+    // miscounted/colored as a failure.
+    var okCount = results.filter(function(r) { return r.status.indexOf('OK') === 0; }).length;
     var failCount = results.length - okCount;
     var html = '<div style="font-size:12px;font-weight:700;margin:6px 0;">Pushed: ' + okCount + ' &nbsp; Failed: ' + failCount + '</div>';
     html += '<div style="max-height:220px;overflow-y:auto;border:1px solid #eee;border-radius:8px;">';
     for (var i = 0; i < results.length; i++) {
         var r = results[i];
-        var color = r.status === 'OK' ? '#27AE60' : '#E74C3C';
+        var color = r.status.indexOf('OK') === 0 ? '#27AE60' : '#E74C3C';
         html += '<div style="padding:6px 10px;border-bottom:1px solid #f2f2f2;font-size:11px;">' +
             'Row ' + r.row + ' (' + r.sku + ', ' + r.action + '): <span style="color:' + color + ';font-weight:700;">' + r.status + '</span></div>';
     }
