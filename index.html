@@ -1494,7 +1494,8 @@ function writeLedgerTxn(opts) {
         order_id: opts.orderId || null,
         bin_code: opts.binCode || null,
         employee_code: emp ? emp.code : null,
-        note: opts.note || null
+        note: opts.note || null,
+        entry_source: 'APP'
     };
     return withTimeout(db.from('oms_inventory_transactions').insert(row).select(), 10000, 'Stock transaction').then(function(res) {
         if (res.error) { setDbOffline(res.error.message); return { ok: false, reason: res.error.message }; }
