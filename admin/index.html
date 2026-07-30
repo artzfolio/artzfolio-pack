@@ -208,12 +208,13 @@ tbody tr:hover{background:#f9fbfd}
       <li class="nav-item" data-page="audit" onclick="switchPage('audit')"><span class="nav-icon">📜</span><span class="nav-label">Audit Log</span></li>
       <li class="nav-item" data-page="employees" onclick="switchPage('employees')"><span class="nav-icon">👥</span><span class="nav-label">Employees</span></li>
       <li class="nav-item" data-page="sku" onclick="switchPage('sku')"><span class="nav-icon">📦</span><span class="nav-label">SKU &amp; Stock</span></li>
+      <li class="nav-item" data-page="bins" onclick="switchPage('bins')"><span class="nav-icon">🗂</span><span class="nav-label">Bin Management</span></li>
       <li class="nav-item" data-page="reports" onclick="switchPage('reports')"><span class="nav-icon">📈</span><span class="nav-label">Reports</span></li>
       <li class="nav-item" data-page="settings" onclick="switchPage('settings')"><span class="nav-icon">⚙</span><span class="nav-label">Settings</span></li>
     </ul>
     <div class="sidebar-footer">
       <button class="logout-btn" onclick="adminLogout()">⎋ Logout</button>
-      <div class="ver-footer">ArtzFolio Admin Panel v2<br>2026-07-27 &bull; Call Timeouts &bull; Settings &amp; Self-Service Secret Rotation &bull; Session Security &bull; Full CSV Export &bull; Realtime Dashboard/Audit Log &bull; Bulk Employee Actions &bull; Deeper Reports</div>
+      <div class="ver-footer">ArtzFolio Admin Panel v2.2<br>2026-07-30 &bull; Bin Management (Rename/Merge/Deactivate) &bull; Call Timeouts &bull; Settings &amp; Self-Service Secret Rotation &bull; Session Security &bull; Full CSV Export &bull; Realtime Dashboard/Audit Log &bull; Bulk Employee Actions &bull; Deeper Reports</div>
     </div>
   </div>
 
@@ -404,6 +405,37 @@ tbody tr:hover{background:#f9fbfd}
       </div>
     </div>
 
+
+    <!-- ══════════════ BIN MANAGEMENT (v2.2 NEW) ══════════════
+         Rename/merge/deactivate storage bins. Append-only, same pattern as
+         every other write path in this system: relocating a bin never edits
+         or deletes a past transaction - it writes a fresh
+         BIN_TRANSFER_OUT/BIN_TRANSFER_IN pair for every SKU currently
+         sitting in the old bin (via the admin-secret-gated
+         oms_admin_relocate_bin RPC), and repoints any SKU master default_bin
+         references. Deactivating a bin is a separate, independent toggle
+         (oms_admin_set_bin_active) - it never moves stock, it only flags the
+         bin so it stops being suggested for new stock going forward. -->
+    <div class="page" id="page-bins">
+      <div class="page-header">
+        <div>
+          <div class="page-title">Bin Management</div>
+          <div class="page-sub">Every bin currently on file, with live SKU count and quantity. Rename/merge moves stock via new transfer transactions - it never edits history.</div>
+        </div>
+        <div>
+          <button class="btn btn-primary" onclick="openRelocateBinModal('')">⇄ Relocate / Merge Bins</button>
+          <button class="btn btn-gold" onclick="loadBins()">↻ Refresh</button>
+        </div>
+      </div>
+      <div class="hint-text">Bins are not a fixed list - typing a brand-new bin code anywhere in the app, the bulk Excel tool, or the "New Bin" field below creates it automatically the moment it's first used. This screen exists to catch typos before they become phantom bins, and to consolidate or retire bins that are no longer needed.</div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Bin Code</th><th>Description</th><th>Status</th><th>SKUs</th><th>Total Qty</th><th>Actions</th></tr></thead>
+          <tbody id="bins-body"><tr class="empty-row"><td colspan="6">Loading...</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
     <!-- ══════════════ REPORTS / TRANSACTIONS ══════════════ -->
     <div class="page" id="page-reports">
       <div class="page-header">
@@ -572,6 +604,34 @@ tbody tr:hover{background:#f9fbfd}
     <button class="btn btn-primary" id="adjust-stock-submit-btn" onclick="submitAdjustStock()">✓ Save Adjustment</button>
     <div class="result-msg" id="adjust-stock-result"></div>
     <div class="modal-close"><button class="btn btn-grey" onclick="closeAdjustStockModal()">Cancel</button></div>
+  </div>
+</div>
+
+
+<!-- ═══════════════════════ RELOCATE / MERGE BIN MODAL (v2.2 NEW) ═══════════════════════
+     Moves every SKU currently sitting in the old bin into the new bin, via a
+     fresh BIN_TRANSFER_OUT/BIN_TRANSFER_IN pair per SKU (oms_admin_relocate_bin
+     RPC) - this never edits or deletes a past transaction. Also repoints any
+     SKU master default_bin references from the old bin to the new one. Does
+     NOT deactivate the old bin automatically - use the Deactivate action on
+     the Bin Management table for that, separately. -->
+<div class="modal-bg" id="relocate-bin-modal-bg">
+  <div class="modal">
+    <h3>Relocate / Merge Bins</h3>
+    <div class="hint-text">Moves ALL current stock out of the old bin and into the new bin. If the new bin doesn't exist yet, it is created automatically. This writes new transfer transactions - it never edits history, and the old bin's past transactions still show it as the bin used at the time.</div>
+    <div class="form-row">
+      <div class="form-field">
+        <label>Old Bin (moving stock OUT of)</label>
+        <select id="relocate-bin-old"><option value="">— choose a bin —</option></select>
+      </div>
+      <div class="form-field"><label>New Bin (moving stock INTO)</label><input type="text" id="relocate-bin-new" placeholder="e.g. B-12" oninput="this.value=this.value.toUpperCase()"></div>
+      <div class="form-field"><label>Employee Code</label><input type="text" id="relocate-bin-emp" placeholder="e.g. EMP009" oninput="this.value=this.value.toUpperCase()"></div>
+      <div class="form-field" style="grid-column:1 / -1;"><label>Note (optional)</label><input type="text" id="relocate-bin-note" placeholder="Why is this bin being merged/renamed?"></div>
+    </div>
+    <button class="btn btn-primary" id="relocate-bin-submit-btn" onclick="submitRelocateBin()">⇄ Relocate Stock</button>
+    <div class="result-msg" id="relocate-bin-result"></div>
+    <div id="relocate-bin-detail" style="margin-top:10px;max-height:200px;overflow:auto;"></div>
+    <div class="modal-close"><button class="btn btn-grey" onclick="closeRelocateBinModal()">Cancel</button></div>
   </div>
 </div>
 
@@ -809,6 +869,7 @@ function switchPage(name) {
   if (name === 'audit' && !auditLoadedOnce) { loadAuditLog(0); }
   if (name === 'employees' && !empLoadedOnce) { loadEmployees(); }
   if (name === 'settings' && !settingsLoadedOnce) { loadSettingsPage(); }
+  if (name === 'bins' && !binsLoadedOnce) { loadBins(); }
 }
 
 // ── SHARED HELPERS ────────────────────────────────────────────
@@ -1154,6 +1215,124 @@ function submitAdjustStock() {
   });
 }
 
+// ── v2.2 NEW: Bin Management (rename/merge/deactivate) ──────────────
+// Reads from oms_bin_summary (a plain view - no admin secret needed to look
+// at it). Both write actions below ARE admin-secret gated, same pattern as
+// Adjust Stock: relocate/merge writes fresh BIN_TRANSFER_OUT/BIN_TRANSFER_IN
+// rows per SKU (never edits history) via oms_admin_relocate_bin; the active
+// toggle is a separate, independent flag via oms_admin_set_bin_active.
+var binsLastRows = [];
+function loadBins() {
+  if (!db) return;
+  var body = document.getElementById('bins-body');
+  body.innerHTML = '<tr class="empty-row"><td colspan="6">Loading...</td></tr>';
+  withTimeout(db.from('oms_bin_summary').select('*').order('bin_code'), 10000, 'Bin list').then(function (res) {
+    if (res.error) { body.innerHTML = '<tr class="empty-row"><td colspan="6">Error: ' + res.error.message + '</td></tr>'; return; }
+    binsLastRows = res.data || [];
+    binsLoadedOnce = true;
+    if (!binsLastRows.length) { body.innerHTML = '<tr class="empty-row"><td colspan="6">No bins found yet.</td></tr>'; return; }
+    body.innerHTML = binsLastRows.map(function (b) {
+      var statusHtml = b.active ? '<span class="badge badge-green">Active</span>' : '<span class="badge badge-grey">Inactive</span>';
+      var toggleLabel = b.active ? 'Deactivate' : 'Reactivate';
+      return '<tr>' +
+        '<td class="mono">' + esc(b.bin_code) + '</td>' +
+        '<td>' + esc(b.description || '') + '</td>' +
+        '<td>' + statusHtml + '</td>' +
+        '<td>' + fmtNum(b.sku_count) + '</td>' +
+        '<td>' + fmtNum(b.total_qty) + '</td>' +
+        '<td><button class="btn btn-grey btn-sm" onclick="openRelocateBinModal(\'' + esc(b.bin_code) + '\')">Relocate</button> ' +
+            '<button class="btn btn-grey btn-sm" onclick="toggleBinActive(\'' + esc(b.bin_code) + '\', ' + (!b.active) + ')">' + toggleLabel + '</button></td>' +
+        '</tr>';
+    }).join('');
+  }).catch(function (err) {
+    body.innerHTML = '<tr class="empty-row"><td colspan="6">Error: ' + String(err && err.message || err) + '</td></tr>';
+  });
+}
+
+function toggleBinActive(binCode, newActive) {
+  if (!db) return;
+  var verb = newActive ? 'reactivate' : 'deactivate';
+  if (!confirm('Are you sure you want to ' + verb + ' bin "' + binCode + '"? This never moves stock - it only flags the bin for the ' + verb + ' state.')) return;
+  var emp = (prompt('Your Employee Code (for the audit log):') || '').trim().toUpperCase();
+  if (!emp) return;
+  withTimeout(db.rpc('oms_admin_set_bin_active', {
+    p_admin_secret: getAdminSecret(),
+    p_bin_code: binCode,
+    p_active: newActive,
+    p_employee_code: emp
+  }), 10000, 'Bin status change').then(function (res) {
+    if (res.error) {
+      if (isBadSecretError(res.error)) { handleBadSecret('a bin status change'); return; }
+      alert('Error: ' + res.error.message);
+      return;
+    }
+    loadBins();
+  }).catch(function (err) { alert('Error: ' + String(err && err.message || err)); });
+}
+
+function openRelocateBinModal(prefillOldBin) {
+  var sel = document.getElementById('relocate-bin-old');
+  sel.innerHTML = '<option value="">— choose a bin —</option>' + binsLastRows.map(function (b) {
+    return '<option value="' + esc(b.bin_code) + '">' + esc(b.bin_code) + ' (' + fmtNum(b.sku_count) + ' SKUs, ' + fmtNum(b.total_qty) + ' units)</option>';
+  }).join('');
+  sel.value = prefillOldBin || '';
+  document.getElementById('relocate-bin-new').value = '';
+  document.getElementById('relocate-bin-emp').value = '';
+  document.getElementById('relocate-bin-note').value = '';
+  document.getElementById('relocate-bin-result').className = 'result-msg';
+  document.getElementById('relocate-bin-result').textContent = '';
+  document.getElementById('relocate-bin-detail').innerHTML = '';
+  document.getElementById('relocate-bin-modal-bg').classList.add('active');
+}
+function closeRelocateBinModal() { document.getElementById('relocate-bin-modal-bg').classList.remove('active'); }
+
+function submitRelocateBin() {
+  if (!db) return;
+  var oldBin = (document.getElementById('relocate-bin-old').value || '').trim().toUpperCase();
+  var newBin = (document.getElementById('relocate-bin-new').value || '').trim().toUpperCase();
+  var emp = (document.getElementById('relocate-bin-emp').value || '').trim().toUpperCase();
+  var note = (document.getElementById('relocate-bin-note').value || '').trim();
+  var resEl = document.getElementById('relocate-bin-result');
+  var detailEl = document.getElementById('relocate-bin-detail');
+
+  if (!oldBin) { resEl.className = 'result-msg err'; resEl.textContent = 'Choose the old bin to move stock out of.'; return; }
+  if (!newBin) { resEl.className = 'result-msg err'; resEl.textContent = 'Enter the new bin to move stock into.'; return; }
+  if (oldBin === newBin) { resEl.className = 'result-msg err'; resEl.textContent = 'Old bin and new bin cannot be the same.'; return; }
+  if (!emp) { resEl.className = 'result-msg err'; resEl.textContent = 'Enter your Employee Code.'; return; }
+
+  var submitBtn = document.getElementById('relocate-bin-submit-btn');
+  submitBtn.disabled = true;
+  resEl.className = 'result-msg'; resEl.textContent = 'Relocating...';
+  detailEl.innerHTML = '';
+
+  withTimeout(db.rpc('oms_admin_relocate_bin', {
+    p_admin_secret: getAdminSecret(),
+    p_old_bin: oldBin,
+    p_new_bin: newBin,
+    p_employee_code: emp,
+    p_note: note || null
+  }), 15000, 'Bin relocate').then(function (res) {
+    submitBtn.disabled = false;
+    if (res.error) {
+      if (isBadSecretError(res.error)) { handleBadSecret('a bin relocate'); return; }
+      resEl.className = 'result-msg err'; resEl.textContent = 'Error: ' + res.error.message; return;
+    }
+    var rows = res.data || [];
+    var moved = rows.filter(function (r) { return r.success && r.sku_code; });
+    resEl.className = 'result-msg ok';
+    resEl.textContent = '✓ Done. ' + moved.length + ' SKU(s) moved from ' + oldBin + ' to ' + newBin + '.';
+    if (moved.length) {
+      detailEl.innerHTML = '<div class="table-wrap"><table><thead><tr><th>SKU</th><th>Qty Moved</th></tr></thead><tbody>' +
+        moved.map(function (r) { return '<tr><td class="mono">' + esc(r.sku_code) + '</td><td>' + fmtNum(r.qty_moved) + '</td></tr>'; }).join('') +
+        '</tbody></table></div>';
+    }
+    setTimeout(function () { closeRelocateBinModal(); loadBins(); }, 1400);
+  }).catch(function (err) {
+    submitBtn.disabled = false;
+    resEl.className = 'result-msg err'; resEl.textContent = 'Error: ' + String(err && err.message || err);
+  });
+}
+
 function exportAuditCSV() {
   if (!auditLastRows.length) { alert('No audit rows loaded to export.'); return; }
   var rows = auditLastRows.map(function (r) {
@@ -1218,6 +1397,7 @@ function exportAuditFullCSV() {
 
 // ═══════════════════════ EMPLOYEES ═══════════════════════
 var empLoadedOnce = false;
+var binsLoadedOnce = false;
 var employeesCache = [];
 var selectedEmployeeCodes = {}; // code -> true
 
