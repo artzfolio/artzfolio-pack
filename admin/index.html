@@ -214,7 +214,7 @@ tbody tr:hover{background:#f9fbfd}
     </ul>
     <div class="sidebar-footer">
       <button class="logout-btn" onclick="adminLogout()">⎋ Logout</button>
-      <div class="ver-footer">ArtzFolio Admin Panel v2.3<br>2026-07-30 &bull; Bin/Employee Dropdowns &amp; Bin-Mismatch Notes &bull; Audit Log High-Risk Filter &bull; Bin Management (Rename/Merge/Deactivate) &bull; Call Timeouts &bull; Settings &amp; Self-Service Secret Rotation &bull; Session Security &bull; Full CSV Export &bull; Realtime Dashboard/Audit Log &bull; Bulk Employee Actions &bull; Deeper Reports</div>
+      <div class="ver-footer">ArtzFolio Admin Panel v2.4<br>2026-08-02 &bull; Audit Log High-Risk Filter Fix &amp; Relocate/Merge Bins Confirmation &bull; Bin/Employee Dropdowns &amp; Bin-Mismatch Notes &bull; Audit Log High-Risk Filter &bull; Bin Management (Rename/Merge/Deactivate) &bull; Call Timeouts &bull; Settings &amp; Self-Service Secret Rotation &bull; Session Security &bull; Full CSV Export &bull; Realtime Dashboard/Audit Log &bull; Bulk Employee Actions &bull; Deeper Reports</div>
     </div>
   </div>
 
@@ -277,10 +277,10 @@ tbody tr:hover{background:#f9fbfd}
                  direct stock quantity overrides and bin relocations. This is
                  a client-side sentinel value, not a real action_type stored
                  in the database - handled specially in loadAuditLog() /
-                 exportAuditFullCSV() by querying the 3 real action types
-                 (ADMIN_STOCK_ADJUSTMENT, BIN_TRANSFER_OUT, BIN_TRANSFER_IN -
-                 exact spelling per this panel's own comments on the RPCs
-                 that write them) and merging the results, since the
+                 exportAuditFullCSV() by querying the 2 real action types
+                 (ADMIN_STOCK_ADJUSTMENT, BIN_RELOCATE - exact spelling per
+                 the oms_admin_relocate_bin RPC that writes the audit row)
+                 and merging the results, since the
                  oms_get_audit_log RPC only accepts a single p_action_type. -->
             <option value="__HIGH_RISK__">⚠ High-Risk (Stock Adj. + Bin Transfers)</option>
           </select>
@@ -1170,10 +1170,10 @@ function auditPageNext() { loadAuditLog(auditPage + 1); }
 
 // v2.3: sentinel for the Audit Log's "High-Risk" quick filter (see the
 // <option value="__HIGH_RISK__"> in the Action Type select). Not a real
-// action_type - the 3 real ones it represents are queried separately and
+// action_type - the 2 real ones it represents are queried separately and
 // merged, since oms_get_audit_log only accepts a single p_action_type.
 var AUDIT_HIGH_RISK_SENTINEL = '__HIGH_RISK__';
-var AUDIT_HIGH_RISK_TYPES = ['ADMIN_STOCK_ADJUSTMENT', 'BIN_TRANSFER_OUT', 'BIN_TRANSFER_IN'];
+var AUDIT_HIGH_RISK_TYPES = ['ADMIN_STOCK_ADJUSTMENT', 'BIN_RELOCATE'];
 
 // v2: pulled out of loadAuditLog so the full-export function can reuse the
 // exact same filter logic instead of duplicating it.
@@ -1214,7 +1214,7 @@ function auditRowHtml(r, idx) {
 
 function loadAuditLog(page) {
   if (!db) { refreshOfflineBanner(); return; }
-  // v2.3: the High-Risk quick filter needs 3 merged queries (single
+  // v2.3: the High-Risk quick filter needs 2 merged queries (single
   // p_action_type doesn't cover it) - handled separately below.
   if (document.getElementById('audit-action').value === AUDIT_HIGH_RISK_SENTINEL) { loadAuditLogHighRisk(); return; }
   auditLoadedOnce = true;
@@ -1249,11 +1249,11 @@ function loadAuditLog(page) {
 
 // v2.3: High-Risk quick filter — isolates the two highest-risk audit action
 // families (direct stock quantity overrides via ADMIN_STOCK_ADJUSTMENT, and
-// bin relocations via the BIN_TRANSFER_OUT/BIN_TRANSFER_IN pair) without a
-// new backend RPC. Fetches each of the 3 real action types with the same
-// date/employee filters as the normal filter bar, then merges + sorts
-// client-side. Not server-paginated like the normal view (Prev/Next are
-// disabled here) - each type is capped at auditPageSize rows.
+// bin relocations via BIN_RELOCATE) without a new backend RPC. Fetches each
+// of the 2 real action types with the same date/employee filters as the
+// normal filter bar, then merges + sorts client-side. Not server-paginated
+// like the normal view (Prev/Next are disabled here) - each type is capped
+// at auditPageSize rows.
 function loadAuditLogHighRisk() {
   if (!db) { refreshOfflineBanner(); return; }
   auditLoadedOnce = true;
@@ -1539,6 +1539,12 @@ function submitRelocateBin() {
   if (oldBin === newBin) { resEl.className = 'result-msg err'; resEl.textContent = 'Old bin and new bin cannot be the same.'; return; }
   if (!emp) { resEl.className = 'result-msg err'; resEl.textContent = 'Enter your Employee Code.'; return; }
 
+  // v2.4: confirmation gate - Relocate/Merge moves ALL stock out of the old
+  // bin across potentially many SKUs in one shot, so it now gets the same
+  // confirm() step already used by the lower-risk toggleBinActive() (which
+  // the code's own comment notes never moves stock) above.
+  if (!confirm('Are you sure you want to relocate bin "' + oldBin + '" into "' + newBin + '"? This will move ALL stock currently in "' + oldBin + '" into "' + newBin + '" via new transfer transactions - it cannot be undone (though it never edits history).')) return;
+
   var submitBtn = document.getElementById('relocate-bin-submit-btn');
   submitBtn.disabled = true;
   resEl.className = 'result-msg'; resEl.textContent = 'Relocating...';
@@ -1596,9 +1602,9 @@ function exportAuditFullCSV() {
   progEl.textContent = 'Exporting... 0 rows so far';
 
   // v2.3: the High-Risk quick filter isn't a real p_action_type (see
-  // AUDIT_HIGH_RISK_SENTINEL) - when selected, this walks all 3 real action
-  // types in turn instead of just one, so the full export stays correct and
-  // isn't silently narrowed back to "all action types".
+  // AUDIT_HIGH_RISK_SENTINEL) - when selected, this walks each of the 2 real
+  // action types in turn instead of just one, so the full export stays
+  // correct and isn't silently narrowed back to "all action types".
   var isHighRisk = document.getElementById('audit-action').value === AUDIT_HIGH_RISK_SENTINEL;
   var typesToFetch = isHighRisk ? AUDIT_HIGH_RISK_TYPES.slice() : [params.p_action_type];
 

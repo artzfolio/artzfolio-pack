@@ -96,6 +96,9 @@
         .cam-error-banner{display:none;background:#fff3cd;border:2px solid #fd7e14;border-radius:12px;padding:12px 14px;margin-bottom:10px;font-size:12px;color:#856404}
         .cam-error-banner.visible{display:block}
         .cam-error-banner strong{color:#c0392b;display:block;font-size:13px;margin-bottom:4px}
+        /* v51: PICK-tab scan-out silent-failure warning toast */
+        .pick-save-warn-toast{display:none;position:fixed;top:54px;left:50%;transform:translateX(-50%);width:92%;max-width:480px;background:#fff3cd;border:2px solid #fd7e14;border-radius:12px;padding:10px 14px;font-size:12px;color:#856404;font-weight:700;text-align:center;z-index:200;box-shadow:0 4px 14px rgba(0,0,0,.18);cursor:pointer}
+        .pick-save-warn-toast.visible{display:block}
         /* ORDER CARD */
         .order-card{background:#fff;border:2px solid #1B4F8A;border-radius:14px;padding:12px 14px;margin-bottom:12px;display:none;animation:slideIn .2s ease-out}
         .order-card.visible{display:block}
@@ -254,7 +257,13 @@
     </style>
 </head>
 <body>
-<div class="ver-corner" id="verCornerBadge">v50</div>
+<div class="ver-corner" id="verCornerBadge">v51</div>
+<!-- v51: brief on-screen warning if a pick's stock deduction fails to save to the live
+     database — the PICK flow deliberately advances immediately to the next scan (multi-line
+     picks must not be blocked), so this is a visible, dismissible heads-up in addition to the
+     LOG tab entry that already recorded the failure, since a warehouse floor worker on a flaky
+     connection has no reason to think to check the LOG tab mid-shift. -->
+<div class="pick-save-warn-toast" id="pick-save-warn-toast" onclick="hidePickSaveWarning()">&#9888; Last pick may not have saved — tell your supervisor if this repeats. <small>(tap to dismiss)</small></div>
 <div class="app">
     <!-- HEADER -->
     <div class="header">
@@ -413,7 +422,7 @@
                     <input type="text" class="settings-input" id="move-note-input" placeholder="Note (optional — e.g. PO number, reason)">
                 </div>
                 <div class="settings-row">
-                    <button class="settings-btn" style="flex:1" onclick="submitMoveTransaction()">&#10003; Submit</button>
+                    <button class="settings-btn" style="flex:1" id="move-submit-btn" onclick="submitMoveTransaction()">&#10003; Submit</button>
                 </div>
                 <div class="move-result" id="move-result"></div>
             </div>
@@ -1604,7 +1613,7 @@ function binMismatchNote(skuRow, usedBin) {
 var MOVE_MODES = {
     NEW_STOCK_IN:          { title: '&#128230; New Stock In',  desc: 'Scan or type the SKU or ASIN of the product being brought into stock, enter the quantity, then submit. This adds to live stock immediately.', sign: 1 },
     RETURN_IN:             { title: '&#8617; Returns In',      desc: 'Scan or type the SKU or ASIN of a returned product, enter the quantity, then submit. This adds the returned units back to live stock immediately.', sign: 1 },
-    ADJUSTMENT_FOUND:      { title: '&#10133; Found Units',     desc: 'Scan or type the SKU or ASIN of units found during a stock check that weren’t in the system. Always add a note explaining why.', sign: 1 },
+    ADJUSTMENT_FOUND:      { title: '&#10133; Found Units',     desc: 'Scan or type the SKU or ASIN of units found during a stock check that weren’t in the system. Always add a note explaining why.', sign: 1, requireNote: true },
     ADJUSTMENT_LOST_THEFT: { title: '&#10134; Lost / Theft',    desc: 'Scan or type the SKU or ASIN of units confirmed lost, damaged beyond sale, or stolen. Always add a note explaining why — this permanently reduces live stock.', sign: -1, requireNote: true },
     QC_HOLD:               { title: '&#128295; QC Hold',        desc: 'Remove stock found damaged or failing QC — always logged with a reason. Does not delete the units, just removes them from sellable count.', sign: -1, requireNote: true },
     // v50: QC Release — new 6th MOVE mode, single-row equivalent of the existing
@@ -1674,6 +1683,16 @@ function setMoveMode(mode) {
     try { document.getElementById('move-sku-input').focus(); } catch(e) {}
 }
 function submitMoveTransaction() {
+    // v51: double-submit guard — submitMoveTransaction() makes a chained
+    // async call (SKU lookup, then the actual ledger insert), and without
+    // this guard a double-tap on Submit or a scanner-gun Enter firing twice
+    // while that chain is still in flight could post two duplicate ledger
+    // rows. The Submit button is disabled for the duration of the async
+    // work below and this check bails out immediately if it's already
+    // disabled (i.e. a submit is already running).
+    var submitBtn = document.getElementById('move-submit-btn');
+    if (submitBtn && submitBtn.disabled) return;
+
     var resEl = document.getElementById('move-result');
     var skuVal = (document.getElementById('move-sku-input').value || '').trim();
     var binVal = (document.getElementById('move-bin-input').value || '').trim().toUpperCase();
@@ -1691,6 +1710,7 @@ function submitMoveTransaction() {
     var emp = loadEmployee();
     if (!emp || !emp.code) { resEl.className = 'move-result err'; resEl.textContent = 'Set your employee code first (Settings tab).'; return; }
 
+    if (submitBtn) submitBtn.disabled = true;
     resEl.className = 'move-result'; resEl.textContent = 'Checking database...';
     resolveSkuOrAsin(skuVal).then(function(sku) {
         if (!sku) {
@@ -1699,7 +1719,7 @@ function submitMoveTransaction() {
             return;
         }
         resEl.textContent = 'Saving...';
-        writeLedgerTxn({
+        return writeLedgerTxn({
             skuCode: sku.sku_code,
             asin: sku.asin,
             qtyDelta: cfg.sign * qtyVal,
@@ -1722,6 +1742,13 @@ function submitMoveTransaction() {
             document.getElementById('move-note-input').value = '';
             try { document.getElementById('move-sku-input').focus(); } catch(e) {}
         });
+    }).catch(function(err) {
+        resEl.className = 'move-result err';
+        resEl.textContent = '❌ Unexpected error: ' + err;
+    }).then(function() {
+        // v51: always re-enable Submit, whether the save above succeeded,
+        // failed, or hit an unexpected error.
+        if (submitBtn) submitBtn.disabled = false;
     });
 }
 
@@ -2560,6 +2587,11 @@ function processScan(value) {
                         }).then(function(result) {
                             if (!result.ok) {
                                 logEvent(lineOrder.internalID, '⚠ Stock deduction NOT saved to live database (' + result.reason + ') — record manually.');
+                                // v51: this write happens after the UI has already advanced to
+                                // the next pick state (by design, for multi-line picks) — a
+                                // LOG-tab entry alone is easy to miss on the warehouse floor,
+                                // so also show a brief visible warning. Does not block/change flow.
+                                showPickSaveWarning();
                             }
                         });
                     })(state.order, state.bin);
@@ -2631,6 +2663,27 @@ function setStatus(msg, type) {
     var el = document.getElementById('status-msg');
     el.innerHTML = msg;
     el.className = 'status ' + (type || 'idle');
+}
+
+// v51: brief dismissible warning toast for the PICK-tab scan-out
+// silent-failure gap — the writeLedgerTxn() call for SCAN_OUT_ORDER fires
+// after the UI has already advanced to the next pick state (by design, so
+// multi-line picks aren't blocked). On failure it used to only write to the
+// in-app LOG tab, easy for a warehouse floor worker on a flaky connection to
+// miss entirely. This shows a brief on-screen heads-up in addition to that
+// LOG entry, without blocking or changing the existing flow.
+var pickSaveWarnTimer = null;
+function showPickSaveWarning() {
+    var el = document.getElementById('pick-save-warn-toast');
+    if (!el) return;
+    el.classList.add('visible');
+    if (pickSaveWarnTimer) clearTimeout(pickSaveWarnTimer);
+    pickSaveWarnTimer = setTimeout(hidePickSaveWarning, 6000);
+}
+function hidePickSaveWarning() {
+    var el = document.getElementById('pick-save-warn-toast');
+    if (el) el.classList.remove('visible');
+    if (pickSaveWarnTimer) { clearTimeout(pickSaveWarnTimer); pickSaveWarnTimer = null; }
 }
 
 // ── STEPS & NEXT-ACTION BANNER ───────────────────────────────
@@ -2916,7 +2969,6 @@ function initDecoders() {
     var fmtEl = document.getElementById('cam-formats');
     if (fmtEl) fmtEl.textContent = label;
     document.getElementById('scan-hint-text').textContent = 'Scanner ready: ' + (zxingDecoder ? 'ZXing' : barcodeDetector ? 'BarcodeDetector' : jsQR ? 'jsQR' : 'manual') + ' — Tap camera to scan';
-    console.log('Decoder:', label);
 }
 
 function setCamBtn(busy) {
