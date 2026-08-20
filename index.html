@@ -257,7 +257,7 @@
     </style>
 </head>
 <body>
-<div class="ver-corner" id="verCornerBadge">v52</div>
+<div class="ver-corner" id="verCornerBadge">v53</div>
 <!-- v51: brief on-screen warning if a pick's stock deduction fails to save to the live
      database — the PICK flow deliberately advances immediately to the next scan (multi-line
      picks must not be blocked), so this is a visible, dismissible heads-up in addition to the
@@ -480,8 +480,16 @@
             <div class="cam-error-banner" id="low-stock-banner" style="margin-bottom:10px;"><strong id="low-stock-banner-text">&#9888; 0 SKUs at or below reorder point</strong></div>
             <div class="log-header">
                 <h2><span class="stock-live-dot" id="stock-live-dot" style="display:none;"></span>Live Stock (<span id="stock-count">0</span>)</h2>
-                <button class="csv-btn" onclick="loadStockTab(true)">&#8635; Refresh</button>
+                <div style="display:flex;gap:6px;align-items:center;">
+                    <button class="csv-btn" onclick="loadStockTab(true)">&#8635; Refresh</button>
+                    <!-- v53: one-click full inventory export — every SKU with live
+                         stock, ASIN, product name, total qty, and full bin
+                         breakdown, in a single CSV. Not scoped to the search box
+                         or the 75-row page like the list below. -->
+                    <button class="csv-btn" onclick="exportFullInventoryCSV()">&#8595; Export Full Inventory</button>
+                </div>
             </div>
+            <div id="full-export-progress" style="text-align:right;font-size:10px;color:#888;margin-bottom:4px;"></div>
             <div class="stock-toolbar">
                 <input type="text" class="stock-search" id="stock-search-input" placeholder="Filter by SKU, ASIN, or product name..." oninput="onStockSearchInput()">
             </div>
@@ -683,8 +691,8 @@
 
             <!-- Version -->
             <div class="ver-badge">
-                <div class="ver-name">&#128230; ArtzFolio Scan-Pick-Pack v52</div>
-                <div class="ver-sub">Set True Count / Manual Correction (v52) &bull; Bin Lookup Full Detail Table with Activity Breakdown, ASIN, Last Updated (v52) &bull; Bin Usage Summary (v52) &bull; Per-SKU History Drilldown (v52) &bull; Bin Lookup CSV Export (v52) &bull; Soft Bin-Mismatch Note (MOVE + Bulk Upload, never blocks) &bull; entry_source Audit Tag on Every Write &bull; Bulk Upload from CSV (Inbound/Transfer/Found/Lost/Rejected/QC) &bull; Live Bin Lookup (Single SKU / Single Bin / Bulk) &bull; Dynamic Bins (auto-created, no fixed list) &bull; Mandatory Bin on Every Stock Movement &bull; Owner Dashboard (DASH) &bull; 14-Day Staff Performance &bull; Print Product/Bin Labels &bull; QC Hold/Damage &bull; Low-Stock Alerts &bull; Daily Reconciliation &bull; Admin PIN-Lock Unlock &bull; Real Employee Login (PIN) &bull; RBAC &bull; Live Database (Supabase) &bull; Admin-Secret-Gated PIN Recovery &bull; Permanent Audit Log &bull; Hardened Employee Writes (Admin-RPC-Only) &bull; Call Timeouts &amp; Error Handling (Performance Fix)</div>
+                <div class="ver-name">&#128230; ArtzFolio Scan-Pick-Pack v53</div>
+                <div class="ver-sub">Live Stock list now shows bin(s) per SKU (v53) &bull; One-click Export Full Inventory - all SKUs, ASIN, product, qty, bins (v53) &bull; Set True Count / Manual Correction (v52) &bull; Bin Lookup Full Detail Table with Activity Breakdown, ASIN, Last Updated (v52) &bull; Bin Usage Summary (v52) &bull; Per-SKU History Drilldown (v52) &bull; Bin Lookup CSV Export (v52) &bull; Soft Bin-Mismatch Note (MOVE + Bulk Upload, never blocks) &bull; entry_source Audit Tag on Every Write &bull; Bulk Upload from CSV (Inbound/Transfer/Found/Lost/Rejected/QC) &bull; Live Bin Lookup (Single SKU / Single Bin / Bulk) &bull; Dynamic Bins (auto-created, no fixed list) &bull; Mandatory Bin on Every Stock Movement &bull; Owner Dashboard (DASH) &bull; 14-Day Staff Performance &bull; Print Product/Bin Labels &bull; QC Hold/Damage &bull; Low-Stock Alerts &bull; Daily Reconciliation &bull; Admin PIN-Lock Unlock &bull; Real Employee Login (PIN) &bull; RBAC &bull; Live Database (Supabase) &bull; Admin-Secret-Gated PIN Recovery &bull; Permanent Audit Log &bull; Hardened Employee Writes (Admin-RPC-Only) &bull; Call Timeouts &amp; Error Handling (Performance Fix)</div>
             </div>
         </div>
     </div>
@@ -1833,6 +1841,10 @@ function submitMoveTransaction() {
 
 // ── STOCK TAB (live, read-only) ──────────────────────────────────────
 var stockData = [];
+// v53: SKU -> bin breakdown text for whatever page/search is currently shown
+// on the STOCK tab list. Populated alongside stockData, cheap (one extra
+// batched query per page/search, not per row).
+var stockBinMap = {};
 var stockRealtimeChannel = null;
 // v38: set of sku_code currently at/below their reorder_threshold, sourced
 // from the new oms_low_stock view. Kept as a separate small query rather
@@ -1896,10 +1908,24 @@ function loadStockTab(manualRefresh) {
         var rows = res.data || [];
         stockHasMore = rows.length === STOCK_PAGE_SIZE;
         stockData = rows;
+        loadStockBinMap(rows);
         loadLowStock();
         renderStockList();
         setupStockRealtime();
     }).catch(function(err) { setDbOffline(err); });
+}
+// v53: batched bin-breakdown lookup for whatever set of SKUs is currently on
+// screen (a page of 75, or up to 200 search results) — one query, not one
+// per row. Reads the same oms_sku_bin_breakdown view already powering the
+// Admin Panel's SKU & Stock table (v2.5) and this tab's own Bin Lookup.
+function loadStockBinMap(rows) {
+    stockBinMap = {};
+    if (!db || !rows.length) { return; }
+    var codes = rows.map(function(r) { return r.sku_code; });
+    withTimeout(db.from('oms_sku_bin_breakdown').select('sku_code,bin_count,bin_breakdown_text').in('sku_code', codes), 10000, 'Stock bin map').then(function(res) {
+        (res.data || []).forEach(function(b) { stockBinMap[b.sku_code] = b; });
+        renderStockList();
+    }).catch(function() { /* non-fatal — list still renders without bin info */ });
 }
 // Server-side search across ALL SKUs (not just the current page), capped at
 // 200 results so a broad/blank-ish filter still can't pull the whole table.
@@ -1915,6 +1941,7 @@ function runStockSearch(term) {
         setDbOnline();
         stockData = res.data || [];
         stockHasMore = false;
+        loadStockBinMap(stockData);
         loadLowStock();
         renderStockList();
         setupStockRealtime();
@@ -1972,8 +1999,17 @@ function renderStockList() {
         // v40: print-label button per row — reuses resolveSkuOrAsin() at click time
         // to fetch the product name, no change to this query/loop's own data needed.
         var skuForOnclick = (r.sku_code || '').replace(/'/g, "\\'");
+        // v53: bin line — shows every bin holding this SKU right now, so the
+        // main Live Stock list is self-sufficient without having to search
+        // each SKU one-by-one in Bin Lookup above. Populated by
+        // loadStockBinMap(); shows nothing (not an error) while that batched
+        // query is still in flight, and "no bin recorded" if truly empty.
+        var binInfo = stockBinMap[r.sku_code];
+        var binLine = binInfo && binInfo.bin_breakdown_text
+            ? ('<div class="stock-asin" style="color:#1B4F8A;">&#128230; ' + binInfo.bin_breakdown_text + '</div>')
+            : '<div class="stock-asin" style="color:#bbb;">&#128230; no bin recorded</div>';
         html += '<div class="stock-row">' +
-            '<div><div class="stock-sku">' + (r.sku_code || '') + (isLowThreshold ? ' &#9888;' : '') + '</div><div class="stock-asin">' + (r.asin || '') + '</div></div>' +
+            '<div><div class="stock-sku">' + (r.sku_code || '') + (isLowThreshold ? ' &#9888;' : '') + '</div><div class="stock-asin">' + (r.asin || '') + '</div>' + binLine + '</div>' +
             '<div style="display:flex;align-items:center;">' +
             '<div class="stock-qty' + lowCls + '">' + r.qty_on_hand + '</div>' +
             '<button class="print-label-btn" onclick="printLabel(\'' + skuForOnclick + '\')" title="Print label">&#128424;</button>' +
@@ -1982,6 +2018,87 @@ function renderStockList() {
     }
     list.innerHTML = html;
     renderStockPagination();
+}
+
+// v53: one-click full inventory export — SKU, ASIN, product name, total qty,
+// bin count, and full bin breakdown for EVERY SKU with live stock — not
+// scoped to the search box or the 75-row page. Walks oms_current_stock in
+// batches of 1000 (same paging pattern as everywhere else in this app),
+// joins oms_sku_master for product names and oms_sku_bin_breakdown for the
+// bin detail, capped at 20,000 rows (matches the Admin Panel's export cap).
+function exportFullInventoryCSV() {
+    if (!db) { alert('Live database not reachable right now.'); return; }
+    var progEl = document.getElementById('full-export-progress');
+    var PAGE = 1000;
+    var CAP = 20000;
+    var accumulated = [];
+    progEl.textContent = 'Exporting... 0 rows so far';
+
+    function fetchPage(offset) {
+        return withTimeout(db.from('oms_current_stock').select('sku_code,asin,qty_on_hand,last_movement_at').order('sku_code').range(offset, offset + PAGE - 1), 20000, 'Full export').then(function(res) {
+            if (res.error) throw new Error(res.error.message);
+            var rows = res.data || [];
+            if (!rows.length) return;
+            var codes = rows.map(function(r) { return r.sku_code; });
+            return Promise.all([
+                withTimeout(db.from('oms_sku_master').select('sku_code,product_name,product_type').in('sku_code', codes), 20000, 'Full export (master)'),
+                withTimeout(db.from('oms_sku_bin_breakdown').select('sku_code,bin_count,bin_breakdown_text').in('sku_code', codes), 20000, 'Full export (bins)')
+            ]).then(function(joins) {
+                var nameMap = {}, typeMap = {};
+                (joins[0].data || []).forEach(function(m) { nameMap[m.sku_code] = m.product_name; typeMap[m.sku_code] = m.product_type; });
+                var binMap = {};
+                (joins[1].data || []).forEach(function(b) { binMap[b.sku_code] = b; });
+                rows.forEach(function(r) {
+                    var bin = binMap[r.sku_code];
+                    accumulated.push({
+                        sku_code: r.sku_code,
+                        asin: r.asin || '',
+                        product_name: nameMap[r.sku_code] || '',
+                        product_type: typeMap[r.sku_code] || '',
+                        qty_on_hand: r.qty_on_hand,
+                        bin_count: bin ? bin.bin_count : 0,
+                        bin_breakdown: bin ? bin.bin_breakdown_text : '',
+                        last_updated: r.last_movement_at || ''
+                    });
+                });
+                progEl.textContent = 'Exporting... ' + accumulated.length + ' rows so far';
+                if (accumulated.length >= CAP) {
+                    progEl.textContent = accumulated.length + ' rows hit the ' + CAP + '-row cap.';
+                    accumulated = accumulated.slice(0, CAP);
+                    return;
+                }
+                if (rows.length === PAGE) return fetchPage(offset + PAGE);
+            });
+        });
+    }
+
+    fetchPage(0).then(function() {
+        if (!accumulated.length) { progEl.textContent = ''; alert('No live stock to export.'); return; }
+        var header = ['SKU Code', 'ASIN', 'Product Name', 'Product Type', 'Qty On Hand', 'Bin Count', 'Bin Breakdown', 'Last Updated'];
+        var lines = [header.join(',')];
+        accumulated.forEach(function(r) {
+            lines.push([
+                r.sku_code, r.asin,
+                '"' + String(r.product_name).replace(/"/g, '""') + '"',
+                r.product_type, r.qty_on_hand, r.bin_count,
+                '"' + String(r.bin_breakdown).replace(/"/g, '""') + '"',
+                r.last_updated
+            ].join(','));
+        });
+        var blob = new Blob([lines.join('\r\n')], { type: 'text/csv;charset=utf-8;' });
+        var url = URL.createObjectURL(blob);
+        var a = document.createElement('a');
+        a.href = url;
+        a.download = 'artzfolio_full_inventory_' + new Date().toISOString().slice(0, 10) + '.csv';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        progEl.textContent = 'Done — ' + accumulated.length + ' rows exported.';
+        setTimeout(function() { progEl.textContent = ''; }, 6000);
+    }).catch(function(err) {
+        progEl.textContent = 'Export failed: ' + (err && err.message ? err.message : String(err));
+    });
 }
 // v43 fix: Prev/Next controls for the paginated stock list. Hidden (replaced
 // with a small note) while a search is active, since search results are a
