@@ -268,7 +268,7 @@
     </style>
 </head>
 <body>
-<div class="ver-corner" id="verCornerBadge">v58</div>
+<div class="ver-corner" id="verCornerBadge">v59</div>
 <!-- v51: brief on-screen warning if a pick's stock deduction fails to save to the live
      database — the PICK flow deliberately advances immediately to the next scan (multi-line
      picks must not be blocked), so this is a visible, dismissible heads-up in addition to the
@@ -721,12 +721,32 @@
                 <div class="settings-notice">&#128161; In your Apps Script, set <strong>doPost(e)</strong> to parse <code>JSON.parse(e.postData.contents)</code>. Fields: ts, empName, empCode, orderID, sku, channel, qty, bin, action.</div>
             </div>
 
-            <!-- Audit Log -->
+            <!-- My Recent Scans (v59 rename — this is NOT the real audit log.
+                 The permanent, server-side, cannot-be-cleared record of every
+                 action is oms_audit_log, visible in the Admin Panel's own
+                 Audit Log page. This section is only a local, per-device,
+                 clearable convenience list — renamed so the two can never be
+                 confused again (Gap 1 / Gap 6, 2026-08-21 gap analysis). -->
             <div class="settings-section">
-                <h3>&#128220; Audit Log</h3>
-                <div class="settings-info">Stores up to 500 entries in this browser. Use the <strong>&#8595; CSV</strong> button in the Log tab to export.</div>
+                <h3>&#128220; My Recent Scans (this device only)</h3>
+                <div class="settings-info">Stores up to 500 entries <strong>in this browser only</strong> — not permanent, and cleared if you clear this device's storage. This is a personal convenience list, not the official record. Use the <strong>&#8595; CSV</strong> button in the Log tab to export before clearing. The real, permanent record of every action lives on the server and cannot be cleared from here — see "My Activity (server record)" below.</div>
                 <div class="settings-info" id="settings-log-count">0 entries stored</div>
-                <button class="settings-btn danger" onclick="clearLogConfirm()">&#128465; Clear All Log Entries</button>
+                <button class="settings-btn danger" onclick="clearLogConfirm()">&#128465; Clear All Local Scans</button>
+            </div>
+
+            <!-- My Activity (server record) — v59 NEW. Durability half of Gap 1:
+                 the local list above is fragile (per-device, clearable). This
+                 pulls the same employee's own recent activity straight from
+                 the permanent server-side ledger (oms_inventory_transactions),
+                 so "what did I do recently" survives a cleared browser, a new
+                 device, or a reinstalled app. Read-only, on-demand (not
+                 auto-loaded) since it is a supplementary view, not the
+                 primary one. -->
+            <div class="settings-section">
+                <h3>&#9729; My Activity (server record — permanent)</h3>
+                <div class="settings-info">Your last 50 stock actions, pulled directly from the live database. This survives clearing this device — it is the durable record of your own activity.</div>
+                <button class="settings-btn" onclick="loadServerActivity()">&#8635; Load My Activity From Server</button>
+                <div id="server-activity-list" style="margin-top:10px;"></div>
             </div>
 
             <!-- Session -->
@@ -738,8 +758,8 @@
 
             <!-- Version -->
             <div class="ver-badge">
-                <div class="ver-name">&#128230; ArtzFolio Scan-Pick-Pack v58</div>
-                <div class="ver-sub">STOCK tab now has full filters &amp; sort — by stock status (in stock / low stock / out of stock), by category, and sort by SKU, ASIN, or Product Title (A&rarr;Z or Z&rarr;A), plus Qty high&rarr;low/low&rarr;high; every row now shows product name, category, and a colour status badge (v58) &bull; New SKU inbound via Quick Scan now defaults the bin to A1 automatically when no bin is entered and the SKU has no bin history yet — clearly shown as a hint under the bin field (v58) &bull; Bin is now mandatory on EVERY stock movement, zero exceptions — including Set True Count / Manual Correction, whose bin exemption is removed at both the UI and database level (Seller Flex discipline) (v57) &bull; Live stock can no longer go negative — database-level check on every removal, at both SKU and bin level, rejecting anything that would exceed what is actually recorded there (v56) &bull; Notes are now recommended, never mandatory, on Found/Remove-Lost/QC Hold/Set True Count (v56) &bull; Bin auto-fill and mismatch warnings now trust live bin data over the SKU registry's (sometimes stale) usual-bin field, and a live per-bin quantity line shows under the bin field on every SKU scan (v56) &bull; Bin-mismatch warning now also fires for SKUs with no registered default bin, using their live bin data instead — closes the gap behind the 2026-08-19 bin A1 (-4) ledger anomaly; same fix applied to MOVE tab bin auto-fill, Set True Count, and Bulk Upload (v55) &bull; All remaining unchunked .in() lookups (Stock list bin map, Bin Lookup activity breakdown) now chunked for consistency (v55) &bull; Export Full Inventory fixed &amp; expanded — chunked lookups (no more silent data loss on large batches), now includes pricing, reorder threshold, active status, and full per-SKU activity breakdown (v54) &bull; Live Stock list now shows bin(s) per SKU (v53) &bull; One-click Export Full Inventory - all SKUs, ASIN, product, qty, bins (v53) &bull; Set True Count / Manual Correction (v52) &bull; Bin Lookup Full Detail Table with Activity Breakdown, ASIN, Last Updated (v52) &bull; Bin Usage Summary (v52) &bull; Per-SKU History Drilldown (v52) &bull; Bin Lookup CSV Export (v52) &bull; Soft Bin-Mismatch Note (MOVE + Bulk Upload, never blocks) &bull; entry_source Audit Tag on Every Write &bull; Bulk Upload from CSV (Inbound/Transfer/Found/Lost/Rejected/QC) &bull; Live Bin Lookup (Single SKU / Single Bin / Bulk) &bull; Dynamic Bins (auto-created, no fixed list) &bull; Mandatory Bin on Every Stock Movement &bull; Owner Dashboard (DASH) &bull; 14-Day Staff Performance &bull; Print Product/Bin Labels &bull; QC Hold/Damage &bull; Low-Stock Alerts &bull; Daily Reconciliation &bull; Admin PIN-Lock Unlock &bull; Real Employee Login (PIN) &bull; RBAC &bull; Live Database (Supabase) &bull; Admin-Secret-Gated PIN Recovery &bull; Permanent Audit Log &bull; Hardened Employee Writes (Admin-RPC-Only) &bull; Call Timeouts &amp; Error Handling (Performance Fix)</div>
+                <div class="ver-name">&#128230; ArtzFolio Scan-Pick-Pack v59</div>
+                <div class="ver-sub">Settings' local scan log renamed to "My Recent Scans (this device only)" so it can never be confused with the real, permanent, server-side Audit Log in the Admin Panel; new "My Activity (server record)" section added underneath it, pulling the logged-in employee's own last 50 actions straight from the live ledger — durable, survives clearing this device, on-demand load (v59) &bull; STOCK tab now has full filters &amp; sort — by stock status (in stock / low stock / out of stock), by category, and sort by SKU, ASIN, or Product Title (A&rarr;Z or Z&rarr;A), plus Qty high&rarr;low/low&rarr;high; every row now shows product name, category, and a colour status badge (v58) &bull; New SKU inbound via Quick Scan now defaults the bin to A1 automatically when no bin is entered and the SKU has no bin history yet — clearly shown as a hint under the bin field (v58) &bull; Bin is now mandatory on EVERY stock movement, zero exceptions — including Set True Count / Manual Correction, whose bin exemption is removed at both the UI and database level (Seller Flex discipline) (v57) &bull; Live stock can no longer go negative — database-level check on every removal, at both SKU and bin level, rejecting anything that would exceed what is actually recorded there (v56) &bull; Notes are now recommended, never mandatory, on Found/Remove-Lost/QC Hold/Set True Count (v56) &bull; Bin auto-fill and mismatch warnings now trust live bin data over the SKU registry's (sometimes stale) usual-bin field, and a live per-bin quantity line shows under the bin field on every SKU scan (v56) &bull; Bin-mismatch warning now also fires for SKUs with no registered default bin, using their live bin data instead — closes the gap behind the 2026-08-19 bin A1 (-4) ledger anomaly; same fix applied to MOVE tab bin auto-fill, Set True Count, and Bulk Upload (v55) &bull; All remaining unchunked .in() lookups (Stock list bin map, Bin Lookup activity breakdown) now chunked for consistency (v55) &bull; Export Full Inventory fixed &amp; expanded — chunked lookups (no more silent data loss on large batches), now includes pricing, reorder threshold, active status, and full per-SKU activity breakdown (v54) &bull; Live Stock list now shows bin(s) per SKU (v53) &bull; One-click Export Full Inventory - all SKUs, ASIN, product, qty, bins (v53) &bull; Set True Count / Manual Correction (v52) &bull; Bin Lookup Full Detail Table with Activity Breakdown, ASIN, Last Updated (v52) &bull; Bin Usage Summary (v52) &bull; Per-SKU History Drilldown (v52) &bull; Bin Lookup CSV Export (v52) &bull; Soft Bin-Mismatch Note (MOVE + Bulk Upload, never blocks) &bull; entry_source Audit Tag on Every Write &bull; Bulk Upload from CSV (Inbound/Transfer/Found/Lost/Rejected/QC) &bull; Live Bin Lookup (Single SKU / Single Bin / Bulk) &bull; Dynamic Bins (auto-created, no fixed list) &bull; Mandatory Bin on Every Stock Movement &bull; Owner Dashboard (DASH) &bull; 14-Day Staff Performance &bull; Print Product/Bin Labels &bull; QC Hold/Damage &bull; Low-Stock Alerts &bull; Daily Reconciliation &bull; Admin PIN-Lock Unlock &bull; Real Employee Login (PIN) &bull; RBAC &bull; Live Database (Supabase) &bull; Admin-Secret-Gated PIN Recovery &bull; Permanent Audit Log &bull; Hardened Employee Writes (Admin-RPC-Only) &bull; Call Timeouts &amp; Error Handling (Performance Fix)</div>
             </div>
         </div>
     </div>
@@ -1571,6 +1591,58 @@ function clearLogConfirm() {
     saveLog();
     renderLog();
     updateSettingsLogCount();
+}
+
+// ── MY ACTIVITY (SERVER RECORD) — v59 NEW (Gap 1 durability half) ──
+// Pulls the logged-in employee's own recent rows straight from the
+// permanent server ledger, so "what did I do recently" survives a
+// cleared browser/new device — unlike the local-only scan list above.
+function esc59(s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+        return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+}
+function loadServerActivity() {
+    var box = document.getElementById('server-activity-list');
+    if (!box) return;
+    var empCode = state.session ? state.session.employee_code : null;
+    if (!empCode) {
+        box.innerHTML = '<div class="settings-info">Log in first to load your activity.</div>';
+        return;
+    }
+    box.innerHTML = '<div class="settings-info">Loading...</div>';
+    withTimeout(
+        db.from('oms_inventory_transactions')
+          .select('created_at,txn_type,qty_delta,sku_code,bin_code,note')
+          .eq('employee_code', empCode)
+          .order('created_at', { ascending: false })
+          .limit(50),
+        10000, 'My activity'
+    ).then(function (res) {
+        if (res.error) throw res.error;
+        var rows = res.data || [];
+        if (!rows.length) {
+            box.innerHTML = '<div class="settings-info">No server activity found for your employee code yet.</div>';
+            return;
+        }
+        var html = '<ul class="log-list">';
+        for (var i = 0; i < rows.length; i++) {
+            var r = rows[i];
+            var d = new Date(r.created_at);
+            var tDisp = isNaN(d.getTime()) ? esc59(r.created_at) : d.toLocaleString('en-IN');
+            var qtyDisp = (r.qty_delta >= 0 ? '+' : '') + r.qty_delta;
+            html += '<li class="log-item">' +
+                '<div class="log-row1"><span class="log-time">' + esc59(tDisp) + '</span></div>' +
+                '<div class="log-action">' + esc59(r.txn_type) + ' (' + esc59(qtyDisp) + ')</div>' +
+                '<div class="log-meta">SKU:' + esc59(r.sku_code) + ' &bull; Bin:' + esc59(r.bin_code) +
+                (r.note ? ' &bull; ' + esc59(r.note) : '') + '</div>' +
+                '</li>';
+        }
+        html += '</ul>';
+        box.innerHTML = html;
+    }).catch(function (err) {
+        box.innerHTML = '<div class="settings-info">Could not load from server: ' + esc59(err && err.message ? err.message : 'unknown error') + '</div>';
+    });
 }
 
 // ── SESSION SAVE / RESTORE ───────────────────────────────────
