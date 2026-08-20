@@ -214,7 +214,7 @@ tbody tr:hover{background:#f9fbfd}
     </ul>
     <div class="sidebar-footer">
       <button class="logout-btn" onclick="adminLogout()">⎋ Logout</button>
-      <div class="ver-footer">ArtzFolio Admin Panel v2.4<br>2026-08-02 &bull; Audit Log High-Risk Filter Fix &amp; Relocate/Merge Bins Confirmation &bull; Bin/Employee Dropdowns &amp; Bin-Mismatch Notes &bull; Audit Log High-Risk Filter &bull; Bin Management (Rename/Merge/Deactivate) &bull; Call Timeouts &bull; Settings &amp; Self-Service Secret Rotation &bull; Session Security &bull; Full CSV Export &bull; Realtime Dashboard/Audit Log &bull; Bulk Employee Actions &bull; Deeper Reports</div>
+      <div class="ver-footer">ArtzFolio Admin Panel v2.5<br>2026-08-20 &bull; SKU &amp; Stock: Default Bin + Live Bins columns (full multi-bin breakdown, in both on-screen table and CSV exports) &bull; Reports: Txn Type filter now covers all 13 ledger types (was missing QC Release, Rejected, Bin Transfers, Inventory Sync, Opening Balance) &bull; Audit Log High-Risk Filter Fix &amp; Relocate/Merge Bins Confirmation &bull; Bin/Employee Dropdowns &amp; Bin-Mismatch Notes &bull; Audit Log High-Risk Filter &bull; Bin Management (Rename/Merge/Deactivate) &bull; Call Timeouts &bull; Settings &amp; Self-Service Secret Rotation &bull; Session Security &bull; Full CSV Export &bull; Realtime Dashboard/Audit Log &bull; Bulk Employee Actions &bull; Deeper Reports</div>
     </div>
   </div>
 
@@ -394,8 +394,8 @@ tbody tr:hover{background:#f9fbfd}
       <div class="summary-caption">"Export CSV (loaded page)" covers only the currently-loaded page (up to 100 rows). "Export Full CSV" walks every page of the current filtered result (capped at 20,000 rows) — this can take a few seconds.</div>
       <div class="table-wrap">
         <table>
-          <thead><tr><th>SKU Code</th><th>ASIN</th><th>Product Name</th><th>Type</th><th>Qty On Hand</th><th>Reorder Thr.</th><th>Cost Price</th><th>MRP</th><th>Status</th><th>Actions</th></tr></thead>
-          <tbody id="sku-body"><tr class="empty-row"><td colspan="10">Enter a search term or click Search to load SKUs.</td></tr></tbody>
+          <thead><tr><th>SKU Code</th><th>ASIN</th><th>Product Name</th><th>Type</th><th>Qty On Hand</th><th>Default Bin</th><th>Live Bins</th><th>Reorder Thr.</th><th>Cost Price</th><th>MRP</th><th>Status</th><th>Actions</th></tr></thead>
+          <tbody id="sku-body"><tr class="empty-row"><td colspan="12">Enter a search term or click Search to load SKUs.</td></tr></tbody>
         </table>
         <div class="pagination">
           <span id="sku-page-info">Page 1</span>
@@ -486,7 +486,10 @@ tbody tr:hover{background:#f9fbfd}
             <option>SCAN_OUT_ORDER</option><option>RETURN_IN</option>
             <option>NEW_STOCK_IN</option><option>ADJUSTMENT_FOUND</option>
             <option>ADJUSTMENT_LOST_THEFT</option><option>MANUAL_CORRECTION</option>
-            <option>QC_HOLD</option>
+            <option>QC_HOLD</option><option>ADJUSTMENT_QC_RELEASE</option>
+            <option>ADJUSTMENT_REJECTED</option>
+            <option>BIN_TRANSFER_OUT</option><option>BIN_TRANSFER_IN</option>
+            <option>INVENTORY_SYNC</option><option>OPENING_BALANCE</option>
           </select>
         </div>
         <div class="filter-actions">
@@ -1929,7 +1932,7 @@ function loadSkuStock(page) {
   if (!db) { refreshOfflineBanner(); return; }
   skuPage = page;
   var body = document.getElementById('sku-body');
-  body.innerHTML = '<tr class="empty-row"><td colspan="9">Loading...</td></tr>';
+  body.innerHTML = '<tr class="empty-row"><td colspan="12">Loading...</td></tr>';
 
   var stockFilter = document.getElementById('sku-stock-filter').value;
 
@@ -1939,13 +1942,13 @@ function loadSkuStock(page) {
   var query = buildSkuBaseQuery().range(from, to + 1); // fetch one extra to detect "more"
 
   withTimeout(query, 10000, 'SKU search').then(function (res) {
-    if (res.error) { body.innerHTML = '<tr class="empty-row"><td colspan="10">Error: ' + esc(res.error.message) + '</td></tr>'; return; }
+    if (res.error) { body.innerHTML = '<tr class="empty-row"><td colspan="12">Error: ' + esc(res.error.message) + '</td></tr>'; return; }
     var skus = res.data || [];
     skuLastHadMore = skus.length > skuPageSize;
     if (skuLastHadMore) skus = skus.slice(0, skuPageSize);
 
     if (!skus.length) {
-      body.innerHTML = '<tr class="empty-row"><td colspan="10">No SKUs match this search.</td></tr>';
+      body.innerHTML = '<tr class="empty-row"><td colspan="12">No SKUs match this search.</td></tr>';
       skuLastRows = [];
       document.getElementById('sku-page-info').textContent = 'Page ' + (page + 1);
       document.getElementById('sku-prev-btn').disabled = page === 0;
@@ -1954,22 +1957,32 @@ function loadSkuStock(page) {
     }
 
     var codes = skus.map(function (s) { return s.sku_code; });
-    withTimeout(db.from('oms_current_stock').select('sku_code, qty_on_hand').in('sku_code', codes), 10000, 'SKU stock join').then(function (stockRes) {
+    // v2.5: also pulls oms_sku_bin_breakdown (new, additive view) alongside
+    // the existing oms_current_stock join, so the table can show every bin
+    // a SKU currently sits in — not just its registered default bin.
+    Promise.all([
+      withTimeout(db.from('oms_current_stock').select('sku_code, qty_on_hand').in('sku_code', codes), 10000, 'SKU stock join'),
+      withTimeout(db.from('oms_sku_bin_breakdown').select('sku_code, bin_count, bin_breakdown_text').in('sku_code', codes), 10000, 'SKU bin breakdown join')
+    ]).then(function (results) {
+      var stockRes = results[0], binRes = results[1];
       var stockMap = {};
       (stockRes.data || []).forEach(function (s) { stockMap[s.sku_code] = s.qty_on_hand; });
+      var binMap = {};
+      (binRes.data || []).forEach(function (b) { binMap[b.sku_code] = b; });
 
       var merged = skus.map(function (s) {
         var qty = stockMap.hasOwnProperty(s.sku_code) ? stockMap[s.sku_code] : null;
+        var bin = binMap[s.sku_code] || null;
         var passesStockFilter = true;
         if (stockFilter === 'negative') passesStockFilter = qty !== null && qty < 0;
         if (stockFilter === 'low') passesStockFilter = qty !== null && s.reorder_threshold !== null && qty <= s.reorder_threshold;
-        return Object.assign({}, s, { qty_on_hand: qty, _pass: passesStockFilter });
+        return Object.assign({}, s, { qty_on_hand: qty, bin_count: bin ? bin.bin_count : 0, bin_breakdown_text: bin ? bin.bin_breakdown_text : '', _pass: passesStockFilter });
       });
       var filtered = stockFilter ? merged.filter(function (m) { return m._pass; }) : merged;
       skuLastRows = filtered;
 
       if (!filtered.length) {
-        body.innerHTML = '<tr class="empty-row"><td colspan="10">No SKUs match this search + stock filter combination on this page.</td></tr>';
+        body.innerHTML = '<tr class="empty-row"><td colspan="12">No SKUs match this search + stock filter combination on this page.</td></tr>';
       } else {
         body.innerHTML = filtered.map(function (s) {
           var qtyCell = '—';
@@ -1978,12 +1991,20 @@ function loadSkuStock(page) {
             else if (s.reorder_threshold !== null && s.qty_on_hand <= s.reorder_threshold) qtyCell = '<span class="qty-warn">' + fmtNum(s.qty_on_hand) + '</span>';
             else qtyCell = '<span class="qty-ok">' + fmtNum(s.qty_on_hand) + '</span>';
           }
+          // v2.5: "Live Bins" — full breakdown if split across 2+ bins,
+          // otherwise just the single bin. Flags a mismatch against the
+          // registered default_bin (same non-blocking style used elsewhere).
+          var liveBinsCell = s.bin_breakdown_text
+            ? ('<span title="' + esc(s.bin_breakdown_text) + '">' + esc(s.bin_breakdown_text.length > 28 ? (s.bin_count + ' bins: ' + s.bin_breakdown_text.slice(0, 24) + '…') : s.bin_breakdown_text) + '</span>')
+            : '<span style="color:#aaa;">—</span>';
           return '<tr>' +
             '<td class="mono">' + esc(s.sku_code) + '</td>' +
             '<td class="mono">' + esc(s.asin || '—') + '</td>' +
             '<td>' + esc(s.product_name || '—') + '</td>' +
             '<td>' + esc(s.product_type || '—') + '</td>' +
             '<td>' + qtyCell + '</td>' +
+            '<td class="mono">' + esc(s.default_bin || '—') + '</td>' +
+            '<td class="mono">' + liveBinsCell + '</td>' +
             '<td>' + fmtNum(s.reorder_threshold) + '</td>' +
             '<td>' + fmtMoney(s.cost_price) + '</td>' +
             '<td>' + fmtMoney(s.mrp) + '</td>' +
@@ -1995,15 +2016,16 @@ function loadSkuStock(page) {
       document.getElementById('sku-page-info').textContent = 'Page ' + (page + 1);
       document.getElementById('sku-prev-btn').disabled = page === 0;
       document.getElementById('sku-next-btn').disabled = !skuLastHadMore;
-    }).catch(function (err) { body.innerHTML = '<tr class="empty-row"><td colspan="9">Error loading stock: ' + esc(String(err && err.message || err)) + '</td></tr>'; });
-  }).catch(function (err) { body.innerHTML = '<tr class="empty-row"><td colspan="9">Error: ' + esc(String(err && err.message || err)) + '</td></tr>'; });
+    }).catch(function (err) { body.innerHTML = '<tr class="empty-row"><td colspan="12">Error loading stock: ' + esc(String(err && err.message || err)) + '</td></tr>'; });
+  }).catch(function (err) { body.innerHTML = '<tr class="empty-row"><td colspan="12">Error: ' + esc(String(err && err.message || err)) + '</td></tr>'; });
 }
 function exportSkuCSV() {
   if (!skuLastRows.length) { alert('No SKU rows loaded to export.'); return; }
   var rows = skuLastRows.map(function (s) {
     return {
       sku_code: s.sku_code, asin: s.asin, product_name: s.product_name, product_type: s.product_type,
-      qty_on_hand: s.qty_on_hand, reorder_threshold: s.reorder_threshold, cost_price: s.cost_price,
+      qty_on_hand: s.qty_on_hand, default_bin: s.default_bin || '', live_bins: s.bin_breakdown_text || '',
+      reorder_threshold: s.reorder_threshold, cost_price: s.cost_price,
       mrp: s.mrp, active: s.active
     };
   });
@@ -2030,12 +2052,20 @@ function exportSkuFullCSV() {
       var skus = res.data || [];
       if (!skus.length) return;
       var codes = skus.map(function (s) { return s.sku_code; });
-      return withTimeout(db.from('oms_current_stock').select('sku_code, qty_on_hand').in('sku_code', codes), 15000, 'SKU full export (stock)').then(function (stockRes) {
+      // v2.5: also joins oms_sku_bin_breakdown so the full export carries the
+      // same Default Bin / Live Bins detail as the on-screen table.
+      return Promise.all([
+        withTimeout(db.from('oms_current_stock').select('sku_code, qty_on_hand').in('sku_code', codes), 15000, 'SKU full export (stock)'),
+        withTimeout(db.from('oms_sku_bin_breakdown').select('sku_code, bin_breakdown_text').in('sku_code', codes), 15000, 'SKU full export (bins)')
+      ]).then(function (joinResults) {
+        var stockRes = joinResults[0], binRes = joinResults[1];
         var stockMap = {};
         (stockRes.data || []).forEach(function (s) { stockMap[s.sku_code] = s.qty_on_hand; });
+        var binMap = {};
+        (binRes.data || []).forEach(function (b) { binMap[b.sku_code] = b.bin_breakdown_text; });
         var merged = skus.map(function (s) {
           var qty = stockMap.hasOwnProperty(s.sku_code) ? stockMap[s.sku_code] : null;
-          return Object.assign({}, s, { qty_on_hand: qty });
+          return Object.assign({}, s, { qty_on_hand: qty, bin_breakdown_text: binMap[s.sku_code] || '' });
         });
         var filtered = merged.filter(function (s) {
           if (stockFilter === 'negative') return s.qty_on_hand !== null && s.qty_on_hand < 0;
@@ -2059,7 +2089,8 @@ function exportSkuFullCSV() {
     var rows = accumulated.map(function (s) {
       return {
         sku_code: s.sku_code, asin: s.asin, product_name: s.product_name, product_type: s.product_type,
-        qty_on_hand: s.qty_on_hand, reorder_threshold: s.reorder_threshold, cost_price: s.cost_price,
+        qty_on_hand: s.qty_on_hand, default_bin: s.default_bin || '', live_bins: s.bin_breakdown_text || '',
+        reorder_threshold: s.reorder_threshold, cost_price: s.cost_price,
         mrp: s.mrp, active: s.active
       };
     });
