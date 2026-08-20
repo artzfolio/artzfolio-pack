@@ -214,7 +214,7 @@ tbody tr:hover{background:#f9fbfd}
     </ul>
     <div class="sidebar-footer">
       <button class="logout-btn" onclick="adminLogout()">⎋ Logout</button>
-      <div class="ver-footer">ArtzFolio Admin Panel v2.6<br>2026-08-20 &bull; Fixed: SKU &amp; Stock table and Full CSV Export could silently show blank stock/bin data on large batches — .in() lookups now chunked (150 codes/request) with errors surfaced instead of swallowed &bull; SKU &amp; Stock: Default Bin + Live Bins columns (full multi-bin breakdown, in both on-screen table and CSV exports) &bull; Reports: Txn Type filter now covers all 13 ledger types (was missing QC Release, Rejected, Bin Transfers, Inventory Sync, Opening Balance) &bull; Audit Log High-Risk Filter Fix &amp; Relocate/Merge Bins Confirmation &bull; Bin/Employee Dropdowns &amp; Bin-Mismatch Notes &bull; Audit Log High-Risk Filter &bull; Bin Management (Rename/Merge/Deactivate) &bull; Call Timeouts &bull; Settings &amp; Self-Service Secret Rotation &bull; Session Security &bull; Full CSV Export &bull; Realtime Dashboard/Audit Log &bull; Bulk Employee Actions &bull; Deeper Reports</div>
+      <div class="ver-footer">ArtzFolio Admin Panel v2.7<br>2026-08-20 &bull; Fixed: Adjust Stock bin-mismatch note now also falls back to live bin data when a SKU has no registered default bin (same root-cause fix as App v55, closing the gap behind the 2026-08-19 bin A1 (-4) ledger anomaly) &bull; Fixed: SKU &amp; Stock table and Full CSV Export could silently show blank stock/bin data on large batches — .in() lookups now chunked (150 codes/request) with errors surfaced instead of swallowed &bull; SKU &amp; Stock: Default Bin + Live Bins columns (full multi-bin breakdown, in both on-screen table and CSV exports) &bull; Reports: Txn Type filter now covers all 13 ledger types (was missing QC Release, Rejected, Bin Transfers, Inventory Sync, Opening Balance) &bull; Audit Log High-Risk Filter Fix &amp; Relocate/Merge Bins Confirmation &bull; Bin/Employee Dropdowns &amp; Bin-Mismatch Notes &bull; Audit Log High-Risk Filter &bull; Bin Management (Rename/Merge/Deactivate) &bull; Call Timeouts &bull; Settings &amp; Self-Service Secret Rotation &bull; Session Security &bull; Full CSV Export &bull; Realtime Dashboard/Audit Log &bull; Bulk Employee Actions &bull; Deeper Reports</div>
     </div>
   </div>
 
@@ -1348,6 +1348,12 @@ function openAdjustStockModal(skuCode, currentQty) {
   // extra query is needed here) for the non-blocking bin-mismatch note.
   var skuRow = skuLastRows.filter(function (r) { return r.sku_code === skuCode; })[0];
   document.getElementById('adjust-stock-sku').dataset.defaultBin = (skuRow && skuRow.default_bin) ? skuRow.default_bin : '';
+  // v2.6: also cache the SKU's live bin breakdown (already loaded into
+  // skuLastRows by loadSkuStock() — no extra query needed) as a fallback for
+  // the mismatch note when there's no registered default_bin. Closes the
+  // same gap that let the 2026-08-19 A1 (-4) ledger anomaly go unflagged in
+  // the App's MOVE tab — this modal had the identical default_bin-only check.
+  document.getElementById('adjust-stock-sku').dataset.liveBins = (skuRow && skuRow.bin_breakdown_text) ? skuRow.bin_breakdown_text : '';
   document.getElementById('adjust-stock-reason').value = 'MANUAL_CORRECTION';
   document.getElementById('adjust-stock-qty').value = '';
   document.getElementById('adjust-stock-bin').value = '';
@@ -1364,18 +1370,30 @@ function closeAdjustStockModal() { document.getElementById('adjust-stock-modal-b
 // in the App's MOVE tab and the Excel bulk tool (compares the bin actually
 // used against oms_sku_master.default_bin and returns a short note, never
 // blocking the action). Returns '' when there's nothing worth flagging.
-function binMismatchNoteText(defaultBin, usedBin) {
+function binMismatchNoteText(defaultBin, usedBin, liveBinsText) {
   var usual = (defaultBin || '').trim().toUpperCase();
   var used = (usedBin || '').trim().toUpperCase();
-  if (!usual || !used || usual === used) return '';
-  return 'Note: this SKU’s usual bin is ' + usual + ', this entry uses ' + used + '.';
+  if (!used) return '';
+  if (usual) {
+    if (usual === used) return '';
+    return 'Note: this SKU’s usual bin is ' + usual + ', this entry uses ' + used + '.';
+  }
+  // v2.6: no registered default_bin — fall back to the SKU's live bin
+  // breakdown text (e.g. "RECEIVING:4" or "A:2 | B:3") parsed from
+  // oms_sku_bin_breakdown. Same fallback logic as the App's binMismatchNote().
+  if (!liveBinsText) return '';
+  var liveCodes = liveBinsText.split('|').map(function (part) { return part.split(':')[0].trim().toUpperCase(); }).filter(Boolean);
+  if (!liveCodes.length || liveCodes.indexOf(used) !== -1) return '';
+  return 'Note: this SKU currently shows live stock in ' + liveBinsText + ', this entry uses ' + used + '.';
 }
 function checkAdjustStockBinMismatch() {
   var noteEl = document.getElementById('adjust-stock-bin-note');
   if (!noteEl) return;
-  var defaultBin = document.getElementById('adjust-stock-sku').dataset.defaultBin || '';
+  var skuEl = document.getElementById('adjust-stock-sku');
+  var defaultBin = skuEl.dataset.defaultBin || '';
+  var liveBins = skuEl.dataset.liveBins || '';
   var used = document.getElementById('adjust-stock-bin').value;
-  noteEl.textContent = binMismatchNoteText(defaultBin, used);
+  noteEl.textContent = binMismatchNoteText(defaultBin, used, liveBins);
 }
 function submitAdjustStock() {
   if (!db) return;

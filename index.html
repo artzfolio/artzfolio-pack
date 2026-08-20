@@ -257,7 +257,7 @@
     </style>
 </head>
 <body>
-<div class="ver-corner" id="verCornerBadge">v54</div>
+<div class="ver-corner" id="verCornerBadge">v55</div>
 <!-- v51: brief on-screen warning if a pick's stock deduction fails to save to the live
      database — the PICK flow deliberately advances immediately to the next scan (multi-line
      picks must not be blocked), so this is a visible, dismissible heads-up in addition to the
@@ -693,8 +693,8 @@
 
             <!-- Version -->
             <div class="ver-badge">
-                <div class="ver-name">&#128230; ArtzFolio Scan-Pick-Pack v54</div>
-                <div class="ver-sub">Export Full Inventory fixed &amp; expanded — chunked lookups (no more silent data loss on large batches), now includes pricing, reorder threshold, active status, and full per-SKU activity breakdown (v54) &bull; Live Stock list now shows bin(s) per SKU (v53) &bull; One-click Export Full Inventory - all SKUs, ASIN, product, qty, bins (v53) &bull; Set True Count / Manual Correction (v52) &bull; Bin Lookup Full Detail Table with Activity Breakdown, ASIN, Last Updated (v52) &bull; Bin Usage Summary (v52) &bull; Per-SKU History Drilldown (v52) &bull; Bin Lookup CSV Export (v52) &bull; Soft Bin-Mismatch Note (MOVE + Bulk Upload, never blocks) &bull; entry_source Audit Tag on Every Write &bull; Bulk Upload from CSV (Inbound/Transfer/Found/Lost/Rejected/QC) &bull; Live Bin Lookup (Single SKU / Single Bin / Bulk) &bull; Dynamic Bins (auto-created, no fixed list) &bull; Mandatory Bin on Every Stock Movement &bull; Owner Dashboard (DASH) &bull; 14-Day Staff Performance &bull; Print Product/Bin Labels &bull; QC Hold/Damage &bull; Low-Stock Alerts &bull; Daily Reconciliation &bull; Admin PIN-Lock Unlock &bull; Real Employee Login (PIN) &bull; RBAC &bull; Live Database (Supabase) &bull; Admin-Secret-Gated PIN Recovery &bull; Permanent Audit Log &bull; Hardened Employee Writes (Admin-RPC-Only) &bull; Call Timeouts &amp; Error Handling (Performance Fix)</div>
+                <div class="ver-name">&#128230; ArtzFolio Scan-Pick-Pack v55</div>
+                <div class="ver-sub">Bin-mismatch warning now also fires for SKUs with no registered default bin, using their live bin data instead — closes the gap behind the 2026-08-19 bin A1 (-4) ledger anomaly; same fix applied to MOVE tab bin auto-fill, Set True Count, and Bulk Upload (v55) &bull; All remaining unchunked .in() lookups (Stock list bin map, Bin Lookup activity breakdown) now chunked for consistency (v55) &bull; Export Full Inventory fixed &amp; expanded — chunked lookups (no more silent data loss on large batches), now includes pricing, reorder threshold, active status, and full per-SKU activity breakdown (v54) &bull; Live Stock list now shows bin(s) per SKU (v53) &bull; One-click Export Full Inventory - all SKUs, ASIN, product, qty, bins (v53) &bull; Set True Count / Manual Correction (v52) &bull; Bin Lookup Full Detail Table with Activity Breakdown, ASIN, Last Updated (v52) &bull; Bin Usage Summary (v52) &bull; Per-SKU History Drilldown (v52) &bull; Bin Lookup CSV Export (v52) &bull; Soft Bin-Mismatch Note (MOVE + Bulk Upload, never blocks) &bull; entry_source Audit Tag on Every Write &bull; Bulk Upload from CSV (Inbound/Transfer/Found/Lost/Rejected/QC) &bull; Live Bin Lookup (Single SKU / Single Bin / Bulk) &bull; Dynamic Bins (auto-created, no fixed list) &bull; Mandatory Bin on Every Stock Movement &bull; Owner Dashboard (DASH) &bull; 14-Day Staff Performance &bull; Print Product/Bin Labels &bull; QC Hold/Damage &bull; Low-Stock Alerts &bull; Daily Reconciliation &bull; Admin PIN-Lock Unlock &bull; Real Employee Login (PIN) &bull; RBAC &bull; Live Database (Supabase) &bull; Admin-Secret-Gated PIN Recovery &bull; Permanent Audit Log &bull; Hardened Employee Writes (Admin-RPC-Only) &bull; Call Timeouts &amp; Error Handling (Performance Fix)</div>
             </div>
         </div>
     </div>
@@ -1605,7 +1605,21 @@ function resolveSkuOrAsin(value) {
         .then(function(res) {
             if (res.error) { setDbOffline(res.error.message); return null; }
             setDbOnline();
-            return (res.data && res.data.length) ? res.data[0] : null;
+            var sku = (res.data && res.data.length) ? res.data[0] : null;
+            if (!sku) return null;
+            // v54: also fetch this SKU's CURRENT live bin allocation (a single
+            // one-row-per-bin lookup, not batched — negligible cost, no .in()
+            // risk). This is the fallback binMismatchNote()/prefillMoveBin()
+            // use when the SKU has no registered oms_sku_master.default_bin —
+            // root-caused the 2026-08-19 bin A1 (-4) ledger anomaly: that SKU
+            // has no default_bin, so the old mismatch check never fired when a
+            // removal was logged against a bin the SKU didn't actually hold any
+            // stock in (its real stock was 100% in RECEIVING).
+            return withTimeout(db.from('oms_bin_stock').select('bin_code,qty_on_hand').eq('sku_code', sku.sku_code).gt('qty_on_hand', 0).order('qty_on_hand', { ascending: false }), 8000, 'Live bin lookup')
+                .then(function(binRes) {
+                    sku.live_bins = (binRes && binRes.data) || [];
+                    return sku;
+                }).catch(function() { sku.live_bins = []; return sku; });
         })
         .catch(function(err) { setDbOffline(err); return null; });
 }
@@ -1653,11 +1667,25 @@ function writeLedgerTxn(opts) {
 // to the database. Purely informational, catches typos without slowing
 // anyone down or refusing a real bin move.
 function binMismatchNote(skuRow, usedBin) {
-    if (!skuRow || !skuRow.default_bin) return '';
-    var usual = (skuRow.default_bin || '').trim().toUpperCase();
+    if (!skuRow) return '';
     var used = (usedBin || '').trim().toUpperCase();
-    if (!usual || usual === used) return '';
-    return ' (note: this SKU’s usual bin is ' + usual + ', this entry used ' + used + ')';
+    if (!used) return '';
+    var usual = (skuRow.default_bin || '').trim().toUpperCase();
+    if (usual) {
+        if (usual === used) return '';
+        return ' (note: this SKU’s usual bin is ' + usual + ', this entry used ' + used + ')';
+    }
+    // v54: no registered default_bin — fall back to the SKU's current live
+    // bin allocation (oms_bin_stock via resolveSkuOrAsin's sku.live_bins), so
+    // a removal/adjustment against a bin the SKU holds no stock in still gets
+    // flagged instead of silently going through with zero warning. See the
+    // resolveSkuOrAsin() comment above for the 2026-08-19 anomaly this closes.
+    var liveBins = (skuRow.live_bins || []).filter(function(b) { return b.bin_code; });
+    if (!liveBins.length) return '';
+    var liveCodes = liveBins.map(function(b) { return (b.bin_code || '').toUpperCase(); });
+    if (liveCodes.indexOf(used) !== -1) return '';
+    var liveDesc = liveBins.map(function(b) { return b.bin_code + ':' + b.qty_on_hand; }).join(', ');
+    return ' (note: this SKU currently shows live stock in ' + liveDesc + ', this entry used ' + used + ')';
 }
 
 // ── MOVE TAB (New Stock / Returns / Found / Lost-Theft) ─────────────────
@@ -1720,8 +1748,16 @@ function prefillMoveBin() {
     var skuVal = (document.getElementById('move-sku-input').value || '').trim();
     if (!skuVal || (binEl.value || '').trim()) return;
     resolveSkuOrAsin(skuVal).then(function(sku) {
-        if (sku && sku.default_bin && !(binEl.value || '').trim()) {
+        if (!sku || (binEl.value || '').trim()) return;
+        if (sku.default_bin) {
             binEl.value = sku.default_bin;
+        } else if (sku.live_bins && sku.live_bins.length === 1) {
+            // v54: no registered default_bin, but the SKU currently sits in
+            // exactly one live bin — prefill that instead of leaving it
+            // blank. Directly closes the gap that let the 2026-08-19 A1 (-4)
+            // anomaly happen: this SKU had no default_bin, so nothing was
+            // ever suggested and the wrong bin got typed with no prompt.
+            binEl.value = sku.live_bins[0].bin_code;
         }
     });
 }
@@ -1832,7 +1868,7 @@ function submitMoveTransaction() {
                         return;
                     }
                     resEl.className = 'move-result ok';
-                    resEl.textContent = '✓ Saved — ' + sku.sku_code + ' corrected from ' + currentQty + ' to ' + qtyVal + ' (' + (delta > 0 ? '+' : '') + delta + ')' + (binVal ? (' @ bin ' + binVal) : '');
+                    resEl.textContent = '✓ Saved — ' + sku.sku_code + ' corrected from ' + currentQty + ' to ' + qtyVal + ' (' + (delta > 0 ? '+' : '') + delta + ')' + (binVal ? (' @ bin ' + binVal + binMismatchNote(sku, binVal)) : '');
                     logEvent(sku.sku_code, 'Set True Count: ' + currentQty + ' \u2192 ' + qtyVal + ' (' + (delta > 0 ? '+' : '') + delta + ')' + (note ? ' — ' + note : ''));
                     writeAuditLog('MANUAL_CORRECTION', { skuCode: sku.sku_code, details: { qty_delta: delta, from: currentQty, to: qtyVal, bin_code: binVal || null, note: note || null, product_name: sku.product_name || null } });
                     document.getElementById('move-sku-input').value = '';
@@ -1961,8 +1997,15 @@ function loadStockBinMap(rows) {
     stockBinMap = {};
     if (!db || !rows.length) { return; }
     var codes = rows.map(function(r) { return r.sku_code; });
-    withTimeout(db.from('oms_sku_bin_breakdown').select('sku_code,bin_count,bin_breakdown_text').in('sku_code', codes), 10000, 'Stock bin map').then(function(res) {
-        (res.data || []).forEach(function(b) { stockBinMap[b.sku_code] = b; });
+    // v54: chunked via fetchInChunks() for consistency with the rest of the
+    // .in() call sites — the current page/search caps (75 / 200) were always
+    // under the URL-length failure threshold, but there's no reason to leave
+    // an unchecked-error .in() call in place now that the failure mode is
+    // understood (see chunkArray/fetchInChunks comment near withTimeout).
+    var binMapErrors = [];
+    fetchInChunks('oms_sku_bin_breakdown', 'sku_code,bin_count,bin_breakdown_text', codes, 150, 10000, 'Stock bin map', binMapErrors).then(function(rowsOut) {
+        if (binMapErrors.length) console.warn('Stock bin map: ' + binMapErrors.length + ' chunk error(s):', binMapErrors);
+        rowsOut.forEach(function(b) { stockBinMap[b.sku_code] = b; });
         renderStockList();
     }).catch(function() { /* non-fatal — list still renders without bin info */ });
 }
@@ -2452,9 +2495,18 @@ function runBinLookup() {
         };
 
         if (skuOrder.length) {
-            withTimeout(db.from('oms_sku_activity_breakdown').select('*').in('sku_code', skuOrder), 8000, 'Activity breakdown').then(function(bres) {
+            // v54: chunked via fetchInChunks() — skuOrder can hold up to 500
+            // SKUs (the Bin Lookup result cap), which was still under the
+            // observed URL-length failure threshold today but shared the same
+            // unchecked-error, all-or-nothing pattern that caused the Export
+            // Full Inventory bug. A failure here used to silently render every
+            // card with zero activity badges; now it's chunked and a failure
+            // only blanks the affected SKUs' badges, not the whole screen.
+            var abErrors = [];
+            fetchInChunks('oms_sku_activity_breakdown', 'sku_code,total_sold,total_returned,total_new_stock_in,total_lost_theft,total_found,total_rejected_damaged,total_qc_hold_net,total_qc_released,total_manual_correction', skuOrder, 150, 8000, 'Activity breakdown', abErrors).then(function(rowsOut) {
+                if (abErrors.length) console.warn('Bin Lookup activity breakdown: ' + abErrors.length + ' chunk error(s):', abErrors);
                 var map = {};
-                (bres.data || []).forEach(function(b) { map[b.sku_code] = b; });
+                rowsOut.forEach(function(b) { map[b.sku_code] = b; });
                 renderAll(map);
             }).catch(function() { renderAll({}); });
         } else {
