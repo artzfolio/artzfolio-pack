@@ -257,7 +257,7 @@
     </style>
 </head>
 <body>
-<div class="ver-corner" id="verCornerBadge">v55</div>
+<div class="ver-corner" id="verCornerBadge">v56</div>
 <!-- v51: brief on-screen warning if a pick's stock deduction fails to save to the live
      database — the PICK flow deliberately advances immediately to the next scan (multi-line
      picks must not be blocked), so this is a visible, dismissible heads-up in addition to the
@@ -419,6 +419,12 @@
                         <svg viewBox="0 0 24 24"><path d="M12 9a4 4 0 1 0 4 4 4 4 0 0 0-4-4zm0 6a2 2 0 1 1 2-2 2 2 0 0 1-2 2z"/><path d="M20 4h-2.76l-1.63-2H8.39L6.76 4H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2zm0 15H4V6h3.56L9.19 4h5.62l1.63 2H20z"/></svg>
                     </button>
                 </div>
+                <!-- v56: shows the SKU's real, current per-bin quantities the moment it's
+                     scanned/typed — ground truth from oms_bin_stock, not the (sometimes
+                     stale) oms_sku_master.default_bin registration. Lets staff see the
+                     actual options before submitting instead of trusting an auto-fill that
+                     can be wrong (root cause of the 2026-08-20 POD1 mismatch). -->
+                <div id="move-live-bin-hint" style="font-size:10px;color:#888;margin:-4px 0 6px 2px;"></div>
                 <div class="settings-row">
                     <input type="number" class="settings-input" id="move-qty-input" placeholder="Quantity" min="1" value="1" style="max-width:110px">
                     <input type="text" class="settings-input" id="move-note-input" placeholder="Note (optional — e.g. PO number, reason)">
@@ -603,7 +609,7 @@
                 <ul>
                     <li><strong>MOVE tab</strong> &mdash; records one stock movement at a time (New Stock In / Returns In / Found / Remove-Lost / QC Hold / QC Release / Set True Count). A <strong>Bin is now required on every movement except Set True Count</strong> &mdash; the app auto-fills the SKU's usual bin, but you can always overwrite it (e.g. new stock landing in RECEIVING instead of the SKU's normal shelf).</li>
                     <!-- v52: Set True Count — new 7th pill, for physical stock counts only -->
-                    <li><strong>Set True Count</strong> &mdash; new 7th pill on the MOVE tab, for a physical stock count only (not daily use). Type the SKU's real total right now; the app looks up the current live number and saves only the difference as one correction, with a mandatory note. Bin is optional here since a correction usually covers the SKU as a whole, not one bin.</li>
+                    <li><strong>Set True Count</strong> &mdash; 7th pill on the MOVE tab, for a physical stock count only (not daily use). Type the SKU's real total right now; the app looks up the current live number and saves only the difference as one correction. A note is recommended but not required. Bin is optional here since a correction usually covers the SKU as a whole, not one bin.</li>
                     <!-- v50: QC Release used to be CSV/Bulk-only; note the new single-row screen -->
                     <li><strong>QC Release</strong> &mdash; new 6th pill on the MOVE tab, previously only reachable via Bulk Upload (CSV). Releases stock that was QC-Held back into sellable count, using the same SKU/Bin/Qty/Note form as the rest of this tab.</li>
                     <li><strong>Bulk Upload (CSV)</strong> &mdash; on the MOVE tab: download the template, fill it, upload. Same actions as the Excel bulk tool (INBOUND / RETURN_IN / FOUND / LOST / REJECTED / QC_HOLD / QC_RELEASE / TRANSFER), same per-row OK/FAILED result.</li>
@@ -693,8 +699,8 @@
 
             <!-- Version -->
             <div class="ver-badge">
-                <div class="ver-name">&#128230; ArtzFolio Scan-Pick-Pack v55</div>
-                <div class="ver-sub">Bin-mismatch warning now also fires for SKUs with no registered default bin, using their live bin data instead — closes the gap behind the 2026-08-19 bin A1 (-4) ledger anomaly; same fix applied to MOVE tab bin auto-fill, Set True Count, and Bulk Upload (v55) &bull; All remaining unchunked .in() lookups (Stock list bin map, Bin Lookup activity breakdown) now chunked for consistency (v55) &bull; Export Full Inventory fixed &amp; expanded — chunked lookups (no more silent data loss on large batches), now includes pricing, reorder threshold, active status, and full per-SKU activity breakdown (v54) &bull; Live Stock list now shows bin(s) per SKU (v53) &bull; One-click Export Full Inventory - all SKUs, ASIN, product, qty, bins (v53) &bull; Set True Count / Manual Correction (v52) &bull; Bin Lookup Full Detail Table with Activity Breakdown, ASIN, Last Updated (v52) &bull; Bin Usage Summary (v52) &bull; Per-SKU History Drilldown (v52) &bull; Bin Lookup CSV Export (v52) &bull; Soft Bin-Mismatch Note (MOVE + Bulk Upload, never blocks) &bull; entry_source Audit Tag on Every Write &bull; Bulk Upload from CSV (Inbound/Transfer/Found/Lost/Rejected/QC) &bull; Live Bin Lookup (Single SKU / Single Bin / Bulk) &bull; Dynamic Bins (auto-created, no fixed list) &bull; Mandatory Bin on Every Stock Movement &bull; Owner Dashboard (DASH) &bull; 14-Day Staff Performance &bull; Print Product/Bin Labels &bull; QC Hold/Damage &bull; Low-Stock Alerts &bull; Daily Reconciliation &bull; Admin PIN-Lock Unlock &bull; Real Employee Login (PIN) &bull; RBAC &bull; Live Database (Supabase) &bull; Admin-Secret-Gated PIN Recovery &bull; Permanent Audit Log &bull; Hardened Employee Writes (Admin-RPC-Only) &bull; Call Timeouts &amp; Error Handling (Performance Fix)</div>
+                <div class="ver-name">&#128230; ArtzFolio Scan-Pick-Pack v56</div>
+                <div class="ver-sub">Live stock can no longer go negative — database-level check on every removal, at both SKU and bin level, rejecting anything that would exceed what is actually recorded there (v56) &bull; Notes are now recommended, never mandatory, on Found/Remove-Lost/QC Hold/Set True Count (v56) &bull; Bin auto-fill and mismatch warnings now trust live bin data over the SKU registry's (sometimes stale) usual-bin field, and a live per-bin quantity line shows under the bin field on every SKU scan (v56) &bull; Bin-mismatch warning now also fires for SKUs with no registered default bin, using their live bin data instead — closes the gap behind the 2026-08-19 bin A1 (-4) ledger anomaly; same fix applied to MOVE tab bin auto-fill, Set True Count, and Bulk Upload (v55) &bull; All remaining unchunked .in() lookups (Stock list bin map, Bin Lookup activity breakdown) now chunked for consistency (v55) &bull; Export Full Inventory fixed &amp; expanded — chunked lookups (no more silent data loss on large batches), now includes pricing, reorder threshold, active status, and full per-SKU activity breakdown (v54) &bull; Live Stock list now shows bin(s) per SKU (v53) &bull; One-click Export Full Inventory - all SKUs, ASIN, product, qty, bins (v53) &bull; Set True Count / Manual Correction (v52) &bull; Bin Lookup Full Detail Table with Activity Breakdown, ASIN, Last Updated (v52) &bull; Bin Usage Summary (v52) &bull; Per-SKU History Drilldown (v52) &bull; Bin Lookup CSV Export (v52) &bull; Soft Bin-Mismatch Note (MOVE + Bulk Upload, never blocks) &bull; entry_source Audit Tag on Every Write &bull; Bulk Upload from CSV (Inbound/Transfer/Found/Lost/Rejected/QC) &bull; Live Bin Lookup (Single SKU / Single Bin / Bulk) &bull; Dynamic Bins (auto-created, no fixed list) &bull; Mandatory Bin on Every Stock Movement &bull; Owner Dashboard (DASH) &bull; 14-Day Staff Performance &bull; Print Product/Bin Labels &bull; QC Hold/Damage &bull; Low-Stock Alerts &bull; Daily Reconciliation &bull; Admin PIN-Lock Unlock &bull; Real Employee Login (PIN) &bull; RBAC &bull; Live Database (Supabase) &bull; Admin-Secret-Gated PIN Recovery &bull; Permanent Audit Log &bull; Hardened Employee Writes (Admin-RPC-Only) &bull; Call Timeouts &amp; Error Handling (Performance Fix)</div>
             </div>
         </div>
     </div>
@@ -1670,31 +1676,32 @@ function binMismatchNote(skuRow, usedBin) {
     if (!skuRow) return '';
     var used = (usedBin || '').trim().toUpperCase();
     if (!used) return '';
-    var usual = (skuRow.default_bin || '').trim().toUpperCase();
-    if (usual) {
-        if (usual === used) return '';
-        return ' (note: this SKU’s usual bin is ' + usual + ', this entry used ' + used + ')';
-    }
-    // v54: no registered default_bin — fall back to the SKU's current live
-    // bin allocation (oms_bin_stock via resolveSkuOrAsin's sku.live_bins), so
-    // a removal/adjustment against a bin the SKU holds no stock in still gets
-    // flagged instead of silently going through with zero warning. See the
-    // resolveSkuOrAsin() comment above for the 2026-08-19 anomaly this closes.
+    // v56: LIVE bin data wins whenever it exists — ground truth beats the
+    // registry. oms_sku_master.default_bin is only a "usual bin" hint set at
+    // some point in the past and can go stale (this exact staleness — this
+    // SKU's default_bin said POD1 while its real stock was 100% in A1— is
+    // what caused the 2026-08-20 anomaly). default_bin is now only consulted
+    // when the SKU has ZERO live stock anywhere right now (e.g. a first-ever
+    // stock-in), where it's the only signal available.
     var liveBins = (skuRow.live_bins || []).filter(function(b) { return b.bin_code; });
-    if (!liveBins.length) return '';
-    var liveCodes = liveBins.map(function(b) { return (b.bin_code || '').toUpperCase(); });
-    if (liveCodes.indexOf(used) !== -1) return '';
-    var liveDesc = liveBins.map(function(b) { return b.bin_code + ':' + b.qty_on_hand; }).join(', ');
-    return ' (note: this SKU currently shows live stock in ' + liveDesc + ', this entry used ' + used + ')';
+    if (liveBins.length) {
+        var liveCodes = liveBins.map(function(b) { return (b.bin_code || '').toUpperCase(); });
+        if (liveCodes.indexOf(used) !== -1) return '';
+        var liveDesc = liveBins.map(function(b) { return b.bin_code + ':' + b.qty_on_hand; }).join(', ');
+        return ' (note: this SKU currently shows live stock in ' + liveDesc + ', this entry used ' + used + ')';
+    }
+    var usual = (skuRow.default_bin || '').trim().toUpperCase();
+    if (!usual || usual === used) return '';
+    return ' (note: this SKU’s usual bin is ' + usual + ', this entry used ' + used + ')';
 }
 
 // ── MOVE TAB (New Stock / Returns / Found / Lost-Theft) ─────────────────
 var MOVE_MODES = {
     NEW_STOCK_IN:          { title: '&#128230; New Stock In',  desc: 'Scan or type the SKU or ASIN of the product being brought into stock, enter the quantity, then submit. This adds to live stock immediately.', sign: 1 },
     RETURN_IN:             { title: '&#8617; Returns In',      desc: 'Scan or type the SKU or ASIN of a returned product, enter the quantity, then submit. This adds the returned units back to live stock immediately.', sign: 1 },
-    ADJUSTMENT_FOUND:      { title: '&#10133; Found Units',     desc: 'Scan or type the SKU or ASIN of units found during a stock check that weren’t in the system. Always add a note explaining why.', sign: 1, requireNote: true },
-    ADJUSTMENT_LOST_THEFT: { title: '&#10134; Remove / Lost',    desc: 'Scan or type the SKU or ASIN of units to remove from live stock — lost, damaged beyond sale, stolen, or any other manual removal. Always add a note explaining why — this permanently reduces live stock.', sign: -1, requireNote: true },
-    QC_HOLD:               { title: '&#128295; QC Hold',        desc: 'Remove stock found damaged or failing QC — always logged with a reason. Does not delete the units, just removes them from sellable count.', sign: -1, requireNote: true },
+    ADJUSTMENT_FOUND:      { title: '&#10133; Found Units',     desc: 'Scan or type the SKU or ASIN of units found during a stock check that weren’t in the system. A note is recommended but not required.', sign: 1 },
+    ADJUSTMENT_LOST_THEFT: { title: '&#10134; Remove / Lost',    desc: 'Scan or type the SKU or ASIN of units to remove from live stock — lost, damaged beyond sale, stolen, or any other manual removal. This permanently reduces live stock; a note is recommended but not required. The system will not let this go below what is actually recorded in that bin or in total.', sign: -1 },
+    QC_HOLD:               { title: '&#128295; QC Hold',        desc: 'Remove stock found damaged or failing QC. Does not delete the units, just removes them from sellable count. A note is recommended but not required.', sign: -1 },
     // v50: QC Release — new 6th MOVE mode, single-row equivalent of the existing
     // Bulk CSV "QC_RELEASE" action. Key is ADJUSTMENT_QC_RELEASE (not QC_RELEASE)
     // on purpose: submitMoveTransaction() passes moveMode straight through as
@@ -1710,7 +1717,7 @@ var MOVE_MODES = {
     // MANUAL_CORRECTION row — mirrors PushClosingStockOverride on the Excel
     // side exactly. bin is optional here (the database itself allows
     // MANUAL_CORRECTION without a bin_code — every other txn_type requires one).
-    MANUAL_CORRECTION:     { title: '&#9878; Set True Count', desc: 'For a physical stock count only — not daily use. Enter the SKU\u2019s TRUE total quantity right now, across all bins. The app looks up the current live total and saves only the difference. Always explain why.', isCorrection: true, requireNote: true }
+    MANUAL_CORRECTION:     { title: '&#9878; Set True Count', desc: 'For a physical stock count only — not daily use. Enter the SKU\u2019s TRUE total quantity right now, across all bins. The app looks up the current live total and saves only the difference. A note is recommended but not required.', isCorrection: true }
 };
 var moveMode = 'NEW_STOCK_IN';
 
@@ -1745,19 +1752,34 @@ function loadBinList() {
 // bin the user already typed.
 function prefillMoveBin() {
     var binEl = document.getElementById('move-bin-input');
+    var hintEl = document.getElementById('move-live-bin-hint');
     var skuVal = (document.getElementById('move-sku-input').value || '').trim();
-    if (!skuVal || (binEl.value || '').trim()) return;
+    if (hintEl) hintEl.textContent = '';
+    if (!skuVal) return;
     resolveSkuOrAsin(skuVal).then(function(sku) {
-        if (!sku || (binEl.value || '').trim()) return;
-        if (sku.default_bin) {
-            binEl.value = sku.default_bin;
-        } else if (sku.live_bins && sku.live_bins.length === 1) {
-            // v54: no registered default_bin, but the SKU currently sits in
-            // exactly one live bin — prefill that instead of leaving it
-            // blank. Directly closes the gap that let the 2026-08-19 A1 (-4)
-            // anomaly happen: this SKU had no default_bin, so nothing was
-            // ever suggested and the wrong bin got typed with no prompt.
-            binEl.value = sku.live_bins[0].bin_code;
+        if (!sku) return;
+        var liveBins = (sku.live_bins || []).filter(function(b) { return b.bin_code; });
+        // v56: LIVE bin data wins over the (sometimes stale) registered
+        // default_bin — see binMismatchNote() comment for why. Auto-fill only
+        // when there's exactly one live bin (unambiguous); when stock is
+        // split across bins, leave the field blank so staff picks
+        // deliberately instead of the app guessing wrong — the hint line
+        // below shows every option either way.
+        if (!(binEl.value || '').trim()) {
+            if (liveBins.length === 1) {
+                binEl.value = liveBins[0].bin_code;
+            } else if (!liveBins.length && sku.default_bin) {
+                binEl.value = sku.default_bin;
+            }
+        }
+        if (hintEl) {
+            if (liveBins.length) {
+                hintEl.textContent = 'Live: ' + liveBins.map(function(b) { return b.bin_code + ':' + b.qty_on_hand; }).join('  \u2022  ');
+            } else if (sku.default_bin) {
+                hintEl.textContent = 'No live stock recorded yet — usual bin: ' + sku.default_bin;
+            } else {
+                hintEl.textContent = 'No live stock or usual bin on record for this SKU yet.';
+            }
         }
     });
 }
@@ -1774,6 +1796,8 @@ function setMoveMode(mode) {
     document.getElementById('move-result').textContent = '';
     document.getElementById('move-sku-input').value = '';
     document.getElementById('move-bin-input').value = '';
+    var liveBinHintEl = document.getElementById('move-live-bin-hint');
+    if (liveBinHintEl) liveBinHintEl.textContent = '';
     // v52: "Set True Count" reuses the qty field for an absolute count, not a
     // delta — 0 is a valid, meaningful entry there (a full stock-out), so the
     // input's min/placeholder/default change for that mode only.
@@ -1825,7 +1849,10 @@ function submitMoveTransaction() {
     } else if (!qtyVal || qtyVal < 1) {
         resEl.className = 'move-result err'; resEl.textContent = 'Enter a valid quantity (1 or more).'; return;
     }
-    if (cfg.requireNote && !note) { resEl.className = 'move-result err'; resEl.textContent = 'A note is required for ' + cfg.title.replace(/&#\d+;/g, '').trim() + ' adjustments.'; return; }
+    // v56: notes are recommended, never mandatory — removed the hard 'note
+    // required' block that used to sit here for Found/Lost/QC Hold/Set True
+    // Count. The real safety net against bad removals is the database-level
+    // non-negative check (see writeLedgerTxn), not a forced explanation.
     var emp = loadEmployee();
     if (!emp || !emp.code) { resEl.className = 'move-result err'; resEl.textContent = 'Set your employee code first (Settings tab).'; return; }
 
@@ -1875,6 +1902,7 @@ function submitMoveTransaction() {
                     document.getElementById('move-bin-input').value = '';
                     document.getElementById('move-qty-input').value = '0';
                     document.getElementById('move-note-input').value = '';
+                    if (document.getElementById('move-live-bin-hint')) document.getElementById('move-live-bin-hint').textContent = '';
                     try { document.getElementById('move-sku-input').focus(); } catch(e) {}
                 });
             });
@@ -1902,6 +1930,7 @@ function submitMoveTransaction() {
             document.getElementById('move-bin-input').value = '';
             document.getElementById('move-qty-input').value = '1';
             document.getElementById('move-note-input').value = '';
+            if (document.getElementById('move-live-bin-hint')) document.getElementById('move-live-bin-hint').textContent = '';
             try { document.getElementById('move-sku-input').focus(); } catch(e) {}
         });
     }).catch(function(err) {

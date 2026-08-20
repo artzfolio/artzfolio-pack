@@ -214,7 +214,7 @@ tbody tr:hover{background:#f9fbfd}
     </ul>
     <div class="sidebar-footer">
       <button class="logout-btn" onclick="adminLogout()">⎋ Logout</button>
-      <div class="ver-footer">ArtzFolio Admin Panel v2.7<br>2026-08-20 &bull; Fixed: Adjust Stock bin-mismatch note now also falls back to live bin data when a SKU has no registered default bin (same root-cause fix as App v55, closing the gap behind the 2026-08-19 bin A1 (-4) ledger anomaly) &bull; Fixed: SKU &amp; Stock table and Full CSV Export could silently show blank stock/bin data on large batches — .in() lookups now chunked (150 codes/request) with errors surfaced instead of swallowed &bull; SKU &amp; Stock: Default Bin + Live Bins columns (full multi-bin breakdown, in both on-screen table and CSV exports) &bull; Reports: Txn Type filter now covers all 13 ledger types (was missing QC Release, Rejected, Bin Transfers, Inventory Sync, Opening Balance) &bull; Audit Log High-Risk Filter Fix &amp; Relocate/Merge Bins Confirmation &bull; Bin/Employee Dropdowns &amp; Bin-Mismatch Notes &bull; Audit Log High-Risk Filter &bull; Bin Management (Rename/Merge/Deactivate) &bull; Call Timeouts &bull; Settings &amp; Self-Service Secret Rotation &bull; Session Security &bull; Full CSV Export &bull; Realtime Dashboard/Audit Log &bull; Bulk Employee Actions &bull; Deeper Reports</div>
+      <div class="ver-footer">ArtzFolio Admin Panel v2.8<br>2026-08-20 &bull; Live stock can no longer go negative — database-level check on every removal (Adjust Stock included), at both SKU and bin level (same fix as App v56) &bull; Adjust Stock note is now recommended, not mandatory &bull; Fixed: Adjust Stock bin-mismatch note now also falls back to live bin data when a SKU has no registered default bin (same root-cause fix as App v55, closing the gap behind the 2026-08-19 bin A1 (-4) ledger anomaly) &bull; Fixed: SKU &amp; Stock table and Full CSV Export could silently show blank stock/bin data on large batches — .in() lookups now chunked (150 codes/request) with errors surfaced instead of swallowed &bull; SKU &amp; Stock: Default Bin + Live Bins columns (full multi-bin breakdown, in both on-screen table and CSV exports) &bull; Reports: Txn Type filter now covers all 13 ledger types (was missing QC Release, Rejected, Bin Transfers, Inventory Sync, Opening Balance) &bull; Audit Log High-Risk Filter Fix &amp; Relocate/Merge Bins Confirmation &bull; Bin/Employee Dropdowns &amp; Bin-Mismatch Notes &bull; Audit Log High-Risk Filter &bull; Bin Management (Rename/Merge/Deactivate) &bull; Call Timeouts &bull; Settings &amp; Self-Service Secret Rotation &bull; Session Security &bull; Full CSV Export &bull; Realtime Dashboard/Audit Log &bull; Bulk Employee Actions &bull; Deeper Reports</div>
     </div>
   </div>
 
@@ -634,7 +634,7 @@ tbody tr:hover{background:#f9fbfd}
              loaded for the Audit Log/Reports employee filters. -->
         <select id="adjust-stock-emp"></select>
       </div>
-      <div class="form-field" style="grid-column:1 / -1;"><label>Note (required)</label><input type="text" id="adjust-stock-note" placeholder="Why is this being adjusted?"></div>
+      <div class="form-field" style="grid-column:1 / -1;"><label>Note (optional, recommended)</label><input type="text" id="adjust-stock-note" placeholder="Why is this being adjusted?"></div>
     </div>
     <!-- v2.3: non-blocking bin-mismatch note - see checkAdjustStockBinMismatch() -->
     <div class="hint-text" id="adjust-stock-bin-note" style="margin:-6px 0 10px;"></div>
@@ -1411,7 +1411,9 @@ function submitAdjustStock() {
 
   if (!sku) { resEl.className = 'result-msg err'; resEl.textContent = 'No SKU selected.'; return; }
   if (!qty || isNaN(qty) || qty === 0) { resEl.className = 'result-msg err'; resEl.textContent = 'Enter a non-zero whole number (e.g. 5 or -3).'; return; }
-  if (!note) { resEl.className = 'result-msg err'; resEl.textContent = 'A note is required — say why this is being adjusted.'; return; }
+  // v2.8: note is recommended, not mandatory — the real safety net against
+  // a bad adjustment is the database-level non-negative check (below), not a
+  // forced explanation. Matches the same change made in the App's MOVE tab.
   if (!emp) { resEl.className = 'result-msg err'; resEl.textContent = 'Enter your Employee Code.'; return; }
 
   var secret = getAdminSecret();
