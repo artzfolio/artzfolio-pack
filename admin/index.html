@@ -214,7 +214,7 @@ tbody tr:hover{background:#f9fbfd}
     </ul>
     <div class="sidebar-footer">
       <button class="logout-btn" onclick="adminLogout()">⎋ Logout</button>
-      <div class="ver-footer">ArtzFolio Admin Panel v2.9<br>2026-08-20 &bull; Bin is now mandatory on EVERY stock adjustment, zero exceptions — the old "defaults to RECEIVING" fallback is removed at both the UI and database level (Seller Flex discipline) (v2.9) &bull; Live stock can no longer go negative — database-level check on every removal (Adjust Stock included), at both SKU and bin level (same fix as App v56) &bull; Adjust Stock note is now recommended, not mandatory &bull; Fixed: Adjust Stock bin-mismatch note now also falls back to live bin data when a SKU has no registered default bin (same root-cause fix as App v55, closing the gap behind the 2026-08-19 bin A1 (-4) ledger anomaly) &bull; Fixed: SKU &amp; Stock table and Full CSV Export could silently show blank stock/bin data on large batches — .in() lookups now chunked (150 codes/request) with errors surfaced instead of swallowed &bull; SKU &amp; Stock: Default Bin + Live Bins columns (full multi-bin breakdown, in both on-screen table and CSV exports) &bull; Reports: Txn Type filter now covers all 13 ledger types (was missing QC Release, Rejected, Bin Transfers, Inventory Sync, Opening Balance) &bull; Audit Log High-Risk Filter Fix &amp; Relocate/Merge Bins Confirmation &bull; Bin/Employee Dropdowns &amp; Bin-Mismatch Notes &bull; Audit Log High-Risk Filter &bull; Bin Management (Rename/Merge/Deactivate) &bull; Call Timeouts &bull; Settings &amp; Self-Service Secret Rotation &bull; Session Security &bull; Full CSV Export &bull; Realtime Dashboard/Audit Log &bull; Bulk Employee Actions &bull; Deeper Reports</div>
+      <div class="ver-footer">ArtzFolio Admin Panel v2.10<br>2026-08-21 &bull; SKU &amp; Stock's "Low stock" filter and qty-warning badge now use the effective reorder point (manual threshold if set, else calculated from real trailing-30-day sales velocity × lead time) instead of the raw manual threshold, which was always 0 for every SKU — the filter previously could never match anything &bull; Reports Txn Type filter and Adjust Stock's Reason dropdown both gained RETURN_WRONG_ITEM (Gap 4 — returns grading) (v2.10) &bull; 2026-08-20 &bull; Bin is now mandatory on EVERY stock adjustment, zero exceptions — the old "defaults to RECEIVING" fallback is removed at both the UI and database level (Seller Flex discipline) (v2.9) &bull; Live stock can no longer go negative — database-level check on every removal (Adjust Stock included), at both SKU and bin level (same fix as App v56) &bull; Adjust Stock note is now recommended, not mandatory &bull; Fixed: Adjust Stock bin-mismatch note now also falls back to live bin data when a SKU has no registered default bin (same root-cause fix as App v55, closing the gap behind the 2026-08-19 bin A1 (-4) ledger anomaly) &bull; Fixed: SKU &amp; Stock table and Full CSV Export could silently show blank stock/bin data on large batches — .in() lookups now chunked (150 codes/request) with errors surfaced instead of swallowed &bull; SKU &amp; Stock: Default Bin + Live Bins columns (full multi-bin breakdown, in both on-screen table and CSV exports) &bull; Reports: Txn Type filter now covers all 13 ledger types (was missing QC Release, Rejected, Bin Transfers, Inventory Sync, Opening Balance) &bull; Audit Log High-Risk Filter Fix &amp; Relocate/Merge Bins Confirmation &bull; Bin/Employee Dropdowns &amp; Bin-Mismatch Notes &bull; Audit Log High-Risk Filter &bull; Bin Management (Rename/Merge/Deactivate) &bull; Call Timeouts &bull; Settings &amp; Self-Service Secret Rotation &bull; Session Security &bull; Full CSV Export &bull; Realtime Dashboard/Audit Log &bull; Bulk Employee Actions &bull; Deeper Reports</div>
     </div>
   </div>
 
@@ -490,6 +490,7 @@ tbody tr:hover{background:#f9fbfd}
             <option>ADJUSTMENT_REJECTED</option>
             <option>BIN_TRANSFER_OUT</option><option>BIN_TRANSFER_IN</option>
             <option>INVENTORY_SYNC</option><option>OPENING_BALANCE</option>
+            <option>RETURN_WRONG_ITEM</option>
           </select>
         </div>
         <div class="filter-actions">
@@ -613,6 +614,7 @@ tbody tr:hover{background:#f9fbfd}
           <option value="ADJUSTMENT_QC_RELEASE">QC Release (back to sellable)</option>
           <option value="NEW_STOCK_IN">New Stock In</option>
           <option value="RETURN_IN">Return In</option>
+          <option value="RETURN_WRONG_ITEM">Return — Wrong Item (flag for review, not sellable)</option>
           <option value="MANUAL_CORRECTION">Manual Correction (other)</option>
         </select>
       </div>
@@ -2024,21 +2026,30 @@ function loadSkuStock(page) {
     var skuStockErrors = [];
     Promise.all([
       fetchInChunks('oms_current_stock', 'sku_code, qty_on_hand', codes, 150, 10000, 'SKU stock join', skuStockErrors),
-      fetchInChunks('oms_sku_bin_breakdown', 'sku_code, bin_count, bin_breakdown_text', codes, 150, 10000, 'SKU bin breakdown join', skuStockErrors)
+      fetchInChunks('oms_sku_bin_breakdown', 'sku_code, bin_count, bin_breakdown_text', codes, 150, 10000, 'SKU bin breakdown join', skuStockErrors),
+      // v2.10 (Feature 2): effective reorder point — manual reorder_threshold
+      // when set, else calculated from real trailing-30-day sales velocity.
+      // The "low" filter and qty-warn badge below now use this instead of
+      // the raw manual threshold, which was always 0 for every SKU (nobody
+      // had ever set one) and so silently never matched anything.
+      fetchInChunks('oms_sku_reorder_info', 'sku_code, effective_reorder_point', codes, 150, 10000, 'SKU reorder info join', skuStockErrors)
     ]).then(function (results) {
       if (skuStockErrors.length) console.warn('SKU & Stock table: ' + skuStockErrors.length + ' lookup chunk error(s):', skuStockErrors);
       var stockMap = {};
       results[0].forEach(function (s) { stockMap[s.sku_code] = s.qty_on_hand; });
       var binMap = {};
       results[1].forEach(function (b) { binMap[b.sku_code] = b; });
+      var reorderMap = {};
+      results[2].forEach(function (r) { reorderMap[r.sku_code] = r.effective_reorder_point; });
 
       var merged = skus.map(function (s) {
         var qty = stockMap.hasOwnProperty(s.sku_code) ? stockMap[s.sku_code] : null;
         var bin = binMap[s.sku_code] || null;
+        var effReorder = reorderMap.hasOwnProperty(s.sku_code) ? reorderMap[s.sku_code] : null;
         var passesStockFilter = true;
         if (stockFilter === 'negative') passesStockFilter = qty !== null && qty < 0;
-        if (stockFilter === 'low') passesStockFilter = qty !== null && s.reorder_threshold !== null && qty <= s.reorder_threshold;
-        return Object.assign({}, s, { qty_on_hand: qty, bin_count: bin ? bin.bin_count : 0, bin_breakdown_text: bin ? bin.bin_breakdown_text : '', _pass: passesStockFilter });
+        if (stockFilter === 'low') passesStockFilter = qty !== null && effReorder !== null && effReorder > 0 && qty <= effReorder;
+        return Object.assign({}, s, { qty_on_hand: qty, bin_count: bin ? bin.bin_count : 0, bin_breakdown_text: bin ? bin.bin_breakdown_text : '', effective_reorder_point: effReorder, _pass: passesStockFilter });
       });
       var filtered = stockFilter ? merged.filter(function (m) { return m._pass; }) : merged;
       skuLastRows = filtered;
@@ -2050,7 +2061,7 @@ function loadSkuStock(page) {
           var qtyCell = '—';
           if (s.qty_on_hand !== null) {
             if (s.qty_on_hand < 0) qtyCell = '<span class="qty-low">' + fmtNum(s.qty_on_hand) + '</span>';
-            else if (s.reorder_threshold !== null && s.qty_on_hand <= s.reorder_threshold) qtyCell = '<span class="qty-warn">' + fmtNum(s.qty_on_hand) + '</span>';
+            else if (s.effective_reorder_point !== null && s.effective_reorder_point > 0 && s.qty_on_hand <= s.effective_reorder_point) qtyCell = '<span class="qty-warn">' + fmtNum(s.qty_on_hand) + '</span>';
             else qtyCell = '<span class="qty-ok">' + fmtNum(s.qty_on_hand) + '</span>';
           }
           // v2.5: "Live Bins" — full breakdown if split across 2+ bins,
@@ -2087,7 +2098,7 @@ function exportSkuCSV() {
     return {
       sku_code: s.sku_code, asin: s.asin, product_name: s.product_name, product_type: s.product_type,
       qty_on_hand: s.qty_on_hand, default_bin: s.default_bin || '', live_bins: s.bin_breakdown_text || '',
-      reorder_threshold: s.reorder_threshold, cost_price: s.cost_price,
+      reorder_threshold: s.reorder_threshold, effective_reorder_point: s.effective_reorder_point, cost_price: s.cost_price,
       mrp: s.mrp, active: s.active
     };
   });
@@ -2120,19 +2131,23 @@ function exportSkuFullCSV() {
       // v2.6: chunked via fetchInChunks() — see helper comment above.
       return Promise.all([
         fetchInChunks('oms_current_stock', 'sku_code, qty_on_hand', codes, 150, 15000, 'SKU full export (stock)', skuExportErrors),
-        fetchInChunks('oms_sku_bin_breakdown', 'sku_code, bin_breakdown_text', codes, 150, 15000, 'SKU full export (bins)', skuExportErrors)
+        fetchInChunks('oms_sku_bin_breakdown', 'sku_code, bin_breakdown_text', codes, 150, 15000, 'SKU full export (bins)', skuExportErrors),
+        fetchInChunks('oms_sku_reorder_info', 'sku_code, effective_reorder_point', codes, 150, 15000, 'SKU full export (reorder)', skuExportErrors)
       ]).then(function (joinResults) {
         var stockMap = {};
         joinResults[0].forEach(function (s) { stockMap[s.sku_code] = s.qty_on_hand; });
         var binMap = {};
         joinResults[1].forEach(function (b) { binMap[b.sku_code] = b.bin_breakdown_text; });
+        var reorderMap = {};
+        joinResults[2].forEach(function (r) { reorderMap[r.sku_code] = r.effective_reorder_point; });
         var merged = skus.map(function (s) {
           var qty = stockMap.hasOwnProperty(s.sku_code) ? stockMap[s.sku_code] : null;
-          return Object.assign({}, s, { qty_on_hand: qty, bin_breakdown_text: binMap[s.sku_code] || '' });
+          var effReorder = reorderMap.hasOwnProperty(s.sku_code) ? reorderMap[s.sku_code] : null;
+          return Object.assign({}, s, { qty_on_hand: qty, bin_breakdown_text: binMap[s.sku_code] || '', effective_reorder_point: effReorder });
         });
         var filtered = merged.filter(function (s) {
           if (stockFilter === 'negative') return s.qty_on_hand !== null && s.qty_on_hand < 0;
-          if (stockFilter === 'low') return s.qty_on_hand !== null && s.reorder_threshold !== null && s.qty_on_hand <= s.reorder_threshold;
+          if (stockFilter === 'low') return s.qty_on_hand !== null && s.effective_reorder_point !== null && s.effective_reorder_point > 0 && s.qty_on_hand <= s.effective_reorder_point;
           return true;
         });
         accumulated = accumulated.concat(filtered);

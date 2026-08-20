@@ -268,7 +268,7 @@
     </style>
 </head>
 <body>
-<div class="ver-corner" id="verCornerBadge">v59</div>
+<div class="ver-corner" id="verCornerBadge">v60</div>
 <!-- v51: brief on-screen warning if a pick's stock deduction fails to save to the live
      database — the PICK flow deliberately advances immediately to the next scan (multi-line
      picks must not be blocked), so this is a visible, dismissible heads-up in addition to the
@@ -436,6 +436,19 @@
                      actual options before submitting instead of trusting an auto-fill that
                      can be wrong (root cause of the 2026-08-20 POD1 mismatch). -->
                 <div id="move-live-bin-hint" style="font-size:10px;color:#888;margin:-4px 0 6px 2px;"></div>
+                <!-- v60: Returns grading (Gap 4) — only shown in Returns mode. "Good"
+                     behaves exactly as before (single RETURN_IN, unchanged). "Damaged"
+                     and "Wrong Item" write RETURN_IN immediately followed by a second
+                     ledger row that reverses the sellable-stock effect, so a bad return
+                     is honestly recorded as having arrived without ever counting as
+                     available-to-sell stock — see submitMoveTransaction(). -->
+                <div class="settings-row" id="move-return-grade-row" style="display:none;">
+                    <select class="settings-input" id="move-return-grade">
+                        <option value="GOOD">&#9989; Good — sellable, add back to stock</option>
+                        <option value="DAMAGED">&#9888; Damaged — hold for QC, not sellable</option>
+                        <option value="WRONG_ITEM">&#10067; Wrong item — flag for manual review, not restocked</option>
+                    </select>
+                </div>
                 <div class="settings-row">
                     <input type="number" class="settings-input" id="move-qty-input" placeholder="Quantity" min="1" value="1" style="max-width:110px">
                     <input type="text" class="settings-input" id="move-note-input" placeholder="Note (optional — e.g. PO number, reason)">
@@ -527,6 +540,12 @@
                 </select>
                 <select id="stock-filter-category" onchange="onStockFilterChange()">
                     <option value="">All categories</option>
+                </select>
+                <select id="stock-filter-abc" onchange="onStockFilterChange()">
+                    <option value="">All ABC tiers</option>
+                    <option value="A">A — fast movers</option>
+                    <option value="B">B — medium movers</option>
+                    <option value="C">C — slow/no sales yet</option>
                 </select>
                 <select id="stock-sort-by" onchange="onStockFilterChange()">
                     <option value="sku_code:asc">Sort: SKU (A &rarr; Z)</option>
@@ -758,8 +777,8 @@
 
             <!-- Version -->
             <div class="ver-badge">
-                <div class="ver-name">&#128230; ArtzFolio Scan-Pick-Pack v59</div>
-                <div class="ver-sub">Settings' local scan log renamed to "My Recent Scans (this device only)" so it can never be confused with the real, permanent, server-side Audit Log in the Admin Panel; new "My Activity (server record)" section added underneath it, pulling the logged-in employee's own last 50 actions straight from the live ledger — durable, survives clearing this device, on-demand load (v59) &bull; STOCK tab now has full filters &amp; sort — by stock status (in stock / low stock / out of stock), by category, and sort by SKU, ASIN, or Product Title (A&rarr;Z or Z&rarr;A), plus Qty high&rarr;low/low&rarr;high; every row now shows product name, category, and a colour status badge (v58) &bull; New SKU inbound via Quick Scan now defaults the bin to A1 automatically when no bin is entered and the SKU has no bin history yet — clearly shown as a hint under the bin field (v58) &bull; Bin is now mandatory on EVERY stock movement, zero exceptions — including Set True Count / Manual Correction, whose bin exemption is removed at both the UI and database level (Seller Flex discipline) (v57) &bull; Live stock can no longer go negative — database-level check on every removal, at both SKU and bin level, rejecting anything that would exceed what is actually recorded there (v56) &bull; Notes are now recommended, never mandatory, on Found/Remove-Lost/QC Hold/Set True Count (v56) &bull; Bin auto-fill and mismatch warnings now trust live bin data over the SKU registry's (sometimes stale) usual-bin field, and a live per-bin quantity line shows under the bin field on every SKU scan (v56) &bull; Bin-mismatch warning now also fires for SKUs with no registered default bin, using their live bin data instead — closes the gap behind the 2026-08-19 bin A1 (-4) ledger anomaly; same fix applied to MOVE tab bin auto-fill, Set True Count, and Bulk Upload (v55) &bull; All remaining unchunked .in() lookups (Stock list bin map, Bin Lookup activity breakdown) now chunked for consistency (v55) &bull; Export Full Inventory fixed &amp; expanded — chunked lookups (no more silent data loss on large batches), now includes pricing, reorder threshold, active status, and full per-SKU activity breakdown (v54) &bull; Live Stock list now shows bin(s) per SKU (v53) &bull; One-click Export Full Inventory - all SKUs, ASIN, product, qty, bins (v53) &bull; Set True Count / Manual Correction (v52) &bull; Bin Lookup Full Detail Table with Activity Breakdown, ASIN, Last Updated (v52) &bull; Bin Usage Summary (v52) &bull; Per-SKU History Drilldown (v52) &bull; Bin Lookup CSV Export (v52) &bull; Soft Bin-Mismatch Note (MOVE + Bulk Upload, never blocks) &bull; entry_source Audit Tag on Every Write &bull; Bulk Upload from CSV (Inbound/Transfer/Found/Lost/Rejected/QC) &bull; Live Bin Lookup (Single SKU / Single Bin / Bulk) &bull; Dynamic Bins (auto-created, no fixed list) &bull; Mandatory Bin on Every Stock Movement &bull; Owner Dashboard (DASH) &bull; 14-Day Staff Performance &bull; Print Product/Bin Labels &bull; QC Hold/Damage &bull; Low-Stock Alerts &bull; Daily Reconciliation &bull; Admin PIN-Lock Unlock &bull; Real Employee Login (PIN) &bull; RBAC &bull; Live Database (Supabase) &bull; Admin-Secret-Gated PIN Recovery &bull; Permanent Audit Log &bull; Hardened Employee Writes (Admin-RPC-Only) &bull; Call Timeouts &amp; Error Handling (Performance Fix)</div>
+                <div class="ver-name">&#128230; ArtzFolio Scan-Pick-Pack v60</div>
+                <div class="ver-sub">Phase 2 of the 7-Features/6-Gaps build: dynamic reorder points (Feature 2) — reorder point is now the manual threshold if set, else calculated from real trailing-30-day sales velocity × lead time; STOCK tab shows the reasoning on each row and the LOW_STOCK/OUT_OF_STOCK banner is now a real, working number (it silently always showed 0 before, since every SKU had a manual threshold of exactly 0) &bull; ABC/velocity classification (Feature 3) — every active SKU tagged A/B/C by standard 80/20 Pareto method on real sales volume, new STOCK tab filter; will show C for everyone until real sales history accumulates &bull; Returns grading (Gap 4) — Returns mode now asks Good/Damaged/Wrong Item; Damaged and Wrong Item are recorded as arrived but immediately held, never silently added to sellable stock (v60) &bull; Settings' local scan log renamed to "My Recent Scans (this device only)" so it can never be confused with the real, permanent, server-side Audit Log in the Admin Panel; new "My Activity (server record)" section added underneath it, pulling the logged-in employee's own last 50 actions straight from the live ledger — durable, survives clearing this device, on-demand load (v59) &bull; STOCK tab now has full filters &amp; sort — by stock status (in stock / low stock / out of stock), by category, and sort by SKU, ASIN, or Product Title (A&rarr;Z or Z&rarr;A), plus Qty high&rarr;low/low&rarr;high; every row now shows product name, category, and a colour status badge (v58) &bull; New SKU inbound via Quick Scan now defaults the bin to A1 automatically when no bin is entered and the SKU has no bin history yet — clearly shown as a hint under the bin field (v58) &bull; Bin is now mandatory on EVERY stock movement, zero exceptions — including Set True Count / Manual Correction, whose bin exemption is removed at both the UI and database level (Seller Flex discipline) (v57) &bull; Live stock can no longer go negative — database-level check on every removal, at both SKU and bin level, rejecting anything that would exceed what is actually recorded there (v56) &bull; Notes are now recommended, never mandatory, on Found/Remove-Lost/QC Hold/Set True Count (v56) &bull; Bin auto-fill and mismatch warnings now trust live bin data over the SKU registry's (sometimes stale) usual-bin field, and a live per-bin quantity line shows under the bin field on every SKU scan (v56) &bull; Bin-mismatch warning now also fires for SKUs with no registered default bin, using their live bin data instead — closes the gap behind the 2026-08-19 bin A1 (-4) ledger anomaly; same fix applied to MOVE tab bin auto-fill, Set True Count, and Bulk Upload (v55) &bull; All remaining unchunked .in() lookups (Stock list bin map, Bin Lookup activity breakdown) now chunked for consistency (v55) &bull; Export Full Inventory fixed &amp; expanded — chunked lookups (no more silent data loss on large batches), now includes pricing, reorder threshold, active status, and full per-SKU activity breakdown (v54) &bull; Live Stock list now shows bin(s) per SKU (v53) &bull; One-click Export Full Inventory - all SKUs, ASIN, product, qty, bins (v53) &bull; Set True Count / Manual Correction (v52) &bull; Bin Lookup Full Detail Table with Activity Breakdown, ASIN, Last Updated (v52) &bull; Bin Usage Summary (v52) &bull; Per-SKU History Drilldown (v52) &bull; Bin Lookup CSV Export (v52) &bull; Soft Bin-Mismatch Note (MOVE + Bulk Upload, never blocks) &bull; entry_source Audit Tag on Every Write &bull; Bulk Upload from CSV (Inbound/Transfer/Found/Lost/Rejected/QC) &bull; Live Bin Lookup (Single SKU / Single Bin / Bulk) &bull; Dynamic Bins (auto-created, no fixed list) &bull; Mandatory Bin on Every Stock Movement &bull; Owner Dashboard (DASH) &bull; 14-Day Staff Performance &bull; Print Product/Bin Labels &bull; QC Hold/Damage &bull; Low-Stock Alerts &bull; Daily Reconciliation &bull; Admin PIN-Lock Unlock &bull; Real Employee Login (PIN) &bull; RBAC &bull; Live Database (Supabase) &bull; Admin-Secret-Gated PIN Recovery &bull; Permanent Audit Log &bull; Hardened Employee Writes (Admin-RPC-Only) &bull; Call Timeouts &amp; Error Handling (Performance Fix)</div>
             </div>
         </div>
     </div>
@@ -1952,6 +1971,12 @@ function setMoveMode(mode) {
     // v57: bin is required in every mode now, including Set True Count.
     binInput.placeholder = 'Bin location (required)';
     document.getElementById('move-note-input').value = '';
+    // v60: returns grading row only shows in Returns mode, and always resets
+    // to Good (today's exact default behaviour) on every mode switch.
+    var gradeRow = document.getElementById('move-return-grade-row');
+    if (gradeRow) gradeRow.style.display = (mode === 'RETURN_IN') ? '' : 'none';
+    var gradeSel = document.getElementById('move-return-grade');
+    if (gradeSel) gradeSel.value = 'GOOD';
     loadBinList();
     try { document.getElementById('move-sku-input').focus(); } catch(e) {}
 }
@@ -2045,6 +2070,53 @@ function submitMoveTransaction() {
             });
         }
 
+        // v60: Returns grading (Gap 4). GOOD (the default, and every non-Returns
+        // mode) falls through to the single-write path below, unchanged from
+        // before. DAMAGED/WRONG_ITEM write RETURN_IN (it did physically arrive)
+        // immediately followed by a second row that reverses the effect on
+        // sellable qty_on_hand — QC_HOLD (reused as-is, same "held, not
+        // sellable" meaning it already has) for damaged, or the new
+        // RETURN_WRONG_ITEM type for an item whose identity itself needs a
+        // human to check before it counts as real stock. Net effect on visible
+        // stock is zero either way; both real events are honestly recorded.
+        var returnGrade = (moveMode === 'RETURN_IN') ? ((document.getElementById('move-return-grade') || {}).value || 'GOOD') : 'GOOD';
+        if (moveMode === 'RETURN_IN' && returnGrade !== 'GOOD') {
+            resEl.textContent = 'Saving...';
+            var holdType = returnGrade === 'DAMAGED' ? 'QC_HOLD' : 'RETURN_WRONG_ITEM';
+            var holdLabel = returnGrade === 'DAMAGED' ? 'Damaged return — auto QC-held, not sellable.' : 'Wrong item — flagged for manual review, not restocked.';
+            var combinedNote = holdLabel + (note ? ' ' + note : '');
+            return writeLedgerTxn({
+                skuCode: sku.sku_code, asin: sku.asin, qtyDelta: qtyVal,
+                txnType: 'RETURN_IN', binCode: binVal, note: combinedNote
+            }).then(function(result1) {
+                if (!result1.ok) {
+                    resEl.className = 'move-result err';
+                    resEl.textContent = '❌ Could not save: ' + result1.reason;
+                    return;
+                }
+                return writeLedgerTxn({
+                    skuCode: sku.sku_code, asin: sku.asin, qtyDelta: -qtyVal,
+                    txnType: holdType, binCode: binVal, note: combinedNote
+                }).then(function(result2) {
+                    if (!result2.ok) {
+                        resEl.className = 'move-result err';
+                        resEl.textContent = '⚠️ Return recorded as arrived, but could NOT be held (' + result2.reason + '). It is currently showing as sellable stock — go to MOVE › QC Hold and remove it manually, or ask an admin to check.';
+                        return;
+                    }
+                    resEl.className = 'move-result ok';
+                    resEl.textContent = '✓ Saved — ' + sku.sku_code + ' (' + (sku.product_name || '') + ') recorded as a ' + (returnGrade === 'DAMAGED' ? 'damaged' : 'wrong-item') + ' return @ bin ' + binVal + '. Not added to sellable stock.' + binMismatchNote(sku, binVal);
+                    logEvent(sku.sku_code, 'Return (' + returnGrade + '): +' + qtyVal + ' then -' + qtyVal + ' (' + holdType + ') @ ' + binVal + (note ? ' — ' + note : ''));
+                    writeAuditLog('RETURN_IN', { skuCode: sku.sku_code, details: { grade: returnGrade, qty: qtyVal, bin_code: binVal, note: note || null, product_name: sku.product_name || null } });
+                    document.getElementById('move-sku-input').value = '';
+                    document.getElementById('move-bin-input').value = '';
+                    document.getElementById('move-qty-input').value = '1';
+                    document.getElementById('move-note-input').value = '';
+                    if (document.getElementById('move-live-bin-hint')) document.getElementById('move-live-bin-hint').textContent = '';
+                    try { document.getElementById('move-sku-input').focus(); } catch(e) {}
+                });
+            });
+        }
+
         resEl.textContent = 'Saving...';
         return writeLedgerTxn({
             skuCode: sku.sku_code,
@@ -2131,6 +2203,7 @@ function onStockFilterChange() {
 function clearStockFilters() {
     document.getElementById('stock-filter-status').value = '';
     document.getElementById('stock-filter-category').value = '';
+    document.getElementById('stock-filter-abc').value = '';
     document.getElementById('stock-sort-by').value = 'sku_code:asc';
     document.getElementById('stock-search-input').value = '';
     stockPage = 0;
@@ -2177,7 +2250,13 @@ function stockNextPage() {
 // Title sort can be applied server-side. Still range()-paginated exactly as
 // before -- the view changes what columns/filters are available, not the
 // v43 pagination behaviour.
-var STOCK_EXPLORER_COLS = 'sku_code,asin,qty_on_hand,last_movement_at,product_name,product_type,stock_status,reorder_threshold';
+// v60: added effective_reorder_point/calculated_reorder_point/avg_daily_sales_30d
+// (Feature 2 — dynamic reorder points). effective_reorder_point is what
+// stock_status is actually computed against server-side now: the manual
+// reorder_threshold when set (>0), else a calculated point derived from real
+// trailing-30-day sales velocity x lead_time_days. Shown on each row so
+// staff can see WHY a SKU is flagged, not just that it is.
+var STOCK_EXPLORER_COLS = 'sku_code,asin,qty_on_hand,last_movement_at,product_name,product_type,stock_status,reorder_threshold,effective_reorder_point,calculated_reorder_point,avg_daily_sales_30d,abc_tier';
 function currentStockSort() {
     var raw = (document.getElementById('stock-sort-by') || {}).value || 'sku_code:asc';
     var parts = raw.split(':');
@@ -2186,8 +2265,10 @@ function currentStockSort() {
 function applyStockFilters(query) {
     var statusVal = (document.getElementById('stock-filter-status') || {}).value || '';
     var catVal = (document.getElementById('stock-filter-category') || {}).value || '';
+    var abcVal = (document.getElementById('stock-filter-abc') || {}).value || '';
     if (statusVal) query = query.eq('stock_status', statusVal);
     if (catVal) query = query.eq('product_type', catVal);
+    if (abcVal) query = query.eq('abc_tier', abcVal);
     return query;
 }
 function loadStockTab(manualRefresh) {
@@ -2322,6 +2403,10 @@ function renderStockList() {
         var lowCls = status !== 'IN_STOCK' ? ' low' : '';
         var badgeCls = status === 'OUT_OF_STOCK' ? 'out' : (status === 'LOW_STOCK' ? 'low' : 'in');
         var badgeText = status === 'OUT_OF_STOCK' ? 'OUT OF STOCK' : (status === 'LOW_STOCK' ? 'LOW STOCK' : 'IN STOCK');
+        // v60: ABC tier badge (Feature 3) — small, next to the stock-status
+        // badge. No badge at all for inactive SKUs (no abc_tier row exists
+        // for them, by design — see oms_sku_abc_classification).
+        var abcBadge = r.abc_tier ? ('<span class="stock-status-badge" style="background:#eee;color:#555;margin-left:4px;">' + r.abc_tier + '</span>') : '';
         // v40: print-label button per row — reuses resolveSkuOrAsin() at click time
         // to fetch the product name, no change to this query/loop's own data needed.
         var skuForOnclick = (r.sku_code || '').replace(/'/g, "\\'");
@@ -2339,9 +2424,21 @@ function renderStockList() {
         // Lookup or Export just to know what a SKU code actually is.
         var nameLine = r.product_name ? ('<div class="stock-name">' + r.product_name + '</div>') : '';
         var catLine = r.product_type ? ('<div class="stock-cat">' + r.product_type + '</div>') : '';
+        // v60: reorder-point reasoning line (Feature 2) — only shown when
+        // there's an actual point to explain (0 means no manual threshold
+        // AND no real sales history yet to calculate from, so nothing
+        // meaningful to say). Manual (reorder_threshold>0) always wins over
+        // calculated — same wording distinction so it's never ambiguous
+        // which one is in effect.
+        var reorderLine = '';
+        if (r.effective_reorder_point > 0) {
+            var isManual = r.reorder_threshold > 0;
+            reorderLine = '<div class="stock-cat" style="color:#8a6d00;">&#128204; Reorder at: ' + r.effective_reorder_point +
+                (isManual ? ' (manual)' : ' (calculated — ~' + (Math.round(r.avg_daily_sales_30d * 10) / 10) + '/day avg)') + '</div>';
+        }
         html += '<div class="stock-row">' +
-            '<div><div class="stock-sku">' + (r.sku_code || '') + '<span class="stock-status-badge ' + badgeCls + '">' + badgeText + '</span></div>' + nameLine +
-            '<div class="stock-asin">' + (r.asin || '') + '</div>' + catLine + binLine + '</div>' +
+            '<div><div class="stock-sku">' + (r.sku_code || '') + '<span class="stock-status-badge ' + badgeCls + '">' + badgeText + '</span>' + abcBadge + '</div>' + nameLine +
+            '<div class="stock-asin">' + (r.asin || '') + '</div>' + catLine + reorderLine + binLine + '</div>' +
             '<div style="display:flex;align-items:center;">' +
             '<div class="stock-qty' + lowCls + '">' + r.qty_on_hand + '</div>' +
             '<button class="print-label-btn" onclick="printLabel(\'' + skuForOnclick + '\')" title="Print label">&#128424;</button>' +
