@@ -214,7 +214,7 @@ tbody tr:hover{background:#f9fbfd}
     </ul>
     <div class="sidebar-footer">
       <button class="logout-btn" onclick="adminLogout()">⎋ Logout</button>
-      <div class="ver-footer">ArtzFolio Admin Panel v2.8<br>2026-08-20 &bull; Live stock can no longer go negative — database-level check on every removal (Adjust Stock included), at both SKU and bin level (same fix as App v56) &bull; Adjust Stock note is now recommended, not mandatory &bull; Fixed: Adjust Stock bin-mismatch note now also falls back to live bin data when a SKU has no registered default bin (same root-cause fix as App v55, closing the gap behind the 2026-08-19 bin A1 (-4) ledger anomaly) &bull; Fixed: SKU &amp; Stock table and Full CSV Export could silently show blank stock/bin data on large batches — .in() lookups now chunked (150 codes/request) with errors surfaced instead of swallowed &bull; SKU &amp; Stock: Default Bin + Live Bins columns (full multi-bin breakdown, in both on-screen table and CSV exports) &bull; Reports: Txn Type filter now covers all 13 ledger types (was missing QC Release, Rejected, Bin Transfers, Inventory Sync, Opening Balance) &bull; Audit Log High-Risk Filter Fix &amp; Relocate/Merge Bins Confirmation &bull; Bin/Employee Dropdowns &amp; Bin-Mismatch Notes &bull; Audit Log High-Risk Filter &bull; Bin Management (Rename/Merge/Deactivate) &bull; Call Timeouts &bull; Settings &amp; Self-Service Secret Rotation &bull; Session Security &bull; Full CSV Export &bull; Realtime Dashboard/Audit Log &bull; Bulk Employee Actions &bull; Deeper Reports</div>
+      <div class="ver-footer">ArtzFolio Admin Panel v2.9<br>2026-08-20 &bull; Bin is now mandatory on EVERY stock adjustment, zero exceptions — the old "defaults to RECEIVING" fallback is removed at both the UI and database level (Seller Flex discipline) (v2.9) &bull; Live stock can no longer go negative — database-level check on every removal (Adjust Stock included), at both SKU and bin level (same fix as App v56) &bull; Adjust Stock note is now recommended, not mandatory &bull; Fixed: Adjust Stock bin-mismatch note now also falls back to live bin data when a SKU has no registered default bin (same root-cause fix as App v55, closing the gap behind the 2026-08-19 bin A1 (-4) ledger anomaly) &bull; Fixed: SKU &amp; Stock table and Full CSV Export could silently show blank stock/bin data on large batches — .in() lookups now chunked (150 codes/request) with errors surfaced instead of swallowed &bull; SKU &amp; Stock: Default Bin + Live Bins columns (full multi-bin breakdown, in both on-screen table and CSV exports) &bull; Reports: Txn Type filter now covers all 13 ledger types (was missing QC Release, Rejected, Bin Transfers, Inventory Sync, Opening Balance) &bull; Audit Log High-Risk Filter Fix &amp; Relocate/Merge Bins Confirmation &bull; Bin/Employee Dropdowns &amp; Bin-Mismatch Notes &bull; Audit Log High-Risk Filter &bull; Bin Management (Rename/Merge/Deactivate) &bull; Call Timeouts &bull; Settings &amp; Self-Service Secret Rotation &bull; Session Security &bull; Full CSV Export &bull; Realtime Dashboard/Audit Log &bull; Bulk Employee Actions &bull; Deeper Reports</div>
     </div>
   </div>
 
@@ -624,7 +624,7 @@ tbody tr:hover{background:#f9fbfd}
              to catch typos, but a brand-new bin code is still typeable since
              Adjust Stock legitimately needs to support moving stock into a
              bin that doesn't exist yet. -->
-        <input type="text" id="adjust-stock-bin" list="bin-suggestions-list" placeholder="e.g. A12 (defaults to RECEIVING)" oninput="checkAdjustStockBinMismatch()">
+        <input type="text" id="adjust-stock-bin" list="bin-suggestions-list" placeholder="e.g. A12 (required)" oninput="checkAdjustStockBinMismatch()">
       </div>
       <div class="form-field">
         <label>Employee Code</label>
@@ -1411,6 +1411,13 @@ function submitAdjustStock() {
 
   if (!sku) { resEl.className = 'result-msg err'; resEl.textContent = 'No SKU selected.'; return; }
   if (!qty || isNaN(qty) || qty === 0) { resEl.className = 'result-msg err'; resEl.textContent = 'Enter a non-zero whole number (e.g. 5 or -3).'; return; }
+  // v2.9: bin is now mandatory for EVERY adjustment, including Manual
+  // Correction — the old silent "defaults to RECEIVING" behavior was
+  // removed 2026-08-20 (Seller Flex discipline: every transaction, every
+  // txn_type, tied to a real bin, zero exceptions). The RPC itself now
+  // rejects a blank bin too, so this can't be bypassed by a future call
+  // site that forgets to pass one.
+  if (!bin) { resEl.className = 'result-msg err'; resEl.textContent = 'Enter or confirm the bin location — this is required for every stock adjustment, including a manual correction.'; return; }
   // v2.8: note is recommended, not mandatory — the real safety net against
   // a bad adjustment is the database-level non-negative check (below), not a
   // forced explanation. Matches the same change made in the App's MOVE tab.
@@ -1426,7 +1433,7 @@ function submitAdjustStock() {
     p_sku_code: sku,
     p_qty_delta: qty,
     p_txn_type: reason,
-    p_bin_code: bin || 'RECEIVING',
+    p_bin_code: bin,
     p_note: note,
     p_employee_code: emp,
     p_employee_name: emp

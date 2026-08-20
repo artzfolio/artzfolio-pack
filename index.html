@@ -257,7 +257,7 @@
     </style>
 </head>
 <body>
-<div class="ver-corner" id="verCornerBadge">v56</div>
+<div class="ver-corner" id="verCornerBadge">v57</div>
 <!-- v51: brief on-screen warning if a pick's stock deduction fails to save to the live
      database — the PICK flow deliberately advances immediately to the next scan (multi-line
      picks must not be blocked), so this is a visible, dismissible heads-up in addition to the
@@ -609,7 +609,7 @@
                 <ul>
                     <li><strong>MOVE tab</strong> &mdash; records one stock movement at a time (New Stock In / Returns In / Found / Remove-Lost / QC Hold / QC Release / Set True Count). A <strong>Bin is now required on every movement except Set True Count</strong> &mdash; the app auto-fills the SKU's usual bin, but you can always overwrite it (e.g. new stock landing in RECEIVING instead of the SKU's normal shelf).</li>
                     <!-- v52: Set True Count — new 7th pill, for physical stock counts only -->
-                    <li><strong>Set True Count</strong> &mdash; 7th pill on the MOVE tab, for a physical stock count only (not daily use). Type the SKU's real total right now; the app looks up the current live number and saves only the difference as one correction. A note is recommended but not required. Bin is optional here since a correction usually covers the SKU as a whole, not one bin.</li>
+                    <li><strong>Set True Count</strong> &mdash; 7th pill on the MOVE tab, for a physical stock count only (not daily use). Type the SKU's real total right now and confirm the bin you counted it in; the app looks up the current live number and saves only the difference as one correction. A note is recommended but not required. Bin is required here too, like every other action.</li>
                     <!-- v50: QC Release used to be CSV/Bulk-only; note the new single-row screen -->
                     <li><strong>QC Release</strong> &mdash; new 6th pill on the MOVE tab, previously only reachable via Bulk Upload (CSV). Releases stock that was QC-Held back into sellable count, using the same SKU/Bin/Qty/Note form as the rest of this tab.</li>
                     <li><strong>Bulk Upload (CSV)</strong> &mdash; on the MOVE tab: download the template, fill it, upload. Same actions as the Excel bulk tool (INBOUND / RETURN_IN / FOUND / LOST / REJECTED / QC_HOLD / QC_RELEASE / TRANSFER), same per-row OK/FAILED result.</li>
@@ -699,8 +699,8 @@
 
             <!-- Version -->
             <div class="ver-badge">
-                <div class="ver-name">&#128230; ArtzFolio Scan-Pick-Pack v56</div>
-                <div class="ver-sub">Live stock can no longer go negative — database-level check on every removal, at both SKU and bin level, rejecting anything that would exceed what is actually recorded there (v56) &bull; Notes are now recommended, never mandatory, on Found/Remove-Lost/QC Hold/Set True Count (v56) &bull; Bin auto-fill and mismatch warnings now trust live bin data over the SKU registry's (sometimes stale) usual-bin field, and a live per-bin quantity line shows under the bin field on every SKU scan (v56) &bull; Bin-mismatch warning now also fires for SKUs with no registered default bin, using their live bin data instead — closes the gap behind the 2026-08-19 bin A1 (-4) ledger anomaly; same fix applied to MOVE tab bin auto-fill, Set True Count, and Bulk Upload (v55) &bull; All remaining unchunked .in() lookups (Stock list bin map, Bin Lookup activity breakdown) now chunked for consistency (v55) &bull; Export Full Inventory fixed &amp; expanded — chunked lookups (no more silent data loss on large batches), now includes pricing, reorder threshold, active status, and full per-SKU activity breakdown (v54) &bull; Live Stock list now shows bin(s) per SKU (v53) &bull; One-click Export Full Inventory - all SKUs, ASIN, product, qty, bins (v53) &bull; Set True Count / Manual Correction (v52) &bull; Bin Lookup Full Detail Table with Activity Breakdown, ASIN, Last Updated (v52) &bull; Bin Usage Summary (v52) &bull; Per-SKU History Drilldown (v52) &bull; Bin Lookup CSV Export (v52) &bull; Soft Bin-Mismatch Note (MOVE + Bulk Upload, never blocks) &bull; entry_source Audit Tag on Every Write &bull; Bulk Upload from CSV (Inbound/Transfer/Found/Lost/Rejected/QC) &bull; Live Bin Lookup (Single SKU / Single Bin / Bulk) &bull; Dynamic Bins (auto-created, no fixed list) &bull; Mandatory Bin on Every Stock Movement &bull; Owner Dashboard (DASH) &bull; 14-Day Staff Performance &bull; Print Product/Bin Labels &bull; QC Hold/Damage &bull; Low-Stock Alerts &bull; Daily Reconciliation &bull; Admin PIN-Lock Unlock &bull; Real Employee Login (PIN) &bull; RBAC &bull; Live Database (Supabase) &bull; Admin-Secret-Gated PIN Recovery &bull; Permanent Audit Log &bull; Hardened Employee Writes (Admin-RPC-Only) &bull; Call Timeouts &amp; Error Handling (Performance Fix)</div>
+                <div class="ver-name">&#128230; ArtzFolio Scan-Pick-Pack v57</div>
+                <div class="ver-sub">Bin is now mandatory on EVERY stock movement, zero exceptions — including Set True Count / Manual Correction, whose bin exemption is removed at both the UI and database level (Seller Flex discipline) (v57) &bull; Live stock can no longer go negative — database-level check on every removal, at both SKU and bin level, rejecting anything that would exceed what is actually recorded there (v56) &bull; Notes are now recommended, never mandatory, on Found/Remove-Lost/QC Hold/Set True Count (v56) &bull; Bin auto-fill and mismatch warnings now trust live bin data over the SKU registry's (sometimes stale) usual-bin field, and a live per-bin quantity line shows under the bin field on every SKU scan (v56) &bull; Bin-mismatch warning now also fires for SKUs with no registered default bin, using their live bin data instead — closes the gap behind the 2026-08-19 bin A1 (-4) ledger anomaly; same fix applied to MOVE tab bin auto-fill, Set True Count, and Bulk Upload (v55) &bull; All remaining unchunked .in() lookups (Stock list bin map, Bin Lookup activity breakdown) now chunked for consistency (v55) &bull; Export Full Inventory fixed &amp; expanded — chunked lookups (no more silent data loss on large batches), now includes pricing, reorder threshold, active status, and full per-SKU activity breakdown (v54) &bull; Live Stock list now shows bin(s) per SKU (v53) &bull; One-click Export Full Inventory - all SKUs, ASIN, product, qty, bins (v53) &bull; Set True Count / Manual Correction (v52) &bull; Bin Lookup Full Detail Table with Activity Breakdown, ASIN, Last Updated (v52) &bull; Bin Usage Summary (v52) &bull; Per-SKU History Drilldown (v52) &bull; Bin Lookup CSV Export (v52) &bull; Soft Bin-Mismatch Note (MOVE + Bulk Upload, never blocks) &bull; entry_source Audit Tag on Every Write &bull; Bulk Upload from CSV (Inbound/Transfer/Found/Lost/Rejected/QC) &bull; Live Bin Lookup (Single SKU / Single Bin / Bulk) &bull; Dynamic Bins (auto-created, no fixed list) &bull; Mandatory Bin on Every Stock Movement &bull; Owner Dashboard (DASH) &bull; 14-Day Staff Performance &bull; Print Product/Bin Labels &bull; QC Hold/Damage &bull; Low-Stock Alerts &bull; Daily Reconciliation &bull; Admin PIN-Lock Unlock &bull; Real Employee Login (PIN) &bull; RBAC &bull; Live Database (Supabase) &bull; Admin-Secret-Gated PIN Recovery &bull; Permanent Audit Log &bull; Hardened Employee Writes (Admin-RPC-Only) &bull; Call Timeouts &amp; Error Handling (Performance Fix)</div>
             </div>
         </div>
     </div>
@@ -1635,9 +1635,10 @@ function resolveSkuOrAsin(value) {
 // check constraint (oms_inventory_transactions.txn_type) — if this ever
 // gets out of sync with the schema, the insert fails loudly with a clear
 // Postgres error rather than silently corrupting data.
-// v44: the database now ALSO requires bin_code to be non-null for every
-// txn_type except MANUAL_CORRECTION — a movement submitted without a bin
-// fails at the database level, not just in the UI, so this can't be
+// v44/v57: the database now ALSO requires bin_code to be non-null AND
+// non-blank for every single txn_type, no exceptions (MANUAL_CORRECTION's
+// old exemption was removed 2026-08-20) — a movement submitted without a
+// bin fails at the database level, not just in the UI, so this can't be
 // bypassed by a future call site that forgets to pass binCode.
 function writeLedgerTxn(opts) {
     // opts: { skuCode, asin, qtyDelta, txnType, channel, orderId, binCode, note }
@@ -1715,18 +1716,22 @@ var MOVE_MODES = {
     // bins. submitMoveTransaction() special-cases isCorrection to fetch the
     // current live total first and write only the difference as one
     // MANUAL_CORRECTION row — mirrors PushClosingStockOverride on the Excel
-    // side exactly. bin is optional here (the database itself allows
-    // MANUAL_CORRECTION without a bin_code — every other txn_type requires one).
-    MANUAL_CORRECTION:     { title: '&#9878; Set True Count', desc: 'For a physical stock count only — not daily use. Enter the SKU\u2019s TRUE total quantity right now, across all bins. The app looks up the current live total and saves only the difference. A note is recommended but not required.', isCorrection: true }
+    // side exactly. v57: bin is now mandatory here too — the "MANUAL_CORRECTION
+    // is exempt" carve-out was removed at the database level on 2026-08-20
+    // (Seller Flex discipline: every transaction, every txn_type, tied to a
+    // real bin, zero exceptions). isCorrection now only controls the
+    // absolute-count-vs-delta math, not the bin requirement.
+    MANUAL_CORRECTION:     { title: '&#9878; Set True Count', desc: 'For a physical stock count only — not daily use. Enter the SKU\u2019s TRUE total quantity right now, across all bins, and confirm the bin you counted it in. The app looks up the current live total and saves only the difference. A note is recommended but not required.', isCorrection: true }
 };
 var moveMode = 'NEW_STOCK_IN';
 
-// v44: bin is now mandatory on every MOVE action (New Stock, Returns, Found,
-// Lost/Theft, QC Hold) — matches how a real warehouse (and Amazon FCs) never
-// records a stock movement without a location. BIN_LIST is fetched once from
-// the live oms_bins table and used to power the datalist suggestions; the
-// database itself also enforces this (bin_code required for every txn_type
-// except MANUAL_CORRECTION), so a missing bin fails loudly, not silently.
+// v44: bin is mandatory on every MOVE action, no exceptions — matches how a
+// real warehouse (and Amazon FCs) never records a stock movement without a
+// location. BIN_LIST is fetched once from the live oms_bins table and used
+// to power the datalist suggestions. v57: the database itself now enforces
+// this for EVERY txn_type including MANUAL_CORRECTION (the old exemption
+// was removed 2026-08-20), so a missing bin fails loudly at the DB level
+// too, not just in this UI.
 var BIN_LIST = null;
 function loadBinList() {
     if (!db || BIN_LIST !== null) return; // already loaded, or offline (retried next tab open)
@@ -1807,13 +1812,13 @@ function setMoveMode(mode) {
         qtyInput.min = '0';
         qtyInput.placeholder = 'True count (0 or more)';
         qtyInput.value = '0';
-        binInput.placeholder = 'Bin location (optional for a correction)';
     } else {
         qtyInput.min = '1';
         qtyInput.placeholder = 'Quantity';
         qtyInput.value = '1';
-        binInput.placeholder = 'Bin location (required)';
     }
+    // v57: bin is required in every mode now, including Set True Count.
+    binInput.placeholder = 'Bin location (required)';
     document.getElementById('move-note-input').value = '';
     loadBinList();
     try { document.getElementById('move-sku-input').focus(); } catch(e) {}
@@ -1837,11 +1842,11 @@ function submitMoveTransaction() {
     var cfg    = MOVE_MODES[moveMode];
 
     if (!skuVal) { resEl.className = 'move-result err'; resEl.textContent = 'Scan or type a SKU/ASIN first.'; return; }
-    // v44: bin is mandatory — the database itself now rejects any movement
-    // without one (except MANUAL_CORRECTION), so this check just gives a
-    // clear message instead of a raw database error. v52: skipped entirely
-    // for a correction, matching the database's own exemption.
-    if (!binVal && !cfg.isCorrection) { resEl.className = 'move-result err'; resEl.textContent = 'Enter or confirm the bin location — this is now required for every stock movement.'; return; }
+    // v44/v57: bin is mandatory for every stock movement, no exceptions — the
+    // database itself now rejects any movement without one (including
+    // MANUAL_CORRECTION, whose exemption was removed 2026-08-20), so this
+    // check just gives a clear message instead of a raw database error.
+    if (!binVal) { resEl.className = 'move-result err'; resEl.textContent = 'Enter or confirm the bin location — this is required for every stock movement, including a count correction.'; return; }
     // v52: a correction's qty field is an absolute count, so 0 is valid and
     // meaningful (a full stock-out) — every other mode still requires >= 1.
     if (cfg.isCorrection) {
@@ -1886,7 +1891,7 @@ function submitMoveTransaction() {
                     asin: sku.asin,
                     qtyDelta: delta,
                     txnType: 'MANUAL_CORRECTION',
-                    binCode: binVal || null,
+                    binCode: binVal,
                     note: note || null
                 }).then(function(result) {
                     if (!result.ok) {
@@ -1895,9 +1900,9 @@ function submitMoveTransaction() {
                         return;
                     }
                     resEl.className = 'move-result ok';
-                    resEl.textContent = '✓ Saved — ' + sku.sku_code + ' corrected from ' + currentQty + ' to ' + qtyVal + ' (' + (delta > 0 ? '+' : '') + delta + ')' + (binVal ? (' @ bin ' + binVal + binMismatchNote(sku, binVal)) : '');
-                    logEvent(sku.sku_code, 'Set True Count: ' + currentQty + ' \u2192 ' + qtyVal + ' (' + (delta > 0 ? '+' : '') + delta + ')' + (note ? ' — ' + note : ''));
-                    writeAuditLog('MANUAL_CORRECTION', { skuCode: sku.sku_code, details: { qty_delta: delta, from: currentQty, to: qtyVal, bin_code: binVal || null, note: note || null, product_name: sku.product_name || null } });
+                    resEl.textContent = '✓ Saved — ' + sku.sku_code + ' corrected from ' + currentQty + ' to ' + qtyVal + ' (' + (delta > 0 ? '+' : '') + delta + ') @ bin ' + binVal + binMismatchNote(sku, binVal);
+                    logEvent(sku.sku_code, 'Set True Count: ' + currentQty + ' \u2192 ' + qtyVal + ' (' + (delta > 0 ? '+' : '') + delta + ') @ ' + binVal + (note ? ' — ' + note : ''));
+                    writeAuditLog('MANUAL_CORRECTION', { skuCode: sku.sku_code, details: { qty_delta: delta, from: currentQty, to: qtyVal, bin_code: binVal, note: note || null, product_name: sku.product_name || null } });
                     document.getElementById('move-sku-input').value = '';
                     document.getElementById('move-bin-input').value = '';
                     document.getElementById('move-qty-input').value = '0';
