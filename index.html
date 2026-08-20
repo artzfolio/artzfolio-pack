@@ -268,7 +268,7 @@
     </style>
 </head>
 <body>
-<div class="ver-corner" id="verCornerBadge">v60</div>
+<div class="ver-corner" id="verCornerBadge">v61</div>
 <!-- v51: brief on-screen warning if a pick's stock deduction fails to save to the live
      database — the PICK flow deliberately advances immediately to the next scan (multi-line
      picks must not be blocked), so this is a visible, dismissible heads-up in addition to the
@@ -457,6 +457,35 @@
                     <button class="settings-btn" style="flex:1" id="move-submit-btn" onclick="submitMoveTransaction()">&#10003; Submit</button>
                 </div>
                 <div class="move-result" id="move-result"></div>
+                <!-- v61: Feature 8 — Dynamic New-SKU Registration. Only ever shown when
+                     New Stock In / Returns submits a SKU/ASIN that resolveSkuOrAsin()
+                     could not find — see submitMoveTransaction(). Registering here
+                     immediately continues the original stock movement in the same flow
+                     (registerNewSkuAndContinue()), never a separate trip to an admin
+                     screen. PICK/scan-out against an unknown SKU is NOT affected by
+                     this — that stays a hard block, unchanged. -->
+                <div class="settings-section" id="move-register-sku-panel" style="display:none;margin-top:10px;border:1px solid #d9a63a;background:#fff8e6;">
+                    <h3 style="margin-top:0;">&#128230; Register New SKU</h3>
+                    <div class="settings-info" id="move-register-sku-info"></div>
+                    <div class="settings-row">
+                        <input type="text" class="settings-input" id="move-register-name-input" placeholder="Product Name (required)">
+                    </div>
+                    <div class="settings-row">
+                        <input type="text" class="settings-input" id="move-register-type-input" placeholder="Product Type (required)" list="move-register-type-list">
+                        <datalist id="move-register-type-list"></datalist>
+                    </div>
+                    <div class="settings-row">
+                        <input type="text" class="settings-input" id="move-register-asin-input" placeholder="ASIN (optional)" autocomplete="off" autocorrect="off" autocapitalize="characters" style="text-transform:uppercase">
+                    </div>
+                    <div class="settings-row">
+                        <input type="text" class="settings-input" id="move-register-bin-input" placeholder="Bin location" list="move-bin-list" autocomplete="off" autocorrect="off" autocapitalize="characters" style="text-transform:uppercase">
+                        <input type="number" class="settings-input" id="move-register-mrp-input" placeholder="MRP (optional)" min="0" style="max-width:110px">
+                    </div>
+                    <div class="settings-row">
+                        <button class="settings-btn" style="flex:1" id="move-register-submit-btn" onclick="registerNewSkuAndContinue()">&#10003; Register &amp; Continue</button>
+                        <button class="settings-btn" style="flex:0 0 auto;background:#888" onclick="cancelSkuRegistration()">Cancel</button>
+                    </div>
+                </div>
             </div>
 
             <!-- v46: Bulk Upload (CSV) — for many rows at once, directly from the phone/
@@ -777,8 +806,8 @@
 
             <!-- Version -->
             <div class="ver-badge">
-                <div class="ver-name">&#128230; ArtzFolio Scan-Pick-Pack v60</div>
-                <div class="ver-sub">Phase 2 of the 7-Features/6-Gaps build: dynamic reorder points (Feature 2) — reorder point is now the manual threshold if set, else calculated from real trailing-30-day sales velocity × lead time; STOCK tab shows the reasoning on each row and the LOW_STOCK/OUT_OF_STOCK banner is now a real, working number (it silently always showed 0 before, since every SKU had a manual threshold of exactly 0) &bull; ABC/velocity classification (Feature 3) — every active SKU tagged A/B/C by standard 80/20 Pareto method on real sales volume, new STOCK tab filter; will show C for everyone until real sales history accumulates &bull; Returns grading (Gap 4) — Returns mode now asks Good/Damaged/Wrong Item; Damaged and Wrong Item are recorded as arrived but immediately held, never silently added to sellable stock (v60) &bull; Settings' local scan log renamed to "My Recent Scans (this device only)" so it can never be confused with the real, permanent, server-side Audit Log in the Admin Panel; new "My Activity (server record)" section added underneath it, pulling the logged-in employee's own last 50 actions straight from the live ledger — durable, survives clearing this device, on-demand load (v59) &bull; STOCK tab now has full filters &amp; sort — by stock status (in stock / low stock / out of stock), by category, and sort by SKU, ASIN, or Product Title (A&rarr;Z or Z&rarr;A), plus Qty high&rarr;low/low&rarr;high; every row now shows product name, category, and a colour status badge (v58) &bull; New SKU inbound via Quick Scan now defaults the bin to A1 automatically when no bin is entered and the SKU has no bin history yet — clearly shown as a hint under the bin field (v58) &bull; Bin is now mandatory on EVERY stock movement, zero exceptions — including Set True Count / Manual Correction, whose bin exemption is removed at both the UI and database level (Seller Flex discipline) (v57) &bull; Live stock can no longer go negative — database-level check on every removal, at both SKU and bin level, rejecting anything that would exceed what is actually recorded there (v56) &bull; Notes are now recommended, never mandatory, on Found/Remove-Lost/QC Hold/Set True Count (v56) &bull; Bin auto-fill and mismatch warnings now trust live bin data over the SKU registry's (sometimes stale) usual-bin field, and a live per-bin quantity line shows under the bin field on every SKU scan (v56) &bull; Bin-mismatch warning now also fires for SKUs with no registered default bin, using their live bin data instead — closes the gap behind the 2026-08-19 bin A1 (-4) ledger anomaly; same fix applied to MOVE tab bin auto-fill, Set True Count, and Bulk Upload (v55) &bull; All remaining unchunked .in() lookups (Stock list bin map, Bin Lookup activity breakdown) now chunked for consistency (v55) &bull; Export Full Inventory fixed &amp; expanded — chunked lookups (no more silent data loss on large batches), now includes pricing, reorder threshold, active status, and full per-SKU activity breakdown (v54) &bull; Live Stock list now shows bin(s) per SKU (v53) &bull; One-click Export Full Inventory - all SKUs, ASIN, product, qty, bins (v53) &bull; Set True Count / Manual Correction (v52) &bull; Bin Lookup Full Detail Table with Activity Breakdown, ASIN, Last Updated (v52) &bull; Bin Usage Summary (v52) &bull; Per-SKU History Drilldown (v52) &bull; Bin Lookup CSV Export (v52) &bull; Soft Bin-Mismatch Note (MOVE + Bulk Upload, never blocks) &bull; entry_source Audit Tag on Every Write &bull; Bulk Upload from CSV (Inbound/Transfer/Found/Lost/Rejected/QC) &bull; Live Bin Lookup (Single SKU / Single Bin / Bulk) &bull; Dynamic Bins (auto-created, no fixed list) &bull; Mandatory Bin on Every Stock Movement &bull; Owner Dashboard (DASH) &bull; 14-Day Staff Performance &bull; Print Product/Bin Labels &bull; QC Hold/Damage &bull; Low-Stock Alerts &bull; Daily Reconciliation &bull; Admin PIN-Lock Unlock &bull; Real Employee Login (PIN) &bull; RBAC &bull; Live Database (Supabase) &bull; Admin-Secret-Gated PIN Recovery &bull; Permanent Audit Log &bull; Hardened Employee Writes (Admin-RPC-Only) &bull; Call Timeouts &amp; Error Handling (Performance Fix)</div>
+                <div class="ver-name">&#128230; ArtzFolio Scan-Pick-Pack v61</div>
+                <div class="ver-sub">Feature 8 (Dynamic New-SKU Registration, v61) — New Stock In / Returns In against a SKU or ASIN the database has never seen now offers an inline "Register New SKU" panel right there in MOVE, instead of a hard block; registering saves it to the SKU database (create-only — refuses to touch an existing SKU's data) and immediately continues the exact same stock movement in one flow. PICK/scan-out against a still-unregistered SKU stays a hard block, unchanged — selling something never received is an error, not a new-SKU event. &bull; Phase 2 of the 7-Features/6-Gaps build: dynamic reorder points (Feature 2) — reorder point is now the manual threshold if set, else calculated from real trailing-30-day sales velocity × lead time; STOCK tab shows the reasoning on each row and the LOW_STOCK/OUT_OF_STOCK banner is now a real, working number (it silently always showed 0 before, since every SKU had a manual threshold of exactly 0) &bull; ABC/velocity classification (Feature 3) — every active SKU tagged A/B/C by standard 80/20 Pareto method on real sales volume, new STOCK tab filter; will show C for everyone until real sales history accumulates &bull; Returns grading (Gap 4) — Returns mode now asks Good/Damaged/Wrong Item; Damaged and Wrong Item are recorded as arrived but immediately held, never silently added to sellable stock (v60) &bull; Settings' local scan log renamed to "My Recent Scans (this device only)" so it can never be confused with the real, permanent, server-side Audit Log in the Admin Panel; new "My Activity (server record)" section added underneath it, pulling the logged-in employee's own last 50 actions straight from the live ledger — durable, survives clearing this device, on-demand load (v59) &bull; STOCK tab now has full filters &amp; sort — by stock status (in stock / low stock / out of stock), by category, and sort by SKU, ASIN, or Product Title (A&rarr;Z or Z&rarr;A), plus Qty high&rarr;low/low&rarr;high; every row now shows product name, category, and a colour status badge (v58) &bull; New SKU inbound via Quick Scan now defaults the bin to A1 automatically when no bin is entered and the SKU has no bin history yet — clearly shown as a hint under the bin field (v58) &bull; Bin is now mandatory on EVERY stock movement, zero exceptions — including Set True Count / Manual Correction, whose bin exemption is removed at both the UI and database level (Seller Flex discipline) (v57) &bull; Live stock can no longer go negative — database-level check on every removal, at both SKU and bin level, rejecting anything that would exceed what is actually recorded there (v56) &bull; Notes are now recommended, never mandatory, on Found/Remove-Lost/QC Hold/Set True Count (v56) &bull; Bin auto-fill and mismatch warnings now trust live bin data over the SKU registry's (sometimes stale) usual-bin field, and a live per-bin quantity line shows under the bin field on every SKU scan (v56) &bull; Bin-mismatch warning now also fires for SKUs with no registered default bin, using their live bin data instead — closes the gap behind the 2026-08-19 bin A1 (-4) ledger anomaly; same fix applied to MOVE tab bin auto-fill, Set True Count, and Bulk Upload (v55) &bull; All remaining unchunked .in() lookups (Stock list bin map, Bin Lookup activity breakdown) now chunked for consistency (v55) &bull; Export Full Inventory fixed &amp; expanded — chunked lookups (no more silent data loss on large batches), now includes pricing, reorder threshold, active status, and full per-SKU activity breakdown (v54) &bull; Live Stock list now shows bin(s) per SKU (v53) &bull; One-click Export Full Inventory - all SKUs, ASIN, product, qty, bins (v53) &bull; Set True Count / Manual Correction (v52) &bull; Bin Lookup Full Detail Table with Activity Breakdown, ASIN, Last Updated (v52) &bull; Bin Usage Summary (v52) &bull; Per-SKU History Drilldown (v52) &bull; Bin Lookup CSV Export (v52) &bull; Soft Bin-Mismatch Note (MOVE + Bulk Upload, never blocks) &bull; entry_source Audit Tag on Every Write &bull; Bulk Upload from CSV (Inbound/Transfer/Found/Lost/Rejected/QC) &bull; Live Bin Lookup (Single SKU / Single Bin / Bulk) &bull; Dynamic Bins (auto-created, no fixed list) &bull; Mandatory Bin on Every Stock Movement &bull; Owner Dashboard (DASH) &bull; 14-Day Staff Performance &bull; Print Product/Bin Labels &bull; QC Hold/Damage &bull; Low-Stock Alerts &bull; Daily Reconciliation &bull; Admin PIN-Lock Unlock &bull; Real Employee Login (PIN) &bull; RBAC &bull; Live Database (Supabase) &bull; Admin-Secret-Gated PIN Recovery &bull; Permanent Audit Log &bull; Hardened Employee Writes (Admin-RPC-Only) &bull; Call Timeouts &amp; Error Handling (Performance Fix)</div>
             </div>
         </div>
     </div>
@@ -1854,6 +1883,15 @@ var MOVE_MODES = {
     MANUAL_CORRECTION:     { title: '&#9878; Set True Count', desc: 'For a physical stock count only — not daily use. Enter the SKU\u2019s TRUE total quantity right now, across all bins, and confirm the bin you counted it in. The app looks up the current live total and saves only the difference. A note is recommended but not required.', isCorrection: true }
 };
 var moveMode = 'NEW_STOCK_IN';
+// v61: Feature 8 — Dynamic New-SKU Registration. Holds the in-flight MOVE
+// submission (SKU/bin/qty/note) while the "Register New SKU" panel is open,
+// so registerNewSkuAndContinue() can resume the exact same stock movement
+// once the SKU exists. Cleared by cancelSkuRegistration() and by
+// setMoveMode() (switching pills mid-registration invalidates the context —
+// simplest safe rule, matches setMoveMode() already resetting every other
+// in-progress field).
+var pendingSkuRegistration = null;
+var registerTypeOptionsLoaded = false;
 
 // v44: bin is mandatory on every MOVE action, no exceptions — matches how a
 // real warehouse (and Amazon FCs) never records a stock movement without a
@@ -1942,6 +1980,9 @@ function prefillMoveBin() {
 function setMoveMode(mode) {
     if (!MOVE_MODES[mode]) return;
     moveMode = mode;
+    // v61: switching pills mid-registration invalidates the pending context —
+    // just cancel it, same as every other field this function already resets.
+    cancelSkuRegistration();
     var cfg = MOVE_MODES[mode];
     for (var key in MOVE_MODES) {
         var pill = document.getElementById('move-pill-' + key);
@@ -2022,6 +2063,18 @@ function submitMoveTransaction() {
     resEl.className = 'move-result'; resEl.textContent = 'Checking database...';
     resolveSkuOrAsin(skuVal).then(function(sku) {
         if (!sku) {
+            // v61: Feature 8 — Dynamic New-SKU Registration. Only New Stock In
+            // and Returns In are genuinely inbound-type activity (the item is
+            // physically arriving) — everything else (Remove/Lost, QC Hold, QC
+            // Release, Set True Count) stays exactly the hard block it always
+            // was, since scanning out/adjusting/counting something that was
+            // never received is an error signal, not a new-SKU event.
+            if (moveMode === 'NEW_STOCK_IN' || moveMode === 'RETURN_IN') {
+                showSkuRegistrationPanel(skuVal, binVal, qtyVal, note);
+                resEl.className = 'move-result';
+                resEl.textContent = '"' + skuVal + '" was not found in the SKU database — register it below to continue.';
+                return null;
+            }
             resEl.className = 'move-result err';
             resEl.textContent = '❌ "' + skuVal + '" not found in the SKU database. Check the code and try again.';
             return null;
@@ -2079,69 +2132,7 @@ function submitMoveTransaction() {
         // RETURN_WRONG_ITEM type for an item whose identity itself needs a
         // human to check before it counts as real stock. Net effect on visible
         // stock is zero either way; both real events are honestly recorded.
-        var returnGrade = (moveMode === 'RETURN_IN') ? ((document.getElementById('move-return-grade') || {}).value || 'GOOD') : 'GOOD';
-        if (moveMode === 'RETURN_IN' && returnGrade !== 'GOOD') {
-            resEl.textContent = 'Saving...';
-            var holdType = returnGrade === 'DAMAGED' ? 'QC_HOLD' : 'RETURN_WRONG_ITEM';
-            var holdLabel = returnGrade === 'DAMAGED' ? 'Damaged return — auto QC-held, not sellable.' : 'Wrong item — flagged for manual review, not restocked.';
-            var combinedNote = holdLabel + (note ? ' ' + note : '');
-            return writeLedgerTxn({
-                skuCode: sku.sku_code, asin: sku.asin, qtyDelta: qtyVal,
-                txnType: 'RETURN_IN', binCode: binVal, note: combinedNote
-            }).then(function(result1) {
-                if (!result1.ok) {
-                    resEl.className = 'move-result err';
-                    resEl.textContent = '❌ Could not save: ' + result1.reason;
-                    return;
-                }
-                return writeLedgerTxn({
-                    skuCode: sku.sku_code, asin: sku.asin, qtyDelta: -qtyVal,
-                    txnType: holdType, binCode: binVal, note: combinedNote
-                }).then(function(result2) {
-                    if (!result2.ok) {
-                        resEl.className = 'move-result err';
-                        resEl.textContent = '⚠️ Return recorded as arrived, but could NOT be held (' + result2.reason + '). It is currently showing as sellable stock — go to MOVE › QC Hold and remove it manually, or ask an admin to check.';
-                        return;
-                    }
-                    resEl.className = 'move-result ok';
-                    resEl.textContent = '✓ Saved — ' + sku.sku_code + ' (' + (sku.product_name || '') + ') recorded as a ' + (returnGrade === 'DAMAGED' ? 'damaged' : 'wrong-item') + ' return @ bin ' + binVal + '. Not added to sellable stock.' + binMismatchNote(sku, binVal);
-                    logEvent(sku.sku_code, 'Return (' + returnGrade + '): +' + qtyVal + ' then -' + qtyVal + ' (' + holdType + ') @ ' + binVal + (note ? ' — ' + note : ''));
-                    writeAuditLog('RETURN_IN', { skuCode: sku.sku_code, details: { grade: returnGrade, qty: qtyVal, bin_code: binVal, note: note || null, product_name: sku.product_name || null } });
-                    document.getElementById('move-sku-input').value = '';
-                    document.getElementById('move-bin-input').value = '';
-                    document.getElementById('move-qty-input').value = '1';
-                    document.getElementById('move-note-input').value = '';
-                    if (document.getElementById('move-live-bin-hint')) document.getElementById('move-live-bin-hint').textContent = '';
-                    try { document.getElementById('move-sku-input').focus(); } catch(e) {}
-                });
-            });
-        }
-
-        resEl.textContent = 'Saving...';
-        return writeLedgerTxn({
-            skuCode: sku.sku_code,
-            asin: sku.asin,
-            qtyDelta: cfg.sign * qtyVal,
-            txnType: moveMode,
-            binCode: binVal,
-            note: note || null
-        }).then(function(result) {
-            if (!result.ok) {
-                resEl.className = 'move-result err';
-                resEl.textContent = '❌ Could not save: ' + result.reason;
-                return;
-            }
-            resEl.className = 'move-result ok';
-            resEl.textContent = '✓ Saved — ' + (cfg.sign > 0 ? '+' : '') + (cfg.sign * qtyVal) + ' units of ' + sku.sku_code + ' (' + (sku.product_name || '') + ') @ bin ' + binVal + binMismatchNote(sku, binVal);
-            logEvent(sku.sku_code, MOVE_MODES[moveMode].title.replace(/&#\d+;/g, '').trim() + ': ' + (cfg.sign > 0 ? '+' : '') + (cfg.sign * qtyVal) + ' @ ' + binVal + (note ? ' — ' + note : ''));
-            writeAuditLog(moveMode, { skuCode: sku.sku_code, details: { qty_delta: cfg.sign * qtyVal, bin_code: binVal, note: note || null, product_name: sku.product_name || null } });
-            document.getElementById('move-sku-input').value = '';
-            document.getElementById('move-bin-input').value = '';
-            document.getElementById('move-qty-input').value = '1';
-            document.getElementById('move-note-input').value = '';
-            if (document.getElementById('move-live-bin-hint')) document.getElementById('move-live-bin-hint').textContent = '';
-            try { document.getElementById('move-sku-input').focus(); } catch(e) {}
-        });
+        return proceedMoveWithSku(sku, binVal, qtyVal, note, resEl);
     }).catch(function(err) {
         resEl.className = 'move-result err';
         resEl.textContent = '❌ Unexpected error: ' + err;
@@ -2149,6 +2140,187 @@ function submitMoveTransaction() {
         // v51: always re-enable Submit, whether the save above succeeded,
         // failed, or hit an unexpected error.
         if (submitBtn) submitBtn.disabled = false;
+    });
+}
+// v61: Feature 8 — the "SKU resolved, now actually write the movement" tail
+// of submitMoveTransaction(), factored out so registerNewSkuAndContinue()
+// can reach the exact same write logic once a brand-new SKU has just been
+// created — no separate/duplicated write path for the two ways a MOVE
+// submission can end up with a resolved sku row.
+function proceedMoveWithSku(sku, binVal, qtyVal, note, resEl) {
+    var cfg = MOVE_MODES[moveMode];
+    var returnGrade = (moveMode === 'RETURN_IN') ? ((document.getElementById('move-return-grade') || {}).value || 'GOOD') : 'GOOD';
+    if (moveMode === 'RETURN_IN' && returnGrade !== 'GOOD') {
+        resEl.textContent = 'Saving...';
+        var holdType = returnGrade === 'DAMAGED' ? 'QC_HOLD' : 'RETURN_WRONG_ITEM';
+        var holdLabel = returnGrade === 'DAMAGED' ? 'Damaged return — auto QC-held, not sellable.' : 'Wrong item — flagged for manual review, not restocked.';
+        var combinedNote = holdLabel + (note ? ' ' + note : '');
+        return writeLedgerTxn({
+            skuCode: sku.sku_code, asin: sku.asin, qtyDelta: qtyVal,
+            txnType: 'RETURN_IN', binCode: binVal, note: combinedNote
+        }).then(function(result1) {
+            if (!result1.ok) {
+                resEl.className = 'move-result err';
+                resEl.textContent = '❌ Could not save: ' + result1.reason;
+                return;
+            }
+            return writeLedgerTxn({
+                skuCode: sku.sku_code, asin: sku.asin, qtyDelta: -qtyVal,
+                txnType: holdType, binCode: binVal, note: combinedNote
+            }).then(function(result2) {
+                if (!result2.ok) {
+                    resEl.className = 'move-result err';
+                    resEl.textContent = '⚠️ Return recorded as arrived, but could NOT be held (' + result2.reason + '). It is currently showing as sellable stock — go to MOVE › QC Hold and remove it manually, or ask an admin to check.';
+                    return;
+                }
+                resEl.className = 'move-result ok';
+                resEl.textContent = '✓ Saved — ' + sku.sku_code + ' (' + (sku.product_name || '') + ') recorded as a ' + (returnGrade === 'DAMAGED' ? 'damaged' : 'wrong-item') + ' return @ bin ' + binVal + '. Not added to sellable stock.' + binMismatchNote(sku, binVal);
+                logEvent(sku.sku_code, 'Return (' + returnGrade + '): +' + qtyVal + ' then -' + qtyVal + ' (' + holdType + ') @ ' + binVal + (note ? ' — ' + note : ''));
+                writeAuditLog('RETURN_IN', { skuCode: sku.sku_code, details: { grade: returnGrade, qty: qtyVal, bin_code: binVal, note: note || null, product_name: sku.product_name || null } });
+                document.getElementById('move-sku-input').value = '';
+                document.getElementById('move-bin-input').value = '';
+                document.getElementById('move-qty-input').value = '1';
+                document.getElementById('move-note-input').value = '';
+                if (document.getElementById('move-live-bin-hint')) document.getElementById('move-live-bin-hint').textContent = '';
+                try { document.getElementById('move-sku-input').focus(); } catch(e) {}
+            });
+        });
+    }
+
+    resEl.textContent = 'Saving...';
+    return writeLedgerTxn({
+        skuCode: sku.sku_code,
+        asin: sku.asin,
+        qtyDelta: cfg.sign * qtyVal,
+        txnType: moveMode,
+        binCode: binVal,
+        note: note || null
+    }).then(function(result) {
+        if (!result.ok) {
+            resEl.className = 'move-result err';
+            resEl.textContent = '❌ Could not save: ' + result.reason;
+            return;
+        }
+        resEl.className = 'move-result ok';
+        resEl.textContent = '✓ Saved — ' + (cfg.sign > 0 ? '+' : '') + (cfg.sign * qtyVal) + ' units of ' + sku.sku_code + ' (' + (sku.product_name || '') + ') @ bin ' + binVal + binMismatchNote(sku, binVal);
+        logEvent(sku.sku_code, MOVE_MODES[moveMode].title.replace(/&#\d+;/g, '').trim() + ': ' + (cfg.sign > 0 ? '+' : '') + (cfg.sign * qtyVal) + ' @ ' + binVal + (note ? ' — ' + note : ''));
+        writeAuditLog(moveMode, { skuCode: sku.sku_code, details: { qty_delta: cfg.sign * qtyVal, bin_code: binVal, note: note || null, product_name: sku.product_name || null } });
+        document.getElementById('move-sku-input').value = '';
+        document.getElementById('move-bin-input').value = '';
+        document.getElementById('move-qty-input').value = '1';
+        document.getElementById('move-note-input').value = '';
+        if (document.getElementById('move-live-bin-hint')) document.getElementById('move-live-bin-hint').textContent = '';
+        try { document.getElementById('move-sku-input').focus(); } catch(e) {}
+    });
+}
+// v61: Feature 8 panel controls — show/cancel/submit for "Register New SKU".
+function loadRegisterTypeOptions() {
+    if (registerTypeOptionsLoaded || !db) return;
+    registerTypeOptionsLoaded = true;
+    withTimeout(db.from('oms_sku_master').select('product_type'), 10000, 'Product types').then(function(res) {
+        if (res.error || !res.data) { registerTypeOptionsLoaded = false; return; }
+        var seen = {}, cats = [];
+        res.data.forEach(function(r) {
+            var v = (r.product_type || '').trim();
+            if (v && !seen[v]) { seen[v] = true; cats.push(v); }
+        });
+        cats.sort();
+        var dl = document.getElementById('move-register-type-list');
+        if (!dl) return;
+        dl.innerHTML = '';
+        cats.forEach(function(c) {
+            var opt = document.createElement('option');
+            opt.value = c;
+            dl.appendChild(opt);
+        });
+    }).catch(function() { registerTypeOptionsLoaded = false; });
+}
+function showSkuRegistrationPanel(skuVal, binVal, qtyVal, note) {
+    pendingSkuRegistration = { skuVal: skuVal, binVal: binVal, qtyVal: qtyVal, note: note, moveMode: moveMode };
+    var panel = document.getElementById('move-register-sku-panel');
+    if (!panel) return;
+    panel.style.display = '';
+    document.getElementById('move-register-sku-info').textContent =
+        'Registering "' + skuVal + '" as a brand-new SKU. This will save it to the SKU database and then continue this ' +
+        (moveMode === 'RETURN_IN' ? 'return' : 'stock-in') + ' immediately.';
+    document.getElementById('move-register-name-input').value = '';
+    document.getElementById('move-register-type-input').value = '';
+    document.getElementById('move-register-asin-input').value = '';
+    // v61: same A1 fallback WAREHOUSE_DEFAULT_BIN logic used by prefillMoveBin()
+    // (v57/v58) — binVal here is already guaranteed non-blank (bin is mandatory
+    // before submitMoveTransaction ever reaches the SKU lookup), so this is
+    // really just pre-filling with what was typed, but kept consistent with
+    // that existing fallback for a blank/whitespace-only edge case.
+    document.getElementById('move-register-bin-input').value = (binVal && binVal.trim()) ? binVal : WAREHOUSE_DEFAULT_BIN;
+    document.getElementById('move-register-mrp-input').value = '';
+    loadRegisterTypeOptions();
+    try { document.getElementById('move-register-name-input').focus(); } catch(e) {}
+}
+function cancelSkuRegistration() {
+    pendingSkuRegistration = null;
+    var panel = document.getElementById('move-register-sku-panel');
+    if (panel) panel.style.display = 'none';
+}
+function registerNewSkuAndContinue() {
+    if (!pendingSkuRegistration) return;
+    var btn = document.getElementById('move-register-submit-btn');
+    if (btn && btn.disabled) return;
+    var infoEl = document.getElementById('move-register-sku-info');
+    var name = (document.getElementById('move-register-name-input').value || '').trim();
+    var type = (document.getElementById('move-register-type-input').value || '').trim();
+    var asin = (document.getElementById('move-register-asin-input').value || '').trim().toUpperCase();
+    var bin  = (document.getElementById('move-register-bin-input').value || '').trim().toUpperCase();
+    var mrpVal = document.getElementById('move-register-mrp-input').value;
+    var mrp = (mrpVal !== '' && !isNaN(parseFloat(mrpVal))) ? parseFloat(mrpVal) : null;
+
+    if (!name) { infoEl.textContent = 'Product Name is required.'; return; }
+    if (!type) { infoEl.textContent = 'Product Type is required.'; return; }
+    if (!bin)  { infoEl.textContent = 'Bin location is required.'; return; }
+    if (!db)   { infoEl.textContent = 'Database not reachable — cannot register right now.'; return; }
+
+    var ctx = pendingSkuRegistration;
+    var emp = loadEmployee();
+    if (btn) btn.disabled = true;
+    infoEl.textContent = 'Registering...';
+
+    withTimeout(db.rpc('oms_employee_register_sku', {
+        p_sku_code: ctx.skuVal,
+        p_product_name: name,
+        p_employee_code: emp ? emp.code : null,
+        p_employee_name: emp ? emp.name : null,
+        p_asin: asin || null,
+        p_product_type: type,
+        p_default_bin: bin,
+        p_mrp: mrp
+    }), 10000, 'SKU registration').then(function(res) {
+        if (btn) btn.disabled = false;
+        if (res.error) {
+            infoEl.textContent = 'Could not register: ' + res.error.message;
+            return;
+        }
+        var status = res.data && res.data.status;
+        if (status !== 'CREATED' && status !== 'ALREADY_REGISTERED') {
+            infoEl.textContent = 'Unexpected response — please try again.';
+            return;
+        }
+        // ALREADY_REGISTERED (a race — e.g. someone else registered the same
+        // SKU a moment ago): never overwritten, just resume with real data,
+        // same as a normal successful registration.
+        var resEl = document.getElementById('move-result');
+        cancelSkuRegistration();
+        resEl.className = 'move-result';
+        resEl.textContent = (status === 'CREATED' ? 'SKU registered. ' : 'SKU was already registered — continuing with existing data. ') + 'Saving stock movement...';
+        return resolveSkuOrAsin(ctx.skuVal).then(function(sku) {
+            if (!sku) {
+                resEl.className = 'move-result err';
+                resEl.textContent = '❌ Registered, but could not reload the SKU to continue the movement. Please submit it again.';
+                return;
+            }
+            return proceedMoveWithSku(sku, ctx.binVal, ctx.qtyVal, ctx.note, resEl);
+        });
+    }).catch(function(err) {
+        if (btn) btn.disabled = false;
+        infoEl.textContent = 'Unexpected error: ' + err;
     });
 }
 
@@ -2602,8 +2774,13 @@ var ACTION_TXN_MAP = {
     QC_RELEASE:  { txnType: 'ADJUSTMENT_QC_RELEASE',  sign: 1  }
 };
 function downloadBulkTemplate() {
-    var csv = 'Action,SKU,Bin,ToBin,Qty,Note\r\n' +
-              'INBOUND,AZPER200596FRA_NM_01-S5_BL,A12,,50,Sample row - delete this\r\n';
+    // v61: Feature 8 — new optional 7th column, ProductName. Appended at the
+    // end (existing 6 columns unchanged) so an in-progress copy of the old
+    // template still lines up correctly. Only read when a row's SKU is not
+    // found AND the row's Action is genuinely inbound-type (INBOUND /
+    // RETURN_IN / FOUND) — see processBulkRowsSequentially().
+    var csv = 'Action,SKU,Bin,ToBin,Qty,Note,ProductName\r\n' +
+              'INBOUND,AZPER200596FRA_NM_01-S5_BL,A12,,50,Sample row - delete this,\r\n';
     var blob = new Blob([csv], { type: 'text/csv' });
     var url = URL.createObjectURL(blob);
     var a = document.createElement('a');
@@ -2678,6 +2855,7 @@ function processBulkRowsSequentially(rows, idx, empCode, results, resultEl) {
     var toBin = (r[3] || '').trim().toUpperCase();
     var qtyVal = parseFloat(r[4]);
     var note = (r[5] || '').trim();
+    var productName = (r[6] || '').trim(); // v61: Feature 8 — see downloadBulkTemplate()
 
     function finish(status) {
         results.push({ row: idx + 1, sku: sku || '(blank)', action: action || '(blank)', status: status });
@@ -2688,8 +2866,36 @@ function processBulkRowsSequentially(rows, idx, empCode, results, resultEl) {
     if (!action) { finish('FAILED - Action is required'); return; }
     if (!qtyVal || qtyVal <= 0) { finish('FAILED - Qty must be a positive number'); return; }
 
+    // v61: Feature 8 — inbound-type actions only (the item is genuinely
+    // arriving). TRANSFER and every ACTION_TXN_MAP action that removes/holds/
+    // releases existing stock still requires the SKU to already exist — those
+    // stay a hard block, unchanged, same as PICK/scan-out.
+    var INBOUND_BULK_ACTIONS = { INBOUND: true, RETURN_IN: true, FOUND: true };
+
     resolveSkuOrAsin(sku).then(function(skuRow) {
-        if (!skuRow) { finish('FAILED - SKU not found: ' + sku); return; }
+        if (!skuRow) {
+            if (!INBOUND_BULK_ACTIONS[action]) { finish('FAILED - SKU not found: ' + sku); return; }
+            if (!productName) { finish('FAILED - SKU not found and no ProductName given to register it: ' + sku); return; }
+            withTimeout(db.rpc('oms_employee_register_sku', {
+                p_sku_code: sku,
+                p_product_name: productName,
+                p_employee_code: empCode,
+                p_default_bin: bin || null
+            }), 10000, 'Bulk SKU registration').then(function(res) {
+                if (res.error) { finish('FAILED - could not register new SKU: ' + res.error.message); return; }
+                var status = res.data && res.data.status;
+                if (status !== 'CREATED' && status !== 'ALREADY_REGISTERED') { finish('FAILED - unexpected registration response'); return; }
+                resolveSkuOrAsin(sku).then(function(freshRow) {
+                    if (!freshRow) { finish('FAILED - registered but could not reload SKU: ' + sku); return; }
+                    continueBulkRow(freshRow, (status === 'CREATED' ? ' (new SKU registered)' : ''));
+                });
+            }).catch(function(err) { finish('FAILED - registration error: ' + err); });
+            return;
+        }
+        continueBulkRow(skuRow, '');
+    });
+
+    function continueBulkRow(skuRow, prefix) {
         var realSku = skuRow.sku_code;
 
         // v48: soft bin-mismatch note (never blocks), same wording as the
@@ -2702,7 +2908,7 @@ function processBulkRowsSequentially(rows, idx, empCode, results, resultEl) {
             writeLedgerTxn({ skuCode: realSku, asin: skuRow.asin, qtyDelta: -qtyVal, txnType: 'BIN_TRANSFER_OUT', binCode: bin, note: note }).then(function(res1) {
                 if (!res1.ok) { finish('FAILED - ' + res1.reason); return; }
                 writeLedgerTxn({ skuCode: realSku, asin: skuRow.asin, qtyDelta: qtyVal, txnType: 'BIN_TRANSFER_IN', binCode: toBin, note: note }).then(function(res2) {
-                    finish(res2.ok ? ('OK' + mismatchNote) : 'FAILED - ' + res2.reason);
+                    finish(res2.ok ? ('OK' + prefix + mismatchNote) : 'FAILED - ' + res2.reason);
                 });
             });
             return;
@@ -2712,9 +2918,9 @@ function processBulkRowsSequentially(rows, idx, empCode, results, resultEl) {
         if (!cfg) { finish('FAILED - unknown Action: ' + action); return; }
         if (!bin) { finish('FAILED - ' + action + ' needs a Bin'); return; }
         writeLedgerTxn({ skuCode: realSku, asin: skuRow.asin, qtyDelta: cfg.sign * qtyVal, txnType: cfg.txnType, binCode: bin, note: note }).then(function(res) {
-            finish(res.ok ? ('OK' + mismatchNote) : 'FAILED - ' + res.reason);
+            finish(res.ok ? ('OK' + prefix + mismatchNote) : 'FAILED - ' + res.reason);
         });
-    });
+    }
 }
 function renderBulkResults(results, resultEl) {
     // v48: status can now be "OK" or "OK (note: ...)" (bin-mismatch note) -
