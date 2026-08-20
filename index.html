@@ -257,7 +257,7 @@
     </style>
 </head>
 <body>
-<div class="ver-corner" id="verCornerBadge">v51</div>
+<div class="ver-corner" id="verCornerBadge">v52</div>
 <!-- v51: brief on-screen warning if a pick's stock deduction fails to save to the live
      database — the PICK flow deliberately advances immediately to the next scan (multi-line
      picks must not be blocked), so this is a visible, dismissible heads-up in addition to the
@@ -377,7 +377,7 @@
                 <div class="pill-btn active" id="move-pill-NEW_STOCK_IN" onclick="setMoveMode('NEW_STOCK_IN')">&#128230; New Stock</div>
                 <div class="pill-btn" id="move-pill-RETURN_IN" onclick="setMoveMode('RETURN_IN')">&#8617; Returns</div>
                 <div class="pill-btn" id="move-pill-ADJUSTMENT_FOUND" onclick="setMoveMode('ADJUSTMENT_FOUND')">&#10133; Found</div>
-                <div class="pill-btn" id="move-pill-ADJUSTMENT_LOST_THEFT" onclick="setMoveMode('ADJUSTMENT_LOST_THEFT')">&#10134; Lost/Theft</div>
+                <div class="pill-btn" id="move-pill-ADJUSTMENT_LOST_THEFT" onclick="setMoveMode('ADJUSTMENT_LOST_THEFT')">&#10134; Remove/Lost</div>
                 <div class="pill-btn" id="move-pill-QC_HOLD" onclick="setMoveMode('QC_HOLD')">&#128295; QC Hold</div>
                 <!-- v50: 6th MOVE mode — QC Release. Mirrors QC Hold exactly (same shared
                      form below); previously this action was only reachable via Bulk CSV
@@ -386,6 +386,8 @@
                      deliberately named ADJUSTMENT_QC_RELEASE to match the same txn_type the
                      bulk path already writes — no special-casing needed. -->
                 <div class="pill-btn" id="move-pill-ADJUSTMENT_QC_RELEASE" onclick="setMoveMode('ADJUSTMENT_QC_RELEASE')">&#128275; QC Release</div>
+                <!-- v52: 7th MOVE mode — Set True Count (manual correction from a physical stock count). -->
+                <div class="pill-btn" id="move-pill-MANUAL_CORRECTION" onclick="setMoveMode('MANUAL_CORRECTION')">&#9878; Set True Count</div>
             </div>
             <div class="settings-section">
                 <h3 id="move-mode-title">&#128230; New Stock In</h3>
@@ -589,7 +591,9 @@
             <div class="guide-section">
                 <h3>&#128260; MOVE / STOCK / Bulk Upload &mdash; Bin-Level Stock</h3>
                 <ul>
-                    <li><strong>MOVE tab</strong> &mdash; records one stock movement at a time (New Stock In / Returns In / Found / Lost-Theft / QC Hold / QC Release). A <strong>Bin is now required on every movement</strong> &mdash; the app auto-fills the SKU's usual bin, but you can always overwrite it (e.g. new stock landing in RECEIVING instead of the SKU's normal shelf).</li>
+                    <li><strong>MOVE tab</strong> &mdash; records one stock movement at a time (New Stock In / Returns In / Found / Remove-Lost / QC Hold / QC Release / Set True Count). A <strong>Bin is now required on every movement except Set True Count</strong> &mdash; the app auto-fills the SKU's usual bin, but you can always overwrite it (e.g. new stock landing in RECEIVING instead of the SKU's normal shelf).</li>
+                    <!-- v52: Set True Count — new 7th pill, for physical stock counts only -->
+                    <li><strong>Set True Count</strong> &mdash; new 7th pill on the MOVE tab, for a physical stock count only (not daily use). Type the SKU's real total right now; the app looks up the current live number and saves only the difference as one correction, with a mandatory note. Bin is optional here since a correction usually covers the SKU as a whole, not one bin.</li>
                     <!-- v50: QC Release used to be CSV/Bulk-only; note the new single-row screen -->
                     <li><strong>QC Release</strong> &mdash; new 6th pill on the MOVE tab, previously only reachable via Bulk Upload (CSV). Releases stock that was QC-Held back into sellable count, using the same SKU/Bin/Qty/Note form as the rest of this tab.</li>
                     <li><strong>Bulk Upload (CSV)</strong> &mdash; on the MOVE tab: download the template, fill it, upload. Same actions as the Excel bulk tool (INBOUND / RETURN_IN / FOUND / LOST / REJECTED / QC_HOLD / QC_RELEASE / TRANSFER), same per-row OK/FAILED result.</li>
@@ -679,8 +683,8 @@
 
             <!-- Version -->
             <div class="ver-badge">
-                <div class="ver-name">&#128230; ArtzFolio Scan-Pick-Pack v48</div>
-                <div class="ver-sub">Soft Bin-Mismatch Note (MOVE + Bulk Upload, never blocks) &bull; entry_source Audit Tag on Every Write &bull; Bulk Upload from CSV (Inbound/Transfer/Found/Lost/Rejected/QC) &bull; Live Bin Lookup (Single SKU / Single Bin / Bulk) &bull; Dynamic Bins (auto-created, no fixed list) &bull; Mandatory Bin on Every Stock Movement &bull; Owner Dashboard (DASH) &bull; 14-Day Staff Performance &bull; Print Product/Bin Labels &bull; QC Hold/Damage &bull; Low-Stock Alerts &bull; Daily Reconciliation &bull; Admin PIN-Lock Unlock &bull; Real Employee Login (PIN) &bull; RBAC &bull; Live Database (Supabase) &bull; Admin-Secret-Gated PIN Recovery &bull; Permanent Audit Log &bull; Hardened Employee Writes (Admin-RPC-Only) &bull; Call Timeouts &amp; Error Handling (Performance Fix)</div>
+                <div class="ver-name">&#128230; ArtzFolio Scan-Pick-Pack v52</div>
+                <div class="ver-sub">Set True Count / Manual Correction (v52) &bull; Bin Lookup Full Detail Table with Activity Breakdown, ASIN, Last Updated (v52) &bull; Bin Usage Summary (v52) &bull; Per-SKU History Drilldown (v52) &bull; Bin Lookup CSV Export (v52) &bull; Soft Bin-Mismatch Note (MOVE + Bulk Upload, never blocks) &bull; entry_source Audit Tag on Every Write &bull; Bulk Upload from CSV (Inbound/Transfer/Found/Lost/Rejected/QC) &bull; Live Bin Lookup (Single SKU / Single Bin / Bulk) &bull; Dynamic Bins (auto-created, no fixed list) &bull; Mandatory Bin on Every Stock Movement &bull; Owner Dashboard (DASH) &bull; 14-Day Staff Performance &bull; Print Product/Bin Labels &bull; QC Hold/Damage &bull; Low-Stock Alerts &bull; Daily Reconciliation &bull; Admin PIN-Lock Unlock &bull; Real Employee Login (PIN) &bull; RBAC &bull; Live Database (Supabase) &bull; Admin-Secret-Gated PIN Recovery &bull; Permanent Audit Log &bull; Hardened Employee Writes (Admin-RPC-Only) &bull; Call Timeouts &amp; Error Handling (Performance Fix)</div>
             </div>
         </div>
     </div>
@@ -1614,7 +1618,7 @@ var MOVE_MODES = {
     NEW_STOCK_IN:          { title: '&#128230; New Stock In',  desc: 'Scan or type the SKU or ASIN of the product being brought into stock, enter the quantity, then submit. This adds to live stock immediately.', sign: 1 },
     RETURN_IN:             { title: '&#8617; Returns In',      desc: 'Scan or type the SKU or ASIN of a returned product, enter the quantity, then submit. This adds the returned units back to live stock immediately.', sign: 1 },
     ADJUSTMENT_FOUND:      { title: '&#10133; Found Units',     desc: 'Scan or type the SKU or ASIN of units found during a stock check that weren’t in the system. Always add a note explaining why.', sign: 1, requireNote: true },
-    ADJUSTMENT_LOST_THEFT: { title: '&#10134; Lost / Theft',    desc: 'Scan or type the SKU or ASIN of units confirmed lost, damaged beyond sale, or stolen. Always add a note explaining why — this permanently reduces live stock.', sign: -1, requireNote: true },
+    ADJUSTMENT_LOST_THEFT: { title: '&#10134; Remove / Lost',    desc: 'Scan or type the SKU or ASIN of units to remove from live stock — lost, damaged beyond sale, stolen, or any other manual removal. Always add a note explaining why — this permanently reduces live stock.', sign: -1, requireNote: true },
     QC_HOLD:               { title: '&#128295; QC Hold',        desc: 'Remove stock found damaged or failing QC — always logged with a reason. Does not delete the units, just removes them from sellable count.', sign: -1, requireNote: true },
     // v50: QC Release — new 6th MOVE mode, single-row equivalent of the existing
     // Bulk CSV "QC_RELEASE" action. Key is ADJUSTMENT_QC_RELEASE (not QC_RELEASE)
@@ -1622,7 +1626,16 @@ var MOVE_MODES = {
     // txnType, and ACTION_TXN_MAP.QC_RELEASE.txnType is 'ADJUSTMENT_QC_RELEASE' —
     // using the same key here means this pill writes the identical txn_type the
     // bulk path already writes, with zero special-casing.
-    ADJUSTMENT_QC_RELEASE: { title: '&#128275; QC Release',    desc: 'Release previously-held stock back into sellable inventory. Scan or type the SKU/ASIN, confirm the bin, and submit.', sign: 1 }
+    ADJUSTMENT_QC_RELEASE: { title: '&#128275; QC Release',    desc: 'Release previously-held stock back into sellable inventory. Scan or type the SKU/ASIN, confirm the bin, and submit.', sign: 1 },
+    // v52: Set True Count — for a physical stock count only, NOT daily use.
+    // Unlike every other MOVE mode, the number typed here is not a delta to
+    // add or subtract — it's the TRUE total quantity just counted, across all
+    // bins. submitMoveTransaction() special-cases isCorrection to fetch the
+    // current live total first and write only the difference as one
+    // MANUAL_CORRECTION row — mirrors PushClosingStockOverride on the Excel
+    // side exactly. bin is optional here (the database itself allows
+    // MANUAL_CORRECTION without a bin_code — every other txn_type requires one).
+    MANUAL_CORRECTION:     { title: '&#9878; Set True Count', desc: 'For a physical stock count only — not daily use. Enter the SKU\u2019s TRUE total quantity right now, across all bins. The app looks up the current live total and saves only the difference. Always explain why.', isCorrection: true, requireNote: true }
 };
 var moveMode = 'NEW_STOCK_IN';
 
@@ -1668,16 +1681,32 @@ function prefillMoveBin() {
 function setMoveMode(mode) {
     if (!MOVE_MODES[mode]) return;
     moveMode = mode;
+    var cfg = MOVE_MODES[mode];
     for (var key in MOVE_MODES) {
         var pill = document.getElementById('move-pill-' + key);
         if (pill) pill.classList.toggle('active', key === mode);
     }
-    document.getElementById('move-mode-title').innerHTML = MOVE_MODES[mode].title;
-    document.getElementById('move-mode-desc').textContent = MOVE_MODES[mode].desc.replace(/&#\d+;/g, '');
+    document.getElementById('move-mode-title').innerHTML = cfg.title;
+    document.getElementById('move-mode-desc').textContent = cfg.desc.replace(/&#\d+;/g, '');
     document.getElementById('move-result').textContent = '';
     document.getElementById('move-sku-input').value = '';
     document.getElementById('move-bin-input').value = '';
-    document.getElementById('move-qty-input').value = '1';
+    // v52: "Set True Count" reuses the qty field for an absolute count, not a
+    // delta — 0 is a valid, meaningful entry there (a full stock-out), so the
+    // input's min/placeholder/default change for that mode only.
+    var qtyInput = document.getElementById('move-qty-input');
+    var binInput = document.getElementById('move-bin-input');
+    if (cfg.isCorrection) {
+        qtyInput.min = '0';
+        qtyInput.placeholder = 'True count (0 or more)';
+        qtyInput.value = '0';
+        binInput.placeholder = 'Bin location (optional for a correction)';
+    } else {
+        qtyInput.min = '1';
+        qtyInput.placeholder = 'Quantity';
+        qtyInput.value = '1';
+        binInput.placeholder = 'Bin location (required)';
+    }
     document.getElementById('move-note-input').value = '';
     loadBinList();
     try { document.getElementById('move-sku-input').focus(); } catch(e) {}
@@ -1703,9 +1732,16 @@ function submitMoveTransaction() {
     if (!skuVal) { resEl.className = 'move-result err'; resEl.textContent = 'Scan or type a SKU/ASIN first.'; return; }
     // v44: bin is mandatory — the database itself now rejects any movement
     // without one (except MANUAL_CORRECTION), so this check just gives a
-    // clear message instead of a raw database error.
-    if (!binVal) { resEl.className = 'move-result err'; resEl.textContent = 'Enter or confirm the bin location — this is now required for every stock movement.'; return; }
-    if (!qtyVal || qtyVal < 1) { resEl.className = 'move-result err'; resEl.textContent = 'Enter a valid quantity (1 or more).'; return; }
+    // clear message instead of a raw database error. v52: skipped entirely
+    // for a correction, matching the database's own exemption.
+    if (!binVal && !cfg.isCorrection) { resEl.className = 'move-result err'; resEl.textContent = 'Enter or confirm the bin location — this is now required for every stock movement.'; return; }
+    // v52: a correction's qty field is an absolute count, so 0 is valid and
+    // meaningful (a full stock-out) — every other mode still requires >= 1.
+    if (cfg.isCorrection) {
+        if (qtyVal === null || isNaN(qtyVal) || qtyVal < 0) { resEl.className = 'move-result err'; resEl.textContent = 'Enter the true count (0 or more).'; return; }
+    } else if (!qtyVal || qtyVal < 1) {
+        resEl.className = 'move-result err'; resEl.textContent = 'Enter a valid quantity (1 or more).'; return;
+    }
     if (cfg.requireNote && !note) { resEl.className = 'move-result err'; resEl.textContent = 'A note is required for ' + cfg.title.replace(/&#\d+;/g, '').trim() + ' adjustments.'; return; }
     var emp = loadEmployee();
     if (!emp || !emp.code) { resEl.className = 'move-result err'; resEl.textContent = 'Set your employee code first (Settings tab).'; return; }
@@ -1716,8 +1752,51 @@ function submitMoveTransaction() {
         if (!sku) {
             resEl.className = 'move-result err';
             resEl.textContent = '❌ "' + skuVal + '" not found in the SKU database. Check the code and try again.';
-            return;
+            return null;
         }
+
+        if (cfg.isCorrection) {
+            // v52: look up the CURRENT live total first (across all bins),
+            // then write only the difference — mirrors PushClosingStockOverride
+            // on the Excel side exactly, so both sides use the same logic.
+            resEl.textContent = 'Checking current live count...';
+            return withTimeout(db.from('oms_current_stock').select('qty_on_hand').eq('sku_code', sku.sku_code).maybeSingle(), 10000, 'Current stock lookup').then(function(csRes) {
+                var currentQty = (csRes && csRes.data && Number(csRes.data.qty_on_hand)) || 0;
+                var delta = qtyVal - currentQty;
+                if (delta === 0) {
+                    resEl.className = 'move-result ok';
+                    resEl.textContent = '✓ No change needed — ' + sku.sku_code + ' is already at ' + qtyVal + ' live.';
+                    return null;
+                }
+                var sure = confirm('Set ' + sku.sku_code + ' (' + (sku.product_name || '') + ') to ' + qtyVal + ' units?\n\nCurrently live: ' + currentQty + '\nThis will record a correction of ' + (delta > 0 ? '+' : '') + delta + '.\n\nThis cannot be undone (though it can be corrected again later).');
+                if (!sure) { resEl.className = 'move-result'; resEl.textContent = 'Cancelled — nothing was saved.'; return null; }
+                resEl.textContent = 'Saving correction...';
+                return writeLedgerTxn({
+                    skuCode: sku.sku_code,
+                    asin: sku.asin,
+                    qtyDelta: delta,
+                    txnType: 'MANUAL_CORRECTION',
+                    binCode: binVal || null,
+                    note: note || null
+                }).then(function(result) {
+                    if (!result.ok) {
+                        resEl.className = 'move-result err';
+                        resEl.textContent = '❌ Could not save: ' + result.reason;
+                        return;
+                    }
+                    resEl.className = 'move-result ok';
+                    resEl.textContent = '✓ Saved — ' + sku.sku_code + ' corrected from ' + currentQty + ' to ' + qtyVal + ' (' + (delta > 0 ? '+' : '') + delta + ')' + (binVal ? (' @ bin ' + binVal) : '');
+                    logEvent(sku.sku_code, 'Set True Count: ' + currentQty + ' \u2192 ' + qtyVal + ' (' + (delta > 0 ? '+' : '') + delta + ')' + (note ? ' — ' + note : ''));
+                    writeAuditLog('MANUAL_CORRECTION', { skuCode: sku.sku_code, details: { qty_delta: delta, from: currentQty, to: qtyVal, bin_code: binVal || null, note: note || null, product_name: sku.product_name || null } });
+                    document.getElementById('move-sku-input').value = '';
+                    document.getElementById('move-bin-input').value = '';
+                    document.getElementById('move-qty-input').value = '0';
+                    document.getElementById('move-note-input').value = '';
+                    try { document.getElementById('move-sku-input').focus(); } catch(e) {}
+                });
+            });
+        }
+
         resEl.textContent = 'Saving...';
         return writeLedgerTxn({
             skuCode: sku.sku_code,
@@ -2067,48 +2146,205 @@ function renderBulkResults(results, resultEl) {
     resultEl.innerHTML = html;
     if (typeof logEvent === 'function') logEvent('BULK_UPLOAD', okCount + ' pushed, ' + failCount + ' failed from CSV upload');
 }
-// v45: Bin Lookup — single SKU, single bin, or bulk (leave blank = whole
-// map, capped at 300 rows). Reads oms_bin_stock, a live view that sums the
-// full transaction ledger per SKU+bin on the fly — always exactly correct,
-// nothing to keep in sync. Answers all 3 directions Rajat asked for:
-// "which bin(s) hold this SKU", "what's in this bin", and the reverse.
+// v52: Bin Lookup rewritten into a full detail view — per Rajat's
+// 2026-08-20 request. Groups results by SKU (not one flat row per bin),
+// and enriches each SKU card with a live activity breakdown
+// (oms_sku_activity_breakdown) and, when the search is a bin-code lookup,
+// a bin usage summary (oms_bin_usage_summary) header. Both are new,
+// purely-additive Supabase views — nothing existing was changed to add
+// this. Also adds a CSV export of whatever is currently on screen, and a
+// per-SKU "History" toggle showing the last 25 ledger entries for that SKU.
+var lastBinLookupRows = [];   // last SKU-summary rows shown, used by exportBinLookupCSV()
+
 function runBinLookup() {
     var el = document.getElementById('bin-lookup-result');
     var raw = (document.getElementById('bin-lookup-input').value || '').trim().toUpperCase();
     if (!db) { el.innerHTML = '<div class="move-result err">Live database not reachable right now.</div>'; return; }
     el.innerHTML = '<div style="text-align:center;color:#aaa;font-size:12px;padding:10px 0;">Searching...</div>';
 
-    var q = db.from('oms_bin_stock').select('sku_code,product_name,asin,bin_code,qty_on_hand').order('bin_code');
+    var q = db.from('oms_bin_stock').select('sku_code,product_name,asin,bin_code,qty_on_hand,last_movement_at').order('sku_code').order('bin_code');
     if (raw) {
         q = q.or('sku_code.eq.' + raw + ',asin.eq.' + raw + ',bin_code.eq.' + raw);
     }
-    q = q.limit(300);
+    q = q.limit(500);
 
     withTimeout(q, 10000, 'Bin lookup').then(function(res) {
         if (res.error) { el.innerHTML = '<div class="move-result err">' + res.error.message + '</div>'; return; }
         var rows = res.data || [];
         if (!rows.length) {
             el.innerHTML = '<div style="text-align:center;color:#aaa;font-size:12px;padding:10px 0;">' + (raw ? ('No stock found for "' + raw + '".') : 'No bin stock recorded yet.') + '</div>';
+            lastBinLookupRows = [];
             return;
         }
-        var html = '<div style="max-height:260px;overflow-y:auto;border:1px solid #eee;border-radius:8px;margin-top:4px;">';
+
+        // Group the flat SKU+bin rows into one card per SKU.
+        var skuOrder = [];
+        var bySku = {};
         for (var i = 0; i < rows.length; i++) {
             var r = rows[i];
-            html += '<div class="stock-row">' +
-                '<div><div class="stock-sku">' + (r.sku_code || '') + '</div><div class="stock-asin">' + (r.product_name || r.asin || '') + '</div></div>' +
-                '<div style="display:flex;align-items:center;gap:8px;">' +
-                '<span style="font-size:11px;color:#666;background:#f0f2f5;padding:3px 8px;border-radius:10px;">' + (r.bin_code || '') + '</span>' +
-                '<div class="stock-qty">' + r.qty_on_hand + '</div>' +
-                '</div>' +
-                '</div>';
+            if (!bySku[r.sku_code]) { bySku[r.sku_code] = { sku_code: r.sku_code, product_name: r.product_name, asin: r.asin, bins: [], total: 0, last: null }; skuOrder.push(r.sku_code); }
+            var g = bySku[r.sku_code];
+            g.bins.push({ bin_code: r.bin_code, qty_on_hand: r.qty_on_hand, last_movement_at: r.last_movement_at });
+            g.total += Number(r.qty_on_hand) || 0;
+            if (!g.last || (r.last_movement_at && r.last_movement_at > g.last)) g.last = r.last_movement_at;
         }
-        html += '</div>';
-        if (rows.length === 300) html += '<div style="text-align:center;color:#888;font-size:10px;padding:4px 0;">Showing first 300 matches — search a specific SKU or bin to narrow this down.</div>';
-        el.innerHTML = html;
+
+        // Is this a single bin-code lookup? (every result row's bin_code === raw)
+        var isBinCodeSearch = false;
+        if (raw && rows.length) {
+            isBinCodeSearch = true;
+            for (var j = 0; j < rows.length; j++) { if ((rows[j].bin_code || '').toUpperCase() !== raw) { isBinCodeSearch = false; break; } }
+        }
+
+        lastBinLookupRows = skuOrder.map(function(s) { return bySku[s]; });
+
+        var renderAll = function(breakdownMap) {
+            var html = '';
+            if (isBinCodeSearch) {
+                html += '<div id="bin-summary-header" style="padding:8px 10px;background:#f0f2f5;border-radius:8px;margin:4px 0 8px;font-size:11px;color:#444;">Loading bin summary…</div>';
+                withTimeout(db.from('oms_bin_usage_summary').select('distinct_sku_count,total_units_in_bin,last_movement_at').eq('bin_code', raw).maybeSingle(), 8000, 'Bin summary').then(function(bres) {
+                    var bs = bres && bres.data;
+                    var hdr = document.getElementById('bin-summary-header');
+                    if (hdr) {
+                        hdr.innerHTML = bs
+                            ? ('<strong>Bin ' + raw + ':</strong> ' + bs.distinct_sku_count + ' SKU(s) &bull; ' + bs.total_units_in_bin + ' total units &bull; last movement ' + fmtRelTime(bs.last_movement_at))
+                            : ('<strong>Bin ' + raw + '</strong>');
+                    }
+                }).catch(function() {});
+            }
+
+            html += '<div style="max-height:420px;overflow-y:auto;border:1px solid #eee;border-radius:8px;margin-top:4px;">';
+            for (var k = 0; k < skuOrder.length; k++) {
+                var g = bySku[skuOrder[k]];
+                var bd = breakdownMap[g.sku_code] || {};
+                var badges = [
+                    ['Sold', bd.total_sold, '#E74C3C'],
+                    ['Returned', bd.total_returned, '#27AE60'],
+                    ['New Stock', bd.total_new_stock_in, '#27AE60'],
+                    ['Lost/Removed', bd.total_lost_theft, '#E74C3C'],
+                    ['Found', bd.total_found, '#27AE60'],
+                    ['Rejected/Damaged', bd.total_rejected_damaged, '#E74C3C'],
+                    ['QC Hold', bd.total_qc_hold_net, '#F39C12'],
+                    ['QC Released', bd.total_qc_released, '#27AE60'],
+                    ['Manual Correction', bd.total_manual_correction, '#1B4F8A']
+                ].filter(function(b) { return b[1]; });
+                var badgeHtml = badges.map(function(b) {
+                    return '<span style="font-size:10px;background:#f7f9fc;border:1px solid #e0e5ee;color:' + b[2] + ';padding:2px 6px;border-radius:8px;margin:2px 3px 0 0;display:inline-block;">' + b[0] + ': ' + (b[1] > 0 ? '+' : '') + b[1] + '</span>';
+                }).join('');
+                var binsHtml = g.bins.map(function(b) {
+                    return '<div style="display:flex;justify-content:space-between;padding:3px 0;font-size:11px;color:#555;"><span style="background:#f0f2f5;padding:2px 7px;border-radius:8px;">' + (b.bin_code || 'RECEIVING') + '</span><span style="font-weight:700;">' + b.qty_on_hand + '</span></div>';
+                }).join('');
+                html += '<div style="padding:8px 10px;border-bottom:1px solid #f2f2f2;">' +
+                    '<div style="display:flex;justify-content:space-between;align-items:flex-start;">' +
+                    '<div><div class="stock-sku">' + g.sku_code + '</div>' +
+                    '<div class="stock-asin">' + (g.product_name || '') + '</div>' +
+                    '<div style="font-size:10px;color:#888;margin-top:2px;">ASIN: ' + (g.asin || '—') + ' &bull; Updated: ' + fmtRelTime(g.last) + '</div></div>' +
+                    '<div class="stock-qty" style="text-align:right;">' + g.total + '<div style="font-size:9px;color:#999;font-weight:400;">total</div></div>' +
+                    '</div>' +
+                    (badgeHtml ? ('<div style="margin-top:5px;">' + badgeHtml + '</div>') : '') +
+                    '<div style="margin-top:6px;">' + binsHtml + '</div>' +
+                    '<div style="margin-top:5px;"><button class="csv-btn" style="font-size:10px;padding:3px 8px;" onclick="toggleSkuHistory(\'' + g.sku_code.replace(/'/g, "\\'") + '\')">History &#9662;</button></div>' +
+                    '<div id="sku-history-' + cssId(g.sku_code) + '" style="display:none;margin-top:6px;"></div>' +
+                    '</div>';
+            }
+            html += '</div>';
+            if (rows.length === 500) html += '<div style="text-align:center;color:#888;font-size:10px;padding:4px 0;">Showing first 500 matches — search a specific SKU or bin to narrow this down.</div>';
+            html += '<div style="text-align:right;margin-top:6px;"><button class="csv-btn" onclick="exportBinLookupCSV()">&#8595; Export CSV</button></div>';
+            el.innerHTML = html;
+        };
+
+        if (skuOrder.length) {
+            withTimeout(db.from('oms_sku_activity_breakdown').select('*').in('sku_code', skuOrder), 8000, 'Activity breakdown').then(function(bres) {
+                var map = {};
+                (bres.data || []).forEach(function(b) { map[b.sku_code] = b; });
+                renderAll(map);
+            }).catch(function() { renderAll({}); });
+        } else {
+            renderAll({});
+        }
     }).catch(function(err) {
         el.innerHTML = '<div class="move-result err">' + String(err) + '</div>';
     });
 }
+
+// v52: relative-time formatter, used by the Bin Lookup detail cards.
+function fmtRelTime(iso) {
+    if (!iso) return 'never';
+    var d = new Date(iso);
+    if (isNaN(d.getTime())) return 'never';
+    var diffMs = Date.now() - d.getTime();
+    var mins = Math.floor(diffMs / 60000);
+    if (mins < 1) return 'just now';
+    if (mins < 60) return mins + 'm ago';
+    var hrs = Math.floor(mins / 60);
+    if (hrs < 24) return hrs + 'h ago';
+    var days = Math.floor(hrs / 24);
+    if (days < 30) return days + 'd ago';
+    return d.toISOString().slice(0, 10);
+}
+
+// v52: safe DOM-id fragment from a SKU code (SKU codes can contain
+// characters that aren't valid in an HTML id — this strips them).
+function cssId(s) { return String(s || '').replace(/[^A-Za-z0-9_-]/g, '_'); }
+
+// v52: per-SKU audit trail — last 25 ledger entries, toggled open under
+// the SKU's Bin Lookup card. Reads oms_inventory_transactions directly
+// (already the permanent, append-only source of truth every other feature
+// in this app reads from) — no new table needed.
+function toggleSkuHistory(skuCode) {
+    var box = document.getElementById('sku-history-' + cssId(skuCode));
+    if (!box) return;
+    if (box.style.display === 'block') { box.style.display = 'none'; return; }
+    box.style.display = 'block';
+    box.innerHTML = '<div style="text-align:center;color:#aaa;font-size:11px;padding:6px 0;">Loading history…</div>';
+    withTimeout(db.from('oms_inventory_transactions').select('created_at,txn_type,qty_delta,bin_code,employee_code,note,entry_source').eq('sku_code', skuCode).order('created_at', { ascending: false }).limit(25), 8000, 'SKU history').then(function(res) {
+        var rows = res.data || [];
+        if (!rows.length) { box.innerHTML = '<div style="font-size:11px;color:#aaa;padding:4px 0;">No history found.</div>'; return; }
+        var html = '<div style="border-top:1px dashed #e0e0e0;padding-top:5px;">';
+        rows.forEach(function(r) {
+            var sign = r.qty_delta > 0 ? '+' : '';
+            var color = r.qty_delta > 0 ? '#27AE60' : (r.qty_delta < 0 ? '#E74C3C' : '#888');
+            html += '<div style="font-size:10px;color:#555;padding:3px 0;border-bottom:1px solid #f5f5f5;">' +
+                '<span style="color:#999;">' + (r.created_at || '').replace('T', ' ').slice(0, 16) + '</span> &bull; ' +
+                '<strong>' + (r.txn_type || '') + '</strong> &bull; ' +
+                '<span style="color:' + color + ';font-weight:700;">' + sign + r.qty_delta + '</span> &bull; ' +
+                'bin ' + (r.bin_code || '—') + ' &bull; ' + (r.employee_code || '—') +
+                (r.note ? (' &bull; "' + r.note + '"') : '') + '</div>';
+        });
+        html += '</div>';
+        box.innerHTML = html;
+    }).catch(function(err) { box.innerHTML = '<div style="font-size:11px;color:#E74C3C;">' + String(err) + '</div>'; });
+}
+
+// v52: CSV export of whatever the Bin Lookup currently shows — one row per
+// SKU+bin combination, with the same detail columns as the on-screen cards.
+function exportBinLookupCSV() {
+    if (!lastBinLookupRows.length) { alert('Nothing to export — run a search first.'); return; }
+    var rows = ['SKU,ASIN,Product Name,Bin,Qty in Bin,Total Qty (all bins),Last Updated'];
+    lastBinLookupRows.forEach(function(g) {
+        g.bins.forEach(function(b) {
+            rows.push([
+                g.sku_code || '',
+                g.asin || '',
+                '"' + (g.product_name || '').replace(/"/g, '""') + '"',
+                b.bin_code || '',
+                b.qty_on_hand,
+                g.total,
+                g.last || ''
+            ].join(','));
+        });
+    });
+    var blob = new Blob([rows.join('\r\n')], { type: 'text/csv;charset=utf-8;' });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url;
+    a.download = 'bin_lookup_export_' + new Date().toISOString().slice(0, 10) + '.csv';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+}
+
 // v43 fix: debounced realtime reload trigger. Previously EVERY single INSERT
 // event on oms_inventory_transactions (i.e. every scan, by anyone, anywhere)
 // called loadStockTab(false) immediately — on a busy warehouse floor this
