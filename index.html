@@ -174,6 +174,17 @@
         .move-result.ok{color:#1e8449}
         .move-result.err{color:#c0392b}
         .stock-toolbar{display:flex;gap:8px;margin-bottom:10px}
+        .stock-filter-row{display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap;align-items:center}
+        .stock-filter-row select{flex:1 1 130px;min-width:110px;border:1.5px solid #c5d0de;border-radius:8px;padding:7px 8px;font-size:11px;outline:none;color:#222;background:#fff}
+        .stock-filter-row select:focus{border-color:#1B4F8A}
+        .stock-filter-clear{flex:0 0 auto;background:#f0f2f5;color:#555;border:none;padding:7px 12px;border-radius:8px;font-size:11px;font-weight:700;cursor:pointer}
+        .stock-status-badge{display:inline-block;font-size:9px;font-weight:800;padding:2px 7px;border-radius:6px;margin-left:6px;vertical-align:middle;letter-spacing:.2px}
+        .stock-status-badge.in{color:#1e8449;background:#eafaf1}
+        .stock-status-badge.low{color:#b7791f;background:#fef3d6}
+        .stock-status-badge.out{color:#c0392b;background:#fdedec}
+        .stock-cat{font-size:10px;color:#aaa}
+        .stock-name{font-size:11px;color:#444;margin:1px 0}
+
         .stock-search{flex:1;border:1.5px solid #c5d0de;border-radius:8px;padding:9px 11px;font-size:12px;outline:none}
         .stock-row{display:flex;justify-content:space-between;align-items:center;padding:9px 10px;border-bottom:1px solid #f0f2f5;font-size:12px}
         .stock-sku{font-weight:700;color:#1B4F8A}
@@ -257,7 +268,7 @@
     </style>
 </head>
 <body>
-<div class="ver-corner" id="verCornerBadge">v57</div>
+<div class="ver-corner" id="verCornerBadge">v58</div>
 <!-- v51: brief on-screen warning if a pick's stock deduction fails to save to the live
      database — the PICK flow deliberately advances immediately to the next scan (multi-line
      picks must not be blocked), so this is a visible, dismissible heads-up in addition to the
@@ -501,6 +512,34 @@
             <div class="stock-toolbar">
                 <input type="text" class="stock-search" id="stock-search-input" placeholder="Filter by SKU, ASIN, or product name..." oninput="onStockSearchInput()">
             </div>
+            <!-- v58: Stock filters + sort. Category list is loaded once from
+                 oms_sku_master; status + sort are fixed lists. All three (and
+                 the search box above) are applied server-side together via
+                 the new oms_stock_explorer view, so this still respects the
+                 v43 pagination fix -- no full 11k-row table is ever pulled
+                 into the browser, filtered or not. -->
+            <div class="stock-filter-row" id="stock-filter-row">
+                <select id="stock-filter-status" onchange="onStockFilterChange()">
+                    <option value="">All stock status</option>
+                    <option value="IN_STOCK">&#9989; In stock</option>
+                    <option value="LOW_STOCK">&#9888; Low stock (at/below reorder point)</option>
+                    <option value="OUT_OF_STOCK">&#10060; Out of stock</option>
+                </select>
+                <select id="stock-filter-category" onchange="onStockFilterChange()">
+                    <option value="">All categories</option>
+                </select>
+                <select id="stock-sort-by" onchange="onStockFilterChange()">
+                    <option value="sku_code:asc">Sort: SKU (A &rarr; Z)</option>
+                    <option value="sku_code:desc">Sort: SKU (Z &rarr; A)</option>
+                    <option value="asin:asc">Sort: ASIN (A &rarr; Z)</option>
+                    <option value="asin:desc">Sort: ASIN (Z &rarr; A)</option>
+                    <option value="product_name:asc">Sort: Product Title (A &rarr; Z)</option>
+                    <option value="product_name:desc">Sort: Product Title (Z &rarr; A)</option>
+                    <option value="qty_on_hand:asc">Sort: Qty (Low &rarr; High)</option>
+                    <option value="qty_on_hand:desc">Sort: Qty (High &rarr; Low)</option>
+                </select>
+                <button class="stock-filter-clear" onclick="clearStockFilters()">&times; Clear filters</button>
+            </div>
             <div id="stock-list"><div style="text-align:center;color:#aaa;font-size:12px;padding:20px 0;">Loading...</div></div>
             <!-- v43 fix: Prev/Next pagination controls for the (now paginated) stock list -->
             <div id="stock-pagination"></div>
@@ -699,8 +738,8 @@
 
             <!-- Version -->
             <div class="ver-badge">
-                <div class="ver-name">&#128230; ArtzFolio Scan-Pick-Pack v57</div>
-                <div class="ver-sub">Bin is now mandatory on EVERY stock movement, zero exceptions — including Set True Count / Manual Correction, whose bin exemption is removed at both the UI and database level (Seller Flex discipline) (v57) &bull; Live stock can no longer go negative — database-level check on every removal, at both SKU and bin level, rejecting anything that would exceed what is actually recorded there (v56) &bull; Notes are now recommended, never mandatory, on Found/Remove-Lost/QC Hold/Set True Count (v56) &bull; Bin auto-fill and mismatch warnings now trust live bin data over the SKU registry's (sometimes stale) usual-bin field, and a live per-bin quantity line shows under the bin field on every SKU scan (v56) &bull; Bin-mismatch warning now also fires for SKUs with no registered default bin, using their live bin data instead — closes the gap behind the 2026-08-19 bin A1 (-4) ledger anomaly; same fix applied to MOVE tab bin auto-fill, Set True Count, and Bulk Upload (v55) &bull; All remaining unchunked .in() lookups (Stock list bin map, Bin Lookup activity breakdown) now chunked for consistency (v55) &bull; Export Full Inventory fixed &amp; expanded — chunked lookups (no more silent data loss on large batches), now includes pricing, reorder threshold, active status, and full per-SKU activity breakdown (v54) &bull; Live Stock list now shows bin(s) per SKU (v53) &bull; One-click Export Full Inventory - all SKUs, ASIN, product, qty, bins (v53) &bull; Set True Count / Manual Correction (v52) &bull; Bin Lookup Full Detail Table with Activity Breakdown, ASIN, Last Updated (v52) &bull; Bin Usage Summary (v52) &bull; Per-SKU History Drilldown (v52) &bull; Bin Lookup CSV Export (v52) &bull; Soft Bin-Mismatch Note (MOVE + Bulk Upload, never blocks) &bull; entry_source Audit Tag on Every Write &bull; Bulk Upload from CSV (Inbound/Transfer/Found/Lost/Rejected/QC) &bull; Live Bin Lookup (Single SKU / Single Bin / Bulk) &bull; Dynamic Bins (auto-created, no fixed list) &bull; Mandatory Bin on Every Stock Movement &bull; Owner Dashboard (DASH) &bull; 14-Day Staff Performance &bull; Print Product/Bin Labels &bull; QC Hold/Damage &bull; Low-Stock Alerts &bull; Daily Reconciliation &bull; Admin PIN-Lock Unlock &bull; Real Employee Login (PIN) &bull; RBAC &bull; Live Database (Supabase) &bull; Admin-Secret-Gated PIN Recovery &bull; Permanent Audit Log &bull; Hardened Employee Writes (Admin-RPC-Only) &bull; Call Timeouts &amp; Error Handling (Performance Fix)</div>
+                <div class="ver-name">&#128230; ArtzFolio Scan-Pick-Pack v58</div>
+                <div class="ver-sub">STOCK tab now has full filters &amp; sort — by stock status (in stock / low stock / out of stock), by category, and sort by SKU, ASIN, or Product Title (A&rarr;Z or Z&rarr;A), plus Qty high&rarr;low/low&rarr;high; every row now shows product name, category, and a colour status badge (v58) &bull; New SKU inbound via Quick Scan now defaults the bin to A1 automatically when no bin is entered and the SKU has no bin history yet — clearly shown as a hint under the bin field (v58) &bull; Bin is now mandatory on EVERY stock movement, zero exceptions — including Set True Count / Manual Correction, whose bin exemption is removed at both the UI and database level (Seller Flex discipline) (v57) &bull; Live stock can no longer go negative — database-level check on every removal, at both SKU and bin level, rejecting anything that would exceed what is actually recorded there (v56) &bull; Notes are now recommended, never mandatory, on Found/Remove-Lost/QC Hold/Set True Count (v56) &bull; Bin auto-fill and mismatch warnings now trust live bin data over the SKU registry's (sometimes stale) usual-bin field, and a live per-bin quantity line shows under the bin field on every SKU scan (v56) &bull; Bin-mismatch warning now also fires for SKUs with no registered default bin, using their live bin data instead — closes the gap behind the 2026-08-19 bin A1 (-4) ledger anomaly; same fix applied to MOVE tab bin auto-fill, Set True Count, and Bulk Upload (v55) &bull; All remaining unchunked .in() lookups (Stock list bin map, Bin Lookup activity breakdown) now chunked for consistency (v55) &bull; Export Full Inventory fixed &amp; expanded — chunked lookups (no more silent data loss on large batches), now includes pricing, reorder threshold, active status, and full per-SKU activity breakdown (v54) &bull; Live Stock list now shows bin(s) per SKU (v53) &bull; One-click Export Full Inventory - all SKUs, ASIN, product, qty, bins (v53) &bull; Set True Count / Manual Correction (v52) &bull; Bin Lookup Full Detail Table with Activity Breakdown, ASIN, Last Updated (v52) &bull; Bin Usage Summary (v52) &bull; Per-SKU History Drilldown (v52) &bull; Bin Lookup CSV Export (v52) &bull; Soft Bin-Mismatch Note (MOVE + Bulk Upload, never blocks) &bull; entry_source Audit Tag on Every Write &bull; Bulk Upload from CSV (Inbound/Transfer/Found/Lost/Rejected/QC) &bull; Live Bin Lookup (Single SKU / Single Bin / Bulk) &bull; Dynamic Bins (auto-created, no fixed list) &bull; Mandatory Bin on Every Stock Movement &bull; Owner Dashboard (DASH) &bull; 14-Day Staff Performance &bull; Print Product/Bin Labels &bull; QC Hold/Damage &bull; Low-Stock Alerts &bull; Daily Reconciliation &bull; Admin PIN-Lock Unlock &bull; Real Employee Login (PIN) &bull; RBAC &bull; Live Database (Supabase) &bull; Admin-Secret-Gated PIN Recovery &bull; Permanent Audit Log &bull; Hardened Employee Writes (Admin-RPC-Only) &bull; Call Timeouts &amp; Error Handling (Performance Fix)</div>
             </div>
         </div>
     </div>
@@ -1751,6 +1790,13 @@ function loadBinList() {
         })
         .catch(function() {});
 }
+// v57 NEW: warehouse-wide fallback bin for brand-new stock. Rajat has
+// consolidated the physical warehouse so A1 is now the default landing
+// spot for anything inbounded without a specific bin chosen — used ONLY
+// as the last resort (see prefillMoveBin below), and always shown as an
+// editable suggestion, never forced.
+var WAREHOUSE_DEFAULT_BIN = 'A1';
+
 // Auto-fills the bin field from the SKU's home bin the moment a valid SKU/ASIN
 // is scanned or typed — staff can always overwrite it (e.g. New Stock landing
 // in RECEIVING rather than the SKU's normal shelf bin). Never overwrites a
@@ -1770,11 +1816,23 @@ function prefillMoveBin() {
         // split across bins, leave the field blank so staff picks
         // deliberately instead of the app guessing wrong — the hint line
         // below shows every option either way.
+        // v57 NEW: if there is genuinely nothing to go on — no live stock
+        // anywhere for this SKU, and no registered usual bin either (a
+        // brand-new SKU being inbounded for the first time) — pre-fill
+        // WAREHOUSE_DEFAULT_BIN (A1) instead of leaving the field blank.
+        // ONLY applies to New Stock In (inbound) — every other action
+        // (removing/moving/counting stock that should already exist
+        // somewhere) still leaves the field blank on purpose, so staff is
+        // never guided to guess at where existing stock might be.
+        var usedFallback = false;
         if (!(binEl.value || '').trim()) {
             if (liveBins.length === 1) {
                 binEl.value = liveBins[0].bin_code;
             } else if (!liveBins.length && sku.default_bin) {
                 binEl.value = sku.default_bin;
+            } else if (!liveBins.length && !sku.default_bin && moveMode === 'NEW_STOCK_IN') {
+                binEl.value = WAREHOUSE_DEFAULT_BIN;
+                usedFallback = true;
             }
         }
         if (hintEl) {
@@ -1782,6 +1840,8 @@ function prefillMoveBin() {
                 hintEl.textContent = 'Live: ' + liveBins.map(function(b) { return b.bin_code + ':' + b.qty_on_hand; }).join('  \u2022  ');
             } else if (sku.default_bin) {
                 hintEl.textContent = 'No live stock recorded yet — usual bin: ' + sku.default_bin;
+            } else if (usedFallback) {
+                hintEl.textContent = 'New SKU, no bin on record yet — defaulted to ' + WAREHOUSE_DEFAULT_BIN + ' (edit if it should land somewhere else).';
             } else {
                 hintEl.textContent = 'No live stock or usual bin on record for this SKU yet.';
             }
@@ -1987,6 +2047,48 @@ function onStockSearchInput() {
         loadStockTab(false);
     }, 400);
 }
+// v58: Stock filters + sort state. All three (status, category, sort) are
+// applied server-side against oms_stock_explorer -- same pattern as the
+// existing search box, so the v43 "never pull 11k rows into the browser"
+// rule stays intact no matter how these are combined.
+var stockCategoryOptionsLoaded = false;
+function onStockFilterChange() {
+    stockPage = 0;
+    loadStockTab(false);
+}
+function clearStockFilters() {
+    document.getElementById('stock-filter-status').value = '';
+    document.getElementById('stock-filter-category').value = '';
+    document.getElementById('stock-sort-by').value = 'sku_code:asc';
+    document.getElementById('stock-search-input').value = '';
+    stockPage = 0;
+    loadStockTab(false);
+}
+// Loaded once per session (not once per page/filter change) -- the full
+// category list is small (a few dozen values at most) even though the SKU
+// table itself is 11k+ rows, so this is a single cheap query.
+function loadStockCategoryOptions() {
+    if (stockCategoryOptionsLoaded || !db) return;
+    stockCategoryOptionsLoaded = true;
+    withTimeout(db.from('oms_sku_master').select('product_type'), 10000, 'Stock categories').then(function(res) {
+        if (res.error || !res.data) return;
+        var seen = {};
+        var cats = [];
+        res.data.forEach(function(r) {
+            var v = (r.product_type || '').trim();
+            if (v && !seen[v]) { seen[v] = true; cats.push(v); }
+        });
+        cats.sort();
+        var sel = document.getElementById('stock-filter-category');
+        if (!sel) return;
+        cats.forEach(function(c) {
+            var opt = document.createElement('option');
+            opt.value = c;
+            opt.textContent = c;
+            sel.appendChild(opt);
+        });
+    }).catch(function() { stockCategoryOptionsLoaded = false; });
+}
 function stockPrevPage() {
     if (stockPage <= 0) return;
     stockPage--;
@@ -1997,8 +2099,28 @@ function stockNextPage() {
     stockPage++;
     loadStockTab(false);
 }
+// v58: reads STOCK_EXPLORER_COLS from oms_stock_explorer (a view joining
+// oms_current_stock + oms_sku_master + a computed stock_status), instead of
+// oms_current_stock directly, so status/category filters and the Product
+// Title sort can be applied server-side. Still range()-paginated exactly as
+// before -- the view changes what columns/filters are available, not the
+// v43 pagination behaviour.
+var STOCK_EXPLORER_COLS = 'sku_code,asin,qty_on_hand,last_movement_at,product_name,product_type,stock_status,reorder_threshold';
+function currentStockSort() {
+    var raw = (document.getElementById('stock-sort-by') || {}).value || 'sku_code:asc';
+    var parts = raw.split(':');
+    return { field: parts[0] || 'sku_code', ascending: parts[1] !== 'desc' };
+}
+function applyStockFilters(query) {
+    var statusVal = (document.getElementById('stock-filter-status') || {}).value || '';
+    var catVal = (document.getElementById('stock-filter-category') || {}).value || '';
+    if (statusVal) query = query.eq('stock_status', statusVal);
+    if (catVal) query = query.eq('product_type', catVal);
+    return query;
+}
 function loadStockTab(manualRefresh) {
     if (!db) { setDbOffline('no client'); return; }
+    loadStockCategoryOptions();
     if (manualRefresh) {
         stockPage = 0;
         document.getElementById('stock-list').innerHTML = '<div style="text-align:center;color:#aaa;font-size:12px;padding:20px 0;">Refreshing...</div>';
@@ -2011,7 +2133,11 @@ function loadStockTab(manualRefresh) {
     stockSearchActive = false;
     var from = stockPage * STOCK_PAGE_SIZE;
     var to = from + STOCK_PAGE_SIZE - 1;
-    withTimeout(db.from('oms_current_stock').select('sku_code,asin,qty_on_hand,last_movement_at').order('sku_code').range(from, to), 10000, 'Stock list').then(function(res) {
+    var sort = currentStockSort();
+    var q = db.from('oms_stock_explorer').select(STOCK_EXPLORER_COLS);
+    q = applyStockFilters(q);
+    q = q.order(sort.field, { ascending: sort.ascending }).range(from, to);
+    withTimeout(q, 10000, 'Stock list').then(function(res) {
         if (res.error) { setDbOffline(res.error.message); return; }
         setDbOnline();
         var rows = res.data || [];
@@ -2045,14 +2171,19 @@ function loadStockBinMap(rows) {
 }
 // Server-side search across ALL SKUs (not just the current page), capped at
 // 200 results so a broad/blank-ish filter still can't pull the whole table.
+// v58: now also matches product_name (not just SKU/ASIN), and respects
+// whatever status/category filter + sort are currently set, on top of the
+// existing 200-result cap.
 function runStockSearch(term) {
     if (!db) return;
     stockSearchActive = true;
     var v = term.toUpperCase().replace(/[,%]/g, '');
-    withTimeout(db.from('oms_current_stock').select('sku_code,asin,qty_on_hand,last_movement_at')
-        .or('sku_code.ilike.%' + v + '%,asin.ilike.%' + v + '%')
-        .order('sku_code')
-        .limit(200), 10000, 'Stock search').then(function(res) {
+    var sort = currentStockSort();
+    var q = db.from('oms_stock_explorer').select(STOCK_EXPLORER_COLS)
+        .or('sku_code.ilike.%' + v + '%,asin.ilike.%' + v + '%,product_name.ilike.%' + v + '%');
+    q = applyStockFilters(q);
+    q = q.order(sort.field, { ascending: sort.ascending }).limit(200);
+    withTimeout(q, 10000, 'Stock search').then(function(res) {
         if (res.error) { setDbOffline(res.error.message); return; }
         setDbOnline();
         stockData = res.data || [];
@@ -2110,8 +2241,15 @@ function renderStockList() {
     var html = '';
     for (var i = 0; i < rows.length; i++) {
         var r = rows[i];
-        var isLowThreshold = !!lowStockSet[(r.sku_code || '').toUpperCase()];
-        var lowCls = ((r.qty_on_hand !== null && r.qty_on_hand <= 0) || isLowThreshold) ? ' low' : '';
+        // v58: stock_status now comes straight from oms_stock_explorer
+        // (OUT_OF_STOCK / LOW_STOCK / IN_STOCK) instead of being derived
+        // client-side from the separate oms_low_stock query. lowStockSet is
+        // kept only as a fallback for rows with no status field, so nothing
+        // regresses if that ever happens.
+        var status = r.stock_status || (r.qty_on_hand <= 0 ? 'OUT_OF_STOCK' : (lowStockSet[(r.sku_code || '').toUpperCase()] ? 'LOW_STOCK' : 'IN_STOCK'));
+        var lowCls = status !== 'IN_STOCK' ? ' low' : '';
+        var badgeCls = status === 'OUT_OF_STOCK' ? 'out' : (status === 'LOW_STOCK' ? 'low' : 'in');
+        var badgeText = status === 'OUT_OF_STOCK' ? 'OUT OF STOCK' : (status === 'LOW_STOCK' ? 'LOW STOCK' : 'IN STOCK');
         // v40: print-label button per row — reuses resolveSkuOrAsin() at click time
         // to fetch the product name, no change to this query/loop's own data needed.
         var skuForOnclick = (r.sku_code || '').replace(/'/g, "\\'");
@@ -2124,8 +2262,14 @@ function renderStockList() {
         var binLine = binInfo && binInfo.bin_breakdown_text
             ? ('<div class="stock-asin" style="color:#1B4F8A;">&#128230; ' + binInfo.bin_breakdown_text + '</div>')
             : '<div class="stock-asin" style="color:#bbb;">&#128230; no bin recorded</div>';
+        // v58: product title + category, straight from oms_stock_explorer --
+        // this is what makes the SKU list readable without switching to Bin
+        // Lookup or Export just to know what a SKU code actually is.
+        var nameLine = r.product_name ? ('<div class="stock-name">' + r.product_name + '</div>') : '';
+        var catLine = r.product_type ? ('<div class="stock-cat">' + r.product_type + '</div>') : '';
         html += '<div class="stock-row">' +
-            '<div><div class="stock-sku">' + (r.sku_code || '') + (isLowThreshold ? ' &#9888;' : '') + '</div><div class="stock-asin">' + (r.asin || '') + '</div>' + binLine + '</div>' +
+            '<div><div class="stock-sku">' + (r.sku_code || '') + '<span class="stock-status-badge ' + badgeCls + '">' + badgeText + '</span></div>' + nameLine +
+            '<div class="stock-asin">' + (r.asin || '') + '</div>' + catLine + binLine + '</div>' +
             '<div style="display:flex;align-items:center;">' +
             '<div class="stock-qty' + lowCls + '">' + r.qty_on_hand + '</div>' +
             '<button class="print-label-btn" onclick="printLabel(\'' + skuForOnclick + '\')" title="Print label">&#128424;</button>' +
