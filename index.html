@@ -257,7 +257,7 @@
     </style>
 </head>
 <body>
-<div class="ver-corner" id="verCornerBadge">v53</div>
+<div class="ver-corner" id="verCornerBadge">v54</div>
 <!-- v51: brief on-screen warning if a pick's stock deduction fails to save to the live
      database — the PICK flow deliberately advances immediately to the next scan (multi-line
      picks must not be blocked), so this is a visible, dismissible heads-up in addition to the
@@ -482,10 +482,12 @@
                 <h2><span class="stock-live-dot" id="stock-live-dot" style="display:none;"></span>Live Stock (<span id="stock-count">0</span>)</h2>
                 <div style="display:flex;gap:6px;align-items:center;">
                     <button class="csv-btn" onclick="loadStockTab(true)">&#8635; Refresh</button>
-                    <!-- v53: one-click full inventory export — every SKU with live
-                         stock, ASIN, product name, total qty, and full bin
-                         breakdown, in a single CSV. Not scoped to the search box
-                         or the 75-row page like the list below. -->
+                    <!-- v54: one-click full inventory export — every SKU with live
+                         stock, ASIN, product name, pricing, activity breakdown,
+                         and full bin breakdown, in a single CSV. Not scoped to
+                         the search box or the 75-row page like the list below.
+                         Fixed 2026-08-20: large batches now use chunked lookups
+                         instead of one oversized .in() filter. -->
                     <button class="csv-btn" onclick="exportFullInventoryCSV()">&#8595; Export Full Inventory</button>
                 </div>
             </div>
@@ -691,8 +693,8 @@
 
             <!-- Version -->
             <div class="ver-badge">
-                <div class="ver-name">&#128230; ArtzFolio Scan-Pick-Pack v53</div>
-                <div class="ver-sub">Live Stock list now shows bin(s) per SKU (v53) &bull; One-click Export Full Inventory - all SKUs, ASIN, product, qty, bins (v53) &bull; Set True Count / Manual Correction (v52) &bull; Bin Lookup Full Detail Table with Activity Breakdown, ASIN, Last Updated (v52) &bull; Bin Usage Summary (v52) &bull; Per-SKU History Drilldown (v52) &bull; Bin Lookup CSV Export (v52) &bull; Soft Bin-Mismatch Note (MOVE + Bulk Upload, never blocks) &bull; entry_source Audit Tag on Every Write &bull; Bulk Upload from CSV (Inbound/Transfer/Found/Lost/Rejected/QC) &bull; Live Bin Lookup (Single SKU / Single Bin / Bulk) &bull; Dynamic Bins (auto-created, no fixed list) &bull; Mandatory Bin on Every Stock Movement &bull; Owner Dashboard (DASH) &bull; 14-Day Staff Performance &bull; Print Product/Bin Labels &bull; QC Hold/Damage &bull; Low-Stock Alerts &bull; Daily Reconciliation &bull; Admin PIN-Lock Unlock &bull; Real Employee Login (PIN) &bull; RBAC &bull; Live Database (Supabase) &bull; Admin-Secret-Gated PIN Recovery &bull; Permanent Audit Log &bull; Hardened Employee Writes (Admin-RPC-Only) &bull; Call Timeouts &amp; Error Handling (Performance Fix)</div>
+                <div class="ver-name">&#128230; ArtzFolio Scan-Pick-Pack v54</div>
+                <div class="ver-sub">Export Full Inventory fixed &amp; expanded — chunked lookups (no more silent data loss on large batches), now includes pricing, reorder threshold, active status, and full per-SKU activity breakdown (v54) &bull; Live Stock list now shows bin(s) per SKU (v53) &bull; One-click Export Full Inventory - all SKUs, ASIN, product, qty, bins (v53) &bull; Set True Count / Manual Correction (v52) &bull; Bin Lookup Full Detail Table with Activity Breakdown, ASIN, Last Updated (v52) &bull; Bin Usage Summary (v52) &bull; Per-SKU History Drilldown (v52) &bull; Bin Lookup CSV Export (v52) &bull; Soft Bin-Mismatch Note (MOVE + Bulk Upload, never blocks) &bull; entry_source Audit Tag on Every Write &bull; Bulk Upload from CSV (Inbound/Transfer/Found/Lost/Rejected/QC) &bull; Live Bin Lookup (Single SKU / Single Bin / Bulk) &bull; Dynamic Bins (auto-created, no fixed list) &bull; Mandatory Bin on Every Stock Movement &bull; Owner Dashboard (DASH) &bull; 14-Day Staff Performance &bull; Print Product/Bin Labels &bull; QC Hold/Damage &bull; Low-Stock Alerts &bull; Daily Reconciliation &bull; Admin PIN-Lock Unlock &bull; Real Employee Login (PIN) &bull; RBAC &bull; Live Database (Supabase) &bull; Admin-Secret-Gated PIN Recovery &bull; Permanent Audit Log &bull; Hardened Employee Writes (Admin-RPC-Only) &bull; Call Timeouts &amp; Error Handling (Performance Fix)</div>
             </div>
         </div>
     </div>
@@ -974,6 +976,43 @@ function withTimeout(promise, ms, label) {
             setTimeout(function () { reject(new Error((label || 'Request') + ' timed out after ' + (ms / 1000) + 's. Check your connection and try again.')); }, ms);
         })
     ]);
+}
+
+// v54: split an array into fixed-size chunks. Used to keep Supabase .in()
+// filters short enough to avoid the request-URL length limit — confirmed by
+// direct testing that a single .in() filter built from ~800+ SKU codes
+// (roughly a 24KB+ request URL) is rejected outright by the gateway with a
+// plain-text HTTP 400 "Bad Request", before it ever reaches PostgREST. That
+// failure was being silently swallowed by the old code (which only read
+// `.data || []` and never checked `.error` on these join queries), so a
+// single oversized batch produced blank product names and zero bin data for
+// every row in that batch — exactly the bug reported 2026-08-20 in the
+// Export Full Inventory CSV. Chunk size 150 keeps every request comfortably
+// under 8,000 characters even for long SKU codes.
+function chunkArray(arr, size) {
+    var out = [];
+    for (var i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size));
+    return out;
+}
+
+// v54: run a chunked .in() lookup against `table` and merge every chunk's
+// rows into one flat array. Any chunk that errors (timeout, bad request,
+// etc.) is recorded as a message in `errors` instead of being dropped
+// silently — callers can then warn the user instead of quietly shipping
+// incomplete data.
+function fetchInChunks(table, selectCols, codes, chunkSize, timeoutMs, label, errors) {
+    var chunks = chunkArray(codes, chunkSize || 150);
+    return Promise.all(chunks.map(function (chunk) {
+        return withTimeout(db.from(table).select(selectCols).in('sku_code', chunk), timeoutMs || 20000, label || table).then(function (res) {
+            if (res.error) { errors.push((label || table) + ': ' + res.error.message); return []; }
+            return res.data || [];
+        }).catch(function (err) {
+            errors.push((label || table) + ': ' + (err && err.message ? err.message : String(err)));
+            return [];
+        });
+    })).then(function (results) {
+        return results.reduce(function (all, r) { return all.concat(r); }, []);
+    });
 }
 
 // ── PERMANENT AUDIT LOG (v41) ────────────────────────────────
@@ -2020,18 +2059,25 @@ function renderStockList() {
     renderStockPagination();
 }
 
-// v53: one-click full inventory export — SKU, ASIN, product name, total qty,
-// bin count, and full bin breakdown for EVERY SKU with live stock — not
-// scoped to the search box or the 75-row page. Walks oms_current_stock in
-// batches of 1000 (same paging pattern as everywhere else in this app),
-// joins oms_sku_master for product names and oms_sku_bin_breakdown for the
-// bin detail, capped at 20,000 rows (matches the Admin Panel's export cap).
+// v54: one-click full inventory export — every SKU with live stock, with
+// product master data, live bin detail, pricing, and a full per-SKU activity
+// breakdown, in a single CSV. Not scoped to the search box or the 75-row
+// page. Walks oms_current_stock in batches of 1000 (range-paginated, no
+// .in() involved so no URL-length risk there), then joins oms_sku_master,
+// oms_sku_bin_breakdown, and oms_sku_activity_breakdown via fetchInChunks()
+// (chunk size 150) instead of one big .in() per page — the previous v53
+// version passed up to 1000 SKU codes into a single .in() filter, which
+// produced a ~25-30KB request URL that the gateway rejected outright with
+// HTTP 400 before PostgREST ever saw it. That error was never checked, so
+// the whole page silently fell back to blank names / zero bins. Capped at
+// 20,000 rows (matches the Admin Panel's export cap).
 function exportFullInventoryCSV() {
     if (!db) { alert('Live database not reachable right now.'); return; }
     var progEl = document.getElementById('full-export-progress');
     var PAGE = 1000;
     var CAP = 20000;
     var accumulated = [];
+    var joinErrors = [];
     progEl.textContent = 'Exporting... 0 rows so far';
 
     function fetchPage(offset) {
@@ -2041,23 +2087,48 @@ function exportFullInventoryCSV() {
             if (!rows.length) return;
             var codes = rows.map(function(r) { return r.sku_code; });
             return Promise.all([
-                withTimeout(db.from('oms_sku_master').select('sku_code,product_name,product_type').in('sku_code', codes), 20000, 'Full export (master)'),
-                withTimeout(db.from('oms_sku_bin_breakdown').select('sku_code,bin_count,bin_breakdown_text').in('sku_code', codes), 20000, 'Full export (bins)')
+                fetchInChunks('oms_sku_master', 'sku_code,product_name,product_type,set_size,default_bin,mrp,cost_price,active,reorder_threshold', codes, 150, 20000, 'Full export (master)', joinErrors),
+                fetchInChunks('oms_sku_bin_breakdown', 'sku_code,bin_count,bin_breakdown_text', codes, 150, 20000, 'Full export (bins)', joinErrors),
+                fetchInChunks('oms_sku_activity_breakdown', 'sku_code,total_sold,total_returned,total_new_stock_in,total_lost_theft,total_found,total_rejected_damaged,total_qc_hold_net,total_qc_released,total_manual_correction,net_bin_transfers', codes, 150, 20000, 'Full export (activity)', joinErrors)
             ]).then(function(joins) {
-                var nameMap = {}, typeMap = {};
-                (joins[0].data || []).forEach(function(m) { nameMap[m.sku_code] = m.product_name; typeMap[m.sku_code] = m.product_type; });
+                var masterMap = {};
+                joins[0].forEach(function(m) { masterMap[m.sku_code] = m; });
                 var binMap = {};
-                (joins[1].data || []).forEach(function(b) { binMap[b.sku_code] = b; });
+                joins[1].forEach(function(b) { binMap[b.sku_code] = b; });
+                var actMap = {};
+                joins[2].forEach(function(a) { actMap[a.sku_code] = a; });
                 rows.forEach(function(r) {
+                    var m = masterMap[r.sku_code] || {};
                     var bin = binMap[r.sku_code];
+                    var act = actMap[r.sku_code] || {};
+                    var qty = r.qty_on_hand;
+                    var reorder = (m.reorder_threshold === undefined || m.reorder_threshold === null) ? null : m.reorder_threshold;
+                    var status = qty <= 0 ? 'OUT OF STOCK' : (reorder !== null && qty <= reorder ? 'LOW STOCK' : 'IN STOCK');
                     accumulated.push({
                         sku_code: r.sku_code,
                         asin: r.asin || '',
-                        product_name: nameMap[r.sku_code] || '',
-                        product_type: typeMap[r.sku_code] || '',
-                        qty_on_hand: r.qty_on_hand,
+                        product_name: m.product_name || '',
+                        product_type: m.product_type || '',
+                        set_size: m.set_size != null ? m.set_size : '',
+                        default_bin: m.default_bin || '',
+                        active: m.active === false ? 'No' : (m.active === true ? 'Yes' : ''),
+                        qty_on_hand: qty,
+                        stock_status: status,
                         bin_count: bin ? bin.bin_count : 0,
                         bin_breakdown: bin ? bin.bin_breakdown_text : '',
+                        mrp: m.mrp != null ? m.mrp : '',
+                        cost_price: m.cost_price != null ? m.cost_price : '',
+                        reorder_threshold: reorder != null ? reorder : '',
+                        total_sold: act.total_sold != null ? act.total_sold : 0,
+                        total_returned: act.total_returned != null ? act.total_returned : 0,
+                        total_new_stock_in: act.total_new_stock_in != null ? act.total_new_stock_in : 0,
+                        total_lost_theft: act.total_lost_theft != null ? act.total_lost_theft : 0,
+                        total_found: act.total_found != null ? act.total_found : 0,
+                        total_rejected_damaged: act.total_rejected_damaged != null ? act.total_rejected_damaged : 0,
+                        total_qc_hold_net: act.total_qc_hold_net != null ? act.total_qc_hold_net : 0,
+                        total_qc_released: act.total_qc_released != null ? act.total_qc_released : 0,
+                        total_manual_correction: act.total_manual_correction != null ? act.total_manual_correction : 0,
+                        net_bin_transfers: act.net_bin_transfers != null ? act.net_bin_transfers : 0,
                         last_updated: r.last_movement_at || ''
                     });
                 });
@@ -2074,14 +2145,18 @@ function exportFullInventoryCSV() {
 
     fetchPage(0).then(function() {
         if (!accumulated.length) { progEl.textContent = ''; alert('No live stock to export.'); return; }
-        var header = ['SKU Code', 'ASIN', 'Product Name', 'Product Type', 'Qty On Hand', 'Bin Count', 'Bin Breakdown', 'Last Updated'];
+        var header = ['SKU Code', 'ASIN', 'Product Name', 'Product Type', 'Set Size', 'Default Bin', 'Active',
+            'Qty On Hand', 'Stock Status', 'Bin Count', 'Bin Breakdown (Live)', 'MRP', 'Cost Price', 'Reorder Threshold',
+            'Total Sold', 'Total Returned', 'Total New Stock In', 'Total Lost/Theft', 'Total Found', 'Total Rejected/Damaged',
+            'Total QC Hold (Net)', 'Total QC Released', 'Total Manual Correction', 'Net Bin Transfers', 'Last Updated'];
         var lines = [header.join(',')];
+        function q(v) { return '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"'; }
         accumulated.forEach(function(r) {
             lines.push([
-                r.sku_code, r.asin,
-                '"' + String(r.product_name).replace(/"/g, '""') + '"',
-                r.product_type, r.qty_on_hand, r.bin_count,
-                '"' + String(r.bin_breakdown).replace(/"/g, '""') + '"',
+                r.sku_code, r.asin, q(r.product_name), r.product_type, r.set_size, r.default_bin, r.active,
+                r.qty_on_hand, r.stock_status, r.bin_count, q(r.bin_breakdown), r.mrp, r.cost_price, r.reorder_threshold,
+                r.total_sold, r.total_returned, r.total_new_stock_in, r.total_lost_theft, r.total_found, r.total_rejected_damaged,
+                r.total_qc_hold_net, r.total_qc_released, r.total_manual_correction, r.net_bin_transfers,
                 r.last_updated
             ].join(','));
         });
@@ -2094,8 +2169,14 @@ function exportFullInventoryCSV() {
         a.click();
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
-        progEl.textContent = 'Done — ' + accumulated.length + ' rows exported.';
-        setTimeout(function() { progEl.textContent = ''; }, 6000);
+        if (joinErrors.length) {
+            var uniqueErrs = joinErrors.filter(function(e, i) { return joinErrors.indexOf(e) === i; });
+            console.warn('Export Full Inventory: ' + uniqueErrs.length + ' chunk error(s):', uniqueErrs);
+            progEl.textContent = 'Done — ' + accumulated.length + ' rows exported, but ' + joinErrors.length + ' lookup(s) failed (some product/bin detail may be blank). See browser console for detail — try exporting again.';
+        } else {
+            progEl.textContent = 'Done — ' + accumulated.length + ' rows exported.';
+            setTimeout(function() { progEl.textContent = ''; }, 6000);
+        }
     }).catch(function(err) {
         progEl.textContent = 'Export failed: ' + (err && err.message ? err.message : String(err));
     });

@@ -214,7 +214,7 @@ tbody tr:hover{background:#f9fbfd}
     </ul>
     <div class="sidebar-footer">
       <button class="logout-btn" onclick="adminLogout()">⎋ Logout</button>
-      <div class="ver-footer">ArtzFolio Admin Panel v2.5<br>2026-08-20 &bull; SKU &amp; Stock: Default Bin + Live Bins columns (full multi-bin breakdown, in both on-screen table and CSV exports) &bull; Reports: Txn Type filter now covers all 13 ledger types (was missing QC Release, Rejected, Bin Transfers, Inventory Sync, Opening Balance) &bull; Audit Log High-Risk Filter Fix &amp; Relocate/Merge Bins Confirmation &bull; Bin/Employee Dropdowns &amp; Bin-Mismatch Notes &bull; Audit Log High-Risk Filter &bull; Bin Management (Rename/Merge/Deactivate) &bull; Call Timeouts &bull; Settings &amp; Self-Service Secret Rotation &bull; Session Security &bull; Full CSV Export &bull; Realtime Dashboard/Audit Log &bull; Bulk Employee Actions &bull; Deeper Reports</div>
+      <div class="ver-footer">ArtzFolio Admin Panel v2.6<br>2026-08-20 &bull; Fixed: SKU &amp; Stock table and Full CSV Export could silently show blank stock/bin data on large batches — .in() lookups now chunked (150 codes/request) with errors surfaced instead of swallowed &bull; SKU &amp; Stock: Default Bin + Live Bins columns (full multi-bin breakdown, in both on-screen table and CSV exports) &bull; Reports: Txn Type filter now covers all 13 ledger types (was missing QC Release, Rejected, Bin Transfers, Inventory Sync, Opening Balance) &bull; Audit Log High-Risk Filter Fix &amp; Relocate/Merge Bins Confirmation &bull; Bin/Employee Dropdowns &amp; Bin-Mismatch Notes &bull; Audit Log High-Risk Filter &bull; Bin Management (Rename/Merge/Deactivate) &bull; Call Timeouts &bull; Settings &amp; Self-Service Secret Rotation &bull; Session Security &bull; Full CSV Export &bull; Realtime Dashboard/Audit Log &bull; Bulk Employee Actions &bull; Deeper Reports</div>
     </div>
   </div>
 
@@ -747,6 +747,38 @@ function withTimeout(promise, ms, label) {
       setTimeout(function () { reject(new Error((label || 'Request') + ' timed out after ' + (ms / 1000) + 's. Check your connection and try again.')); }, ms);
     })
   ]);
+}
+
+// v2.6: split an array into fixed-size chunks — keeps Supabase .in() filters
+// short enough to avoid the request-URL length limit. Live testing against
+// this project confirmed a single .in() filter built from ~800+ SKU codes
+// (roughly a 24KB+ request URL) is rejected outright by the gateway with a
+// plain-text HTTP 400, before PostgREST ever sees it — and the app's join
+// queries were not checking res.error, so an oversized batch would silently
+// fall back to blank/zero joined data instead of surfacing an error. This
+// mirrors the same fix applied to the front-line app's Export Full
+// Inventory (2026-08-20). skuPageSize (100) and EXPORT_PAGE_SIZE (500) were
+// both under the observed failure threshold with today's SKU codes, but are
+// chunked here too for margin against longer codes and future page-size changes.
+function chunkArray(arr, size) {
+  var out = [];
+  for (var i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size));
+  return out;
+}
+
+function fetchInChunks(table, selectCols, codes, chunkSize, timeoutMs, label, errors) {
+  var chunks = chunkArray(codes, chunkSize || 150);
+  return Promise.all(chunks.map(function (chunk) {
+    return withTimeout(db.from(table).select(selectCols).in('sku_code', chunk), timeoutMs || 15000, label || table).then(function (res) {
+      if (res.error) { errors.push((label || table) + ': ' + res.error.message); return []; }
+      return res.data || [];
+    }).catch(function (err) {
+      errors.push((label || table) + ': ' + (err && err.message ? err.message : String(err)));
+      return [];
+    });
+  })).then(function (results) {
+    return results.reduce(function (all, r) { return all.concat(r); }, []);
+  });
 }
 
 // ── ADMIN SECRET / SESSION ───────────────────────────────────────
@@ -1960,15 +1992,18 @@ function loadSkuStock(page) {
     // v2.5: also pulls oms_sku_bin_breakdown (new, additive view) alongside
     // the existing oms_current_stock join, so the table can show every bin
     // a SKU currently sits in — not just its registered default bin.
+    // v2.6: both lookups now go through fetchInChunks() instead of a single
+    // .in(codes) call — see chunkArray/fetchInChunks comment above for why.
+    var skuStockErrors = [];
     Promise.all([
-      withTimeout(db.from('oms_current_stock').select('sku_code, qty_on_hand').in('sku_code', codes), 10000, 'SKU stock join'),
-      withTimeout(db.from('oms_sku_bin_breakdown').select('sku_code, bin_count, bin_breakdown_text').in('sku_code', codes), 10000, 'SKU bin breakdown join')
+      fetchInChunks('oms_current_stock', 'sku_code, qty_on_hand', codes, 150, 10000, 'SKU stock join', skuStockErrors),
+      fetchInChunks('oms_sku_bin_breakdown', 'sku_code, bin_count, bin_breakdown_text', codes, 150, 10000, 'SKU bin breakdown join', skuStockErrors)
     ]).then(function (results) {
-      var stockRes = results[0], binRes = results[1];
+      if (skuStockErrors.length) console.warn('SKU & Stock table: ' + skuStockErrors.length + ' lookup chunk error(s):', skuStockErrors);
       var stockMap = {};
-      (stockRes.data || []).forEach(function (s) { stockMap[s.sku_code] = s.qty_on_hand; });
+      results[0].forEach(function (s) { stockMap[s.sku_code] = s.qty_on_hand; });
       var binMap = {};
-      (binRes.data || []).forEach(function (b) { binMap[b.sku_code] = b; });
+      results[1].forEach(function (b) { binMap[b.sku_code] = b; });
 
       var merged = skus.map(function (s) {
         var qty = stockMap.hasOwnProperty(s.sku_code) ? stockMap[s.sku_code] : null;
@@ -2043,6 +2078,7 @@ function exportSkuFullCSV() {
   var progEl = document.getElementById('sku-export-progress');
   var stockFilter = document.getElementById('sku-stock-filter').value;
   var accumulated = [];
+  var skuExportErrors = [];
   progEl.textContent = 'Exporting... 0 rows so far';
 
   function fetchPage(offset) {
@@ -2054,15 +2090,15 @@ function exportSkuFullCSV() {
       var codes = skus.map(function (s) { return s.sku_code; });
       // v2.5: also joins oms_sku_bin_breakdown so the full export carries the
       // same Default Bin / Live Bins detail as the on-screen table.
+      // v2.6: chunked via fetchInChunks() — see helper comment above.
       return Promise.all([
-        withTimeout(db.from('oms_current_stock').select('sku_code, qty_on_hand').in('sku_code', codes), 15000, 'SKU full export (stock)'),
-        withTimeout(db.from('oms_sku_bin_breakdown').select('sku_code, bin_breakdown_text').in('sku_code', codes), 15000, 'SKU full export (bins)')
+        fetchInChunks('oms_current_stock', 'sku_code, qty_on_hand', codes, 150, 15000, 'SKU full export (stock)', skuExportErrors),
+        fetchInChunks('oms_sku_bin_breakdown', 'sku_code, bin_breakdown_text', codes, 150, 15000, 'SKU full export (bins)', skuExportErrors)
       ]).then(function (joinResults) {
-        var stockRes = joinResults[0], binRes = joinResults[1];
         var stockMap = {};
-        (stockRes.data || []).forEach(function (s) { stockMap[s.sku_code] = s.qty_on_hand; });
+        joinResults[0].forEach(function (s) { stockMap[s.sku_code] = s.qty_on_hand; });
         var binMap = {};
-        (binRes.data || []).forEach(function (b) { binMap[b.sku_code] = b.bin_breakdown_text; });
+        joinResults[1].forEach(function (b) { binMap[b.sku_code] = b.bin_breakdown_text; });
         var merged = skus.map(function (s) {
           var qty = stockMap.hasOwnProperty(s.sku_code) ? stockMap[s.sku_code] : null;
           return Object.assign({}, s, { qty_on_hand: qty, bin_breakdown_text: binMap[s.sku_code] || '' });
@@ -2095,8 +2131,14 @@ function exportSkuFullCSV() {
       };
     });
     downloadCSV('artzfolio_sku_stock_full.csv', rows);
-    progEl.textContent = 'Done — ' + accumulated.length + ' rows exported.';
-    setTimeout(function () { progEl.textContent = ''; }, 6000);
+    if (skuExportErrors.length) {
+      var uniqueErrs = skuExportErrors.filter(function (e, i) { return skuExportErrors.indexOf(e) === i; });
+      console.warn('SKU full export: ' + uniqueErrs.length + ' chunk error(s):', uniqueErrs);
+      progEl.textContent = 'Done — ' + accumulated.length + ' rows exported, but ' + skuExportErrors.length + ' lookup(s) failed (some stock/bin detail may be blank). See browser console — try exporting again.';
+    } else {
+      progEl.textContent = 'Done — ' + accumulated.length + ' rows exported.';
+      setTimeout(function () { progEl.textContent = ''; }, 6000);
+    }
   }).catch(function (err) {
     progEl.textContent = 'Export failed: ' + (err && err.message ? err.message : String(err));
   });
