@@ -179,8 +179,37 @@ tbody tr:hover{background:#f9fbfd}
 </head>
 <body>
 
-<!-- ═══════════════════════ LOGIN SCREEN ═══════════════════════ -->
-<div class="login-wrap" id="login-screen">
+<!-- ═══════════════════════ EMPLOYEE LOGIN SCREEN (v2.11, Gap 3) ═══════════════════════
+     Phase 4, Gap 3 — Admin Panel role gate. Reuses the App's existing PIN/
+     employee/role model (oms_verify_login, the exact same RPC the App uses)
+     instead of a parallel auth system. Only ADMIN and READ_ONLY_ADMIN roles
+     may proceed past this screen — every other role is rejected here with a
+     clear message, since this panel was never meant for warehouse-floor
+     roles. READ_ONLY_ADMIN skips the admin-secret screen entirely (they
+     have nothing to unlock); ADMIN proceeds into the existing secret screen
+     unchanged. -->
+<div class="login-wrap" id="employee-login-screen">
+  <div class="login-card">
+    <div class="login-brand">
+      <div class="login-brand-sub">ArtzFolio &middot; Vishnu Image Folio Pvt. Ltd.</div>
+      <div class="login-brand-title">🔐 Admin Panel</div>
+    </div>
+    <div class="login-field">
+      <label for="emp-login-code-input">Employee Code</label>
+      <input type="text" id="emp-login-code-input" placeholder="e.g. EMP01" autocomplete="off" autofocus>
+    </div>
+    <div class="login-field">
+      <label for="emp-login-pin-input">4-Digit PIN</label>
+      <input type="password" id="emp-login-pin-input" placeholder="••••" autocomplete="off" maxlength="4">
+    </div>
+    <button class="login-btn" id="emp-login-submit-btn" onclick="attemptEmployeeLogin()">Continue</button>
+    <div class="login-err" id="emp-login-err-msg"></div>
+    <div class="login-hint">Only Admin and Read-Only Admin accounts can access this panel.</div>
+  </div>
+</div>
+
+<!-- ═══════════════════════ ADMIN SECRET SCREEN ═══════════════════════ -->
+<div class="login-wrap" id="login-screen" style="display:none;">
   <div class="login-card">
     <div class="login-brand">
       <div class="login-brand-sub">ArtzFolio &middot; Vishnu Image Folio Pvt. Ltd.</div>
@@ -214,12 +243,16 @@ tbody tr:hover{background:#f9fbfd}
     </ul>
     <div class="sidebar-footer">
       <button class="logout-btn" onclick="adminLogout()">⎋ Logout</button>
-      <div class="ver-footer">ArtzFolio Admin Panel v2.10<br>2026-08-21 &bull; SKU &amp; Stock's "Low stock" filter and qty-warning badge now use the effective reorder point (manual threshold if set, else calculated from real trailing-30-day sales velocity × lead time) instead of the raw manual threshold, which was always 0 for every SKU — the filter previously could never match anything &bull; Reports Txn Type filter and Adjust Stock's Reason dropdown both gained RETURN_WRONG_ITEM (Gap 4 — returns grading) (v2.10) &bull; 2026-08-20 &bull; Bin is now mandatory on EVERY stock adjustment, zero exceptions — the old "defaults to RECEIVING" fallback is removed at both the UI and database level (Seller Flex discipline) (v2.9) &bull; Live stock can no longer go negative — database-level check on every removal (Adjust Stock included), at both SKU and bin level (same fix as App v56) &bull; Adjust Stock note is now recommended, not mandatory &bull; Fixed: Adjust Stock bin-mismatch note now also falls back to live bin data when a SKU has no registered default bin (same root-cause fix as App v55, closing the gap behind the 2026-08-19 bin A1 (-4) ledger anomaly) &bull; Fixed: SKU &amp; Stock table and Full CSV Export could silently show blank stock/bin data on large batches — .in() lookups now chunked (150 codes/request) with errors surfaced instead of swallowed &bull; SKU &amp; Stock: Default Bin + Live Bins columns (full multi-bin breakdown, in both on-screen table and CSV exports) &bull; Reports: Txn Type filter now covers all 13 ledger types (was missing QC Release, Rejected, Bin Transfers, Inventory Sync, Opening Balance) &bull; Audit Log High-Risk Filter Fix &amp; Relocate/Merge Bins Confirmation &bull; Bin/Employee Dropdowns &amp; Bin-Mismatch Notes &bull; Audit Log High-Risk Filter &bull; Bin Management (Rename/Merge/Deactivate) &bull; Call Timeouts &bull; Settings &amp; Self-Service Secret Rotation &bull; Session Security &bull; Full CSV Export &bull; Realtime Dashboard/Audit Log &bull; Bulk Employee Actions &bull; Deeper Reports</div>
+      <div class="ver-footer">ArtzFolio Admin Panel v2.11<br>2026-08-21 &bull; Phase 4, Gap 3 (Admin Panel role gate) — real employee-code+PIN login now required before anything else (reuses the App's own oms_verify_login), new READ_ONLY_ADMIN role can view everything but is refused at the RPC level (not just hidden in the UI) on every write action &bull; Feature 7 (Bulk-edit reorder thresholds/pricing) — SKU &amp; Stock gained row checkboxes + a Set/Adjust-by-amount/Adjust-by-% bar with a mandatory server-computed preview before any commit (v2.11) &bull; SKU &amp; Stock's "Low stock" filter and qty-warning badge now use the effective reorder point (manual threshold if set, else calculated from real trailing-30-day sales velocity × lead time) instead of the raw manual threshold, which was always 0 for every SKU — the filter previously could never match anything &bull; Reports Txn Type filter and Adjust Stock's Reason dropdown both gained RETURN_WRONG_ITEM (Gap 4 — returns grading) (v2.10) &bull; 2026-08-20 &bull; Bin is now mandatory on EVERY stock adjustment, zero exceptions — the old "defaults to RECEIVING" fallback is removed at both the UI and database level (Seller Flex discipline) (v2.9) &bull; Live stock can no longer go negative — database-level check on every removal (Adjust Stock included), at both SKU and bin level (same fix as App v56) &bull; Adjust Stock note is now recommended, not mandatory &bull; Fixed: Adjust Stock bin-mismatch note now also falls back to live bin data when a SKU has no registered default bin (same root-cause fix as App v55, closing the gap behind the 2026-08-19 bin A1 (-4) ledger anomaly) &bull; Fixed: SKU &amp; Stock table and Full CSV Export could silently show blank stock/bin data on large batches — .in() lookups now chunked (150 codes/request) with errors surfaced instead of swallowed &bull; SKU &amp; Stock: Default Bin + Live Bins columns (full multi-bin breakdown, in both on-screen table and CSV exports) &bull; Reports: Txn Type filter now covers all 13 ledger types (was missing QC Release, Rejected, Bin Transfers, Inventory Sync, Opening Balance) &bull; Audit Log High-Risk Filter Fix &amp; Relocate/Merge Bins Confirmation &bull; Bin/Employee Dropdowns &amp; Bin-Mismatch Notes &bull; Audit Log High-Risk Filter &bull; Bin Management (Rename/Merge/Deactivate) &bull; Call Timeouts &bull; Settings &amp; Self-Service Secret Rotation &bull; Session Security &bull; Full CSV Export &bull; Realtime Dashboard/Audit Log &bull; Bulk Employee Actions &bull; Deeper Reports</div>
     </div>
   </div>
 
   <div class="main">
     <div class="db-offline-banner" id="db-offline-banner">⚠ Live database not reachable right now. Data cannot be loaded or saved until this reconnects — check your internet connection.</div>
+    <!-- v2.11 (Gap 3): shown only for a READ_ONLY_ADMIN session. UI-layer
+         convenience only -- the real enforcement is server-side in every
+         write RPC, so this banner is never the only thing stopping a write. -->
+    <div class="db-offline-banner" id="readonly-admin-banner" style="background:#eaf2fb;border-color:#0A1628;color:#0A1628;">👁 Read-only access — you can view everything here, but cannot make changes. Ask a full Admin for write access.</div>
 
     <!-- ══════════════ DASHBOARD ══════════════ -->
     <div class="page active" id="page-dashboard">
@@ -392,10 +425,39 @@ tbody tr:hover{background:#f9fbfd}
         </div>
       </div>
       <div class="summary-caption">"Export CSV (loaded page)" covers only the currently-loaded page (up to 100 rows). "Export Full CSV" walks every page of the current filtered result (capped at 20,000 rows) — this can take a few seconds.</div>
+      <!-- v2.11: Phase 4, Feature 7 — Bulk-edit reorder thresholds / pricing.
+           Select rows with the checkboxes, pick a field + operation + amount,
+           Preview computes the real old->new for every selected row via a
+           server-side dry run (never guessed client-side), then Commit does
+           the identical computation for real. Selection is page-scoped only
+           (checkboxes only exist for the currently-loaded page) — deliberate,
+           keeps this from ever silently acting on an off-screen row. -->
+      <div class="card write-only-control" id="bulk-edit-bar" style="margin-bottom:14px;display:none;">
+        <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;">
+          <div><strong id="bulk-edit-count">0 selected</strong></div>
+          <div class="filter-field"><label>Field</label>
+            <select id="bulk-edit-field">
+              <option value="reorder_threshold">Reorder Threshold</option>
+              <option value="cost_price">Cost Price</option>
+              <option value="mrp">MRP</option>
+            </select>
+          </div>
+          <div class="filter-field"><label>Operation</label>
+            <select id="bulk-edit-op">
+              <option value="SET">Set to</option>
+              <option value="ADD">Adjust by amount</option>
+              <option value="PERCENT">Adjust by %</option>
+            </select>
+          </div>
+          <div class="filter-field"><label>Amount</label><input type="number" id="bulk-edit-amount" step="any" style="max-width:120px"></div>
+          <div><button class="btn btn-primary" onclick="previewBulkAdjust()">Preview</button></div>
+        </div>
+        <div id="bulk-edit-preview" style="margin-top:12px;"></div>
+      </div>
       <div class="table-wrap">
         <table>
-          <thead><tr><th>SKU Code</th><th>ASIN</th><th>Product Name</th><th>Type</th><th>Qty On Hand</th><th>Default Bin</th><th>Live Bins</th><th>Reorder Thr.</th><th>Cost Price</th><th>MRP</th><th>Status</th><th>Actions</th></tr></thead>
-          <tbody id="sku-body"><tr class="empty-row"><td colspan="12">Enter a search term or click Search to load SKUs.</td></tr></tbody>
+          <thead><tr><th><input type="checkbox" id="sku-select-all" onchange="toggleAllSkuCheckboxes(this.checked)"></th><th>SKU Code</th><th>ASIN</th><th>Product Name</th><th>Type</th><th>Qty On Hand</th><th>Default Bin</th><th>Live Bins</th><th>Reorder Thr.</th><th>Cost Price</th><th>MRP</th><th>Status</th><th>Actions</th></tr></thead>
+          <tbody id="sku-body"><tr class="empty-row"><td colspan="13">Enter a search term or click Search to load SKUs.</td></tr></tbody>
         </table>
         <div class="pagination">
           <span id="sku-page-info">Page 1</span>
@@ -404,7 +466,7 @@ tbody tr:hover{background:#f9fbfd}
         </div>
       </div>
 
-      <div class="card" style="margin-top:20px;">
+      <div class="card write-only-control" style="margin-top:20px;">
         <h3>⬆ Bulk CSV Import — Update Existing SKUs</h3>
         <div class="hint-text">
           Upload a CSV with a <code>sku_code</code> column plus any of <code>reorder_threshold</code>, <code>cost_price</code>, <code>mrp</code>, <code>active</code> (true/false).
@@ -547,7 +609,7 @@ tbody tr:hover{background:#f9fbfd}
         <button class="btn btn-primary" onclick="loadSettingsPage()">↻ Refresh</button>
       </div>
 
-      <div class="card">
+      <div class="card write-only-control">
         <h3>🔑 Rotate Admin Secret</h3>
         <div class="hint-text">Changing the admin secret immediately affects everyone using this panel — anyone still holding the old secret will be rejected the next time they load the page or their session re-verifies. Save the new secret somewhere safe (e.g. a password manager) — it cannot be recovered if lost, only reset again with the current one.</div>
         <div class="form-row">
@@ -783,6 +845,83 @@ function fetchInChunks(table, selectCols, codes, chunkSize, timeoutMs, label, er
   });
 }
 
+// ── EMPLOYEE SESSION (v2.11, Gap 3 — Admin Panel role gate) ───────
+var ADMIN_EMP_SESSION_KEY = 'oms_admin_panel_employee';
+function getAdminPanelSession() {
+  try {
+    var raw = sessionStorage.getItem(ADMIN_EMP_SESSION_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch (e) { return null; }
+}
+function setAdminPanelSession(session) {
+  try { sessionStorage.setItem(ADMIN_EMP_SESSION_KEY, JSON.stringify(session)); } catch (e) {}
+}
+function clearAdminPanelSession() {
+  try { sessionStorage.removeItem(ADMIN_EMP_SESSION_KEY); } catch (e) {}
+}
+// The one real caller identity every write RPC call in this file should
+// pass — sourced from the verified oms_verify_login session, never a
+// free-editable field, so the RPC-level READ_ONLY_ADMIN check
+// (oms_check_not_readonly_admin) can't be bypassed by simply typing a
+// different code.
+function getAdminPanelEmployeeCode() {
+  var s = getAdminPanelSession();
+  return s ? s.employee_code : null;
+}
+function isReadOnlyAdmin() {
+  var s = getAdminPanelSession();
+  return !!s && s.role === 'READ_ONLY_ADMIN';
+}
+// Hides/disables every write-capable control for a READ_ONLY_ADMIN session —
+// UI-layer convenience only; the real enforcement is server-side in every
+// write RPC via oms_check_not_readonly_admin(), so this can never be the
+// only thing standing between a read-only account and a write.
+function applyReadOnlyModeToUI() {
+  if (!isReadOnlyAdmin()) return;
+  document.querySelectorAll('.write-only-control').forEach(function (el) {
+    el.style.display = 'none';
+  });
+  var banner = document.getElementById('readonly-admin-banner');
+  if (banner) banner.classList.add('visible');
+}
+
+function attemptEmployeeLogin() {
+  var codeInput = document.getElementById('emp-login-code-input');
+  var pinInput = document.getElementById('emp-login-pin-input');
+  var btn = document.getElementById('emp-login-submit-btn');
+  var errEl = document.getElementById('emp-login-err-msg');
+  var code = (codeInput.value || '').trim().toUpperCase();
+  var pin = (pinInput.value || '').trim();
+  if (!code || !pin) { errEl.textContent = 'Enter your employee code and PIN.'; return; }
+  errEl.textContent = 'Verifying...';
+  if (btn) btn.disabled = true;
+  withTimeout(db.rpc('oms_verify_login', { p_employee_code: code, p_pin: pin, p_device_hint: (navigator.userAgent || '').slice(0, 120) }), 10000, 'Employee login').then(function (res) {
+    if (btn) btn.disabled = false;
+    if (res.error) { errEl.textContent = 'Could not verify login: ' + res.error.message; return; }
+    var row = (res.data && res.data.length) ? res.data[0] : null;
+    if (!row || !row.ok) { errEl.textContent = (row && row.message) ? row.message : 'Login failed.'; return; }
+    if (row.role !== 'ADMIN' && row.role !== 'READ_ONLY_ADMIN') {
+      errEl.textContent = 'This account (' + row.role + ') does not have Admin Panel access.';
+      return;
+    }
+    setAdminPanelSession({ employee_code: row.employee_code, display_name: row.display_name, role: row.role });
+    if (row.role === 'READ_ONLY_ADMIN') {
+      // No admin secret to unlock — nothing for a read-only account to write.
+      showAppShell();
+      applyReadOnlyModeToUI();
+    } else {
+      document.getElementById('employee-login-screen').style.display = 'none';
+      showLoginScreen('');
+    }
+  }).catch(function (err) { if (btn) btn.disabled = false; errEl.textContent = 'Error: ' + String(err && err.message || err); });
+}
+document.addEventListener('DOMContentLoaded', function () {
+  var pinInput = document.getElementById('emp-login-pin-input');
+  if (pinInput) pinInput.addEventListener('keydown', function (e) { if (e.key === 'Enter') attemptEmployeeLogin(); });
+  var codeInput = document.getElementById('emp-login-code-input');
+  if (codeInput) codeInput.addEventListener('keydown', function (e) { if (e.key === 'Enter') document.getElementById('emp-login-pin-input').focus(); });
+});
+
 // ── ADMIN SECRET / SESSION ───────────────────────────────────────
 var ADMIN_SECRET_KEY = 'oms_admin_secret';
 
@@ -887,6 +1026,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
 function showLoginScreen(message) {
   document.getElementById('app-shell').style.display = 'none';
+  document.getElementById('employee-login-screen').style.display = 'none';
   document.getElementById('login-screen').style.display = 'flex';
   var errEl = document.getElementById('login-err-msg');
   if (errEl) errEl.textContent = message || '';
@@ -895,16 +1035,31 @@ function showLoginScreen(message) {
   var btn = document.getElementById('login-submit-btn');
   if (btn) btn.disabled = isLoginRateLimited();
 }
+// v2.11 (Gap 3): the very first screen now, always — employee identity is
+// established here before anything else, including before a READ_ONLY_ADMIN
+// would ever see (or need) the secret screen.
+function showEmployeeLoginScreen(message) {
+  document.getElementById('app-shell').style.display = 'none';
+  document.getElementById('login-screen').style.display = 'none';
+  document.getElementById('employee-login-screen').style.display = 'flex';
+  var errEl = document.getElementById('emp-login-err-msg');
+  if (errEl) errEl.textContent = message || '';
+  var input = document.getElementById('emp-login-code-input');
+  if (input) { input.value = ''; document.getElementById('emp-login-pin-input').value = ''; input.focus(); }
+}
 function showAppShell() {
   document.getElementById('login-screen').style.display = 'none';
+  document.getElementById('employee-login-screen').style.display = 'none';
   document.getElementById('app-shell').style.display = 'flex';
   initAppShell();
+  applyReadOnlyModeToUI();
 }
 function adminLogout() {
   clearAdminSecret();
+  clearAdminPanelSession();
   unsubscribeDashboardRealtime();
   unsubscribeAuditRealtime();
-  showLoginScreen('');
+  showEmployeeLoginScreen('');
 }
 
 // ── v2: SESSION INACTIVITY AUTO-LOGOUT ───────────────────────────
@@ -933,6 +1088,20 @@ setInterval(function () {
 // cached value fails immediately and clearly, right at load, instead of
 // confusingly surfacing later when a specific gated action happens to run.
 (function bootstrap() {
+  // v2.11 (Gap 3): employee identity is checked FIRST, before the admin
+  // secret screen even exists in the flow — a READ_ONLY_ADMIN never sees
+  // (or needs) the secret screen at all, since there is nothing for them to
+  // unlock. Matches the App's own session model: trusted from
+  // sessionStorage on reload (cleared automatically when the tab closes),
+  // not re-verified against the server every time — same tradeoff already
+  // accepted throughout this codebase for the employee-PIN session.
+  var empSession = getAdminPanelSession();
+  if (!empSession) { showEmployeeLoginScreen(''); return; }
+  if (empSession.role === 'READ_ONLY_ADMIN') {
+    showAppShell();
+    applyReadOnlyModeToUI();
+    return;
+  }
   var cached = getAdminSecret();
   if (!cached) { showLoginScreen(''); return; }
   showLoginScreen('Verifying saved session...');
@@ -1825,7 +1994,7 @@ function bulkToggleEmployees(activate) {
       return;
     }
     var code = codes[i];
-    withTimeout(db.rpc('oms_admin_toggle_employee_active', { p_admin_secret: secret, p_employee_code: code, p_active: activate }), 10000, 'Bulk employee update').then(function (res) {
+    withTimeout(db.rpc('oms_admin_toggle_employee_active', { p_admin_secret: secret, p_employee_code: code, p_active: activate, p_caller_employee_code: getAdminPanelEmployeeCode() }), 10000, 'Bulk employee update').then(function (res) {
       done++;
       if (res.error) {
         if (isBadSecretError(res.error)) { handleBadSecret('bulk employee actions'); return; }
@@ -1857,7 +2026,7 @@ function toggleEmployeeActive(code, currentActive) {
   // separate writeAuditLog() call that used to live here is removed to avoid
   // a duplicate log entry.
   var secret = getAdminSecret();
-  withTimeout(db.rpc('oms_admin_toggle_employee_active', { p_admin_secret: secret, p_employee_code: code, p_active: !currentActive }), 10000, 'Toggle employee status').then(function (res) {
+  withTimeout(db.rpc('oms_admin_toggle_employee_active', { p_admin_secret: secret, p_employee_code: code, p_active: !currentActive, p_caller_employee_code: getAdminPanelEmployeeCode() }), 10000, 'Toggle employee status').then(function (res) {
     if (res.error) {
       if (isBadSecretError(res.error)) { handleBadSecret('toggling employee status'); return; }
       if (resEl) { resEl.className = 'result-msg err'; resEl.textContent = 'Error: ' + res.error.message; }
@@ -1875,7 +2044,7 @@ function resetEmployeePin(code) {
   var secret = getAdminSecret();
   var resEl = empResultEl(code);
   if (resEl) { resEl.className = 'result-msg'; resEl.textContent = 'Saving...'; }
-  withTimeout(db.rpc('oms_set_pin', { p_employee_code: code, p_new_pin: pin, p_admin_secret: secret }), 10000, 'PIN reset').then(function (res) {
+  withTimeout(db.rpc('oms_set_pin', { p_employee_code: code, p_new_pin: pin, p_admin_secret: secret, p_caller_employee_code: getAdminPanelEmployeeCode() }), 10000, 'PIN reset').then(function (res) {
     if (res.error) {
       if (isBadSecretError(res.error)) { handleBadSecret('a PIN reset'); return; }
       if (resEl) { resEl.className = 'result-msg err'; resEl.textContent = 'Error: ' + res.error.message; }
@@ -1890,7 +2059,7 @@ function unlockEmployee(code) {
   var secret = getAdminSecret();
   var resEl = empResultEl(code);
   if (resEl) { resEl.className = 'result-msg'; resEl.textContent = 'Unlocking...'; }
-  withTimeout(db.rpc('oms_admin_unlock', { p_employee_code: code, p_admin_secret: secret }), 10000, 'Employee unlock').then(function (res) {
+  withTimeout(db.rpc('oms_admin_unlock', { p_employee_code: code, p_admin_secret: secret, p_caller_employee_code: getAdminPanelEmployeeCode() }), 10000, 'Employee unlock').then(function (res) {
     if (res.error) {
       if (isBadSecretError(res.error)) { handleBadSecret('an unlock action'); return; }
       if (resEl) { resEl.className = 'result-msg err'; resEl.textContent = 'Error: ' + res.error.message; }
@@ -1927,7 +2096,7 @@ function submitAddEmployee() {
   // RPC writes its own EMPLOYEE_ADDED audit row internally, so the separate
   // writeAuditLog() call that used to live here is removed to avoid a
   // duplicate log entry.
-  withTimeout(db.rpc('oms_admin_add_employee', { p_admin_secret: secret, p_employee_code: code, p_display_name: name, p_role: role, p_initial_pin: pin }), 10000, 'Add employee').then(function (res) {
+  withTimeout(db.rpc('oms_admin_add_employee', { p_admin_secret: secret, p_employee_code: code, p_display_name: name, p_role: role, p_initial_pin: pin, p_caller_employee_code: getAdminPanelEmployeeCode() }), 10000, 'Add employee').then(function (res) {
     if (res.error) {
       if (isBadSecretError(res.error)) { handleBadSecret('adding an employee'); return; }
       var msg = res.error.message || '';
@@ -1993,7 +2162,7 @@ function loadSkuStock(page) {
   if (!db) { refreshOfflineBanner(); return; }
   skuPage = page;
   var body = document.getElementById('sku-body');
-  body.innerHTML = '<tr class="empty-row"><td colspan="12">Loading...</td></tr>';
+  body.innerHTML = '<tr class="empty-row"><td colspan="13">Loading...</td></tr>';
 
   var stockFilter = document.getElementById('sku-stock-filter').value;
 
@@ -2003,13 +2172,13 @@ function loadSkuStock(page) {
   var query = buildSkuBaseQuery().range(from, to + 1); // fetch one extra to detect "more"
 
   withTimeout(query, 10000, 'SKU search').then(function (res) {
-    if (res.error) { body.innerHTML = '<tr class="empty-row"><td colspan="12">Error: ' + esc(res.error.message) + '</td></tr>'; return; }
+    if (res.error) { body.innerHTML = '<tr class="empty-row"><td colspan="13">Error: ' + esc(res.error.message) + '</td></tr>'; return; }
     var skus = res.data || [];
     skuLastHadMore = skus.length > skuPageSize;
     if (skuLastHadMore) skus = skus.slice(0, skuPageSize);
 
     if (!skus.length) {
-      body.innerHTML = '<tr class="empty-row"><td colspan="12">No SKUs match this search.</td></tr>';
+      body.innerHTML = '<tr class="empty-row"><td colspan="13">No SKUs match this search.</td></tr>';
       skuLastRows = [];
       document.getElementById('sku-page-info').textContent = 'Page ' + (page + 1);
       document.getElementById('sku-prev-btn').disabled = page === 0;
@@ -2055,7 +2224,7 @@ function loadSkuStock(page) {
       skuLastRows = filtered;
 
       if (!filtered.length) {
-        body.innerHTML = '<tr class="empty-row"><td colspan="12">No SKUs match this search + stock filter combination on this page.</td></tr>';
+        body.innerHTML = '<tr class="empty-row"><td colspan="13">No SKUs match this search + stock filter combination on this page.</td></tr>';
       } else {
         body.innerHTML = filtered.map(function (s) {
           var qtyCell = '—';
@@ -2071,6 +2240,7 @@ function loadSkuStock(page) {
             ? ('<span title="' + esc(s.bin_breakdown_text) + '">' + esc(s.bin_breakdown_text.length > 28 ? (s.bin_count + ' bins: ' + s.bin_breakdown_text.slice(0, 24) + '…') : s.bin_breakdown_text) + '</span>')
             : '<span style="color:#aaa;">—</span>';
           return '<tr>' +
+            '<td><input type="checkbox" class="sku-row-checkbox" value="' + esc(s.sku_code) + '" onchange="onSkuCheckboxChange()"></td>' +
             '<td class="mono">' + esc(s.sku_code) + '</td>' +
             '<td class="mono">' + esc(s.asin || '—') + '</td>' +
             '<td>' + esc(s.product_name || '—') + '</td>' +
@@ -2089,8 +2259,8 @@ function loadSkuStock(page) {
       document.getElementById('sku-page-info').textContent = 'Page ' + (page + 1);
       document.getElementById('sku-prev-btn').disabled = page === 0;
       document.getElementById('sku-next-btn').disabled = !skuLastHadMore;
-    }).catch(function (err) { body.innerHTML = '<tr class="empty-row"><td colspan="12">Error loading stock: ' + esc(String(err && err.message || err)) + '</td></tr>'; });
-  }).catch(function (err) { body.innerHTML = '<tr class="empty-row"><td colspan="12">Error: ' + esc(String(err && err.message || err)) + '</td></tr>'; });
+    }).catch(function (err) { body.innerHTML = '<tr class="empty-row"><td colspan="13">Error loading stock: ' + esc(String(err && err.message || err)) + '</td></tr>'; });
+  }).catch(function (err) { body.innerHTML = '<tr class="empty-row"><td colspan="13">Error: ' + esc(String(err && err.message || err)) + '</td></tr>'; });
 }
 function exportSkuCSV() {
   if (!skuLastRows.length) { alert('No SKU rows loaded to export.'); return; }
@@ -2103,6 +2273,90 @@ function exportSkuCSV() {
     };
   });
   downloadCSV('artzfolio_sku_stock_page' + (skuPage + 1) + '.csv', rows);
+}
+
+// v2.11: Phase 4, Feature 7 — Bulk-edit for reorder thresholds / pricing.
+// Selection is deliberately page-scoped only (checkboxes only exist for
+// rows currently rendered) so this can never act on an off-screen row the
+// person hasn't actually seen. Cleared on every fresh search/page turn
+// since loadSkuStock() replaces sku-body's innerHTML wholesale anyway.
+function onSkuCheckboxChange() {
+  var boxes = document.querySelectorAll('.sku-row-checkbox:checked');
+  var bar = document.getElementById('bulk-edit-bar');
+  document.getElementById('bulk-edit-count').textContent = boxes.length + ' selected';
+  bar.style.display = (boxes.length > 0 && !isReadOnlyAdmin()) ? '' : 'none';
+  if (boxes.length === 0) document.getElementById('bulk-edit-preview').innerHTML = '';
+  var allBoxes = document.querySelectorAll('.sku-row-checkbox');
+  document.getElementById('sku-select-all').checked = allBoxes.length > 0 && boxes.length === allBoxes.length;
+}
+function toggleAllSkuCheckboxes(checked) {
+  document.querySelectorAll('.sku-row-checkbox').forEach(function (cb) { cb.checked = checked; });
+  onSkuCheckboxChange();
+}
+function getSelectedSkuCodes() {
+  return Array.prototype.slice.call(document.querySelectorAll('.sku-row-checkbox:checked')).map(function (cb) { return cb.value; });
+}
+function previewBulkAdjust() {
+  if (!db) return;
+  var codes = getSelectedSkuCodes();
+  var previewEl = document.getElementById('bulk-edit-preview');
+  if (!codes.length) { previewEl.innerHTML = '<div class="result-msg err">No rows selected.</div>'; return; }
+  var field = document.getElementById('bulk-edit-field').value;
+  var op = document.getElementById('bulk-edit-op').value;
+  var amountRaw = document.getElementById('bulk-edit-amount').value;
+  var amount = parseFloat(amountRaw);
+  if (amountRaw === '' || isNaN(amount)) { previewEl.innerHTML = '<div class="result-msg err">Enter an amount.</div>'; return; }
+  var secret = getAdminSecret();
+  previewEl.innerHTML = '<div class="result-msg">Loading preview...</div>';
+
+  withTimeout(db.rpc('oms_admin_bulk_adjust_sku_field', {
+    p_admin_secret: secret, p_sku_codes: codes, p_field: field, p_operation: op,
+    p_amount: amount, p_dry_run: true
+  }), 20000, 'Bulk adjust preview').then(function (res) {
+    if (res.error) {
+      if (isBadSecretError(res.error)) { handleBadSecret('the bulk-edit preview'); return; }
+      previewEl.innerHTML = '<div class="result-msg err">Error: ' + esc(res.error.message) + '</div>';
+      return;
+    }
+    var rows = res.data || [];
+    var html = '<div class="hint-text"><strong>Preview — nothing saved yet.</strong> ' + rows.length + ' row(s), field: ' + esc(field) + ', operation: ' + esc(op) + '.</div>';
+    html += '<div class="table-wrap"><table><thead><tr><th>SKU Code</th><th>Current</th><th>New</th></tr></thead><tbody>';
+    html += rows.map(function (r) {
+      var oldV = r.out_old_value === null ? '—' : r.out_old_value;
+      var newV = r.out_new_value === null ? '(not found)' : r.out_new_value;
+      return '<tr><td class="mono">' + esc(r.out_sku_code) + '</td><td>' + esc(String(oldV)) + '</td><td>' + esc(String(newV)) + '</td></tr>';
+    }).join('') + '</tbody></table></div>';
+    html += '<button class="btn btn-primary" onclick="commitBulkAdjust()" style="margin-top:10px;">✓ Commit This Change to ' + rows.length + ' SKU(s)</button>';
+    html += '<div class="result-msg" id="bulk-edit-commit-result"></div>';
+    previewEl.innerHTML = html;
+  }).catch(function (err) { previewEl.innerHTML = '<div class="result-msg err">Error: ' + esc(String(err && err.message || err)) + '</div>'; });
+}
+function commitBulkAdjust() {
+  if (!db) return;
+  var codes = getSelectedSkuCodes();
+  var field = document.getElementById('bulk-edit-field').value;
+  var op = document.getElementById('bulk-edit-op').value;
+  var amount = parseFloat(document.getElementById('bulk-edit-amount').value);
+  var secret = getAdminSecret();
+  var resEl = document.getElementById('bulk-edit-commit-result');
+  if (!confirm('Apply this change to ' + codes.length + ' SKU(s)? This writes to the live database immediately.')) return;
+  resEl.className = 'result-msg'; resEl.textContent = 'Saving...';
+
+  withTimeout(db.rpc('oms_admin_bulk_adjust_sku_field', {
+    p_admin_secret: secret, p_sku_codes: codes, p_field: field, p_operation: op,
+    p_amount: amount, p_employee_code: getAdminPanelEmployeeCode(), p_employee_name: 'Admin Panel (Web)', p_dry_run: false
+  }), 20000, 'Bulk adjust commit').then(function (res) {
+    if (res.error) {
+      if (isBadSecretError(res.error)) { handleBadSecret('the bulk edit'); return; }
+      resEl.className = 'result-msg err'; resEl.textContent = 'Error: ' + res.error.message;
+      return;
+    }
+    var rows = res.data || [];
+    var okCount = rows.filter(function (r) { return r.out_updated; }).length;
+    resEl.className = 'result-msg ok';
+    resEl.textContent = '✓ Done. ' + okCount + ' of ' + rows.length + ' SKU(s) updated.';
+    loadSkuStock(skuPage);
+  }).catch(function (err) { resEl.className = 'result-msg err'; resEl.textContent = 'Error: ' + String(err && err.message || err); });
 }
 
 // ── v2: FULL-DATASET CSV EXPORT (SKU & Stock) ────────────────────
@@ -2285,7 +2539,7 @@ function submitImport() {
   withTimeout(db.rpc('oms_admin_bulk_update_sku_fields', {
     p_admin_secret: secret,
     p_updates: parsedImportRows,
-    p_employee_code: 'ADMIN_PANEL',
+    p_employee_code: getAdminPanelEmployeeCode(),
     p_employee_name: 'Admin Panel (Web)'
   }), 20000, 'Bulk SKU import').then(function (res) {
     if (res.error) {
@@ -2561,7 +2815,7 @@ function submitRotateSecret() {
   btn.disabled = true;
   resEl.className = 'result-msg'; resEl.textContent = 'Rotating secret...';
 
-  withTimeout(db.rpc('oms_admin_rotate_secret', { p_current_secret: cur, p_new_secret: neu }), 10000, 'Secret rotation').then(function (res) {
+  withTimeout(db.rpc('oms_admin_rotate_secret', { p_current_secret: cur, p_new_secret: neu, p_caller_employee_code: getAdminPanelEmployeeCode() }), 10000, 'Secret rotation').then(function (res) {
     btn.disabled = false;
     if (res.error) {
       // On a wrong current secret we show the error inline and deliberately
