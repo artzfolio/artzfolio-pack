@@ -268,7 +268,7 @@
     </style>
 </head>
 <body>
-<div class="ver-corner" id="verCornerBadge">v61</div>
+<div class="ver-corner" id="verCornerBadge">v62</div>
 <!-- v51: brief on-screen warning if a pick's stock deduction fails to save to the live
      database — the PICK flow deliberately advances immediately to the next scan (multi-line
      picks must not be blocked), so this is a visible, dismissible heads-up in addition to the
@@ -384,6 +384,19 @@
              flow above — this is for warehouse events that aren't order dispatch. -->
         <div id="move-tab" class="tab-content">
             <div class="db-offline-banner" id="move-offline-banner">&#9888; Live database not reachable right now. Movements cannot be recorded until this reconnects — check your internet connection.</div>
+            <!-- v62: Phase 3, Feature 4 — Scheduled Cycle Counting. A small daily
+                 list generated automatically (oms_generate_cycle_count_queue, pg_cron
+                 3:15 UTC daily), prioritising A-tier SKUs and whichever haven't been
+                 counted in the longest time. "Count This" jumps straight into the
+                 EXISTING Set True Count flow with the SKU pre-filled — this section
+                 only ever decides WHAT to count; the actual count still goes through
+                 the same submitMoveTransaction()/MANUAL_CORRECTION path as always. -->
+            <div class="settings-section" id="cycle-count-section" style="margin-bottom:10px;">
+                <h3 style="margin-top:0;cursor:pointer;" onclick="toggleTodaysCountList()">&#128203; Today's Cycle Count <span id="cycle-count-badge" style="font-size:11px;color:#888;"></span> <span id="cycle-count-toggle-icon">&#9660;</span></h3>
+                <div id="cycle-count-body" style="display:none;">
+                    <div id="cycle-count-list" style="font-size:12px;"></div>
+                </div>
+            </div>
             <div class="pill-row">
                 <div class="pill-btn active" id="move-pill-NEW_STOCK_IN" onclick="setMoveMode('NEW_STOCK_IN')">&#128230; New Stock</div>
                 <div class="pill-btn" id="move-pill-RETURN_IN" onclick="setMoveMode('RETURN_IN')">&#8617; Returns</div>
@@ -806,8 +819,8 @@
 
             <!-- Version -->
             <div class="ver-badge">
-                <div class="ver-name">&#128230; ArtzFolio Scan-Pick-Pack v61</div>
-                <div class="ver-sub">Feature 8 (Dynamic New-SKU Registration, v61) — New Stock In / Returns In against a SKU or ASIN the database has never seen now offers an inline "Register New SKU" panel right there in MOVE, instead of a hard block; registering saves it to the SKU database (create-only — refuses to touch an existing SKU's data) and immediately continues the exact same stock movement in one flow. PICK/scan-out against a still-unregistered SKU stays a hard block, unchanged — selling something never received is an error, not a new-SKU event. &bull; Phase 2 of the 7-Features/6-Gaps build: dynamic reorder points (Feature 2) — reorder point is now the manual threshold if set, else calculated from real trailing-30-day sales velocity × lead time; STOCK tab shows the reasoning on each row and the LOW_STOCK/OUT_OF_STOCK banner is now a real, working number (it silently always showed 0 before, since every SKU had a manual threshold of exactly 0) &bull; ABC/velocity classification (Feature 3) — every active SKU tagged A/B/C by standard 80/20 Pareto method on real sales volume, new STOCK tab filter; will show C for everyone until real sales history accumulates &bull; Returns grading (Gap 4) — Returns mode now asks Good/Damaged/Wrong Item; Damaged and Wrong Item are recorded as arrived but immediately held, never silently added to sellable stock (v60) &bull; Settings' local scan log renamed to "My Recent Scans (this device only)" so it can never be confused with the real, permanent, server-side Audit Log in the Admin Panel; new "My Activity (server record)" section added underneath it, pulling the logged-in employee's own last 50 actions straight from the live ledger — durable, survives clearing this device, on-demand load (v59) &bull; STOCK tab now has full filters &amp; sort — by stock status (in stock / low stock / out of stock), by category, and sort by SKU, ASIN, or Product Title (A&rarr;Z or Z&rarr;A), plus Qty high&rarr;low/low&rarr;high; every row now shows product name, category, and a colour status badge (v58) &bull; New SKU inbound via Quick Scan now defaults the bin to A1 automatically when no bin is entered and the SKU has no bin history yet — clearly shown as a hint under the bin field (v58) &bull; Bin is now mandatory on EVERY stock movement, zero exceptions — including Set True Count / Manual Correction, whose bin exemption is removed at both the UI and database level (Seller Flex discipline) (v57) &bull; Live stock can no longer go negative — database-level check on every removal, at both SKU and bin level, rejecting anything that would exceed what is actually recorded there (v56) &bull; Notes are now recommended, never mandatory, on Found/Remove-Lost/QC Hold/Set True Count (v56) &bull; Bin auto-fill and mismatch warnings now trust live bin data over the SKU registry's (sometimes stale) usual-bin field, and a live per-bin quantity line shows under the bin field on every SKU scan (v56) &bull; Bin-mismatch warning now also fires for SKUs with no registered default bin, using their live bin data instead — closes the gap behind the 2026-08-19 bin A1 (-4) ledger anomaly; same fix applied to MOVE tab bin auto-fill, Set True Count, and Bulk Upload (v55) &bull; All remaining unchunked .in() lookups (Stock list bin map, Bin Lookup activity breakdown) now chunked for consistency (v55) &bull; Export Full Inventory fixed &amp; expanded — chunked lookups (no more silent data loss on large batches), now includes pricing, reorder threshold, active status, and full per-SKU activity breakdown (v54) &bull; Live Stock list now shows bin(s) per SKU (v53) &bull; One-click Export Full Inventory - all SKUs, ASIN, product, qty, bins (v53) &bull; Set True Count / Manual Correction (v52) &bull; Bin Lookup Full Detail Table with Activity Breakdown, ASIN, Last Updated (v52) &bull; Bin Usage Summary (v52) &bull; Per-SKU History Drilldown (v52) &bull; Bin Lookup CSV Export (v52) &bull; Soft Bin-Mismatch Note (MOVE + Bulk Upload, never blocks) &bull; entry_source Audit Tag on Every Write &bull; Bulk Upload from CSV (Inbound/Transfer/Found/Lost/Rejected/QC) &bull; Live Bin Lookup (Single SKU / Single Bin / Bulk) &bull; Dynamic Bins (auto-created, no fixed list) &bull; Mandatory Bin on Every Stock Movement &bull; Owner Dashboard (DASH) &bull; 14-Day Staff Performance &bull; Print Product/Bin Labels &bull; QC Hold/Damage &bull; Low-Stock Alerts &bull; Daily Reconciliation &bull; Admin PIN-Lock Unlock &bull; Real Employee Login (PIN) &bull; RBAC &bull; Live Database (Supabase) &bull; Admin-Secret-Gated PIN Recovery &bull; Permanent Audit Log &bull; Hardened Employee Writes (Admin-RPC-Only) &bull; Call Timeouts &amp; Error Handling (Performance Fix)</div>
+                <div class="ver-name">&#128230; ArtzFolio Scan-Pick-Pack v62</div>
+                <div class="ver-sub">Phase 3, Feature 4 (Scheduled Cycle Counting, v62) — MOVE tab now has a "Today's Cycle Count" list (auto-generated daily, ~12 SKUs, A-tier + least-recently-counted prioritised), Count jumps straight into Set True Count with the SKU pre-filled, Skip marks it skipped; a real count still writes through the exact same MANUAL_CORRECTION path as always &bull; Feature 5 (Automated Alerting, v62) — low-stock-alert edge function rebuilt on Feature 2's real effective_reorder_point, baseline-snapshot behavior (only alerts on a NEW crossing worse than each SKU's own baseline, silent on enablement), real per-SKU-per-condition-per-day dedupe, and negative-stock-attempt alerting (a write rejected by the DB-level non-negative-stock trigger is now logged and alerted on separately) &bull; Feature 8 (Dynamic New-SKU Registration, v61) — New Stock In / Returns In against a SKU or ASIN the database has never seen now offers an inline "Register New SKU" panel right there in MOVE, instead of a hard block; registering saves it to the SKU database (create-only — refuses to touch an existing SKU's data) and immediately continues the exact same stock movement in one flow. PICK/scan-out against a still-unregistered SKU stays a hard block, unchanged — selling something never received is an error, not a new-SKU event. &bull; Phase 2 of the 7-Features/6-Gaps build: dynamic reorder points (Feature 2) — reorder point is now the manual threshold if set, else calculated from real trailing-30-day sales velocity × lead time; STOCK tab shows the reasoning on each row and the LOW_STOCK/OUT_OF_STOCK banner is now a real, working number (it silently always showed 0 before, since every SKU had a manual threshold of exactly 0) &bull; ABC/velocity classification (Feature 3) — every active SKU tagged A/B/C by standard 80/20 Pareto method on real sales volume, new STOCK tab filter; will show C for everyone until real sales history accumulates &bull; Returns grading (Gap 4) — Returns mode now asks Good/Damaged/Wrong Item; Damaged and Wrong Item are recorded as arrived but immediately held, never silently added to sellable stock (v60) &bull; Settings' local scan log renamed to "My Recent Scans (this device only)" so it can never be confused with the real, permanent, server-side Audit Log in the Admin Panel; new "My Activity (server record)" section added underneath it, pulling the logged-in employee's own last 50 actions straight from the live ledger — durable, survives clearing this device, on-demand load (v59) &bull; STOCK tab now has full filters &amp; sort — by stock status (in stock / low stock / out of stock), by category, and sort by SKU, ASIN, or Product Title (A&rarr;Z or Z&rarr;A), plus Qty high&rarr;low/low&rarr;high; every row now shows product name, category, and a colour status badge (v58) &bull; New SKU inbound via Quick Scan now defaults the bin to A1 automatically when no bin is entered and the SKU has no bin history yet — clearly shown as a hint under the bin field (v58) &bull; Bin is now mandatory on EVERY stock movement, zero exceptions — including Set True Count / Manual Correction, whose bin exemption is removed at both the UI and database level (Seller Flex discipline) (v57) &bull; Live stock can no longer go negative — database-level check on every removal, at both SKU and bin level, rejecting anything that would exceed what is actually recorded there (v56) &bull; Notes are now recommended, never mandatory, on Found/Remove-Lost/QC Hold/Set True Count (v56) &bull; Bin auto-fill and mismatch warnings now trust live bin data over the SKU registry's (sometimes stale) usual-bin field, and a live per-bin quantity line shows under the bin field on every SKU scan (v56) &bull; Bin-mismatch warning now also fires for SKUs with no registered default bin, using their live bin data instead — closes the gap behind the 2026-08-19 bin A1 (-4) ledger anomaly; same fix applied to MOVE tab bin auto-fill, Set True Count, and Bulk Upload (v55) &bull; All remaining unchunked .in() lookups (Stock list bin map, Bin Lookup activity breakdown) now chunked for consistency (v55) &bull; Export Full Inventory fixed &amp; expanded — chunked lookups (no more silent data loss on large batches), now includes pricing, reorder threshold, active status, and full per-SKU activity breakdown (v54) &bull; Live Stock list now shows bin(s) per SKU (v53) &bull; One-click Export Full Inventory - all SKUs, ASIN, product, qty, bins (v53) &bull; Set True Count / Manual Correction (v52) &bull; Bin Lookup Full Detail Table with Activity Breakdown, ASIN, Last Updated (v52) &bull; Bin Usage Summary (v52) &bull; Per-SKU History Drilldown (v52) &bull; Bin Lookup CSV Export (v52) &bull; Soft Bin-Mismatch Note (MOVE + Bulk Upload, never blocks) &bull; entry_source Audit Tag on Every Write &bull; Bulk Upload from CSV (Inbound/Transfer/Found/Lost/Rejected/QC) &bull; Live Bin Lookup (Single SKU / Single Bin / Bulk) &bull; Dynamic Bins (auto-created, no fixed list) &bull; Mandatory Bin on Every Stock Movement &bull; Owner Dashboard (DASH) &bull; 14-Day Staff Performance &bull; Print Product/Bin Labels &bull; QC Hold/Damage &bull; Low-Stock Alerts &bull; Daily Reconciliation &bull; Admin PIN-Lock Unlock &bull; Real Employee Login (PIN) &bull; RBAC &bull; Live Database (Supabase) &bull; Admin-Secret-Gated PIN Recovery &bull; Permanent Audit Log &bull; Hardened Employee Writes (Admin-RPC-Only) &bull; Call Timeouts &amp; Error Handling (Performance Fix)</div>
             </div>
         </div>
     </div>
@@ -1816,7 +1829,25 @@ function writeLedgerTxn(opts) {
         entry_source: 'APP'
     };
     return withTimeout(db.from('oms_inventory_transactions').insert(row).select(), 10000, 'Stock transaction').then(function(res) {
-        if (res.error) { setDbOffline(res.error.message); return { ok: false, reason: res.error.message }; }
+        if (res.error) {
+            setDbOffline(res.error.message);
+            // v62: Phase 3, Feature 5 — a write REJECTED by the DB-level
+            // non-negative-stock trigger (errcode P0001) is logged here, as a
+            // fresh independent insert, NOT inside the failed transaction (it
+            // was already rolled back) — this is what makes a rejected
+            // attempt visible to the alerting edge function at all, instead
+            // of silently vanishing. Best-effort only: never blocks or
+            // changes the real result already being returned below.
+            if (res.error.code === 'P0001') {
+                withTimeout(db.from('oms_negative_stock_attempts').insert({
+                    company_id: 'artzfolio', sku_code: row.sku_code, bin_code: row.bin_code,
+                    attempted_qty_delta: row.qty_delta, txn_type: row.txn_type,
+                    employee_code: row.employee_code, entry_source: row.entry_source,
+                    error_message: res.error.message
+                }), 8000, 'Negative-stock attempt log').catch(function() {});
+            }
+            return { ok: false, reason: res.error.message };
+        }
         setDbOnline();
         return { ok: true, row: res.data && res.data[0] };
     }).catch(function(err) {
@@ -1977,6 +2008,60 @@ function prefillMoveBin() {
         }
     });
 }
+// v62: Phase 3, Feature 4 — Today's Cycle Count list. Loaded on demand (tab
+// open / toggle expand), not polled — this is a handful of rows a day, not a
+// live-updating feed. countQueueLoaded guards against re-querying on every
+// toggle open/close.
+var countQueueLoaded = false;
+function toggleTodaysCountList() {
+    var body = document.getElementById('cycle-count-body');
+    var icon = document.getElementById('cycle-count-toggle-icon');
+    var opening = body.style.display === 'none';
+    body.style.display = opening ? '' : 'none';
+    icon.innerHTML = opening ? '&#9650;' : '&#9660;';
+    if (opening && !countQueueLoaded) refreshTodaysCountList();
+}
+function refreshTodaysCountList() {
+    if (!db) return;
+    countQueueLoaded = true;
+    var listEl = document.getElementById('cycle-count-list');
+    var badgeEl = document.getElementById('cycle-count-badge');
+    listEl.innerHTML = '<div style="color:#888;">Loading...</div>';
+    withTimeout(db.from('oms_cycle_count_queue').select('sku_code,status')
+        .eq('assigned_date', new Date().toISOString().slice(0, 10)).eq('status', 'PENDING')
+        .order('queue_id'), 10000, 'Cycle count list')
+        .then(function(res) {
+            if (res.error || !res.data) { listEl.innerHTML = '<div style="color:#c0392b;">Could not load.</div>'; return; }
+            var rows = res.data;
+            badgeEl.textContent = rows.length ? ('(' + rows.length + ' pending today)') : '(none pending today)';
+            if (!rows.length) { listEl.innerHTML = '<div style="color:#888;">Nothing left to count today. &#127881;</div>'; return; }
+            var skus = rows.map(function(r) { return r.sku_code; });
+            return withTimeout(db.from('oms_sku_master').select('sku_code,product_name').in('sku_code', skus), 10000, 'Cycle count SKU names')
+                .then(function(nameRes) {
+                    var names = {};
+                    if (nameRes.data) nameRes.data.forEach(function(r) { names[r.sku_code] = r.product_name; });
+                    var html = '';
+                    rows.forEach(function(r) {
+                        html += '<div style="display:flex;align-items:center;justify-content:space-between;padding:6px 0;border-bottom:1px solid #f0f0f0;">' +
+                            '<div><strong>' + r.sku_code + '</strong><br><span style="color:#888;">' + (names[r.sku_code] || '') + '</span></div>' +
+                            '<div><button class="settings-btn" style="font-size:11px;padding:6px 8px;" onclick="countThisSku(\'' + r.sku_code.replace(/'/g, "\\'") + '\')">Count</button> ' +
+                            '<button class="settings-btn" style="font-size:11px;padding:6px 8px;background:#888;" onclick="skipCountRow(\'' + r.sku_code.replace(/'/g, "\\'") + '\')">Skip</button></div></div>';
+                    });
+                    listEl.innerHTML = html;
+                });
+        }).catch(function() { listEl.innerHTML = '<div style="color:#c0392b;">Could not load.</div>'; });
+}
+function countThisSku(skuCode) {
+    setMoveMode('MANUAL_CORRECTION');
+    document.getElementById('move-sku-input').value = skuCode;
+    prefillMoveBin();
+    try { document.getElementById('move-qty-input').focus(); } catch(e) {}
+}
+function skipCountRow(skuCode) {
+    if (!db) return;
+    withTimeout(db.rpc('oms_resolve_cycle_count_queue_row', { p_sku_code: skuCode, p_status: 'SKIPPED' }), 8000, 'Cycle count skip')
+        .then(function() { refreshTodaysCountList(); }).catch(function() {});
+}
 function setMoveMode(mode) {
     if (!MOVE_MODES[mode]) return;
     moveMode = mode;
@@ -2091,6 +2176,20 @@ function submitMoveTransaction() {
                 if (delta === 0) {
                     resEl.className = 'move-result ok';
                     resEl.textContent = '✓ No change needed — ' + sku.sku_code + ' is already at ' + qtyVal + ' live.';
+                    // v62: Feature 4 — a count that matches exactly (no
+                    // variance) is still a genuine completed count, not a
+                    // no-op — it must resolve the queue row too, same as a
+                    // count that DID find a difference. Missing this meant
+                    // an exact-match count silently left the SKU stuck
+                    // PENDING forever.
+                    if (db) {
+                        withTimeout(db.rpc('oms_resolve_cycle_count_queue_row', {
+                            p_sku_code: sku.sku_code, p_status: 'COUNTED',
+                            p_counted_qty: qtyVal, p_live_qty_at_count: currentQty
+                        }), 8000, 'Cycle count resolve').then(function(res) {
+                            if (res && res.data && res.data.status === 'RESOLVED') refreshTodaysCountList();
+                        }).catch(function() {});
+                    }
                     return null;
                 }
                 var sure = confirm('Set ' + sku.sku_code + ' (' + (sku.product_name || '') + ') to ' + qtyVal + ' units?\n\nCurrently live: ' + currentQty + '\nThis will record a correction of ' + (delta > 0 ? '+' : '') + delta + '.\n\nThis cannot be undone (though it can be corrected again later).');
@@ -2113,6 +2212,20 @@ function submitMoveTransaction() {
                     resEl.textContent = '✓ Saved — ' + sku.sku_code + ' corrected from ' + currentQty + ' to ' + qtyVal + ' (' + (delta > 0 ? '+' : '') + delta + ') @ bin ' + binVal + binMismatchNote(sku, binVal);
                     logEvent(sku.sku_code, 'Set True Count: ' + currentQty + ' \u2192 ' + qtyVal + ' (' + (delta > 0 ? '+' : '') + delta + ') @ ' + binVal + (note ? ' — ' + note : ''));
                     writeAuditLog('MANUAL_CORRECTION', { skuCode: sku.sku_code, details: { qty_delta: delta, from: currentQty, to: qtyVal, bin_code: binVal, note: note || null, product_name: sku.product_name || null } });
+                    // v62: Feature 4 (Scheduled Cycle Counting) — if this SKU has a
+                    // PENDING row in today's count queue, mark it COUNTED with the
+                    // real count + variance. Best-effort: runs only after the real
+                    // correction already saved above, never blocks/reverses it. A SKU
+                    // counted outside today's assigned list just gets NO_PENDING_ROW
+                    // back and nothing else happens.
+                    if (db) {
+                        withTimeout(db.rpc('oms_resolve_cycle_count_queue_row', {
+                            p_sku_code: sku.sku_code, p_status: 'COUNTED',
+                            p_counted_qty: qtyVal, p_live_qty_at_count: currentQty
+                        }), 8000, 'Cycle count resolve').then(function(res) {
+                            if (res && res.data && res.data.status === 'RESOLVED') refreshTodaysCountList();
+                        }).catch(function() {});
+                    }
                     document.getElementById('move-sku-input').value = '';
                     document.getElementById('move-bin-input').value = '';
                     document.getElementById('move-qty-input').value = '0';
