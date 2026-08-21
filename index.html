@@ -4,6 +4,11 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>ArtzFolio Scan-Pick-Pack</title>
+    <!-- v63: Phase 4, Gap 2 - Offline mode / installable PWA. -->
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#1B4F8A">
+    <link rel="icon" href="icon.svg" type="image/svg+xml">
+    <link rel="apple-touch-icon" href="icon.svg">
     <!-- ZXing multi-format decoder (Code128/39/EAN/UPC/ITF/DataMatrix/PDF417/Aztec/QR). Loaded async; app works without it. -->
     <script src="https://cdn.jsdelivr.net/npm/@zxing/library@0.19.2/umd/index.min.js" onerror="window.ZXing=null;"></script>
     <!-- jsQR: QR-only fallback (offline-capable) -->
@@ -38,7 +43,10 @@
         /* CONTENT */
         .content{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:10px 14px 90px}
         /* TABS */
-        .ver-corner{position:fixed;top:6px;right:8px;z-index:150;background:rgba(0,0,0,.55);color:#fff;font-size:10px;font-family:sans-serif;padding:2px 7px;border-radius:10px;pointer-events:none;letter-spacing:.3px}.tab-nav{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:520px;display:flex;background:#fff;border-top:1px solid #e0e0e0;z-index:100}
+        .ver-corner{position:fixed;top:6px;right:8px;z-index:150;background:rgba(0,0,0,.55);color:#fff;font-size:10px;font-family:sans-serif;padding:2px 7px;border-radius:10px;pointer-events:none;letter-spacing:.3px}
+        .offline-queue-badge{position:fixed;top:6px;left:8px;z-index:150;background:#1B4F8A;color:#fff;font-size:10px;font-family:sans-serif;padding:3px 9px;border-radius:10px;letter-spacing:.3px;cursor:pointer;box-shadow:0 2px 6px rgba(0,0,0,.2)}
+        .offline-queue-badge.failed{background:#c0392b}
+        .tab-nav{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:520px;display:flex;background:#fff;border-top:1px solid #e0e0e0;z-index:100}
         .tab-btn{flex:1;padding:10px 4px 8px;border:none;background:transparent;cursor:pointer;font-size:11px;border-top:3px solid transparent;transition:all .15s;color:#888;touch-action:manipulation}
         .tab-btn.active{border-top-color:#1B4F8A;color:#1B4F8A;font-weight:700;background:#f7f9ff}
         .tab-content{display:none}
@@ -268,7 +276,18 @@
     </style>
 </head>
 <body>
-<div class="ver-corner" id="verCornerBadge">v62</div>
+<div class="ver-corner" id="verCornerBadge">v63</div>
+<!-- v63: Gap 2 — offline write-queue indicator. Hidden (display:none) unless
+     something is actually queued or failed. Tapping it shows the queue detail
+     panel (openOfflineQueuePanel()). -->
+<div id="offline-queue-badge" class="offline-queue-badge" style="display:none;" onclick="openOfflineQueuePanel()"></div>
+<div class="emp-modal-bg" id="offline-queue-modal-bg" onclick="if(event.target===this)closeOfflineQueuePanel()">
+    <div class="emp-modal" style="max-width:min(440px,90vw);width:min(440px,90vw);">
+        <h2>📥 Offline Write Queue</h2>
+        <div id="offline-queue-list" style="max-height:50vh;overflow-y:auto;text-align:left;font-size:12px;"></div>
+        <button class="settings-btn" style="margin-top:14px;width:100%;" onclick="closeOfflineQueuePanel()">Close</button>
+    </div>
+</div>
 <!-- v51: brief on-screen warning if a pick's stock deduction fails to save to the live
      database — the PICK flow deliberately advances immediately to the next scan (multi-line
      picks must not be blocked), so this is a visible, dismissible heads-up in addition to the
@@ -819,8 +838,8 @@
 
             <!-- Version -->
             <div class="ver-badge">
-                <div class="ver-name">&#128230; ArtzFolio Scan-Pick-Pack v62</div>
-                <div class="ver-sub">Phase 3, Feature 4 (Scheduled Cycle Counting, v62) — MOVE tab now has a "Today's Cycle Count" list (auto-generated daily, ~12 SKUs, A-tier + least-recently-counted prioritised), Count jumps straight into Set True Count with the SKU pre-filled, Skip marks it skipped; a real count still writes through the exact same MANUAL_CORRECTION path as always &bull; Feature 5 (Automated Alerting, v62) — low-stock-alert edge function rebuilt on Feature 2's real effective_reorder_point, baseline-snapshot behavior (only alerts on a NEW crossing worse than each SKU's own baseline, silent on enablement), real per-SKU-per-condition-per-day dedupe, and negative-stock-attempt alerting (a write rejected by the DB-level non-negative-stock trigger is now logged and alerted on separately) &bull; Feature 8 (Dynamic New-SKU Registration, v61) — New Stock In / Returns In against a SKU or ASIN the database has never seen now offers an inline "Register New SKU" panel right there in MOVE, instead of a hard block; registering saves it to the SKU database (create-only — refuses to touch an existing SKU's data) and immediately continues the exact same stock movement in one flow. PICK/scan-out against a still-unregistered SKU stays a hard block, unchanged — selling something never received is an error, not a new-SKU event. &bull; Phase 2 of the 7-Features/6-Gaps build: dynamic reorder points (Feature 2) — reorder point is now the manual threshold if set, else calculated from real trailing-30-day sales velocity × lead time; STOCK tab shows the reasoning on each row and the LOW_STOCK/OUT_OF_STOCK banner is now a real, working number (it silently always showed 0 before, since every SKU had a manual threshold of exactly 0) &bull; ABC/velocity classification (Feature 3) — every active SKU tagged A/B/C by standard 80/20 Pareto method on real sales volume, new STOCK tab filter; will show C for everyone until real sales history accumulates &bull; Returns grading (Gap 4) — Returns mode now asks Good/Damaged/Wrong Item; Damaged and Wrong Item are recorded as arrived but immediately held, never silently added to sellable stock (v60) &bull; Settings' local scan log renamed to "My Recent Scans (this device only)" so it can never be confused with the real, permanent, server-side Audit Log in the Admin Panel; new "My Activity (server record)" section added underneath it, pulling the logged-in employee's own last 50 actions straight from the live ledger — durable, survives clearing this device, on-demand load (v59) &bull; STOCK tab now has full filters &amp; sort — by stock status (in stock / low stock / out of stock), by category, and sort by SKU, ASIN, or Product Title (A&rarr;Z or Z&rarr;A), plus Qty high&rarr;low/low&rarr;high; every row now shows product name, category, and a colour status badge (v58) &bull; New SKU inbound via Quick Scan now defaults the bin to A1 automatically when no bin is entered and the SKU has no bin history yet — clearly shown as a hint under the bin field (v58) &bull; Bin is now mandatory on EVERY stock movement, zero exceptions — including Set True Count / Manual Correction, whose bin exemption is removed at both the UI and database level (Seller Flex discipline) (v57) &bull; Live stock can no longer go negative — database-level check on every removal, at both SKU and bin level, rejecting anything that would exceed what is actually recorded there (v56) &bull; Notes are now recommended, never mandatory, on Found/Remove-Lost/QC Hold/Set True Count (v56) &bull; Bin auto-fill and mismatch warnings now trust live bin data over the SKU registry's (sometimes stale) usual-bin field, and a live per-bin quantity line shows under the bin field on every SKU scan (v56) &bull; Bin-mismatch warning now also fires for SKUs with no registered default bin, using their live bin data instead — closes the gap behind the 2026-08-19 bin A1 (-4) ledger anomaly; same fix applied to MOVE tab bin auto-fill, Set True Count, and Bulk Upload (v55) &bull; All remaining unchunked .in() lookups (Stock list bin map, Bin Lookup activity breakdown) now chunked for consistency (v55) &bull; Export Full Inventory fixed &amp; expanded — chunked lookups (no more silent data loss on large batches), now includes pricing, reorder threshold, active status, and full per-SKU activity breakdown (v54) &bull; Live Stock list now shows bin(s) per SKU (v53) &bull; One-click Export Full Inventory - all SKUs, ASIN, product, qty, bins (v53) &bull; Set True Count / Manual Correction (v52) &bull; Bin Lookup Full Detail Table with Activity Breakdown, ASIN, Last Updated (v52) &bull; Bin Usage Summary (v52) &bull; Per-SKU History Drilldown (v52) &bull; Bin Lookup CSV Export (v52) &bull; Soft Bin-Mismatch Note (MOVE + Bulk Upload, never blocks) &bull; entry_source Audit Tag on Every Write &bull; Bulk Upload from CSV (Inbound/Transfer/Found/Lost/Rejected/QC) &bull; Live Bin Lookup (Single SKU / Single Bin / Bulk) &bull; Dynamic Bins (auto-created, no fixed list) &bull; Mandatory Bin on Every Stock Movement &bull; Owner Dashboard (DASH) &bull; 14-Day Staff Performance &bull; Print Product/Bin Labels &bull; QC Hold/Damage &bull; Low-Stock Alerts &bull; Daily Reconciliation &bull; Admin PIN-Lock Unlock &bull; Real Employee Login (PIN) &bull; RBAC &bull; Live Database (Supabase) &bull; Admin-Secret-Gated PIN Recovery &bull; Permanent Audit Log &bull; Hardened Employee Writes (Admin-RPC-Only) &bull; Call Timeouts &amp; Error Handling (Performance Fix)</div>
+                <div class="ver-name">&#128230; ArtzFolio Scan-Pick-Pack v63</div>
+                <div class="ver-sub">Phase 4, Gap 2 (Offline Mode / Installable PWA, v63) — the App can now be installed (manifest + service worker caching the app shell) and keeps working with NO network at all: a MOVE write that can't reach the live database is queued on-device instead of failing, shows "Queued (offline)", and syncs automatically the moment connectivity returns; a SKU lookup falls back to an on-device cache synced whenever online. A real bug was found and fixed via live testing — a write that actually succeeded server-side could still report a client-side timeout, and retrying it would have silently double-written real stock; every queued write now carries a server-enforced idempotency key so a retry after a false timeout is recognised as already-synced instead of duplicated &bull; Phase 3, Feature 4 (Scheduled Cycle Counting, v62) — MOVE tab now has a "Today's Cycle Count" list (auto-generated daily, ~12 SKUs, A-tier + least-recently-counted prioritised), Count jumps straight into Set True Count with the SKU pre-filled, Skip marks it skipped; a real count still writes through the exact same MANUAL_CORRECTION path as always &bull; Feature 5 (Automated Alerting, v62) — low-stock-alert edge function rebuilt on Feature 2's real effective_reorder_point, baseline-snapshot behavior (only alerts on a NEW crossing worse than each SKU's own baseline, silent on enablement), real per-SKU-per-condition-per-day dedupe, and negative-stock-attempt alerting (a write rejected by the DB-level non-negative-stock trigger is now logged and alerted on separately) &bull; Feature 8 (Dynamic New-SKU Registration, v61) — New Stock In / Returns In against a SKU or ASIN the database has never seen now offers an inline "Register New SKU" panel right there in MOVE, instead of a hard block; registering saves it to the SKU database (create-only — refuses to touch an existing SKU's data) and immediately continues the exact same stock movement in one flow. PICK/scan-out against a still-unregistered SKU stays a hard block, unchanged — selling something never received is an error, not a new-SKU event. &bull; Phase 2 of the 7-Features/6-Gaps build: dynamic reorder points (Feature 2) — reorder point is now the manual threshold if set, else calculated from real trailing-30-day sales velocity × lead time; STOCK tab shows the reasoning on each row and the LOW_STOCK/OUT_OF_STOCK banner is now a real, working number (it silently always showed 0 before, since every SKU had a manual threshold of exactly 0) &bull; ABC/velocity classification (Feature 3) — every active SKU tagged A/B/C by standard 80/20 Pareto method on real sales volume, new STOCK tab filter; will show C for everyone until real sales history accumulates &bull; Returns grading (Gap 4) — Returns mode now asks Good/Damaged/Wrong Item; Damaged and Wrong Item are recorded as arrived but immediately held, never silently added to sellable stock (v60) &bull; Settings' local scan log renamed to "My Recent Scans (this device only)" so it can never be confused with the real, permanent, server-side Audit Log in the Admin Panel; new "My Activity (server record)" section added underneath it, pulling the logged-in employee's own last 50 actions straight from the live ledger — durable, survives clearing this device, on-demand load (v59) &bull; STOCK tab now has full filters &amp; sort — by stock status (in stock / low stock / out of stock), by category, and sort by SKU, ASIN, or Product Title (A&rarr;Z or Z&rarr;A), plus Qty high&rarr;low/low&rarr;high; every row now shows product name, category, and a colour status badge (v58) &bull; New SKU inbound via Quick Scan now defaults the bin to A1 automatically when no bin is entered and the SKU has no bin history yet — clearly shown as a hint under the bin field (v58) &bull; Bin is now mandatory on EVERY stock movement, zero exceptions — including Set True Count / Manual Correction, whose bin exemption is removed at both the UI and database level (Seller Flex discipline) (v57) &bull; Live stock can no longer go negative — database-level check on every removal, at both SKU and bin level, rejecting anything that would exceed what is actually recorded there (v56) &bull; Notes are now recommended, never mandatory, on Found/Remove-Lost/QC Hold/Set True Count (v56) &bull; Bin auto-fill and mismatch warnings now trust live bin data over the SKU registry's (sometimes stale) usual-bin field, and a live per-bin quantity line shows under the bin field on every SKU scan (v56) &bull; Bin-mismatch warning now also fires for SKUs with no registered default bin, using their live bin data instead — closes the gap behind the 2026-08-19 bin A1 (-4) ledger anomaly; same fix applied to MOVE tab bin auto-fill, Set True Count, and Bulk Upload (v55) &bull; All remaining unchunked .in() lookups (Stock list bin map, Bin Lookup activity breakdown) now chunked for consistency (v55) &bull; Export Full Inventory fixed &amp; expanded — chunked lookups (no more silent data loss on large batches), now includes pricing, reorder threshold, active status, and full per-SKU activity breakdown (v54) &bull; Live Stock list now shows bin(s) per SKU (v53) &bull; One-click Export Full Inventory - all SKUs, ASIN, product, qty, bins (v53) &bull; Set True Count / Manual Correction (v52) &bull; Bin Lookup Full Detail Table with Activity Breakdown, ASIN, Last Updated (v52) &bull; Bin Usage Summary (v52) &bull; Per-SKU History Drilldown (v52) &bull; Bin Lookup CSV Export (v52) &bull; Soft Bin-Mismatch Note (MOVE + Bulk Upload, never blocks) &bull; entry_source Audit Tag on Every Write &bull; Bulk Upload from CSV (Inbound/Transfer/Found/Lost/Rejected/QC) &bull; Live Bin Lookup (Single SKU / Single Bin / Bulk) &bull; Dynamic Bins (auto-created, no fixed list) &bull; Mandatory Bin on Every Stock Movement &bull; Owner Dashboard (DASH) &bull; 14-Day Staff Performance &bull; Print Product/Bin Labels &bull; QC Hold/Damage &bull; Low-Stock Alerts &bull; Daily Reconciliation &bull; Admin PIN-Lock Unlock &bull; Real Employee Login (PIN) &bull; RBAC &bull; Live Database (Supabase) &bull; Admin-Secret-Gated PIN Recovery &bull; Permanent Audit Log &bull; Hardened Employee Writes (Admin-RPC-Only) &bull; Call Timeouts &amp; Error Handling (Performance Fix)</div>
             </div>
         </div>
     </div>
@@ -1759,29 +1778,285 @@ function formatTs(d) {
 // ledger (oms.current_stock view) — see the 2026-07-25 decision log.
 
 function setDbOffline(reason) {
+    var wasOnline = dbOnline;
     dbOnline = false;
     var banners = document.querySelectorAll('.db-offline-banner');
     for (var i = 0; i < banners.length; i++) banners[i].classList.add('visible');
     console.warn('DB offline:', reason);
+    if (wasOnline !== false) updateOfflineQueueBadge();
 }
 function setDbOnline() {
+    var wasOffline = !dbOnline;
     dbOnline = true;
     var banners = document.querySelectorAll('.db-offline-banner');
     for (var i = 0; i < banners.length; i++) banners[i].classList.remove('visible');
+    // v63: Gap 2 — the moment connectivity is confirmed again (not on every
+    // single successful query, just the offline->online transition), try to
+    // flush anything queued while offline. flushOfflineQueue() is itself
+    // idempotent/guarded against overlapping runs.
+    if (wasOffline) flushOfflineQueue();
+    syncSkuCacheForOffline();
+}
+
+// ── OFFLINE MODE / INSTALLABLE PWA (v63, Phase 4 Gap 2) ──────────────────
+// IndexedDB-backed write queue: when a MOVE write can't reach the live
+// database, it's queued here instead of just failing, and replayed in the
+// exact order it was queued the moment connectivity returns. A queued write
+// later REJECTED by the database (e.g. the non-negative-stock trigger) is
+// never silently dropped — it's marked FAILED and stays visible until a
+// person resolves it, and the queue stops advancing past it so a later,
+// order-dependent write can't jump ahead of an unresolved earlier one.
+var OFFLINE_DB_NAME = 'artzfolio_oms_offline';
+var OFFLINE_DB_VERSION = 1;
+var offlineDbPromise = null;
+function openOfflineDb() {
+    if (offlineDbPromise) return offlineDbPromise;
+    offlineDbPromise = new Promise(function (resolve, reject) {
+        if (!window.indexedDB) { reject(new Error('IndexedDB not available')); return; }
+        var req = indexedDB.open(OFFLINE_DB_NAME, OFFLINE_DB_VERSION);
+        req.onupgradeneeded = function (e) {
+            var idb = e.target.result;
+            if (!idb.objectStoreNames.contains('write_queue')) {
+                idb.createObjectStore('write_queue', { keyPath: 'id', autoIncrement: true });
+            }
+            if (!idb.objectStoreNames.contains('sku_cache')) {
+                idb.createObjectStore('sku_cache', { keyPath: 'sku_code' });
+            }
+        };
+        req.onsuccess = function (e) { resolve(e.target.result); };
+        req.onerror = function () { reject(req.error); };
+    });
+    return offlineDbPromise;
+}
+function idbTx(storeName, mode) {
+    return openOfflineDb().then(function (idb) {
+        return idb.transaction(storeName, mode).objectStore(storeName);
+    });
+}
+function makeQueueId() {
+    if (window.crypto && crypto.randomUUID) return crypto.randomUUID();
+    return 'q-' + Date.now() + '-' + Math.random().toString(36).slice(2);
+}
+function queueOfflineWrite(opts) {
+    // v63 bugfix (found via live testing): a write CAN succeed server-side
+    // while the client still reports a timeout/failure (a busy tab, a slow
+    // response landing just past the client-side deadline) — without a
+    // stable idempotency key, retrying that "failed" item would silently
+    // insert a genuine duplicate and double-count real stock. client_queue_id
+    // is generated once, here, and carried through every retry of this same
+    // item — see flushOfflineQueue()'s 23505 handling for the other half.
+    opts = Object.assign({}, opts, { client_queue_id: makeQueueId() });
+    return idbTx('write_queue', 'readwrite').then(function (store) {
+        return new Promise(function (resolve, reject) {
+            var row = { opts: opts, status: 'QUEUED', createdAt: new Date().toISOString(), error: null };
+            var req = store.add(row);
+            req.onsuccess = function () { updateOfflineQueueBadge(); resolve(req.result); };
+            req.onerror = function () { reject(req.error); };
+        });
+    });
+}
+function getOfflineQueue() {
+    return idbTx('write_queue', 'readonly').then(function (store) {
+        return new Promise(function (resolve, reject) {
+            var req = store.getAll();
+            req.onsuccess = function () { resolve(req.result || []); };
+            req.onerror = function () { reject(req.error); };
+        });
+    });
+}
+function removeOfflineQueueItem(id) {
+    return idbTx('write_queue', 'readwrite').then(function (store) {
+        return new Promise(function (resolve, reject) {
+            var req = store.delete(id);
+            req.onsuccess = function () { resolve(); };
+            req.onerror = function () { reject(req.error); };
+        });
+    });
+}
+function markOfflineQueueItemFailed(id, errorMsg) {
+    return idbTx('write_queue', 'readwrite').then(function (store) {
+        return new Promise(function (resolve, reject) {
+            var getReq = store.get(id);
+            getReq.onsuccess = function () {
+                var row = getReq.result;
+                if (!row) { resolve(); return; }
+                row.status = 'FAILED';
+                row.error = errorMsg;
+                var putReq = store.put(row);
+                putReq.onsuccess = function () { resolve(); };
+                putReq.onerror = function () { reject(putReq.error); };
+            };
+            getReq.onerror = function () { reject(getReq.error); };
+        });
+    });
+}
+function updateOfflineQueueBadge() {
+    getOfflineQueue().then(function (rows) {
+        var pending = rows.filter(function (r) { return r.status === 'QUEUED'; }).length;
+        var failed = rows.filter(function (r) { return r.status === 'FAILED'; }).length;
+        var badge = document.getElementById('offline-queue-badge');
+        if (!badge) return;
+        if (pending === 0 && failed === 0) { badge.style.display = 'none'; return; }
+        badge.style.display = '';
+        badge.className = failed > 0 ? 'offline-queue-badge failed' : 'offline-queue-badge';
+        badge.textContent = (pending > 0 ? pending + ' queued' : '') + (pending > 0 && failed > 0 ? ', ' : '') + (failed > 0 ? failed + ' failed' : '');
+        badge.title = failed > 0
+            ? (failed + ' queued write(s) were rejected by the database and need review — tap to see why.')
+            : (pending + ' write(s) saved on this device, waiting for a connection to sync.');
+    }).catch(function () {});
+}
+var flushingOfflineQueue = false;
+function flushOfflineQueue() {
+    if (flushingOfflineQueue) return Promise.resolve();
+    flushingOfflineQueue = true;
+    return getOfflineQueue().then(function (rows) {
+        var queued = rows.filter(function (r) { return r.status === 'QUEUED'; }).sort(function (a, b) { return a.id - b.id; });
+        return queued.reduce(function (chain, row) {
+            return chain.then(function (stopped) {
+                if (stopped) return true; // an earlier item failed — stop advancing, preserve order
+                if (!db) return true;
+                // v63 bugfix: 25s, not 10s — this runs in the background, never
+                // blocking an interactive wait, and a too-short timeout on a
+                // slow-but-real connection was exactly what produced the
+                // false-failure this idempotency key now also guards against.
+                return withTimeout(db.from('oms_inventory_transactions').insert(row.opts).select(), 25000, 'Offline queue flush')
+                    .then(function (res) {
+                        if (res.error) {
+                            // A 23505 (unique violation) on client_queue_id means this
+                            // exact write already landed on an earlier attempt (the
+                            // insert succeeded, only the client's response was lost) —
+                            // that is a success being confirmed late, not a real
+                            // rejection, so remove it from the queue rather than
+                            // flagging it FAILED (which would just invite a genuine
+                            // duplicate on Retry).
+                            if (res.error.code === '23505' && /client_queue_id/i.test(res.error.message || '')) {
+                                return removeOfflineQueueItem(row.id).then(function () { return false; });
+                            }
+                            return markOfflineQueueItemFailed(row.id, res.error.message).then(function () { return true; });
+                        }
+                        return removeOfflineQueueItem(row.id).then(function () { return false; });
+                    })
+                    .catch(function (err) {
+                        return markOfflineQueueItemFailed(row.id, String(err)).then(function () { return true; });
+                    });
+            });
+        }, Promise.resolve(false));
+    }).then(function () {
+        flushingOfflineQueue = false;
+        updateOfflineQueueBadge();
+    }).catch(function () { flushingOfflineQueue = false; });
+}
+window.addEventListener('online', function () { if (db) flushOfflineQueue(); });
+
+// One-time-per-session background sync of the SKU master into IndexedDB —
+// what makes a genuine offline MOVE possible at all (resolveSkuOrAsin()
+// falls back to this when the live lookup can't reach the network). Kept
+// deliberately small per row (just what a MOVE needs), chunked, and never
+// blocks the UI — a failed/slow sync just means offline SKU lookups won't
+// have fresh data, not a hard error.
+var skuCacheSyncedThisSession = false;
+function syncSkuCacheForOffline() {
+    if (skuCacheSyncedThisSession || !db) return;
+    skuCacheSyncedThisSession = true;
+    var pageSize = 1000, offset = 0;
+    function loadPage() {
+        return withTimeout(db.from('oms_sku_master').select('sku_code,asin,product_name,default_bin').eq('active', true)
+            .range(offset, offset + pageSize - 1), 15000, 'Offline SKU cache sync')
+            .then(function (res) {
+                if (res.error || !res.data) return;
+                return idbTx('sku_cache', 'readwrite').then(function (store) {
+                    res.data.forEach(function (r) { store.put(r); });
+                    if (res.data.length === pageSize) { offset += pageSize; return loadPage(); }
+                });
+            }).catch(function () {});
+    }
+    loadPage();
+}
+function openOfflineQueuePanel() {
+    document.getElementById('offline-queue-modal-bg').classList.add('active');
+    renderOfflineQueueList();
+}
+function closeOfflineQueuePanel() {
+    document.getElementById('offline-queue-modal-bg').classList.remove('active');
+}
+function renderOfflineQueueList() {
+    var listEl = document.getElementById('offline-queue-list');
+    listEl.innerHTML = 'Loading...';
+    getOfflineQueue().then(function (rows) {
+        rows.sort(function (a, b) { return a.id - b.id; });
+        if (!rows.length) { listEl.innerHTML = '<div style="color:#888;">Nothing queued.</div>'; return; }
+        listEl.innerHTML = rows.map(function (r) {
+            var o = r.opts;
+            var line = o.sku_code + ' (' + (o.qty_delta > 0 ? '+' : '') + o.qty_delta + ', ' + o.txn_type + ') @ ' + (o.bin_code || '—');
+            var statusHtml = r.status === 'FAILED'
+                ? '<div style="color:#c0392b;font-size:11px;margin-top:2px;">❌ Rejected: ' + (r.error || '') + '</div>'
+                : '<div style="color:#888;font-size:11px;margin-top:2px;">⏳ Waiting to sync (queued ' + fmtQueueTime(r.createdAt) + ')</div>';
+            var actions = r.status === 'FAILED'
+                ? '<button class="settings-btn" style="font-size:11px;padding:5px 8px;margin-top:6px;margin-right:6px;" onclick="retryOfflineQueueItem(' + r.id + ')">Retry</button>' +
+                  '<button class="settings-btn" style="font-size:11px;padding:5px 8px;margin-top:6px;background:#888;" onclick="discardOfflineQueueItem(' + r.id + ')">Discard</button>'
+                : '';
+            return '<div style="padding:8px 0;border-bottom:1px solid #f0f0f0;"><strong>' + line + '</strong>' + statusHtml + actions + '</div>';
+        }).join('');
+    });
+}
+function fmtQueueTime(iso) {
+    try { return new Date(iso).toLocaleString(); } catch (e) { return iso; }
+}
+function retryOfflineQueueItem(id) {
+    getOfflineQueue().then(function (rows) {
+        var row = rows.filter(function (r) { return r.id === id; })[0];
+        if (!row) return;
+        row.status = 'QUEUED';
+        row.error = null;
+        return idbTx('write_queue', 'readwrite').then(function (store) {
+            return new Promise(function (resolve) { var req = store.put(row); req.onsuccess = resolve; req.onerror = resolve; });
+        });
+    }).then(function () {
+        renderOfflineQueueList();
+        updateOfflineQueueBadge();
+        if (db) flushOfflineQueue().then(renderOfflineQueueList);
+    });
+}
+function discardOfflineQueueItem(id) {
+    if (!confirm('Discard this queued write permanently? It will NOT be saved to the live database.')) return;
+    removeOfflineQueueItem(id).then(function () { renderOfflineQueueList(); updateOfflineQueueBadge(); });
+}
+function resolveSkuFromOfflineCache(value) {
+    var v = (value || '').trim().toUpperCase();
+    if (!v) return Promise.resolve(null);
+    return idbTx('sku_cache', 'readonly').then(function (store) {
+        return new Promise(function (resolve) {
+            var req = store.get(v);
+            req.onsuccess = function () {
+                if (req.result) { resolve(Object.assign({ live_bins: [] }, req.result)); return; }
+                // fall back to a full scan for an ASIN match (cache is keyed by sku_code only)
+                var allReq = store.getAll();
+                allReq.onsuccess = function () {
+                    var match = (allReq.result || []).filter(function (r) { return (r.asin || '').toUpperCase() === v; })[0];
+                    resolve(match ? Object.assign({ live_bins: [] }, match) : null);
+                };
+                allReq.onerror = function () { resolve(null); };
+            };
+            req.onerror = function () { resolve(null); };
+        });
+    }).catch(function () { return null; });
 }
 
 // Look up a scanned/typed value against the live SKU master by SKU code
 // OR ASIN (whichever matches) — returns a Promise resolving to the
 // sku_master row, or null if not found.
 function resolveSkuOrAsin(value) {
-    if (!db) return Promise.resolve(null);
     var v = (value || '').trim().toUpperCase();
     if (!v) return Promise.resolve(null);
+    // v63: Gap 2 — no live db object at all (never connected this session)
+    // falls straight back to whatever was cached from the last time we
+    // were online, instead of a hard null. See syncSkuCacheForOffline().
+    if (!db) return resolveSkuFromOfflineCache(v);
     return withTimeout(db.from('oms_sku_master').select('sku_code,asin,product_name,active,default_bin')
         .or('sku_code.eq.' + v + ',asin.eq.' + v)
         .limit(1), 10000, 'SKU lookup')
         .then(function(res) {
-            if (res.error) { setDbOffline(res.error.message); return null; }
+            if (res.error) { setDbOffline(res.error.message); return resolveSkuFromOfflineCache(v); }
             setDbOnline();
             var sku = (res.data && res.data.length) ? res.data[0] : null;
             if (!sku) return null;
@@ -1799,7 +2074,7 @@ function resolveSkuOrAsin(value) {
                     return sku;
                 }).catch(function() { sku.live_bins = []; return sku; });
         })
-        .catch(function(err) { setDbOffline(err); return null; });
+        .catch(function(err) { setDbOffline(err); return resolveSkuFromOfflineCache(v); });
 }
 
 // The one and only function anywhere in this file that writes a stock
@@ -1812,11 +2087,10 @@ function resolveSkuOrAsin(value) {
 // old exemption was removed 2026-08-20) — a movement submitted without a
 // bin fails at the database level, not just in the UI, so this can't be
 // bypassed by a future call site that forgets to pass binCode.
-function writeLedgerTxn(opts) {
-    // opts: { skuCode, asin, qtyDelta, txnType, channel, orderId, binCode, note }
-    if (!db) return Promise.resolve({ ok: false, reason: 'Database not loaded (offline).' });
-    var emp = loadEmployee();
-    var row = {
+// v63: Gap 2 — factored out of writeLedgerTxn() so both the live-write path
+// and the offline-queue path build the exact same row shape, one place.
+function buildLedgerTxnRow(opts, emp) {
+    return {
         sku_code: (opts.skuCode || '').toUpperCase().trim(),
         asin: opts.asin || null,
         qty_delta: opts.qtyDelta,
@@ -1828,6 +2102,21 @@ function writeLedgerTxn(opts) {
         note: opts.note || null,
         entry_source: 'APP'
     };
+}
+function writeLedgerTxn(opts) {
+    // opts: { skuCode, asin, qtyDelta, txnType, channel, orderId, binCode, note }
+    var emp = loadEmployee();
+    // v63: Gap 2 — no live connection at all queues the write instead of
+    // just failing outright. Only a genuine CONNECTIVITY failure is ever
+    // queued (this branch, and the network .catch() below) — a write the
+    // database actually looked at and REJECTED (the .then(res.error) branch
+    // further down, e.g. the non-negative-stock trigger) is never queued,
+    // since replaying it later would just fail identically; that keeps
+    // surfacing immediately as a normal error, exactly as before.
+    if (!db) {
+        return queueOfflineWrite(buildLedgerTxnRow(opts, emp)).then(function () { return { ok: true, queued: true }; });
+    }
+    var row = buildLedgerTxnRow(opts, emp);
     return withTimeout(db.from('oms_inventory_transactions').insert(row).select(), 10000, 'Stock transaction').then(function(res) {
         if (res.error) {
             setDbOffline(res.error.message);
@@ -1852,7 +2141,11 @@ function writeLedgerTxn(opts) {
         return { ok: true, row: res.data && res.data[0] };
     }).catch(function(err) {
         setDbOffline(err);
-        return { ok: false, reason: String(err) };
+        // v63: Gap 2 — this .catch() only ever fires for a genuine
+        // connectivity failure (timeout/network error — a real rejection
+        // the server actually answered lands in the .then(res.error) branch
+        // above instead), so it's safe to queue here rather than just fail.
+        return queueOfflineWrite(row).then(function () { return { ok: true, queued: true }; });
     });
 }
 
@@ -2314,9 +2607,17 @@ function proceedMoveWithSku(sku, binVal, qtyVal, note, resEl) {
             resEl.textContent = '❌ Could not save: ' + result.reason;
             return;
         }
-        resEl.className = 'move-result ok';
-        resEl.textContent = '✓ Saved — ' + (cfg.sign > 0 ? '+' : '') + (cfg.sign * qtyVal) + ' units of ' + sku.sku_code + ' (' + (sku.product_name || '') + ') @ bin ' + binVal + binMismatchNote(sku, binVal);
-        logEvent(sku.sku_code, MOVE_MODES[moveMode].title.replace(/&#\d+;/g, '').trim() + ': ' + (cfg.sign > 0 ? '+' : '') + (cfg.sign * qtyVal) + ' @ ' + binVal + (note ? ' — ' + note : ''));
+        // v63: Gap 2 — a queued (offline) write is a genuinely different
+        // outcome from a confirmed live save, and must say so — never claim
+        // "Saved" for something that hasn't actually reached the database yet.
+        if (result.queued) {
+            resEl.className = 'move-result';
+            resEl.textContent = '📥 Queued (offline) — ' + (cfg.sign > 0 ? '+' : '') + (cfg.sign * qtyVal) + ' units of ' + sku.sku_code + ' @ bin ' + binVal + '. Will sync automatically once back online.';
+        } else {
+            resEl.className = 'move-result ok';
+            resEl.textContent = '✓ Saved — ' + (cfg.sign > 0 ? '+' : '') + (cfg.sign * qtyVal) + ' units of ' + sku.sku_code + ' (' + (sku.product_name || '') + ') @ bin ' + binVal + binMismatchNote(sku, binVal);
+        }
+        logEvent(sku.sku_code, MOVE_MODES[moveMode].title.replace(/&#\d+;/g, '').trim() + ': ' + (cfg.sign > 0 ? '+' : '') + (cfg.sign * qtyVal) + ' @ ' + binVal + (note ? ' — ' + note : '') + (result.queued ? ' (queued offline)' : ''));
         writeAuditLog(moveMode, { skuCode: sku.sku_code, details: { qty_delta: cfg.sign * qtyVal, bin_code: binVal, note: note || null, product_name: sku.product_name || null } });
         document.getElementById('move-sku-input').value = '';
         document.getElementById('move-bin-input').value = '';
@@ -3737,6 +4038,12 @@ function processScan(value) {
                             binCode:  lineBin ? lineBin.binID : null,
                             note:     'Pick-and-pack, line ' + lineOrder.lineNum + '/' + lineOrder.totalLines
                         }).then(function(result) {
+                            if (result.queued) {
+                                // v63: Gap 2 — genuinely offline, not a failure: the pick was
+                                // recorded locally and will sync automatically once back online.
+                                logEvent(lineOrder.internalID, '📥 Stock deduction queued (offline) — will sync automatically.');
+                                return;
+                            }
                             if (!result.ok) {
                                 logEvent(lineOrder.internalID, '⚠ Stock deduction NOT saved to live database (' + result.reason + ') — record manually.');
                                 // v51: this write happens after the UI has already advanced to
@@ -4849,8 +5156,19 @@ function loadDemoMulti() {
     }, 200);
 }
 
-// ── INIT ─────────────────────────────────────────────────────
+// v63: Gap 2 — register the service worker (app-shell caching, installable
+// PWA) and prime the offline write-queue badge/SKU cache. Registration
+// failure (unsupported browser, blocked, etc.) is silently non-fatal — the
+// App already works fully online without it; this only adds the ability to
+// install it and keep working with no network at all.
+if ('serviceWorker' in navigator) {
+    window.addEventListener('load', function () {
+        navigator.serviceWorker.register('sw.js').catch(function () {});
+    });
+}
 document.addEventListener('DOMContentLoaded', function() {
+    updateOfflineQueueBadge();
+    if (db) syncSkuCacheForOffline();
     // Load persisted log
     state.log = loadLog();
 
