@@ -5,6 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>ArtzFolio Scan-Pick-Pack</title>
     <!-- v63: Phase 4, Gap 2 - Offline mode / installable PWA. -->
+    <!-- v64: count-cap fix (oms_low_stock paginated via fetchAllRows(), was
+         silently capped at 1000 rows by PostgREST); loud on-screen warning
+         when all 3 barcode decoders fail to init; DASH tab rebuilt into a
+         full KPI + Chart.js dashboard with filters. -->
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#1B4F8A">
     <link rel="icon" href="icon.svg" type="image/svg+xml">
@@ -17,6 +21,10 @@
          pick/pack scanning (against the QR data) if this fails to load, but stock will not
          update live and the MOVE/STOCK tabs will show an offline notice. -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <!-- v64: Chart.js for the DASH tab rebuild. Loaded async; a failed load never
+         breaks the rest of the app — the DASH tab just shows its KPI numbers
+         without charts (see renderDashCharts()'s typeof Chart === 'undefined' guard). -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js" onerror="window.Chart=null;"></script>
     <style>
         *,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
         body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;background:#f0f2f5;height:100vh;overflow:hidden}
@@ -229,6 +237,12 @@
         .cam-hint{color:rgba(255,255,255,.9);font-size:13px;text-align:center;line-height:1.4}
         .cam-hint strong{color:#F39C12}
         .cam-formats{color:rgba(255,255,255,.5);font-size:9px;text-align:center;letter-spacing:.3px;margin-top:2px}
+        /* v64: loud, impossible-to-miss warning when ALL THREE decoders (ZXing,
+           BarcodeDetector, jsQR) have failed to initialize — previously the scan
+           loop just ran forever finding nothing, with zero feedback. */
+        .cam-no-decoder-banner{display:none;position:fixed;top:0;left:0;right:0;z-index:210;background:#c0392b;color:#fff;padding:14px 16px calc(12px + env(safe-area-inset-top,0px));text-align:center;font-size:13px;font-weight:700;line-height:1.4;box-shadow:0 2px 10px rgba(0,0,0,.4)}
+        .cam-no-decoder-banner.visible{display:block}
+        .cam-no-decoder-banner small{display:block;font-weight:400;opacity:.9;margin-top:4px;font-size:11.5px}
         .cam-close{background:rgba(255,255,255,.15);border:1.5px solid rgba(255,255,255,.5);color:#fff;padding:11px 32px;border-radius:24px;font-size:14px;font-weight:700;cursor:pointer;touch-action:manipulation}
         .cam-close:active{background:rgba(255,255,255,.3)}
         /* v49: redundant always-on-top escape button, independent of cam-bottom's
@@ -264,8 +278,28 @@
         /* DASH TAB (v40, ADMIN only) — owner dashboard stat tiles + tables */
         .dash-tiles{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px}
         .dash-tile{flex:1 1 45%;min-width:45%;background:linear-gradient(135deg,#eef2f8,#e4ebf5);border:1px solid #dce4f0;border-radius:12px;padding:12px 10px;text-align:center}
+        .dash-tile.warn{background:linear-gradient(135deg,#fef6e6,#fdecc8);border-color:#f0d9a0}
+        .dash-tile.danger{background:linear-gradient(135deg,#fdedec,#fbdad7);border-color:#f0b8b2}
         .dash-tile-val{font-size:19px;font-weight:800;color:#1B4F8A;line-height:1.2}
+        .dash-tile.warn .dash-tile-val{color:#d68910}
+        .dash-tile.danger .dash-tile-val{color:#c0392b}
         .dash-tile-label{font-size:10px;color:#666;text-transform:uppercase;font-weight:700;margin-top:3px;letter-spacing:.3px}
+        /* v64: DASH tab chart cards + filters (mirrors the Admin Panel rebuild,
+           condensed for a phone screen — stacked single column, native
+           <details> for the filter bar instead of a full inline form). */
+        .dash-chart-card{margin-bottom:14px}
+        .dash-chart-card .chart-caption{display:block;font-size:10.5px;font-weight:400;color:#888;margin-top:2px}
+        .dash-chart-canvas-wrap{position:relative;height:220px;margin-top:8px}
+        .dash-chart-empty-note{color:#999;font-size:11.5px;text-align:center;padding:30px 0}
+        .dash-chart-toggle-btns{display:flex;gap:6px;margin-top:8px}
+        .dash-chart-toggle-btn{font-size:10.5px;font-weight:700;padding:4px 10px;border-radius:20px;border:1px solid #ccd6e2;background:#fff;color:#556}
+        .dash-chart-toggle-btn.active{background:#1B4F8A;border-color:#1B4F8A;color:#fff}
+        .dash-filters summary{cursor:pointer;font-weight:700;color:#1B4F8A;font-size:12.5px;padding:2px 0}
+        .dash-filter-row{display:flex;gap:8px;margin-top:8px;flex-wrap:wrap}
+        .dash-filter-field{flex:1 1 45%;min-width:130px}
+        .dash-filter-field label{display:block;font-size:10px;color:#777;font-weight:700;text-transform:uppercase;margin-bottom:3px}
+        .dash-filter-field select, .dash-filter-field input{width:100%;padding:7px 8px;border:1px solid #dce4f0;border-radius:8px;font-size:12px}
+        .dash-filter-actions{display:flex;gap:8px;margin-top:10px}
         .dash-row{display:flex;justify-content:space-between;align-items:center;padding:9px 10px;border-bottom:1px solid #f0f2f5;font-size:12px;gap:8px}
         .dash-row:last-child{border-bottom:none}
         .dash-row-emp{font-weight:700;color:#1B4F8A}
@@ -276,7 +310,7 @@
     </style>
 </head>
 <body>
-<div class="ver-corner" id="verCornerBadge">v63</div>
+<div class="ver-corner" id="verCornerBadge">v64</div>
 <!-- v63: Gap 2 — offline write-queue indicator. Hidden (display:none) unless
      something is actually queued or failed. Tapping it shows the queue detail
      panel (openOfflineQueuePanel()). -->
@@ -666,9 +700,68 @@
                 <h2>&#128202; Owner Dashboard</h2>
                 <button class="csv-btn" onclick="loadDashboard(true)">&#8635; Refresh</button>
             </div>
+
+            <!-- v64: filters, collapsed by default to save phone screen space.
+                 Category/ABC/Status filter the KPI tiles + Stock Status/Category/ABC
+                 charts client-side (one already-fetched, paginated snapshot).
+                 Date range + Bin genuinely re-query (ledger/bin tables are unbounded). -->
+            <details class="settings-section dash-filters">
+                <summary>&#128269; Filters</summary>
+                <div class="dash-filter-row">
+                    <div class="dash-filter-field"><label>From</label><input type="date" id="dash-date-from"></div>
+                    <div class="dash-filter-field"><label>To</label><input type="date" id="dash-date-to"></div>
+                    <div class="dash-filter-field"><label>Category</label><select id="dash-filter-category"><option value="">All</option></select></div>
+                    <div class="dash-filter-field"><label>ABC Tier</label><select id="dash-filter-abc"><option value="">All</option><option value="A">A</option><option value="B">B</option><option value="C">C</option></select></div>
+                    <div class="dash-filter-field"><label>Stock Status</label><select id="dash-filter-status"><option value="">All</option><option value="IN_STOCK">In Stock</option><option value="LOW_STOCK">Low Stock</option><option value="OUT_OF_STOCK">Out of Stock</option></select></div>
+                    <div class="dash-filter-field"><label>Bin</label><select id="dash-filter-bin"><option value="">All</option></select></div>
+                </div>
+                <div class="dash-filter-actions">
+                    <button class="settings-btn" style="background:#eee;color:#333;" onclick="resetDashFilters()">Reset</button>
+                    <button class="settings-btn" onclick="loadDashboard(true)">Apply Filters</button>
+                </div>
+            </details>
+
             <div class="dash-tiles" id="dash-tiles">
                 <div class="settings-info">Loading...</div>
             </div>
+
+            <div class="settings-section dash-chart-card">
+                <h3>&#128230; Stock Status</h3>
+                <div class="dash-chart-toggle-btns" id="dash-status-toggle">
+                    <button class="dash-chart-toggle-btn active" data-mode="sku" onclick="setDashStatusChartMode('sku')">By SKU</button>
+                    <button class="dash-chart-toggle-btn" data-mode="units" onclick="setDashStatusChartMode('units')">By Units</button>
+                </div>
+                <div class="dash-chart-canvas-wrap"><canvas id="dash-chart-status"></canvas></div>
+            </div>
+            <div class="settings-section dash-chart-card">
+                <h3>&#128193; Category Breakdown</h3>
+                <div class="dash-chart-toggle-btns" id="dash-category-toggle">
+                    <button class="dash-chart-toggle-btn active" data-mode="units" onclick="setDashCategoryChartMode('units')">By Units</button>
+                    <button class="dash-chart-toggle-btn" data-mode="value" onclick="setDashCategoryChartMode('value')">By Value</button>
+                </div>
+                <div class="dash-chart-canvas-wrap"><canvas id="dash-chart-category"></canvas></div>
+            </div>
+            <div class="settings-section dash-chart-card">
+                <h3>&#127991;&#65039; ABC Tier<span class="chart-caption" id="dash-abc-caption"></span></h3>
+                <div class="dash-chart-canvas-wrap"><canvas id="dash-chart-abc"></canvas></div>
+            </div>
+            <div class="settings-section dash-chart-card">
+                <h3>&#127981; Bin Utilization<span class="chart-caption">Top bins by units, within selected date range</span></h3>
+                <div class="dash-chart-canvas-wrap"><canvas id="dash-chart-bins"></canvas></div>
+            </div>
+            <div class="settings-section dash-chart-card">
+                <h3>&#128293; Top Movers<span class="chart-caption">By transaction volume, within selected date range</span></h3>
+                <div class="dash-chart-canvas-wrap"><canvas id="dash-chart-movers"></canvas></div>
+            </div>
+            <div class="settings-section dash-chart-card">
+                <h3>&#128200; Daily Activity Trend<span class="chart-caption">Units in vs. out, within selected date range</span></h3>
+                <div class="dash-chart-canvas-wrap"><canvas id="dash-chart-trend"></canvas></div>
+            </div>
+            <div class="settings-section dash-chart-card">
+                <h3>&#128100; Staff Performance<span class="chart-caption">Transactions per employee, last 14 days</span></h3>
+                <div class="dash-chart-canvas-wrap"><canvas id="dash-chart-staff"></canvas></div>
+            </div>
+
             <div class="settings-section">
                 <h3>&#128100; Today &mdash; Staff Breakdown</h3>
                 <div id="dash-staff-today"><div class="settings-info">Loading...</div></div>
@@ -838,7 +931,7 @@
 
             <!-- Version -->
             <div class="ver-badge">
-                <div class="ver-name">&#128230; ArtzFolio Scan-Pick-Pack v63</div>
+                <div class="ver-name">&#128230; ArtzFolio Scan-Pick-Pack v64</div>
                 <div class="ver-sub">Phase 4, Gap 2 (Offline Mode / Installable PWA, v63) — the App can now be installed (manifest + service worker caching the app shell) and keeps working with NO network at all: a MOVE write that can't reach the live database is queued on-device instead of failing, shows "Queued (offline)", and syncs automatically the moment connectivity returns; a SKU lookup falls back to an on-device cache synced whenever online. A real bug was found and fixed via live testing — a write that actually succeeded server-side could still report a client-side timeout, and retrying it would have silently double-written real stock; every queued write now carries a server-enforced idempotency key so a retry after a false timeout is recognised as already-synced instead of duplicated &bull; Phase 3, Feature 4 (Scheduled Cycle Counting, v62) — MOVE tab now has a "Today's Cycle Count" list (auto-generated daily, ~12 SKUs, A-tier + least-recently-counted prioritised), Count jumps straight into Set True Count with the SKU pre-filled, Skip marks it skipped; a real count still writes through the exact same MANUAL_CORRECTION path as always &bull; Feature 5 (Automated Alerting, v62) — low-stock-alert edge function rebuilt on Feature 2's real effective_reorder_point, baseline-snapshot behavior (only alerts on a NEW crossing worse than each SKU's own baseline, silent on enablement), real per-SKU-per-condition-per-day dedupe, and negative-stock-attempt alerting (a write rejected by the DB-level non-negative-stock trigger is now logged and alerted on separately) &bull; Feature 8 (Dynamic New-SKU Registration, v61) — New Stock In / Returns In against a SKU or ASIN the database has never seen now offers an inline "Register New SKU" panel right there in MOVE, instead of a hard block; registering saves it to the SKU database (create-only — refuses to touch an existing SKU's data) and immediately continues the exact same stock movement in one flow. PICK/scan-out against a still-unregistered SKU stays a hard block, unchanged — selling something never received is an error, not a new-SKU event. &bull; Phase 2 of the 7-Features/6-Gaps build: dynamic reorder points (Feature 2) — reorder point is now the manual threshold if set, else calculated from real trailing-30-day sales velocity × lead time; STOCK tab shows the reasoning on each row and the LOW_STOCK/OUT_OF_STOCK banner is now a real, working number (it silently always showed 0 before, since every SKU had a manual threshold of exactly 0) &bull; ABC/velocity classification (Feature 3) — every active SKU tagged A/B/C by standard 80/20 Pareto method on real sales volume, new STOCK tab filter; will show C for everyone until real sales history accumulates &bull; Returns grading (Gap 4) — Returns mode now asks Good/Damaged/Wrong Item; Damaged and Wrong Item are recorded as arrived but immediately held, never silently added to sellable stock (v60) &bull; Settings' local scan log renamed to "My Recent Scans (this device only)" so it can never be confused with the real, permanent, server-side Audit Log in the Admin Panel; new "My Activity (server record)" section added underneath it, pulling the logged-in employee's own last 50 actions straight from the live ledger — durable, survives clearing this device, on-demand load (v59) &bull; STOCK tab now has full filters &amp; sort — by stock status (in stock / low stock / out of stock), by category, and sort by SKU, ASIN, or Product Title (A&rarr;Z or Z&rarr;A), plus Qty high&rarr;low/low&rarr;high; every row now shows product name, category, and a colour status badge (v58) &bull; New SKU inbound via Quick Scan now defaults the bin to A1 automatically when no bin is entered and the SKU has no bin history yet — clearly shown as a hint under the bin field (v58) &bull; Bin is now mandatory on EVERY stock movement, zero exceptions — including Set True Count / Manual Correction, whose bin exemption is removed at both the UI and database level (Seller Flex discipline) (v57) &bull; Live stock can no longer go negative — database-level check on every removal, at both SKU and bin level, rejecting anything that would exceed what is actually recorded there (v56) &bull; Notes are now recommended, never mandatory, on Found/Remove-Lost/QC Hold/Set True Count (v56) &bull; Bin auto-fill and mismatch warnings now trust live bin data over the SKU registry's (sometimes stale) usual-bin field, and a live per-bin quantity line shows under the bin field on every SKU scan (v56) &bull; Bin-mismatch warning now also fires for SKUs with no registered default bin, using their live bin data instead — closes the gap behind the 2026-08-19 bin A1 (-4) ledger anomaly; same fix applied to MOVE tab bin auto-fill, Set True Count, and Bulk Upload (v55) &bull; All remaining unchunked .in() lookups (Stock list bin map, Bin Lookup activity breakdown) now chunked for consistency (v55) &bull; Export Full Inventory fixed &amp; expanded — chunked lookups (no more silent data loss on large batches), now includes pricing, reorder threshold, active status, and full per-SKU activity breakdown (v54) &bull; Live Stock list now shows bin(s) per SKU (v53) &bull; One-click Export Full Inventory - all SKUs, ASIN, product, qty, bins (v53) &bull; Set True Count / Manual Correction (v52) &bull; Bin Lookup Full Detail Table with Activity Breakdown, ASIN, Last Updated (v52) &bull; Bin Usage Summary (v52) &bull; Per-SKU History Drilldown (v52) &bull; Bin Lookup CSV Export (v52) &bull; Soft Bin-Mismatch Note (MOVE + Bulk Upload, never blocks) &bull; entry_source Audit Tag on Every Write &bull; Bulk Upload from CSV (Inbound/Transfer/Found/Lost/Rejected/QC) &bull; Live Bin Lookup (Single SKU / Single Bin / Bulk) &bull; Dynamic Bins (auto-created, no fixed list) &bull; Mandatory Bin on Every Stock Movement &bull; Owner Dashboard (DASH) &bull; 14-Day Staff Performance &bull; Print Product/Bin Labels &bull; QC Hold/Damage &bull; Low-Stock Alerts &bull; Daily Reconciliation &bull; Admin PIN-Lock Unlock &bull; Real Employee Login (PIN) &bull; RBAC &bull; Live Database (Supabase) &bull; Admin-Secret-Gated PIN Recovery &bull; Permanent Audit Log &bull; Hardened Employee Writes (Admin-RPC-Only) &bull; Call Timeouts &amp; Error Handling (Performance Fix)</div>
             </div>
         </div>
@@ -860,6 +953,11 @@
         <!-- v49: always-reachable close button, fixed top-right, independent of
              cam-bottom's position — see .cam-close-x comment above. -->
         <button class="cam-close-x" onclick="closeCamera()" title="Close scanner" aria-label="Close scanner">&#10005;</button>
+        <!-- v64: shown only when zero decoders (ZXing/BarcodeDetector/jsQR) initialized -->
+        <div class="cam-no-decoder-banner" id="cam-no-decoder-banner">
+            &#9888; No barcode scanner available on this device/connection
+            <small>Close this and type the code manually in the field, or use a Bluetooth/USB scanner gun.</small>
+        </div>
         <video id="cam-video" playsinline autoplay muted></video>
         <div class="cam-frame"><span></span></div>
         <div class="cam-scan-line"></div>
@@ -1121,6 +1219,26 @@ function withTimeout(promise, ms, label) {
             setTimeout(function () { reject(new Error((label || 'Request') + ' timed out after ' + (ms / 1000) + 's. Check your connection and try again.')); }, ms);
         })
     ]);
+}
+
+// v64: generic client-side paginator for any "fetch every row" query.
+// PostgREST silently caps an unranged .select() at 1000 rows — this bit
+// oms_low_stock (App STOCK/DASH banners were stuck reading exactly 1,000
+// even though the real count is 1,034+). queryFactory must return a fresh
+// unresolved query builder each call (so .range() can be reapplied per page).
+function fetchAllRows(queryFactory, pageSize, timeoutLabel) {
+    pageSize = pageSize || 1000;
+    var offset = 0, all = [];
+    function loadPage() {
+        return withTimeout(queryFactory().range(offset, offset + pageSize - 1), 15000, timeoutLabel || 'Paginated fetch').then(function (res) {
+            if (res.error) return res;
+            var rows = res.data || [];
+            all = all.concat(rows);
+            if (rows.length === pageSize) { offset += pageSize; return loadPage(); }
+            return { data: all, error: null };
+        });
+    }
+    return loadPage();
 }
 
 // v54: split an array into fixed-size chunks. Used to keep Supabase .in()
@@ -2935,7 +3053,7 @@ function runStockSearch(term) {
 }
 function loadLowStock() {
     if (!db) return;
-    withTimeout(db.from('oms_low_stock').select('sku_code'), 10000, 'Low stock').then(function(res) {
+    fetchAllRows(function () { return db.from('oms_low_stock').select('sku_code'); }, 1000, 'Low stock').then(function(res) {
         var banner = document.getElementById('low-stock-banner');
         var textEl = document.getElementById('low-stock-banner-text');
         if (res.error) {
@@ -4408,13 +4526,21 @@ function initDecoders() {
                 barcodeDetector = new BarcodeDetector({ formats: fmts });
             }).catch(function() {
                 barcodeDetector = new BarcodeDetector();
-            });
+            }).then(function() { refreshDecoderStatus(); });
         } catch (e) { console.warn('BarcodeDetector init error:', e); }
     }
 
     scanCanvas = document.createElement('canvas');
     scanCtx    = scanCanvas.getContext('2d', { willReadFrequently: true });
 
+    refreshDecoderStatus();
+}
+
+// v64: single source of truth for the "Scanner ready: ..." hint text AND the
+// loud no-decoder banner — called synchronously from initDecoders() and again
+// after BarcodeDetector's async getSupportedFormats() resolves, since that's
+// the one decoder whose availability isn't known until a promise settles.
+function refreshDecoderStatus() {
     var label;
     if (zxingDecoder) {
         label = 'ZXing ' + (useCanvasLum ? '(canvas mode)' : '(rgb mode)') + ' — Code128 + QR + all formats';
@@ -4427,7 +4553,14 @@ function initDecoders() {
     }
     var fmtEl = document.getElementById('cam-formats');
     if (fmtEl) fmtEl.textContent = label;
-    document.getElementById('scan-hint-text').textContent = 'Scanner ready: ' + (zxingDecoder ? 'ZXing' : barcodeDetector ? 'BarcodeDetector' : jsQR ? 'jsQR' : 'manual') + ' — Tap camera to scan';
+    var hintTextEl = document.getElementById('scan-hint-text');
+    if (hintTextEl) hintTextEl.textContent = 'Scanner ready: ' + (zxingDecoder ? 'ZXing' : barcodeDetector ? 'BarcodeDetector' : jsQR ? 'jsQR' : 'manual') + ' — Tap camera to scan';
+
+    var noDecoderBanner = document.getElementById('cam-no-decoder-banner');
+    if (noDecoderBanner) {
+        var noDecoder = !zxingDecoder && !barcodeDetector && (typeof jsQR === 'undefined' || !jsQR);
+        noDecoderBanner.classList.toggle('visible', noDecoder);
+    }
 }
 
 function setCamBtn(busy) {
@@ -4925,7 +5058,7 @@ function loadDashLowStock() {
     }
     if (lowStockCache) { render(lowStockCache); return; }
     if (!db) { if (banner) banner.classList.remove('visible'); return; }
-    withTimeout(db.from('oms_low_stock').select('sku_code'), 10000, 'Low stock').then(function(res) {
+    fetchAllRows(function () { return db.from('oms_low_stock').select('sku_code'); }, 1000, 'Low stock').then(function(res) {
         var rows = res.data || [];
         if (!res.error) lowStockCache = rows;
         render(rows);
@@ -4954,14 +5087,271 @@ function loadDashNegativeStock() {
     }).catch(function() {});
 }
 
-function renderDashTiles(picksToday, movesToday, activeStaffToday, inventoryValueMrp) {
+// ── v64: DASH TAB KPI/CHART REBUILD ─────────────────────────────
+// Same architecture as the Admin Panel's Dashboard rebuild, condensed for a
+// phone screen: every "fetch everything" query goes through fetchAllRows()
+// (no query here is exposed to PostgREST's 1000-row cap — see the count-cap
+// fix above), every count-only tile uses {count:'exact',head:true}. Chart.js
+// failing to load degrades to numbers-only tiles, same as the barcode
+// decoder fallback chain.
+var dashCharts = {};
+var dashStockRows = [];
+var dashFilteredRows = [];
+var dashStatusChartMode = 'sku';
+var dashCategoryChartMode = 'units';
+
+function dashFmtNum(n) { return (Number(n) || 0).toLocaleString('en-IN'); }
+function dashTodayDateStr() {
+    var d = new Date();
+    return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+}
+function ensureDashFilterDefaults() {
+    var fromEl = document.getElementById('dash-date-from'), toEl = document.getElementById('dash-date-to');
+    if (fromEl && !fromEl.value) {
+        var from = new Date(); from.setDate(from.getDate() - 29);
+        fromEl.value = from.toISOString().slice(0, 10);
+    }
+    if (toEl && !toEl.value) toEl.value = dashTodayDateStr();
+}
+function resetDashFilters() {
+    ['dash-date-from', 'dash-date-to', 'dash-filter-category', 'dash-filter-abc', 'dash-filter-status', 'dash-filter-bin'].forEach(function (id) {
+        var el = document.getElementById(id); if (el) el.value = '';
+    });
+    ensureDashFilterDefaults();
+    loadDashboard(true);
+}
+function readDashFilters() {
+    ensureDashFilterDefaults();
+    return {
+        from: document.getElementById('dash-date-from').value,
+        to: document.getElementById('dash-date-to').value,
+        category: document.getElementById('dash-filter-category').value,
+        abc: document.getElementById('dash-filter-abc').value,
+        status: document.getElementById('dash-filter-status').value,
+        bin: document.getElementById('dash-filter-bin').value
+    };
+}
+function filterDashStockRows(rows, f) {
+    return rows.filter(function (r) {
+        if (f.category && r.product_type !== f.category) return false;
+        if (f.abc && r.abc_tier !== f.abc) return false;
+        if (f.status && r.stock_status !== f.status) return false;
+        return true;
+    });
+}
+function populateDashDropdowns(stockRows, binRows) {
+    var catSel = document.getElementById('dash-filter-category');
+    if (catSel && catSel.options.length <= 1) {
+        var cats = {};
+        stockRows.forEach(function (r) { if (r.product_type) cats[r.product_type] = true; });
+        catSel.innerHTML = '<option value="">All</option>' + Object.keys(cats).sort().map(function (c) {
+            return '<option value="' + c + '">' + c + '</option>';
+        }).join('');
+    }
+    var binSel = document.getElementById('dash-filter-bin');
+    if (binSel && binSel.options.length <= 1) {
+        binSel.innerHTML = '<option value="">All</option>' + binRows.map(function (b) {
+            return '<option value="' + b.bin_code + '">' + b.bin_code + '</option>';
+        }).join('');
+    }
+}
+function dashSyncToggleBtns(containerId, mode) {
+    var c = document.getElementById(containerId);
+    if (!c) return;
+    var btns = c.querySelectorAll('.dash-chart-toggle-btn');
+    for (var i = 0; i < btns.length; i++) btns[i].classList.toggle('active', btns[i].getAttribute('data-mode') === mode);
+}
+function setDashStatusChartMode(mode) { dashStatusChartMode = mode; dashSyncToggleBtns('dash-status-toggle', mode); renderDashStatusChart(dashFilteredRows); }
+function setDashCategoryChartMode(mode) { dashCategoryChartMode = mode; dashSyncToggleBtns('dash-category-toggle', mode); renderDashCategoryChart(dashFilteredRows); }
+
+function renderOrUpdateChart(canvasId, config) {
+    var canvas = document.getElementById(canvasId);
+    if (!canvas) return;
+    var wrap = canvas.parentElement;
+    var existingNote = wrap.querySelector('.dash-chart-empty-note');
+    if (existingNote) existingNote.remove();
+    canvas.style.display = '';
+    if (typeof Chart === 'undefined' || !Chart) {
+        canvas.style.display = 'none';
+        var libNote = document.createElement('div');
+        libNote.className = 'dash-chart-empty-note';
+        libNote.textContent = 'Chart library did not load (offline/blocked CDN) — see the KPI tiles above for the numbers.';
+        wrap.appendChild(libNote);
+        return;
+    }
+    if (dashCharts[canvasId]) { dashCharts[canvasId].destroy(); delete dashCharts[canvasId]; }
+    dashCharts[canvasId] = new Chart(canvas.getContext('2d'), config);
+}
+function showChartEmpty(canvasId, msg) {
+    var canvas = document.getElementById(canvasId);
+    if (!canvas) return;
+    if (dashCharts[canvasId]) { dashCharts[canvasId].destroy(); delete dashCharts[canvasId]; }
+    canvas.style.display = 'none';
+    var wrap = canvas.parentElement;
+    var existingNote = wrap.querySelector('.dash-chart-empty-note');
+    if (existingNote) existingNote.remove();
+    var note = document.createElement('div');
+    note.className = 'dash-chart-empty-note';
+    note.textContent = msg || 'No data for the selected filters.';
+    wrap.appendChild(note);
+}
+
+function renderDashTiles(filtered, todayLedgerRows, cyclePending, negStockCount, activeEmp) {
     var el = document.getElementById('dash-tiles');
     if (!el) return;
-    el.innerHTML =
-        '<div class="dash-tile"><div class="dash-tile-val">' + picksToday + '</div><div class="dash-tile-label">Picked Today</div></div>' +
-        '<div class="dash-tile"><div class="dash-tile-val">' + movesToday + '</div><div class="dash-tile-label">Moves Today</div></div>' +
-        '<div class="dash-tile"><div class="dash-tile-val">' + activeStaffToday + '</div><div class="dash-tile-label">Active Staff Today</div></div>' +
-        '<div class="dash-tile"><div class="dash-tile-val">' + formatINR(inventoryValueMrp) + '</div><div class="dash-tile-label">Inventory Value (MRP)</div></div>';
+    var totalSkus = filtered.length;
+    var totalUnits = filtered.reduce(function (s, r) { return s + r.qty_on_hand; }, 0);
+    var valueAtMrp = filtered.reduce(function (s, r) { return s + r.value_at_mrp; }, 0);
+    var inStock = filtered.filter(function (r) { return r.stock_status === 'IN_STOCK'; }).length;
+    var lowStock = filtered.filter(function (r) { return r.stock_status === 'LOW_STOCK'; }).length;
+    var outStock = filtered.filter(function (r) { return r.stock_status === 'OUT_OF_STOCK'; }).length;
+    var unitsIn = 0, unitsOut = 0;
+    todayLedgerRows.forEach(function (r) {
+        var d = Number(r.qty_delta) || 0;
+        if (d > 0) unitsIn += d; else unitsOut += Math.abs(d);
+    });
+    var tiles = [
+        { label: 'Active SKUs', val: dashFmtNum(totalSkus), cls: '' },
+        { label: 'Units On Hand', val: dashFmtNum(totalUnits), cls: '' },
+        { label: 'Stock Value (MRP)', val: formatINR(valueAtMrp), cls: '' },
+        { label: 'In Stock', val: dashFmtNum(inStock), cls: '' },
+        { label: 'Low Stock', val: dashFmtNum(lowStock), cls: lowStock > 0 ? 'warn' : '' },
+        { label: 'Out of Stock', val: dashFmtNum(outStock), cls: outStock > 0 ? 'danger' : '' },
+        { label: "Today's Txns", val: dashFmtNum(todayLedgerRows.length), cls: '' },
+        { label: "Units In / Out Today", val: dashFmtNum(unitsIn) + ' / ' + dashFmtNum(unitsOut), cls: '' },
+        { label: 'Cycle Count (Today)', val: dashFmtNum(cyclePending), cls: cyclePending > 0 ? 'warn' : '' },
+        { label: 'Negative Stock Flags', val: dashFmtNum(negStockCount), cls: negStockCount > 0 ? 'danger' : '' },
+        { label: 'Active Employees', val: dashFmtNum(activeEmp), cls: '' }
+    ];
+    el.innerHTML = tiles.map(function (t) {
+        return '<div class="dash-tile ' + t.cls + '"><div class="dash-tile-val">' + t.val + '</div><div class="dash-tile-label">' + t.label + '</div></div>';
+    }).join('');
+}
+
+function renderDashStatusChart(filtered) {
+    var counts = { IN_STOCK: 0, LOW_STOCK: 0, OUT_OF_STOCK: 0 };
+    var units = { IN_STOCK: 0, LOW_STOCK: 0, OUT_OF_STOCK: 0 };
+    filtered.forEach(function (r) {
+        if (counts[r.stock_status] === undefined) return;
+        counts[r.stock_status]++;
+        units[r.stock_status] += r.qty_on_hand;
+    });
+    if (!filtered.length) { showChartEmpty('dash-chart-status', 'No SKUs match the selected filters.'); return; }
+    var data = dashStatusChartMode === 'units' ? units : counts;
+    renderOrUpdateChart('dash-chart-status', {
+        type: 'doughnut',
+        data: { labels: ['In Stock', 'Low Stock', 'Out of Stock'], datasets: [{ data: [data.IN_STOCK, data.LOW_STOCK, data.OUT_OF_STOCK], backgroundColor: ['#27AE60', '#F39C12', '#E74C3C'] }] },
+        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 10 } } } } }
+    });
+}
+function renderDashCategoryChart(filtered) {
+    var agg = {};
+    filtered.forEach(function (r) {
+        var key = r.product_type || 'Uncategorized';
+        if (!agg[key]) agg[key] = { units: 0, value: 0 };
+        agg[key].units += r.qty_on_hand;
+        agg[key].value += r.value_at_mrp;
+    });
+    var entries = Object.keys(agg).map(function (k) { return { name: k, units: agg[k].units, value: agg[k].value }; });
+    entries.sort(function (a, b) { return dashCategoryChartMode === 'value' ? b.value - a.value : b.units - a.units; });
+    if (!entries.length) { showChartEmpty('dash-chart-category', 'No SKUs match the selected filters.'); return; }
+    var TOP_N = 6;
+    var top = entries.slice(0, TOP_N);
+    var rest = entries.slice(TOP_N);
+    if (rest.length) {
+        top.push({ name: 'Other (' + rest.length + ')', units: rest.reduce(function (s, e) { return s + e.units; }, 0), value: rest.reduce(function (s, e) { return s + e.value; }, 0) });
+    }
+    var values = top.map(function (e) { return dashCategoryChartMode === 'value' ? e.value : e.units; });
+    renderOrUpdateChart('dash-chart-category', {
+        type: 'bar',
+        data: { labels: top.map(function (e) { return e.name; }), datasets: [{ label: dashCategoryChartMode === 'value' ? 'Value (MRP)' : 'Units', data: values, backgroundColor: '#1B4F8A' }] },
+        options: {
+            indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+            plugins: { legend: { display: false }, tooltip: { callbacks: { label: function (ctx) { return dashCategoryChartMode === 'value' ? formatINR(ctx.raw) : dashFmtNum(ctx.raw) + ' units'; } } } },
+            scales: { x: { beginAtZero: true }, y: { ticks: { font: { size: 9.5 } } } }
+        }
+    });
+}
+function renderDashAbcChart(filtered) {
+    var counts = { A: 0, B: 0, C: 0 };
+    filtered.forEach(function (r) { if (r.abc_tier && counts[r.abc_tier] !== undefined) counts[r.abc_tier]++; });
+    var capEl = document.getElementById('dash-abc-caption');
+    if (capEl) capEl.textContent = 'Mostly/all C until real sales history accumulates — expected, not a bug.';
+    if (!filtered.length) { showChartEmpty('dash-chart-abc', 'No SKUs match the selected filters.'); return; }
+    renderOrUpdateChart('dash-chart-abc', {
+        type: 'pie',
+        data: { labels: ['A', 'B', 'C'], datasets: [{ data: [counts.A, counts.B, counts.C], backgroundColor: ['#27AE60', '#F39C12', '#7F8C8D'] }] },
+        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 10 } } } } }
+    });
+}
+function renderDashBinsChart(binStockRows, binFilter) {
+    var agg = {};
+    binStockRows.forEach(function (r) {
+        if (binFilter && r.bin_code !== binFilter) return;
+        agg[r.bin_code] = (agg[r.bin_code] || 0) + (Number(r.qty_on_hand) || 0);
+    });
+    var entries = Object.keys(agg).map(function (k) { return { bin: k, units: agg[k] }; }).filter(function (e) { return e.units > 0; });
+    entries.sort(function (a, b) { return b.units - a.units; });
+    var top = entries.slice(0, 10);
+    if (!top.length) { showChartEmpty('dash-chart-bins', 'No bin stock recorded yet' + (binFilter ? ' for bin ' + binFilter : '') + '.'); return; }
+    renderOrUpdateChart('dash-chart-bins', {
+        type: 'bar',
+        data: { labels: top.map(function (e) { return e.bin; }), datasets: [{ label: 'Units', data: top.map(function (e) { return e.units; }), backgroundColor: '#8E44AD' }] },
+        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
+    });
+}
+function renderDashMoversChart(ledgerRows) {
+    var agg = {};
+    ledgerRows.forEach(function (r) {
+        if (!r.sku_code) return;
+        agg[r.sku_code] = (agg[r.sku_code] || 0) + Math.abs(Number(r.qty_delta) || 0);
+    });
+    var entries = Object.keys(agg).map(function (k) { return { sku: k, vol: agg[k] }; });
+    entries.sort(function (a, b) { return b.vol - a.vol; });
+    var top = entries.slice(0, 10);
+    if (!top.length) { showChartEmpty('dash-chart-movers', 'No transactions in the selected date range.'); return; }
+    renderOrUpdateChart('dash-chart-movers', {
+        type: 'bar',
+        data: { labels: top.map(function (e) { return e.sku; }), datasets: [{ label: 'Units Moved', data: top.map(function (e) { return e.vol; }), backgroundColor: '#F39C12' }] },
+        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { ticks: { autoSkip: false, maxRotation: 70, minRotation: 45, font: { size: 8.5 } } }, y: { beginAtZero: true } } }
+    });
+}
+function renderDashTrendChart(ledgerRows, fromStr, toStr) {
+    var byDate = {};
+    ledgerRows.forEach(function (r) {
+        if (!r.created_at) return;
+        var d = r.created_at.slice(0, 10);
+        if (!byDate[d]) byDate[d] = { in: 0, out: 0 };
+        var delta = Number(r.qty_delta) || 0;
+        if (delta > 0) byDate[d].in += delta; else byDate[d].out += Math.abs(delta);
+    });
+    var days = [];
+    if (fromStr && toStr) {
+        var cur = new Date(fromStr + 'T00:00:00'), end = new Date(toStr + 'T00:00:00');
+        while (cur <= end) { days.push(cur.toISOString().slice(0, 10)); cur.setDate(cur.getDate() + 1); }
+    } else {
+        days = Object.keys(byDate).sort();
+    }
+    if (!days.length) { showChartEmpty('dash-chart-trend', 'No transactions in the selected date range.'); return; }
+    renderOrUpdateChart('dash-chart-trend', {
+        type: 'line',
+        data: {
+            labels: days,
+            datasets: [
+                { label: 'In', data: days.map(function (d) { return byDate[d] ? byDate[d].in : 0; }), borderColor: '#27AE60', backgroundColor: '#27AE6033', tension: .25 },
+                { label: 'Out', data: days.map(function (d) { return byDate[d] ? byDate[d].out : 0; }), borderColor: '#E74C3C', backgroundColor: '#E74C3C33', tension: .25 }
+            ]
+        },
+        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 10 } } } }, scales: { x: { ticks: { font: { size: 8 } } }, y: { beginAtZero: true } } }
+    });
+}
+function renderDashStaffChart(list) {
+    if (!list.length) { showChartEmpty('dash-chart-staff', 'No staff activity recorded in the last 14 days.'); return; }
+    renderOrUpdateChart('dash-chart-staff', {
+        type: 'bar',
+        data: { labels: list.map(function (e) { return e.code; }), datasets: [{ label: 'Picks (14d)', data: list.map(function (e) { return e.picks; }), backgroundColor: '#16A085' }] },
+        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
+    });
 }
 function renderDashStaffToday(rows) {
     var el = document.getElementById('dash-staff-today');
@@ -4980,42 +5370,6 @@ function renderDashStaffToday(rows) {
     }
     el.innerHTML = html;
 }
-function loadDashStatsAndStaffToday() {
-    var tilesEl = document.getElementById('dash-tiles');
-    var staffEl = document.getElementById('dash-staff-today');
-    if (!db) {
-        if (tilesEl) tilesEl.innerHTML = '<div class="settings-info">Database unreachable.</div>';
-        if (staffEl) staffEl.innerHTML = '<div class="settings-info">Database unreachable.</div>';
-        return;
-    }
-    withTimeout(Promise.all([
-        db.from('oms_staff_activity_today').select('employee_code,picks_today,moves_today,total_txns_today'),
-        db.from('oms_stock_value').select('value_at_mrp')
-    ]), 10000, 'Dashboard stats').then(function(results) {
-        var actRes = results[0], valRes = results[1];
-        if (actRes.error || valRes.error) {
-            var msg = (actRes.error && actRes.error.message) || (valRes.error && valRes.error.message) || 'Unknown error';
-            if (tilesEl) tilesEl.innerHTML = '<div class="settings-info">Error loading dashboard stats: ' + msg + '</div>';
-            if (staffEl) staffEl.innerHTML = '';
-            return;
-        }
-        var actRows = actRes.data || [];
-        var valRows = valRes.data || [];
-        var totalPicks = 0, totalMoves = 0;
-        for (var i = 0; i < actRows.length; i++) {
-            totalPicks += Number(actRows[i].picks_today) || 0;
-            totalMoves += Number(actRows[i].moves_today) || 0;
-        }
-        var totalValue = 0;
-        for (var j = 0; j < valRows.length; j++) { totalValue += Number(valRows[j].value_at_mrp) || 0; }
-        renderDashTiles(totalPicks, totalMoves, actRows.length, totalValue);
-        renderDashStaffToday(actRows);
-    }).catch(function(err) {
-        if (tilesEl) tilesEl.innerHTML = '<div class="settings-info">Error: ' + String(err) + '</div>';
-        if (staffEl) staffEl.innerHTML = '';
-    });
-}
-
 function renderDash14d(list) {
     var el = document.getElementById('dash-staff-14d');
     if (!el) return;
@@ -5063,6 +5417,7 @@ function loadDash14dPerformance() {
             }
             list.sort(function(x, y) { return y.picks - x.picks; }); // sort by total picks descending
             renderDash14d(list);
+            renderDashStaffChart(list); // v64: same already-fetched 14d data feeds the Staff Performance chart
         }).catch(function(err) {
             if (el) el.innerHTML = '<div class="settings-info">Error: ' + String(err) + '</div>';
         });
@@ -5070,12 +5425,15 @@ function loadDash14dPerformance() {
 
 // Entry point, called from switchTab('dash') and the DASH tab's Refresh
 // button. No realtime subscription (spec says refresh-on-open is enough).
+// v64: rebuilt to a full KPI+chart dashboard — see the block above renderDashTiles().
 function loadDashboard(manualRefresh) {
     if (!state.session || state.session.role !== 'ADMIN') return; // belt-and-braces, mirrors renderAdminPanel()
     if (!db) { showDashOffline(); return; }
     hideDashOffline();
+    ensureDashFilterDefaults();
+    var f = readDashFilters();
+    var tilesEl = document.getElementById('dash-tiles');
     if (manualRefresh) {
-        var tilesEl = document.getElementById('dash-tiles');
         var staffEl = document.getElementById('dash-staff-today');
         var d14El = document.getElementById('dash-staff-14d');
         if (tilesEl) tilesEl.innerHTML = '<div class="settings-info">Refreshing...</div>';
@@ -5087,8 +5445,58 @@ function loadDashboard(manualRefresh) {
     }
     loadDashLowStock();
     loadDashNegativeStock();
-    loadDashStatsAndStaffToday();
     loadDash14dPerformance();
+
+    var todayStartISO = new Date(dashTodayDateStr() + 'T00:00:00').toISOString();
+    var rangeFromISO = f.from ? (f.from + 'T00:00:00') : todayStartISO;
+    var rangeToISO = f.to ? (f.to + 'T23:59:59') : new Date().toISOString();
+
+    withTimeout(Promise.all([
+        fetchAllRows(function () { return db.from('oms_stock_explorer').select('sku_code,qty_on_hand,product_type,stock_status,abc_tier,active'); }, 1000, 'Dashboard (stock explorer)'),
+        fetchAllRows(function () { return db.from('oms_stock_value').select('sku_code,qty_on_hand,value_at_mrp,value_at_cost'); }, 1000, 'Dashboard (stock value)'),
+        fetchAllRows(function () { return db.from('oms_bin_stock').select('bin_code,sku_code,qty_on_hand'); }, 1000, 'Dashboard (bin stock)'),
+        fetchAllRows(function () { return db.from('oms_inventory_transactions').select('sku_code,qty_delta,txn_type,created_at').gte('created_at', rangeFromISO).lte('created_at', rangeToISO); }, 1000, 'Dashboard (ledger, selected range)'),
+        fetchAllRows(function () { return db.from('oms_inventory_transactions').select('qty_delta,txn_type').gte('created_at', todayStartISO); }, 1000, 'Dashboard (ledger, today)'),
+        withTimeout(db.from('oms_cycle_count_queue').select('queue_id', { count: 'exact', head: true }).eq('status', 'PENDING').eq('assigned_date', dashTodayDateStr()), 10000, 'Dashboard (cycle queue)'),
+        withTimeout(db.from('oms_negative_stock_flags').select('sku_code', { count: 'exact', head: true }), 10000, 'Dashboard (negative stock)'),
+        withTimeout(db.from('oms_employees').select('employee_code', { count: 'exact', head: true }).eq('active', true), 10000, 'Dashboard (employee count)'),
+        withTimeout(db.from('oms_staff_activity_today').select('employee_code,picks_today,moves_today,total_txns_today'), 10000, 'Dashboard (staff today)'),
+        withTimeout(db.from('oms_bins').select('bin_code').eq('active', true).order('bin_code'), 10000, 'Dashboard (bin list)')
+    ]), 20000, 'Dashboard').then(function (results) {
+        var explorerRes = results[0], valueRes = results[1], binStockRes = results[2],
+            ledgerRangeRes = results[3], ledgerTodayRes = results[4], cycleRes = results[5],
+            negStockRes = results[6], empCountRes = results[7], staffRes = results[8], binsRes = results[9];
+
+        var anyErr = results.find(function (r) { return r && r.error; });
+        if (anyErr) { if (tilesEl) tilesEl.innerHTML = '<div class="settings-info">Error: ' + (anyErr.error.message || anyErr.error) + '</div>'; return; }
+
+        var valueBySku = {};
+        (valueRes.data || []).forEach(function (r) { valueBySku[r.sku_code] = r; });
+        dashStockRows = (explorerRes.data || []).map(function (r) {
+            var v = valueBySku[r.sku_code] || {};
+            return {
+                sku_code: r.sku_code, qty_on_hand: Number(r.qty_on_hand) || 0,
+                product_type: r.product_type || 'Uncategorized', stock_status: r.stock_status || 'IN_STOCK',
+                abc_tier: r.abc_tier || null,
+                value_at_mrp: Number(v.value_at_mrp) || 0, value_at_cost: Number(v.value_at_cost) || 0
+            };
+        });
+
+        populateDashDropdowns(dashStockRows, binsRes.data || []);
+        var f2 = readDashFilters();
+        dashFilteredRows = filterDashStockRows(dashStockRows, f2);
+
+        renderDashTiles(dashFilteredRows, ledgerTodayRes.data || [], cycleRes.count || 0, (negStockRes.count || 0), (empCountRes.count || 0));
+        renderDashStatusChart(dashFilteredRows);
+        renderDashCategoryChart(dashFilteredRows);
+        renderDashAbcChart(dashFilteredRows);
+        renderDashBinsChart(binStockRes.data || [], f2.bin);
+        renderDashMoversChart(ledgerRangeRes.data || []);
+        renderDashTrendChart(ledgerRangeRes.data || [], f2.from, f2.to);
+        renderDashStaffToday(staffRes.data || []);
+    }).catch(function (err) {
+        if (tilesEl) tilesEl.innerHTML = '<div class="settings-info">Error: ' + String(err) + '</div>';
+    });
 }
 
 // ── TAB SWITCHING ────────────────────────────────────────────
