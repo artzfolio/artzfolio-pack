@@ -112,6 +112,10 @@
         .cam-error-banner{display:none;background:#fff3cd;border:2px solid #fd7e14;border-radius:12px;padding:12px 14px;margin-bottom:10px;font-size:12px;color:#856404}
         .cam-error-banner.visible{display:block}
         .cam-error-banner strong{color:#c0392b;display:block;font-size:13px;margin-bottom:4px}
+        /* v66: actionable "camera died mid-session" reconnect affordance, shown only for that case */
+        .cam-reconnect-btn{display:none;margin-top:10px;background:#fd7e14;border:none;color:#fff;padding:9px 18px;border-radius:20px;font-size:12.5px;font-weight:700;cursor:pointer;touch-action:manipulation}
+        .cam-reconnect-btn.visible{display:inline-block}
+        .cam-reconnect-btn:active{background:#e06c0a}
         /* v51: PICK-tab scan-out silent-failure warning toast */
         .pick-save-warn-toast{display:none;position:fixed;top:54px;left:50%;transform:translateX(-50%);width:92%;max-width:480px;background:#fff3cd;border:2px solid #fd7e14;border-radius:12px;padding:10px 14px;font-size:12px;color:#856404;font-weight:700;text-align:center;z-index:200;box-shadow:0 4px 14px rgba(0,0,0,.18);cursor:pointer}
         .pick-save-warn-toast.visible{display:block}
@@ -236,6 +240,11 @@
         .cam-bottom{position:fixed;left:0;right:0;bottom:0;z-index:205;background:rgba(0,0,0,.82);padding:12px 16px calc(20px + env(safe-area-inset-bottom,0px));display:flex;flex-direction:column;align-items:center;gap:8px}
         .cam-hint{color:rgba(255,255,255,.9);font-size:13px;text-align:center;line-height:1.4}
         .cam-hint strong{color:#F39C12}
+        /* v66: blur/stability gate feedback — shown when the scan loop's rolling
+           sharpness score stays low for ~1.5-2s, so the user finally gets told
+           WHY nothing is scanning instead of guessing forever. */
+        .cam-blur-hint{display:none;color:#F39C12;font-size:12px;text-align:center;line-height:1.4;background:rgba(243,156,18,.14);border:1px solid rgba(243,156,18,.45);border-radius:8px;padding:6px 10px}
+        .cam-blur-hint.visible{display:block}
         .cam-formats{color:rgba(255,255,255,.5);font-size:9px;text-align:center;letter-spacing:.3px;margin-top:2px}
         /* v64: loud, impossible-to-miss warning when ALL THREE decoders (ZXing,
            BarcodeDetector, jsQR) have failed to initialize — previously the scan
@@ -250,6 +259,13 @@
            a cross" — pinned top-right, reachable regardless of screen size/notch. */
         .cam-close-x{position:fixed;top:calc(14px + env(safe-area-inset-top,0px));right:14px;z-index:210;width:40px;height:40px;border-radius:50%;background:rgba(0,0,0,.55);border:1.5px solid rgba(255,255,255,.6);color:#fff;font-size:18px;line-height:1;display:flex;align-items:center;justify-content:center;cursor:pointer;touch-action:manipulation}
         .cam-close-x:active{background:rgba(255,255,255,.25)}
+        /* v66: torch/flash toggle — mirrors cam-close-x but pinned top-LEFT, and
+           only ever shown when this device's track.getCapabilities().torch says
+           it's actually supported (most desktop/laptop webcams do not). */
+        .cam-torch-btn{display:none;position:fixed;top:calc(14px + env(safe-area-inset-top,0px));left:14px;z-index:210;width:40px;height:40px;border-radius:50%;background:rgba(0,0,0,.55);border:1.5px solid rgba(255,255,255,.6);color:#fff;font-size:18px;line-height:1;align-items:center;justify-content:center;cursor:pointer;touch-action:manipulation}
+        .cam-torch-btn.visible{display:flex}
+        .cam-torch-btn.active{background:#F39C12;border-color:#F39C12}
+        .cam-torch-btn:active{background:rgba(255,255,255,.25)}
         #flash{position:fixed;inset:0;pointer-events:none;opacity:0;z-index:300;transition:opacity .25s}
         #flash.s{background:rgba(39,174,96,.22)}
         #flash.e{background:rgba(192,57,43,.22)}
@@ -310,7 +326,7 @@
     </style>
 </head>
 <body>
-<div class="ver-corner" id="verCornerBadge">v65</div>
+<div class="ver-corner" id="verCornerBadge">v66</div>
 <!-- v63: Gap 2 — offline write-queue indicator. Hidden (display:none) unless
      something is actually queued or failed. Tapping it shows the queue detail
      panel (openOfflineQueuePanel()). -->
@@ -377,6 +393,7 @@
                 <strong>&#128247; Camera Not Available</strong>
                 <span id="cam-error-msg">Camera access was denied or is not supported.</span><br><br>
                 <small>&#128161; <strong>You can still scan without the camera:</strong> Use a Bluetooth barcode scanner gun connected to the phone, or type the code in the text box and press Enter.</small>
+                <br><button class="cam-reconnect-btn" id="cam-reconnect-btn" onclick="openCamera()">&#128260; Tap to reconnect camera</button>
             </div>
 
             <!-- Multi-line group progress -->
@@ -931,8 +948,8 @@
 
             <!-- Version -->
             <div class="ver-badge">
-                <div class="ver-name">&#128230; ArtzFolio Scan-Pick-Pack v65</div>
-                <div class="ver-sub">Fixed: DASH tab's Top Movers and Daily Activity Trend charts silently ignored the dashboard filter bar (Category/ABC/Status/Bin) — the transaction ledger feeding those two charts is now filtered to the same SKU set as every other dashboard chart before rendering (v65) &bull; Phase 4, Gap 2 (Offline Mode / Installable PWA, v63) — the App can now be installed (manifest + service worker caching the app shell) and keeps working with NO network at all: a MOVE write that can't reach the live database is queued on-device instead of failing, shows "Queued (offline)", and syncs automatically the moment connectivity returns; a SKU lookup falls back to an on-device cache synced whenever online. A real bug was found and fixed via live testing — a write that actually succeeded server-side could still report a client-side timeout, and retrying it would have silently double-written real stock; every queued write now carries a server-enforced idempotency key so a retry after a false timeout is recognised as already-synced instead of duplicated &bull; Phase 3, Feature 4 (Scheduled Cycle Counting, v62) — MOVE tab now has a "Today's Cycle Count" list (auto-generated daily, ~12 SKUs, A-tier + least-recently-counted prioritised), Count jumps straight into Set True Count with the SKU pre-filled, Skip marks it skipped; a real count still writes through the exact same MANUAL_CORRECTION path as always &bull; Feature 5 (Automated Alerting, v62) — low-stock-alert edge function rebuilt on Feature 2's real effective_reorder_point, baseline-snapshot behavior (only alerts on a NEW crossing worse than each SKU's own baseline, silent on enablement), real per-SKU-per-condition-per-day dedupe, and negative-stock-attempt alerting (a write rejected by the DB-level non-negative-stock trigger is now logged and alerted on separately) &bull; Feature 8 (Dynamic New-SKU Registration, v61) — New Stock In / Returns In against a SKU or ASIN the database has never seen now offers an inline "Register New SKU" panel right there in MOVE, instead of a hard block; registering saves it to the SKU database (create-only — refuses to touch an existing SKU's data) and immediately continues the exact same stock movement in one flow. PICK/scan-out against a still-unregistered SKU stays a hard block, unchanged — selling something never received is an error, not a new-SKU event. &bull; Phase 2 of the 7-Features/6-Gaps build: dynamic reorder points (Feature 2) — reorder point is now the manual threshold if set, else calculated from real trailing-30-day sales velocity × lead time; STOCK tab shows the reasoning on each row and the LOW_STOCK/OUT_OF_STOCK banner is now a real, working number (it silently always showed 0 before, since every SKU had a manual threshold of exactly 0) &bull; ABC/velocity classification (Feature 3) — every active SKU tagged A/B/C by standard 80/20 Pareto method on real sales volume, new STOCK tab filter; will show C for everyone until real sales history accumulates &bull; Returns grading (Gap 4) — Returns mode now asks Good/Damaged/Wrong Item; Damaged and Wrong Item are recorded as arrived but immediately held, never silently added to sellable stock (v60) &bull; Settings' local scan log renamed to "My Recent Scans (this device only)" so it can never be confused with the real, permanent, server-side Audit Log in the Admin Panel; new "My Activity (server record)" section added underneath it, pulling the logged-in employee's own last 50 actions straight from the live ledger — durable, survives clearing this device, on-demand load (v59) &bull; STOCK tab now has full filters &amp; sort — by stock status (in stock / low stock / out of stock), by category, and sort by SKU, ASIN, or Product Title (A&rarr;Z or Z&rarr;A), plus Qty high&rarr;low/low&rarr;high; every row now shows product name, category, and a colour status badge (v58) &bull; New SKU inbound via Quick Scan now defaults the bin to A1 automatically when no bin is entered and the SKU has no bin history yet — clearly shown as a hint under the bin field (v58) &bull; Bin is now mandatory on EVERY stock movement, zero exceptions — including Set True Count / Manual Correction, whose bin exemption is removed at both the UI and database level (Seller Flex discipline) (v57) &bull; Live stock can no longer go negative — database-level check on every removal, at both SKU and bin level, rejecting anything that would exceed what is actually recorded there (v56) &bull; Notes are now recommended, never mandatory, on Found/Remove-Lost/QC Hold/Set True Count (v56) &bull; Bin auto-fill and mismatch warnings now trust live bin data over the SKU registry's (sometimes stale) usual-bin field, and a live per-bin quantity line shows under the bin field on every SKU scan (v56) &bull; Bin-mismatch warning now also fires for SKUs with no registered default bin, using their live bin data instead — closes the gap behind the 2026-08-19 bin A1 (-4) ledger anomaly; same fix applied to MOVE tab bin auto-fill, Set True Count, and Bulk Upload (v55) &bull; All remaining unchunked .in() lookups (Stock list bin map, Bin Lookup activity breakdown) now chunked for consistency (v55) &bull; Export Full Inventory fixed &amp; expanded — chunked lookups (no more silent data loss on large batches), now includes pricing, reorder threshold, active status, and full per-SKU activity breakdown (v54) &bull; Live Stock list now shows bin(s) per SKU (v53) &bull; One-click Export Full Inventory - all SKUs, ASIN, product, qty, bins (v53) &bull; Set True Count / Manual Correction (v52) &bull; Bin Lookup Full Detail Table with Activity Breakdown, ASIN, Last Updated (v52) &bull; Bin Usage Summary (v52) &bull; Per-SKU History Drilldown (v52) &bull; Bin Lookup CSV Export (v52) &bull; Soft Bin-Mismatch Note (MOVE + Bulk Upload, never blocks) &bull; entry_source Audit Tag on Every Write &bull; Bulk Upload from CSV (Inbound/Transfer/Found/Lost/Rejected/QC) &bull; Live Bin Lookup (Single SKU / Single Bin / Bulk) &bull; Dynamic Bins (auto-created, no fixed list) &bull; Mandatory Bin on Every Stock Movement &bull; Owner Dashboard (DASH) &bull; 14-Day Staff Performance &bull; Print Product/Bin Labels &bull; QC Hold/Damage &bull; Low-Stock Alerts &bull; Daily Reconciliation &bull; Admin PIN-Lock Unlock &bull; Real Employee Login (PIN) &bull; RBAC &bull; Live Database (Supabase) &bull; Admin-Secret-Gated PIN Recovery &bull; Permanent Audit Log &bull; Hardened Employee Writes (Admin-RPC-Only) &bull; Call Timeouts &amp; Error Handling (Performance Fix)</div>
+                <div class="ver-name">&#128230; ArtzFolio Scan-Pick-Pack v66</div>
+                <div class="ver-sub">Barcode scanning: fixed the camera stream silently dying mid-session with zero error shown (track 'ended' listener + cached-stream health check + a stall watchdog, all converging on one actionable "Tap to reconnect" recovery banner instead of scanning a frozen black frame forever) &bull; fixed a decode-loop bug that was logging a console warning on every single scan tick under fully normal operation (NotFoundException check was comparing against a minified/mangled .name string instead of the actual exception class) &bull; image-quality mitigations for the deeper "camera focuses too far away to read barcodes" problem found via live testing: continuous-autofocus requested where the device supports it, a torch/flash toggle shown only when the active camera track reports real torch support, and a blur/stability hint that now tells the user WHY nothing is scanning instead of leaving them guessing forever (v66) &bull; Fixed: DASH tab's Top Movers and Daily Activity Trend charts silently ignored the dashboard filter bar (Category/ABC/Status/Bin) — the transaction ledger feeding those two charts is now filtered to the same SKU set as every other dashboard chart before rendering (v65) &bull; Phase 4, Gap 2 (Offline Mode / Installable PWA, v63) — the App can now be installed (manifest + service worker caching the app shell) and keeps working with NO network at all: a MOVE write that can't reach the live database is queued on-device instead of failing, shows "Queued (offline)", and syncs automatically the moment connectivity returns; a SKU lookup falls back to an on-device cache synced whenever online. A real bug was found and fixed via live testing — a write that actually succeeded server-side could still report a client-side timeout, and retrying it would have silently double-written real stock; every queued write now carries a server-enforced idempotency key so a retry after a false timeout is recognised as already-synced instead of duplicated &bull; Phase 3, Feature 4 (Scheduled Cycle Counting, v62) — MOVE tab now has a "Today's Cycle Count" list (auto-generated daily, ~12 SKUs, A-tier + least-recently-counted prioritised), Count jumps straight into Set True Count with the SKU pre-filled, Skip marks it skipped; a real count still writes through the exact same MANUAL_CORRECTION path as always &bull; Feature 5 (Automated Alerting, v62) — low-stock-alert edge function rebuilt on Feature 2's real effective_reorder_point, baseline-snapshot behavior (only alerts on a NEW crossing worse than each SKU's own baseline, silent on enablement), real per-SKU-per-condition-per-day dedupe, and negative-stock-attempt alerting (a write rejected by the DB-level non-negative-stock trigger is now logged and alerted on separately) &bull; Feature 8 (Dynamic New-SKU Registration, v61) — New Stock In / Returns In against a SKU or ASIN the database has never seen now offers an inline "Register New SKU" panel right there in MOVE, instead of a hard block; registering saves it to the SKU database (create-only — refuses to touch an existing SKU's data) and immediately continues the exact same stock movement in one flow. PICK/scan-out against a still-unregistered SKU stays a hard block, unchanged — selling something never received is an error, not a new-SKU event. &bull; Phase 2 of the 7-Features/6-Gaps build: dynamic reorder points (Feature 2) — reorder point is now the manual threshold if set, else calculated from real trailing-30-day sales velocity × lead time; STOCK tab shows the reasoning on each row and the LOW_STOCK/OUT_OF_STOCK banner is now a real, working number (it silently always showed 0 before, since every SKU had a manual threshold of exactly 0) &bull; ABC/velocity classification (Feature 3) — every active SKU tagged A/B/C by standard 80/20 Pareto method on real sales volume, new STOCK tab filter; will show C for everyone until real sales history accumulates &bull; Returns grading (Gap 4) — Returns mode now asks Good/Damaged/Wrong Item; Damaged and Wrong Item are recorded as arrived but immediately held, never silently added to sellable stock (v60) &bull; Settings' local scan log renamed to "My Recent Scans (this device only)" so it can never be confused with the real, permanent, server-side Audit Log in the Admin Panel; new "My Activity (server record)" section added underneath it, pulling the logged-in employee's own last 50 actions straight from the live ledger — durable, survives clearing this device, on-demand load (v59) &bull; STOCK tab now has full filters &amp; sort — by stock status (in stock / low stock / out of stock), by category, and sort by SKU, ASIN, or Product Title (A&rarr;Z or Z&rarr;A), plus Qty high&rarr;low/low&rarr;high; every row now shows product name, category, and a colour status badge (v58) &bull; New SKU inbound via Quick Scan now defaults the bin to A1 automatically when no bin is entered and the SKU has no bin history yet — clearly shown as a hint under the bin field (v58) &bull; Bin is now mandatory on EVERY stock movement, zero exceptions — including Set True Count / Manual Correction, whose bin exemption is removed at both the UI and database level (Seller Flex discipline) (v57) &bull; Live stock can no longer go negative — database-level check on every removal, at both SKU and bin level, rejecting anything that would exceed what is actually recorded there (v56) &bull; Notes are now recommended, never mandatory, on Found/Remove-Lost/QC Hold/Set True Count (v56) &bull; Bin auto-fill and mismatch warnings now trust live bin data over the SKU registry's (sometimes stale) usual-bin field, and a live per-bin quantity line shows under the bin field on every SKU scan (v56) &bull; Bin-mismatch warning now also fires for SKUs with no registered default bin, using their live bin data instead — closes the gap behind the 2026-08-19 bin A1 (-4) ledger anomaly; same fix applied to MOVE tab bin auto-fill, Set True Count, and Bulk Upload (v55) &bull; All remaining unchunked .in() lookups (Stock list bin map, Bin Lookup activity breakdown) now chunked for consistency (v55) &bull; Export Full Inventory fixed &amp; expanded — chunked lookups (no more silent data loss on large batches), now includes pricing, reorder threshold, active status, and full per-SKU activity breakdown (v54) &bull; Live Stock list now shows bin(s) per SKU (v53) &bull; One-click Export Full Inventory - all SKUs, ASIN, product, qty, bins (v53) &bull; Set True Count / Manual Correction (v52) &bull; Bin Lookup Full Detail Table with Activity Breakdown, ASIN, Last Updated (v52) &bull; Bin Usage Summary (v52) &bull; Per-SKU History Drilldown (v52) &bull; Bin Lookup CSV Export (v52) &bull; Soft Bin-Mismatch Note (MOVE + Bulk Upload, never blocks) &bull; entry_source Audit Tag on Every Write &bull; Bulk Upload from CSV (Inbound/Transfer/Found/Lost/Rejected/QC) &bull; Live Bin Lookup (Single SKU / Single Bin / Bulk) &bull; Dynamic Bins (auto-created, no fixed list) &bull; Mandatory Bin on Every Stock Movement &bull; Owner Dashboard (DASH) &bull; 14-Day Staff Performance &bull; Print Product/Bin Labels &bull; QC Hold/Damage &bull; Low-Stock Alerts &bull; Daily Reconciliation &bull; Admin PIN-Lock Unlock &bull; Real Employee Login (PIN) &bull; RBAC &bull; Live Database (Supabase) &bull; Admin-Secret-Gated PIN Recovery &bull; Permanent Audit Log &bull; Hardened Employee Writes (Admin-RPC-Only) &bull; Call Timeouts &amp; Error Handling (Performance Fix)</div>
             </div>
         </div>
     </div>
@@ -953,6 +970,9 @@
         <!-- v49: always-reachable close button, fixed top-right, independent of
              cam-bottom's position — see .cam-close-x comment above. -->
         <button class="cam-close-x" onclick="closeCamera()" title="Close scanner" aria-label="Close scanner">&#10005;</button>
+        <!-- v66: torch/flash toggle — hidden by default via CSS, shown by JS only
+             when this device's active track reports torch support. -->
+        <button class="cam-torch-btn" id="cam-torch-btn" onclick="toggleTorch()" title="Toggle flashlight" aria-label="Toggle flashlight">&#128161;</button>
         <!-- v64: shown only when zero decoders (ZXing/BarcodeDetector/jsQR) initialized -->
         <div class="cam-no-decoder-banner" id="cam-no-decoder-banner">
             &#9888; No barcode scanner available on this device/connection
@@ -963,6 +983,7 @@
         <div class="cam-scan-line"></div>
         <div class="cam-bottom">
             <div class="cam-hint" id="cam-hint">Point at the <strong>barcode or QR code</strong></div>
+            <div class="cam-blur-hint" id="cam-blur-hint">&#128065; Image looks blurry &mdash; hold the barcode a little further away and keep it steady.</div>
             <div class="cam-formats" id="cam-formats">Loading scanner...</div>
             <button class="cam-close" onclick="closeCamera()">&#10005;&nbsp; Close Camera</button>
         </div>
@@ -1319,7 +1340,8 @@ var state = {
     log:          [],
     camStream:    null,
     scanLoop:     null,
-    scanTarget:   null    // v49: when set to an input id, the next successful scan fills that field instead of running the PICK flow
+    scanTarget:   null,   // v49: when set to an input id, the next successful scan fills that field instead of running the PICK flow
+    torchOn:      false   // v66: current torch/flash state, reset on every camera close
 };
 
 // Channel display helpers
@@ -4570,11 +4592,72 @@ function setCamBtn(busy) {
     btn.style.opacity = busy ? '0.5' : '1';
 }
 
-function showCamError(msg) {
+function showCamError(msg, opts) {
     var banner = document.getElementById('cam-error-banner');
     var msgEl  = document.getElementById('cam-error-msg');
+    var reconnectBtn = document.getElementById('cam-reconnect-btn');
     if (msgEl)  msgEl.textContent = msg || 'Camera access denied or not supported.';
     if (banner) banner.classList.add('visible');
+    if (reconnectBtn) reconnectBtn.classList.toggle('visible', !!(opts && opts.reconnect));
+}
+
+// v66: track lifecycle helpers, shared by openCamera() and retryBasicCamera().
+// A camera track can die mid-session (OS/browser reclaims the camera, a
+// hardware/driver hiccup, tab backgrounding) with zero built-in signal — the
+// video keeps "playing" a frozen or black frame forever. wireVideoTrack()
+// listens for the track's own 'ended' event (the direct signal, when the
+// browser fires it) and also opportunistically turns on continuous
+// autofocus where the device supports it (Section 1, v8 prompt).
+function wireVideoTrack(track) {
+    if (!track) return;
+    track.onended = function() {
+        handleCameraDeath('Camera connection was lost. Tap below to reconnect.');
+    };
+    try {
+        var caps = track.getCapabilities ? track.getCapabilities() : null;
+        if (caps && caps.focusMode && caps.focusMode.indexOf('continuous') !== -1) {
+            track.applyConstraints({ advanced: [{ focusMode: 'continuous' }] }).catch(function() {});
+        }
+    } catch (e) { /* getCapabilities/applyConstraints unsupported on this device — safe to ignore, camera still works */ }
+    updateTorchAvailability(track);
+}
+
+// v66 (Section 2): show/hide the torch toggle based on this specific track's
+// real capabilities — most desktop/laptop webcams have none, so the button
+// stays hidden there rather than showing a control that silently does nothing.
+function updateTorchAvailability(track) {
+    var btn = document.getElementById('cam-torch-btn');
+    if (!btn) return;
+    var hasTorch = false;
+    try {
+        var caps = track && track.getCapabilities ? track.getCapabilities() : null;
+        hasTorch = !!(caps && caps.torch);
+    } catch (e) { hasTorch = false; }
+    btn.classList.toggle('visible', hasTorch);
+    if (!hasTorch) { btn.classList.remove('active'); state.torchOn = false; }
+}
+
+function toggleTorch() {
+    if (!state.camStream) return;
+    var track = state.camStream.getVideoTracks()[0];
+    if (!track) return;
+    var next = !state.torchOn;
+    track.applyConstraints({ advanced: [{ torch: next }] }).then(function() {
+        state.torchOn = next;
+        var btn = document.getElementById('cam-torch-btn');
+        if (btn) btn.classList.toggle('active', next);
+    }).catch(function() { /* torch toggle failed — leave state as-is, not fatal to scanning */ });
+}
+
+// v66 (Section 1, v7 prompt): a track can die without ever firing 'ended' on
+// some browsers/OSes — the stall watchdog in startScanLoop() catches that
+// case too, and both paths converge here: stop the scan loop, discard the
+// dead stream reference, close the overlay, and show an actionable recovery
+// banner instead of silently scanning a frozen/black frame forever.
+function handleCameraDeath(msg) {
+    state.camStream = null;
+    closeCamera();
+    showCamError(msg || 'Camera connection was lost. Tap below to reconnect.', { reconnect: true });
 }
 
 // v49: Back-button safety net for the full-screen camera overlay. Mobile
@@ -4609,7 +4692,16 @@ function openCamera() {
     }
     updateCamHint();
     pushCameraHistoryState();
-    if (state.camStream) { _showOverlay(); return; }
+    if (state.camStream) {
+        // v66: don't trust a cached stream blindly — a track can die silently
+        // in the background with no event ever firing. Re-check health right
+        // before reuse; a stale/dead reference falls through to a fresh
+        // getUserMedia() below instead of showing a scanner that scans nothing.
+        var cachedHealthy = state.camStream.active &&
+            state.camStream.getVideoTracks().every(function (t) { return t.readyState === 'live'; });
+        if (cachedHealthy) { _showOverlay(); return; }
+        state.camStream = null;
+    }
 
     document.getElementById('cam-overlay').classList.add('active');
     var hintEl = document.getElementById('cam-hint');
@@ -4617,10 +4709,14 @@ function openCamera() {
     setCamBtn(true);
 
     navigator.mediaDevices.getUserMedia({
-        video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } }
+        // v66 (Section 1, v8 prompt): request continuous autofocus where
+        // supported — 'advanced' constraints are ignored silently, not
+        // fatal, on devices/browsers that don't understand focusMode.
+        video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 }, advanced: [{ focusMode: 'continuous' }] }
     }).then(function(stream) {
         setCamBtn(false);
         state.camStream = stream;
+        stream.getVideoTracks().forEach(wireVideoTrack);
         var video = document.getElementById('cam-video');
         video.srcObject = stream;
         function beginScanning() {
@@ -4670,6 +4766,7 @@ function retryBasicCamera() {
     navigator.mediaDevices.getUserMedia({ video: true }).then(function(stream) {
         setCamBtn(false);
         state.camStream = stream;
+        stream.getVideoTracks().forEach(wireVideoTrack);
         var video = document.getElementById('cam-video');
         video.srcObject = stream;
         document.getElementById('cam-overlay').classList.add('active');
@@ -4745,17 +4842,72 @@ function updateCamHint() {
 }
 
 // ── SCAN LOOP ────────────────────────────────────────────────
+// v66 (Section 3, v8 prompt): cheap Sobel-style sharpness estimate — samples
+// a coarse grid (every 10th row, every 7th pixel) rather than every pixel, so
+// it stays affordable running once per scan tick. A sharp, in-focus frame
+// scores much higher than a genuinely blurred one. BLUR_SCORE_THRESHOLD is a
+// starting estimate only — not yet calibrated against real phone hardware;
+// may need tuning once tested on an actual device.
+function frameSharpness(canvas, ctx) {
+    var w = canvas.width, h = canvas.height;
+    var d = ctx.getImageData(0, 0, w, h).data;
+    var sum = 0, count = 0;
+    var step = 4 * 7; // sample every 7th pixel horizontally, cheap
+    for (var y = 0; y < h; y += 10) {
+        var rowStart = y * w * 4;
+        for (var x = 0; x < (w - 7) * 4; x += step) {
+            var i = rowStart + x;
+            var i2 = i + step;
+            if (i2 >= d.length) break;
+            sum += Math.abs(d[i] - d[i2]);
+            count++;
+        }
+    }
+    return count ? sum / count : 0;
+}
+var BLUR_SCORE_THRESHOLD = 12;  // estimate — not device-calibrated
+var BLUR_STREAK_TICKS    = 15;  // ~1.5s at the scan loop's 100ms tick
+var STALL_TICKS_LIMIT    = 20;  // ~2s at the scan loop's 100ms tick
+
 function startScanLoop(video) {
     if (state.scanLoop) { clearInterval(state.scanLoop); }
+    var lastVideoTime = -1, stallTicks = 0, blurTicks = 0;
     state.scanLoop = setInterval(function() {
         if (!state.camStream) return;
         if (!video || video.readyState < 2) return;
         var w = video.videoWidth;
         var h = video.videoHeight;
         if (!w || !h) return;
+
+        // v66 (Section 1, v7 prompt): stall watchdog — catches a dead track
+        // even on browsers/OSes that never fire 'ended', by noticing the
+        // video's own clock has frozen for ~2s straight.
+        if (video.currentTime === lastVideoTime) {
+            stallTicks++;
+            if (stallTicks >= STALL_TICKS_LIMIT) {
+                handleCameraDeath('Camera connection was lost. Tap below to reconnect.');
+                return;
+            }
+        } else {
+            stallTicks = 0;
+            lastVideoTime = video.currentTime;
+        }
+
         scanCanvas.width  = w;
         scanCanvas.height = h;
         scanCtx.drawImage(video, 0, 0, w, h);
+
+        // v66 (Section 3, v8 prompt): blur/stability gate — tells the user
+        // WHY nothing is scanning instead of leaving them guessing forever.
+        var sharpness = frameSharpness(scanCanvas, scanCtx);
+        var blurHintEl = document.getElementById('cam-blur-hint');
+        if (sharpness < BLUR_SCORE_THRESHOLD) {
+            blurTicks++;
+            if (blurTicks >= BLUR_STREAK_TICKS && blurHintEl) blurHintEl.classList.add('visible');
+        } else {
+            blurTicks = 0;
+            if (blurHintEl) blurHintEl.classList.remove('visible');
+        }
 
         if (zxingDecoder) {
             try {
@@ -4778,8 +4930,12 @@ function startScanLoop(video) {
                 res = zxingDecoder.decode(bmp);
                 if (res) { onCodeDetected(res.getText()); return; }
             } catch (e) {
-                if (e && e.name && e.name !== 'NotFoundException') {
-                    console.warn('ZXing decode:', e.name);
+                // v66 (Section 2, v7 prompt): this CDN build's minified UMD
+                // reports NotFoundException's .name as a mangled class name
+                // (observed as "R"), not the literal string — checking the
+                // actual class instead of e.name is robust to that.
+                if (!(e instanceof ZXing.NotFoundException)) {
+                    console.warn('ZXing decode:', e && e.name, e && e.message);
                 }
             }
             return;
@@ -4823,6 +4979,13 @@ function closeCamera() {
     document.getElementById('cam-overlay').classList.remove('active');
     setCamBtn(false);
     state.scanTarget = null; // v49: cancel any pending scan-to-field target (e.g. user hit the X without scanning)
+    // v66: reset per-session camera UI state so a stale torch-on/blur-hint
+    // look doesn't bleed into the next time the overlay opens.
+    state.torchOn = false;
+    var torchBtn = document.getElementById('cam-torch-btn');
+    if (torchBtn) torchBtn.classList.remove('active');
+    var blurHintEl = document.getElementById('cam-blur-hint');
+    if (blurHintEl) blurHintEl.classList.remove('visible');
     // v49: pop the history marker pushed on open, so the Back stack stays
     // tidy and a second Back press doesn't feel "off by one".
     if (history.state && history.state[CAM_HISTORY_MARKER]) {
