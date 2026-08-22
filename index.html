@@ -9,6 +9,16 @@
          silently capped at 1000 rows by PostgREST); loud on-screen warning
          when all 3 barcode decoders fail to init; DASH tab rebuilt into a
          full KPI + Chart.js dashboard with filters. -->
+    <!-- v67: THE structural barcode-scan fix — blur check + every decoder now
+         run against the raw camera frame CROPPED to the on-screen orange
+         .cam-frame target box (accounting for object-fit:cover's own display
+         crop), not the full uncropped frame. Root cause: the brackets were
+         purely decorative CSS; a barcode occupying a modest fraction of a
+         mostly-blank frame diluted the blur average and hurt decode
+         reliability, matching a documented ZXing-js issue (small target in a
+         large frame). Adds a ?debug=1 / 5-tap-on-version-badge on-screen debug
+         readout (target rect, video dims, live sharpness score) so future
+         diagnosis reads real numbers instead of guessing. -->
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#1B4F8A">
     <link rel="icon" href="icon.svg" type="image/svg+xml">
@@ -246,6 +256,11 @@
         .cam-blur-hint{display:none;color:#F39C12;font-size:12px;text-align:center;line-height:1.4;background:rgba(243,156,18,.14);border:1px solid rgba(243,156,18,.45);border-radius:8px;padding:6px 10px}
         .cam-blur-hint.visible{display:block}
         .cam-formats{color:rgba(255,255,255,.5);font-size:9px;text-align:center;letter-spacing:.3px;margin-top:2px}
+        /* v67: scan-target debug readout — hidden unless ?debug=1 or a 5-tap
+           gesture on the version badge enables it. Shows the numbers behind the
+           ROI crop so a future diagnosis reads real data instead of guessing. */
+        .cam-debug{display:none;position:fixed;top:calc(14px + env(safe-area-inset-top,0px));left:60px;right:60px;z-index:206;background:rgba(0,0,0,.72);color:#6ee7ff;font:10px/1.5 monospace;padding:6px 8px;border-radius:8px;pointer-events:none;white-space:pre-wrap}
+        .cam-debug.visible{display:block}
         /* v64: loud, impossible-to-miss warning when ALL THREE decoders (ZXing,
            BarcodeDetector, jsQR) have failed to initialize — previously the scan
            loop just ran forever finding nothing, with zero feedback. */
@@ -326,7 +341,7 @@
     </style>
 </head>
 <body>
-<div class="ver-corner" id="verCornerBadge">v66</div>
+<div class="ver-corner" id="verCornerBadge" onclick="handleVerBadgeTap()">v67</div>
 <!-- v63: Gap 2 — offline write-queue indicator. Hidden (display:none) unless
      something is actually queued or failed. Tapping it shows the queue detail
      panel (openOfflineQueuePanel()). -->
@@ -948,8 +963,8 @@
 
             <!-- Version -->
             <div class="ver-badge">
-                <div class="ver-name">&#128230; ArtzFolio Scan-Pick-Pack v66</div>
-                <div class="ver-sub">Barcode scanning: fixed the camera stream silently dying mid-session with zero error shown (track 'ended' listener + cached-stream health check + a stall watchdog, all converging on one actionable "Tap to reconnect" recovery banner instead of scanning a frozen black frame forever) &bull; fixed a decode-loop bug that was logging a console warning on every single scan tick under fully normal operation (NotFoundException check was comparing against a minified/mangled .name string instead of the actual exception class) &bull; image-quality mitigations for the deeper "camera focuses too far away to read barcodes" problem found via live testing: continuous-autofocus requested where the device supports it, a torch/flash toggle shown only when the active camera track reports real torch support, and a blur/stability hint that now tells the user WHY nothing is scanning instead of leaving them guessing forever (v66) &bull; Fixed: DASH tab's Top Movers and Daily Activity Trend charts silently ignored the dashboard filter bar (Category/ABC/Status/Bin) — the transaction ledger feeding those two charts is now filtered to the same SKU set as every other dashboard chart before rendering (v65) &bull; Phase 4, Gap 2 (Offline Mode / Installable PWA, v63) — the App can now be installed (manifest + service worker caching the app shell) and keeps working with NO network at all: a MOVE write that can't reach the live database is queued on-device instead of failing, shows "Queued (offline)", and syncs automatically the moment connectivity returns; a SKU lookup falls back to an on-device cache synced whenever online. A real bug was found and fixed via live testing — a write that actually succeeded server-side could still report a client-side timeout, and retrying it would have silently double-written real stock; every queued write now carries a server-enforced idempotency key so a retry after a false timeout is recognised as already-synced instead of duplicated &bull; Phase 3, Feature 4 (Scheduled Cycle Counting, v62) — MOVE tab now has a "Today's Cycle Count" list (auto-generated daily, ~12 SKUs, A-tier + least-recently-counted prioritised), Count jumps straight into Set True Count with the SKU pre-filled, Skip marks it skipped; a real count still writes through the exact same MANUAL_CORRECTION path as always &bull; Feature 5 (Automated Alerting, v62) — low-stock-alert edge function rebuilt on Feature 2's real effective_reorder_point, baseline-snapshot behavior (only alerts on a NEW crossing worse than each SKU's own baseline, silent on enablement), real per-SKU-per-condition-per-day dedupe, and negative-stock-attempt alerting (a write rejected by the DB-level non-negative-stock trigger is now logged and alerted on separately) &bull; Feature 8 (Dynamic New-SKU Registration, v61) — New Stock In / Returns In against a SKU or ASIN the database has never seen now offers an inline "Register New SKU" panel right there in MOVE, instead of a hard block; registering saves it to the SKU database (create-only — refuses to touch an existing SKU's data) and immediately continues the exact same stock movement in one flow. PICK/scan-out against a still-unregistered SKU stays a hard block, unchanged — selling something never received is an error, not a new-SKU event. &bull; Phase 2 of the 7-Features/6-Gaps build: dynamic reorder points (Feature 2) — reorder point is now the manual threshold if set, else calculated from real trailing-30-day sales velocity × lead time; STOCK tab shows the reasoning on each row and the LOW_STOCK/OUT_OF_STOCK banner is now a real, working number (it silently always showed 0 before, since every SKU had a manual threshold of exactly 0) &bull; ABC/velocity classification (Feature 3) — every active SKU tagged A/B/C by standard 80/20 Pareto method on real sales volume, new STOCK tab filter; will show C for everyone until real sales history accumulates &bull; Returns grading (Gap 4) — Returns mode now asks Good/Damaged/Wrong Item; Damaged and Wrong Item are recorded as arrived but immediately held, never silently added to sellable stock (v60) &bull; Settings' local scan log renamed to "My Recent Scans (this device only)" so it can never be confused with the real, permanent, server-side Audit Log in the Admin Panel; new "My Activity (server record)" section added underneath it, pulling the logged-in employee's own last 50 actions straight from the live ledger — durable, survives clearing this device, on-demand load (v59) &bull; STOCK tab now has full filters &amp; sort — by stock status (in stock / low stock / out of stock), by category, and sort by SKU, ASIN, or Product Title (A&rarr;Z or Z&rarr;A), plus Qty high&rarr;low/low&rarr;high; every row now shows product name, category, and a colour status badge (v58) &bull; New SKU inbound via Quick Scan now defaults the bin to A1 automatically when no bin is entered and the SKU has no bin history yet — clearly shown as a hint under the bin field (v58) &bull; Bin is now mandatory on EVERY stock movement, zero exceptions — including Set True Count / Manual Correction, whose bin exemption is removed at both the UI and database level (Seller Flex discipline) (v57) &bull; Live stock can no longer go negative — database-level check on every removal, at both SKU and bin level, rejecting anything that would exceed what is actually recorded there (v56) &bull; Notes are now recommended, never mandatory, on Found/Remove-Lost/QC Hold/Set True Count (v56) &bull; Bin auto-fill and mismatch warnings now trust live bin data over the SKU registry's (sometimes stale) usual-bin field, and a live per-bin quantity line shows under the bin field on every SKU scan (v56) &bull; Bin-mismatch warning now also fires for SKUs with no registered default bin, using their live bin data instead — closes the gap behind the 2026-08-19 bin A1 (-4) ledger anomaly; same fix applied to MOVE tab bin auto-fill, Set True Count, and Bulk Upload (v55) &bull; All remaining unchunked .in() lookups (Stock list bin map, Bin Lookup activity breakdown) now chunked for consistency (v55) &bull; Export Full Inventory fixed &amp; expanded — chunked lookups (no more silent data loss on large batches), now includes pricing, reorder threshold, active status, and full per-SKU activity breakdown (v54) &bull; Live Stock list now shows bin(s) per SKU (v53) &bull; One-click Export Full Inventory - all SKUs, ASIN, product, qty, bins (v53) &bull; Set True Count / Manual Correction (v52) &bull; Bin Lookup Full Detail Table with Activity Breakdown, ASIN, Last Updated (v52) &bull; Bin Usage Summary (v52) &bull; Per-SKU History Drilldown (v52) &bull; Bin Lookup CSV Export (v52) &bull; Soft Bin-Mismatch Note (MOVE + Bulk Upload, never blocks) &bull; entry_source Audit Tag on Every Write &bull; Bulk Upload from CSV (Inbound/Transfer/Found/Lost/Rejected/QC) &bull; Live Bin Lookup (Single SKU / Single Bin / Bulk) &bull; Dynamic Bins (auto-created, no fixed list) &bull; Mandatory Bin on Every Stock Movement &bull; Owner Dashboard (DASH) &bull; 14-Day Staff Performance &bull; Print Product/Bin Labels &bull; QC Hold/Damage &bull; Low-Stock Alerts &bull; Daily Reconciliation &bull; Admin PIN-Lock Unlock &bull; Real Employee Login (PIN) &bull; RBAC &bull; Live Database (Supabase) &bull; Admin-Secret-Gated PIN Recovery &bull; Permanent Audit Log &bull; Hardened Employee Writes (Admin-RPC-Only) &bull; Call Timeouts &amp; Error Handling (Performance Fix)</div>
+                <div class="ver-name">&#128230; ArtzFolio Scan-Pick-Pack v67</div>
+                <div class="ver-sub">Barcode scanning: THE structural fix — the blur check and every decoder (ZXing/BarcodeDetector/jsQR) now run against the raw camera frame CROPPED to the on-screen orange targeting brackets (accounting for the video's own object-fit:cover display crop and read fresh every tick regardless of device orientation), not the full uncropped frame as before. Root cause: those brackets were purely decorative CSS the scan loop never referenced — a barcode occupying a modest part of a mostly-blank frame diluted the blur average and hurt decode reliability, matching a documented ZXing-js issue (small target in a large frame). The crop is modestly upscaled (~1.75x) to help resolve fine bar spacing. Adds a permanent debug readout (enable via ?debug=1 or 5 taps on the version badge) showing the live target rectangle, video dimensions, and sharpness score, so any future scanning issue can be diagnosed from real numbers instead of guesswork (v67) &bull; Barcode scanning: fixed the camera stream silently dying mid-session with zero error shown (track 'ended' listener + cached-stream health check + a stall watchdog, all converging on one actionable "Tap to reconnect" recovery banner instead of scanning a frozen black frame forever) &bull; fixed a decode-loop bug that was logging a console warning on every single scan tick under fully normal operation (NotFoundException check was comparing against a minified/mangled .name string instead of the actual exception class) &bull; image-quality mitigations for the deeper "camera focuses too far away to read barcodes" problem found via live testing: continuous-autofocus requested where the device supports it, a torch/flash toggle shown only when the active camera track reports real torch support, and a blur/stability hint that now tells the user WHY nothing is scanning instead of leaving them guessing forever (v66) &bull; Fixed: DASH tab's Top Movers and Daily Activity Trend charts silently ignored the dashboard filter bar (Category/ABC/Status/Bin) — the transaction ledger feeding those two charts is now filtered to the same SKU set as every other dashboard chart before rendering (v65) &bull; Phase 4, Gap 2 (Offline Mode / Installable PWA, v63) — the App can now be installed (manifest + service worker caching the app shell) and keeps working with NO network at all: a MOVE write that can't reach the live database is queued on-device instead of failing, shows "Queued (offline)", and syncs automatically the moment connectivity returns; a SKU lookup falls back to an on-device cache synced whenever online. A real bug was found and fixed via live testing — a write that actually succeeded server-side could still report a client-side timeout, and retrying it would have silently double-written real stock; every queued write now carries a server-enforced idempotency key so a retry after a false timeout is recognised as already-synced instead of duplicated &bull; Phase 3, Feature 4 (Scheduled Cycle Counting, v62) — MOVE tab now has a "Today's Cycle Count" list (auto-generated daily, ~12 SKUs, A-tier + least-recently-counted prioritised), Count jumps straight into Set True Count with the SKU pre-filled, Skip marks it skipped; a real count still writes through the exact same MANUAL_CORRECTION path as always &bull; Feature 5 (Automated Alerting, v62) — low-stock-alert edge function rebuilt on Feature 2's real effective_reorder_point, baseline-snapshot behavior (only alerts on a NEW crossing worse than each SKU's own baseline, silent on enablement), real per-SKU-per-condition-per-day dedupe, and negative-stock-attempt alerting (a write rejected by the DB-level non-negative-stock trigger is now logged and alerted on separately) &bull; Feature 8 (Dynamic New-SKU Registration, v61) — New Stock In / Returns In against a SKU or ASIN the database has never seen now offers an inline "Register New SKU" panel right there in MOVE, instead of a hard block; registering saves it to the SKU database (create-only — refuses to touch an existing SKU's data) and immediately continues the exact same stock movement in one flow. PICK/scan-out against a still-unregistered SKU stays a hard block, unchanged — selling something never received is an error, not a new-SKU event. &bull; Phase 2 of the 7-Features/6-Gaps build: dynamic reorder points (Feature 2) — reorder point is now the manual threshold if set, else calculated from real trailing-30-day sales velocity × lead time; STOCK tab shows the reasoning on each row and the LOW_STOCK/OUT_OF_STOCK banner is now a real, working number (it silently always showed 0 before, since every SKU had a manual threshold of exactly 0) &bull; ABC/velocity classification (Feature 3) — every active SKU tagged A/B/C by standard 80/20 Pareto method on real sales volume, new STOCK tab filter; will show C for everyone until real sales history accumulates &bull; Returns grading (Gap 4) — Returns mode now asks Good/Damaged/Wrong Item; Damaged and Wrong Item are recorded as arrived but immediately held, never silently added to sellable stock (v60) &bull; Settings' local scan log renamed to "My Recent Scans (this device only)" so it can never be confused with the real, permanent, server-side Audit Log in the Admin Panel; new "My Activity (server record)" section added underneath it, pulling the logged-in employee's own last 50 actions straight from the live ledger — durable, survives clearing this device, on-demand load (v59) &bull; STOCK tab now has full filters &amp; sort — by stock status (in stock / low stock / out of stock), by category, and sort by SKU, ASIN, or Product Title (A&rarr;Z or Z&rarr;A), plus Qty high&rarr;low/low&rarr;high; every row now shows product name, category, and a colour status badge (v58) &bull; New SKU inbound via Quick Scan now defaults the bin to A1 automatically when no bin is entered and the SKU has no bin history yet — clearly shown as a hint under the bin field (v58) &bull; Bin is now mandatory on EVERY stock movement, zero exceptions — including Set True Count / Manual Correction, whose bin exemption is removed at both the UI and database level (Seller Flex discipline) (v57) &bull; Live stock can no longer go negative — database-level check on every removal, at both SKU and bin level, rejecting anything that would exceed what is actually recorded there (v56) &bull; Notes are now recommended, never mandatory, on Found/Remove-Lost/QC Hold/Set True Count (v56) &bull; Bin auto-fill and mismatch warnings now trust live bin data over the SKU registry's (sometimes stale) usual-bin field, and a live per-bin quantity line shows under the bin field on every SKU scan (v56) &bull; Bin-mismatch warning now also fires for SKUs with no registered default bin, using their live bin data instead — closes the gap behind the 2026-08-19 bin A1 (-4) ledger anomaly; same fix applied to MOVE tab bin auto-fill, Set True Count, and Bulk Upload (v55) &bull; All remaining unchunked .in() lookups (Stock list bin map, Bin Lookup activity breakdown) now chunked for consistency (v55) &bull; Export Full Inventory fixed &amp; expanded — chunked lookups (no more silent data loss on large batches), now includes pricing, reorder threshold, active status, and full per-SKU activity breakdown (v54) &bull; Live Stock list now shows bin(s) per SKU (v53) &bull; One-click Export Full Inventory - all SKUs, ASIN, product, qty, bins (v53) &bull; Set True Count / Manual Correction (v52) &bull; Bin Lookup Full Detail Table with Activity Breakdown, ASIN, Last Updated (v52) &bull; Bin Usage Summary (v52) &bull; Per-SKU History Drilldown (v52) &bull; Bin Lookup CSV Export (v52) &bull; Soft Bin-Mismatch Note (MOVE + Bulk Upload, never blocks) &bull; entry_source Audit Tag on Every Write &bull; Bulk Upload from CSV (Inbound/Transfer/Found/Lost/Rejected/QC) &bull; Live Bin Lookup (Single SKU / Single Bin / Bulk) &bull; Dynamic Bins (auto-created, no fixed list) &bull; Mandatory Bin on Every Stock Movement &bull; Owner Dashboard (DASH) &bull; 14-Day Staff Performance &bull; Print Product/Bin Labels &bull; QC Hold/Damage &bull; Low-Stock Alerts &bull; Daily Reconciliation &bull; Admin PIN-Lock Unlock &bull; Real Employee Login (PIN) &bull; RBAC &bull; Live Database (Supabase) &bull; Admin-Secret-Gated PIN Recovery &bull; Permanent Audit Log &bull; Hardened Employee Writes (Admin-RPC-Only) &bull; Call Timeouts &amp; Error Handling (Performance Fix)</div>
             </div>
         </div>
     </div>
@@ -979,8 +994,10 @@
             <small>Close this and type the code manually in the field, or use a Bluetooth/USB scanner gun.</small>
         </div>
         <video id="cam-video" playsinline autoplay muted></video>
-        <div class="cam-frame"><span></span></div>
+        <div class="cam-frame" id="cam-frame"><span></span></div>
         <div class="cam-scan-line"></div>
+        <!-- v67: ROI-crop debug readout — see .cam-debug comment above. -->
+        <div class="cam-debug" id="cam-debug"></div>
         <div class="cam-bottom">
             <div class="cam-hint" id="cam-hint">Point at the <strong>barcode or QR code</strong></div>
             <div class="cam-blur-hint" id="cam-blur-hint">&#128065; Image looks blurry &mdash; hold the barcode a little further away and keep it steady.</div>
@@ -1341,8 +1358,29 @@ var state = {
     camStream:    null,
     scanLoop:     null,
     scanTarget:   null,   // v49: when set to an input id, the next successful scan fills that field instead of running the PICK flow
-    torchOn:      false   // v66: current torch/flash state, reset on every camera close
+    torchOn:      false,  // v66: current torch/flash state, reset on every camera close
+    scanDebug:    false   // v67: ROI-crop debug readout — ?debug=1 URL param or 5-tap on the version badge
 };
+
+// v67: enable the scan-target debug readout via ?debug=1, or a 5-tap gesture
+// on the version corner badge (tap-and-hold isn't reliable cross-device, a
+// plain rapid-tap counter is simpler and works everywhere touch works).
+try {
+    if (/[?&]debug=1(&|$)/.test(location.search)) { state.scanDebug = true; }
+} catch (e) {}
+var verBadgeTapCount = 0, verBadgeTapTimer = null;
+function handleVerBadgeTap() {
+    verBadgeTapCount++;
+    if (verBadgeTapTimer) clearTimeout(verBadgeTapTimer);
+    verBadgeTapTimer = setTimeout(function() { verBadgeTapCount = 0; }, 2000);
+    if (verBadgeTapCount >= 5) {
+        verBadgeTapCount = 0;
+        state.scanDebug = !state.scanDebug;
+        var dbg = document.getElementById('cam-debug');
+        if (dbg && !state.scanDebug) { dbg.classList.remove('visible'); dbg.textContent = ''; }
+        try { vibrate([80, 60, 80]); } catch (e) {}
+    }
+}
 
 // Channel display helpers
 var CH_COLOR = {
@@ -4552,10 +4590,77 @@ function initDecoders() {
         } catch (e) { console.warn('BarcodeDetector init error:', e); }
     }
 
+    // v67: scanCanvas now holds only the cropped, upscaled scan-target region
+    // (see computeScanTargetRect() / startScanLoop() below) — never the full
+    // raw camera frame. Both the blur check and every decoder read from it.
     scanCanvas = document.createElement('canvas');
     scanCtx    = scanCanvas.getContext('2d', { willReadFrequently: true });
 
     refreshDecoderStatus();
+}
+
+// v67 (Section 1a+1b, v10 prompt): standard object-fit:cover crop math — the
+// sub-rectangle of the raw videoWidth x videoHeight buffer that is actually
+// displayed inside a containerWidth x containerHeight box. Needed because the
+// <video> element renders with CSS object-fit:cover, so what's on screen is
+// itself already a crop of the raw buffer before the .cam-frame target box
+// crops it again.
+function computeCoverSourceRect(videoWidth, videoHeight, containerWidth, containerHeight) {
+    var videoAspect     = videoWidth / videoHeight;
+    var containerAspect = containerWidth / containerHeight;
+    var sx, sy, sWidth, sHeight;
+    if (videoAspect > containerAspect) {
+        sHeight = videoHeight;
+        sWidth  = videoHeight * containerAspect;
+        sx = (videoWidth - sWidth) / 2;
+        sy = 0;
+    } else {
+        sWidth  = videoWidth;
+        sHeight = videoWidth / containerAspect;
+        sx = 0;
+        sy = (videoHeight - sHeight) / 2;
+    }
+    return { sx: sx, sy: sy, sWidth: sWidth, sHeight: sHeight };
+}
+
+// v67 (Section 1, v10 prompt): maps the orange .cam-frame target box's live
+// on-screen position/size to raw-pixel coordinates in the video's actual
+// videoWidth x videoHeight buffer — the region that gets cropped, upscaled,
+// and handed to the blur check + every decoder. Recomputed fresh every scan
+// tick (never cached) since getBoundingClientRect() and videoWidth/videoHeight
+// can both change (resize, orientation change, device swapping resolutions).
+// Never assumes landscape or portrait — reads whatever the device reports.
+function computeScanTargetRect(video, camFrameEl) {
+    var vw = video.videoWidth, vh = video.videoHeight;
+    if (!vw || !vh) return null;
+    var videoRect = video.getBoundingClientRect();
+    var frameRect = camFrameEl.getBoundingClientRect();
+    if (!videoRect.width || !videoRect.height) return null;
+
+    // Target box position/size as a 0..1 fraction of the displayed video area.
+    var fxLeft   = (frameRect.left - videoRect.left) / videoRect.width;
+    var fxTop    = (frameRect.top  - videoRect.top)  / videoRect.height;
+    var fxWidth  = frameRect.width  / videoRect.width;
+    var fxHeight = frameRect.height / videoRect.height;
+    fxLeft   = Math.max(0, Math.min(1, fxLeft));
+    fxTop    = Math.max(0, Math.min(1, fxTop));
+    fxWidth  = Math.max(0.02, Math.min(1 - fxLeft, fxWidth));
+    fxHeight = Math.max(0.02, Math.min(1 - fxTop, fxHeight));
+
+    var cover = computeCoverSourceRect(vw, vh, videoRect.width, videoRect.height);
+
+    var sx = cover.sx + fxLeft * cover.sWidth;
+    var sy = cover.sy + fxTop  * cover.sHeight;
+    var sWidth  = fxWidth  * cover.sWidth;
+    var sHeight = fxHeight * cover.sHeight;
+
+    // Clamp into the raw buffer bounds — defensive against rounding at the edges.
+    sx = Math.max(0, Math.min(vw - 1, sx));
+    sy = Math.max(0, Math.min(vh - 1, sy));
+    sWidth  = Math.max(1, Math.min(vw - sx, sWidth));
+    sHeight = Math.max(1, Math.min(vh - sy, sHeight));
+
+    return { sx: sx, sy: sy, sWidth: sWidth, sHeight: sHeight, videoWidth: vw, videoHeight: vh };
 }
 
 // v64: single source of truth for the "Scanner ready: ..." hint text AND the
@@ -4868,16 +4973,21 @@ function frameSharpness(canvas, ctx) {
 var BLUR_SCORE_THRESHOLD = 12;  // estimate — not device-calibrated
 var BLUR_STREAK_TICKS    = 15;  // ~1.5s at the scan loop's 100ms tick
 var STALL_TICKS_LIMIT    = 20;  // ~2s at the scan loop's 100ms tick
+var CROP_UPSCALE         = 1.75; // v67: modest upscale of the ROI crop, matching
+                                  // the effective "zoom in" a user would naturally
+                                  // do — helps resolve fine bar spacing (ZXing #474)
 
 function startScanLoop(video) {
     if (state.scanLoop) { clearInterval(state.scanLoop); }
+    var camFrameEl = document.getElementById('cam-frame');
+    var debugEl    = document.getElementById('cam-debug');
     var lastVideoTime = -1, stallTicks = 0, blurTicks = 0;
     state.scanLoop = setInterval(function() {
         if (!state.camStream) return;
         if (!video || video.readyState < 2) return;
-        var w = video.videoWidth;
-        var h = video.videoHeight;
-        if (!w || !h) return;
+        var vw = video.videoWidth;
+        var vh = video.videoHeight;
+        if (!vw || !vh) return;
 
         // v66 (Section 1, v7 prompt): stall watchdog — catches a dead track
         // even on browsers/OSes that never fire 'ended', by noticing the
@@ -4893,12 +5003,25 @@ function startScanLoop(video) {
             lastVideoTime = video.currentTime;
         }
 
-        scanCanvas.width  = w;
-        scanCanvas.height = h;
-        scanCtx.drawImage(video, 0, 0, w, h);
+        // v67 (Section 1, v10 prompt): THE structural fix — crop to the actual
+        // on-screen target zone (the orange .cam-frame brackets) instead of
+        // scanning/blur-checking the full raw frame. Recomputed every tick:
+        // never cached, since the target box and video dimensions can both
+        // change (resize, orientation change, device swapping resolutions).
+        var targetRect = camFrameEl ? computeScanTargetRect(video, camFrameEl) : null;
+        if (!targetRect) return; // brackets not measurable yet (layout not settled) — skip this tick
+
+        var cw = Math.max(1, Math.round(targetRect.sWidth  * CROP_UPSCALE));
+        var ch = Math.max(1, Math.round(targetRect.sHeight * CROP_UPSCALE));
+        if (scanCanvas.width  !== cw) scanCanvas.width  = cw;
+        if (scanCanvas.height !== ch) scanCanvas.height = ch;
+        scanCtx.drawImage(video, targetRect.sx, targetRect.sy, targetRect.sWidth, targetRect.sHeight, 0, 0, cw, ch);
+        var w = cw, h = ch;
 
         // v66 (Section 3, v8 prompt): blur/stability gate — tells the user
         // WHY nothing is scanning instead of leaving them guessing forever.
+        // v67: now scored on the cropped target region only, not diluted by
+        // blank background outside the brackets.
         var sharpness = frameSharpness(scanCanvas, scanCtx);
         var blurHintEl = document.getElementById('cam-blur-hint');
         if (sharpness < BLUR_SCORE_THRESHOLD) {
@@ -4907,6 +5030,19 @@ function startScanLoop(video) {
         } else {
             blurTicks = 0;
             if (blurHintEl) blurHintEl.classList.remove('visible');
+        }
+
+        if (state.scanDebug && debugEl) {
+            debugEl.classList.add('visible');
+            debugEl.textContent =
+                'video: ' + vw + 'x' + vh + '\n' +
+                'target(raw px): sx=' + Math.round(targetRect.sx) + ' sy=' + Math.round(targetRect.sy) +
+                ' w=' + Math.round(targetRect.sWidth) + ' h=' + Math.round(targetRect.sHeight) + '\n' +
+                'crop canvas: ' + cw + 'x' + ch + ' (x' + CROP_UPSCALE + ')\n' +
+                'sharpness: ' + sharpness.toFixed(1) + ' / threshold ' + BLUR_SCORE_THRESHOLD +
+                (sharpness < BLUR_SCORE_THRESHOLD ? '  [BLURRY]' : '  [OK]');
+        } else if (debugEl && debugEl.classList.contains('visible') && !state.scanDebug) {
+            debugEl.classList.remove('visible');
         }
 
         if (zxingDecoder) {
@@ -4942,7 +5078,10 @@ function startScanLoop(video) {
         }
 
         if (barcodeDetector) {
-            barcodeDetector.detect(video).then(function(codes) {
+            // v67: detect() takes any CanvasImageSource — pass the cropped
+            // canvas, not the raw video, so this decoder also only ever sees
+            // the target region.
+            barcodeDetector.detect(scanCanvas).then(function(codes) {
                 if (codes && codes.length > 0) { onCodeDetected(codes[0].rawValue); }
             }).catch(function() {});
             return;
