@@ -31,6 +31,19 @@
          unchanged unless explicitly opted in) addressing frequent unwanted
          logouts likely caused by mobile Chrome silently killing backgrounded
          tabs (which wipes sessionStorage same as a deliberate close). -->
+    <!-- v69: tap-to-focus (tap the live preview to bias the camera's focus
+         point via focusDistance or pointsOfInterest, whichever the device
+         exposes; shows a "not supported on this camera" toast instead of
+         doing nothing when neither is available) + a zoom +/- control next to
+         the torch button (shown only when the track reports a real zoom
+         range) + ~15% ROI-crop padding so a barcode near the target box's
+         edge keeps its full quiet zone. Root cause addressed: live ?debug=1
+         testing on a small, curved-label object showed sharpness climbing
+         but plateauing below the pass threshold across repeat attempts —
+         consistent with the phone's lens hitting its minimum focus distance
+         on a small close/curved object (a real optics limit, not a decoder or
+         crop bug — v67/v68 both independently reconfirmed correct on the same
+         device). Debug readout now also reports live tap-focus/zoom support. -->
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#1B4F8A">
     <link rel="icon" href="icon.svg" type="image/svg+xml">
@@ -293,6 +306,25 @@
         .cam-torch-btn.visible{display:flex}
         .cam-torch-btn.active{background:#F39C12;border-color:#F39C12}
         .cam-torch-btn:active{background:rgba(255,255,255,.25)}
+        /* v69 (Master Prompt v12, item 2): zoom control — mirrors the torch
+           button's conditional-visibility pattern, pinned directly below it,
+           only ever shown when this device's active track reports a real
+           zoom range (most desktop/laptop webcams do not). */
+        .cam-zoom-controls{display:none;position:fixed;top:calc(14px + env(safe-area-inset-top,0px) + 50px);left:14px;z-index:210;flex-direction:column;align-items:center;gap:2px;background:rgba(0,0,0,.55);border:1.5px solid rgba(255,255,255,.6);border-radius:20px;padding:6px 4px;touch-action:manipulation}
+        .cam-zoom-controls.visible{display:flex}
+        .cam-zoom-btn{width:30px;height:30px;border-radius:50%;background:transparent;border:none;color:#fff;font-size:17px;font-weight:700;line-height:1;display:flex;align-items:center;justify-content:center;cursor:pointer;padding:0}
+        .cam-zoom-btn:active{background:rgba(255,255,255,.25)}
+        .cam-zoom-label{color:#fff;font-size:10px;font-weight:700;padding:2px 0}
+        /* v69 (Master Prompt v12, item 1): tap-to-focus visual confirmation —
+           a brief orange ring at the tapped point, matching the .cam-frame
+           accent color, restarted via the .show class toggle. */
+        .cam-focus-ring{display:block;position:absolute;top:0;left:0;width:64px;height:64px;margin:-32px 0 0 -32px;border:2px solid #F39C12;border-radius:50%;pointer-events:none;z-index:206;opacity:0}
+        .cam-focus-ring.show{animation:camFocusPing .6s ease-out}
+        @keyframes camFocusPing{0%{opacity:0;transform:scale(1.4)}30%{opacity:1;transform:scale(1)}100%{opacity:0;transform:scale(.9)}}
+        /* v69: brief transient toast (tap-to-focus unsupported notice, etc.) —
+           same visual language as .cam-blur-hint but self-dismissing. */
+        .cam-tap-toast{display:none;position:fixed;left:50%;bottom:calc(112px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);z-index:207;background:rgba(0,0,0,.78);color:#fff;font-size:12px;padding:8px 14px;border-radius:20px;pointer-events:none;white-space:nowrap;max-width:80vw;text-align:center}
+        .cam-tap-toast.visible{display:block}
         #flash{position:fixed;inset:0;pointer-events:none;opacity:0;z-index:300;transition:opacity .25s}
         #flash.s{background:rgba(39,174,96,.22)}
         #flash.e{background:rgba(192,57,43,.22)}
@@ -978,8 +1010,8 @@
 
             <!-- Version -->
             <div class="ver-badge">
-                <div class="ver-name">&#128230; ArtzFolio Scan-Pick-Pack v68</div>
-                <div class="ver-sub">Barcode scanning: decoder PRIORITY FLIP — native BarcodeDetector (ML-Kit-backed on Android/macOS Chrome) is now tried FIRST every scan tick, falling back to ZXing only when native is unavailable. Root cause: BarcodeDetector was previously only ever initialized when ZXing was ABSENT, but the ZXing CDN script loads on essentially every device — so native detection, the class of engine professional scanning apps use, was permanently unreachable dead code; every scan went through ZXing's unmaintained pure-JS pattern matching alone, which benchmarks measurably lower real-world recall than ML-based detection. Both decoders now always initialize; only which one actually runs each tick changed. Evaluated replacing @zxing/library with the newer native-first/zxing-wasm-fallback `barcode-detector` package per the research brief and deliberately kept @zxing/library as the final fallback instead — a WASM module doesn't fit this app's synchronous ES5 script-tag/PWA-cache architecture without real risk, and ZXing already covers the non-native browsers (iOS Safari, Firefox) that BarcodeDetector doesn't. BarcodeDetector's format list is now explicit (Code128/EAN-13/EAN-8/UPC-A/UPC-E/QR/Code39/ITF/DataMatrix/PDF417/Aztec) rather than accepting the browser's raw supported-format list unfiltered. Debug readout (v67's `?debug=1`) now also shows which decoder path is actually active each tick (v68) &bull; Session persistence: new opt-in "Remember this device for 30 days" checkbox on the login screen (unchecked by default — shared-tablet behavior is unchanged unless explicitly opted in), backed by localStorage so the session survives the browser tab actually closing or being silently killed by mobile Chrome under memory pressure (the likely real cause of frequent unwanted logouts, since that silently wipes the existing sessionStorage-based session exactly like a deliberate close). Logout now also forgets a remembered device, so tapping Logout always means logged out (v68) &bull; Barcode scanning: THE structural fix — the blur check and every decoder (ZXing/BarcodeDetector/jsQR) now run against the raw camera frame CROPPED to the on-screen orange targeting brackets (accounting for the video's own object-fit:cover display crop and read fresh every tick regardless of device orientation), not the full uncropped frame as before. Root cause: those brackets were purely decorative CSS the scan loop never referenced — a barcode occupying a modest part of a mostly-blank frame diluted the blur average and hurt decode reliability, matching a documented ZXing-js issue (small target in a large frame). The crop is modestly upscaled (~1.75x) to help resolve fine bar spacing. Adds a permanent debug readout (enable via ?debug=1 or 5 taps on the version badge) showing the live target rectangle, video dimensions, and sharpness score, so any future scanning issue can be diagnosed from real numbers instead of guesswork (v67) &bull; Barcode scanning: fixed the camera stream silently dying mid-session with zero error shown (track 'ended' listener + cached-stream health check + a stall watchdog, all converging on one actionable "Tap to reconnect" recovery banner instead of scanning a frozen black frame forever) &bull; fixed a decode-loop bug that was logging a console warning on every single scan tick under fully normal operation (NotFoundException check was comparing against a minified/mangled .name string instead of the actual exception class) &bull; image-quality mitigations for the deeper "camera focuses too far away to read barcodes" problem found via live testing: continuous-autofocus requested where the device supports it, a torch/flash toggle shown only when the active camera track reports real torch support, and a blur/stability hint that now tells the user WHY nothing is scanning instead of leaving them guessing forever (v66) &bull; Fixed: DASH tab's Top Movers and Daily Activity Trend charts silently ignored the dashboard filter bar (Category/ABC/Status/Bin) — the transaction ledger feeding those two charts is now filtered to the same SKU set as every other dashboard chart before rendering (v65) &bull; Phase 4, Gap 2 (Offline Mode / Installable PWA, v63) — the App can now be installed (manifest + service worker caching the app shell) and keeps working with NO network at all: a MOVE write that can't reach the live database is queued on-device instead of failing, shows "Queued (offline)", and syncs automatically the moment connectivity returns; a SKU lookup falls back to an on-device cache synced whenever online. A real bug was found and fixed via live testing — a write that actually succeeded server-side could still report a client-side timeout, and retrying it would have silently double-written real stock; every queued write now carries a server-enforced idempotency key so a retry after a false timeout is recognised as already-synced instead of duplicated &bull; Phase 3, Feature 4 (Scheduled Cycle Counting, v62) — MOVE tab now has a "Today's Cycle Count" list (auto-generated daily, ~12 SKUs, A-tier + least-recently-counted prioritised), Count jumps straight into Set True Count with the SKU pre-filled, Skip marks it skipped; a real count still writes through the exact same MANUAL_CORRECTION path as always &bull; Feature 5 (Automated Alerting, v62) — low-stock-alert edge function rebuilt on Feature 2's real effective_reorder_point, baseline-snapshot behavior (only alerts on a NEW crossing worse than each SKU's own baseline, silent on enablement), real per-SKU-per-condition-per-day dedupe, and negative-stock-attempt alerting (a write rejected by the DB-level non-negative-stock trigger is now logged and alerted on separately) &bull; Feature 8 (Dynamic New-SKU Registration, v61) — New Stock In / Returns In against a SKU or ASIN the database has never seen now offers an inline "Register New SKU" panel right there in MOVE, instead of a hard block; registering saves it to the SKU database (create-only — refuses to touch an existing SKU's data) and immediately continues the exact same stock movement in one flow. PICK/scan-out against a still-unregistered SKU stays a hard block, unchanged — selling something never received is an error, not a new-SKU event. &bull; Phase 2 of the 7-Features/6-Gaps build: dynamic reorder points (Feature 2) — reorder point is now the manual threshold if set, else calculated from real trailing-30-day sales velocity × lead time; STOCK tab shows the reasoning on each row and the LOW_STOCK/OUT_OF_STOCK banner is now a real, working number (it silently always showed 0 before, since every SKU had a manual threshold of exactly 0) &bull; ABC/velocity classification (Feature 3) — every active SKU tagged A/B/C by standard 80/20 Pareto method on real sales volume, new STOCK tab filter; will show C for everyone until real sales history accumulates &bull; Returns grading (Gap 4) — Returns mode now asks Good/Damaged/Wrong Item; Damaged and Wrong Item are recorded as arrived but immediately held, never silently added to sellable stock (v60) &bull; Settings' local scan log renamed to "My Recent Scans (this device only)" so it can never be confused with the real, permanent, server-side Audit Log in the Admin Panel; new "My Activity (server record)" section added underneath it, pulling the logged-in employee's own last 50 actions straight from the live ledger — durable, survives clearing this device, on-demand load (v59) &bull; STOCK tab now has full filters &amp; sort — by stock status (in stock / low stock / out of stock), by category, and sort by SKU, ASIN, or Product Title (A&rarr;Z or Z&rarr;A), plus Qty high&rarr;low/low&rarr;high; every row now shows product name, category, and a colour status badge (v58) &bull; New SKU inbound via Quick Scan now defaults the bin to A1 automatically when no bin is entered and the SKU has no bin history yet — clearly shown as a hint under the bin field (v58) &bull; Bin is now mandatory on EVERY stock movement, zero exceptions — including Set True Count / Manual Correction, whose bin exemption is removed at both the UI and database level (Seller Flex discipline) (v57) &bull; Live stock can no longer go negative — database-level check on every removal, at both SKU and bin level, rejecting anything that would exceed what is actually recorded there (v56) &bull; Notes are now recommended, never mandatory, on Found/Remove-Lost/QC Hold/Set True Count (v56) &bull; Bin auto-fill and mismatch warnings now trust live bin data over the SKU registry's (sometimes stale) usual-bin field, and a live per-bin quantity line shows under the bin field on every SKU scan (v56) &bull; Bin-mismatch warning now also fires for SKUs with no registered default bin, using their live bin data instead — closes the gap behind the 2026-08-19 bin A1 (-4) ledger anomaly; same fix applied to MOVE tab bin auto-fill, Set True Count, and Bulk Upload (v55) &bull; All remaining unchunked .in() lookups (Stock list bin map, Bin Lookup activity breakdown) now chunked for consistency (v55) &bull; Export Full Inventory fixed &amp; expanded — chunked lookups (no more silent data loss on large batches), now includes pricing, reorder threshold, active status, and full per-SKU activity breakdown (v54) &bull; Live Stock list now shows bin(s) per SKU (v53) &bull; One-click Export Full Inventory - all SKUs, ASIN, product, qty, bins (v53) &bull; Set True Count / Manual Correction (v52) &bull; Bin Lookup Full Detail Table with Activity Breakdown, ASIN, Last Updated (v52) &bull; Bin Usage Summary (v52) &bull; Per-SKU History Drilldown (v52) &bull; Bin Lookup CSV Export (v52) &bull; Soft Bin-Mismatch Note (MOVE + Bulk Upload, never blocks) &bull; entry_source Audit Tag on Every Write &bull; Bulk Upload from CSV (Inbound/Transfer/Found/Lost/Rejected/QC) &bull; Live Bin Lookup (Single SKU / Single Bin / Bulk) &bull; Dynamic Bins (auto-created, no fixed list) &bull; Mandatory Bin on Every Stock Movement &bull; Owner Dashboard (DASH) &bull; 14-Day Staff Performance &bull; Print Product/Bin Labels &bull; QC Hold/Damage &bull; Low-Stock Alerts &bull; Daily Reconciliation &bull; Admin PIN-Lock Unlock &bull; Real Employee Login (PIN) &bull; RBAC &bull; Live Database (Supabase) &bull; Admin-Secret-Gated PIN Recovery &bull; Permanent Audit Log &bull; Hardened Employee Writes (Admin-RPC-Only) &bull; Call Timeouts &amp; Error Handling (Performance Fix)</div>
+                <div class="ver-name">&#128230; ArtzFolio Scan-Pick-Pack v69</div>
+                <div class="ver-sub">Barcode scanning (v69): tap-to-focus &mdash; tap anywhere on the live camera preview to bias the camera's focus toward that point, using whichever of manual focusDistance or pointsOfInterest the device/browser exposes (checked in that order); a brief orange ring confirms the tap registered, and devices with neither capability get an explicit "Tap-to-focus not supported on this camera" toast instead of the tap silently doing nothing &bull; Zoom +/&minus; control shown next to the torch button, only when the active camera track reports a real zoom range &mdash; lets a small barcode be enlarged on-screen without walking the camera past its own minimum focus distance &bull; ROI crop now padded by ~15% on every side before cropping, so a barcode sitting close to the edge of the on-screen orange brackets keeps its full quiet zone inside the scanned region &bull; Root cause addressed: Rajat's own live `?debug=1` testing on a small, curved-label sanitizer bottle showed sharpness climbing (7.6&rarr;8.2&rarr;9.5&rarr;9.5) but plateauing below the pass threshold across 4 real attempts &mdash; consistent with the phone's lens hitting its minimum focus distance (commonly ~8-10cm) on a small, close, curved object, a genuine optics limit rather than a decoder or crop bug (v67's ROI crop and v68's decoder-priority flip were both independently reconfirmed correct and unchanged on this same device). Debug readout (`?debug=1`) now also reports whether tap-focus and zoom are actually supported on the current device &bull; Barcode scanning: decoder PRIORITY FLIP — native BarcodeDetector (ML-Kit-backed on Android/macOS Chrome) is now tried FIRST every scan tick, falling back to ZXing only when native is unavailable. Root cause: BarcodeDetector was previously only ever initialized when ZXing was ABSENT, but the ZXing CDN script loads on essentially every device — so native detection, the class of engine professional scanning apps use, was permanently unreachable dead code; every scan went through ZXing's unmaintained pure-JS pattern matching alone, which benchmarks measurably lower real-world recall than ML-based detection. Both decoders now always initialize; only which one actually runs each tick changed. Evaluated replacing @zxing/library with the newer native-first/zxing-wasm-fallback `barcode-detector` package per the research brief and deliberately kept @zxing/library as the final fallback instead — a WASM module doesn't fit this app's synchronous ES5 script-tag/PWA-cache architecture without real risk, and ZXing already covers the non-native browsers (iOS Safari, Firefox) that BarcodeDetector doesn't. BarcodeDetector's format list is now explicit (Code128/EAN-13/EAN-8/UPC-A/UPC-E/QR/Code39/ITF/DataMatrix/PDF417/Aztec) rather than accepting the browser's raw supported-format list unfiltered. Debug readout (v67's `?debug=1`) now also shows which decoder path is actually active each tick (v68) &bull; Session persistence: new opt-in "Remember this device for 30 days" checkbox on the login screen (unchecked by default — shared-tablet behavior is unchanged unless explicitly opted in), backed by localStorage so the session survives the browser tab actually closing or being silently killed by mobile Chrome under memory pressure (the likely real cause of frequent unwanted logouts, since that silently wipes the existing sessionStorage-based session exactly like a deliberate close). Logout now also forgets a remembered device, so tapping Logout always means logged out (v68) &bull; Barcode scanning: THE structural fix — the blur check and every decoder (ZXing/BarcodeDetector/jsQR) now run against the raw camera frame CROPPED to the on-screen orange targeting brackets (accounting for the video's own object-fit:cover display crop and read fresh every tick regardless of device orientation), not the full uncropped frame as before. Root cause: those brackets were purely decorative CSS the scan loop never referenced — a barcode occupying a modest part of a mostly-blank frame diluted the blur average and hurt decode reliability, matching a documented ZXing-js issue (small target in a large frame). The crop is modestly upscaled (~1.75x) to help resolve fine bar spacing. Adds a permanent debug readout (enable via ?debug=1 or 5 taps on the version badge) showing the live target rectangle, video dimensions, and sharpness score, so any future scanning issue can be diagnosed from real numbers instead of guesswork (v67) &bull; Barcode scanning: fixed the camera stream silently dying mid-session with zero error shown (track 'ended' listener + cached-stream health check + a stall watchdog, all converging on one actionable "Tap to reconnect" recovery banner instead of scanning a frozen black frame forever) &bull; fixed a decode-loop bug that was logging a console warning on every single scan tick under fully normal operation (NotFoundException check was comparing against a minified/mangled .name string instead of the actual exception class) &bull; image-quality mitigations for the deeper "camera focuses too far away to read barcodes" problem found via live testing: continuous-autofocus requested where the device supports it, a torch/flash toggle shown only when the active camera track reports real torch support, and a blur/stability hint that now tells the user WHY nothing is scanning instead of leaving them guessing forever (v66) &bull; Fixed: DASH tab's Top Movers and Daily Activity Trend charts silently ignored the dashboard filter bar (Category/ABC/Status/Bin) — the transaction ledger feeding those two charts is now filtered to the same SKU set as every other dashboard chart before rendering (v65) &bull; Phase 4, Gap 2 (Offline Mode / Installable PWA, v63) — the App can now be installed (manifest + service worker caching the app shell) and keeps working with NO network at all: a MOVE write that can't reach the live database is queued on-device instead of failing, shows "Queued (offline)", and syncs automatically the moment connectivity returns; a SKU lookup falls back to an on-device cache synced whenever online. A real bug was found and fixed via live testing — a write that actually succeeded server-side could still report a client-side timeout, and retrying it would have silently double-written real stock; every queued write now carries a server-enforced idempotency key so a retry after a false timeout is recognised as already-synced instead of duplicated &bull; Phase 3, Feature 4 (Scheduled Cycle Counting, v62) — MOVE tab now has a "Today's Cycle Count" list (auto-generated daily, ~12 SKUs, A-tier + least-recently-counted prioritised), Count jumps straight into Set True Count with the SKU pre-filled, Skip marks it skipped; a real count still writes through the exact same MANUAL_CORRECTION path as always &bull; Feature 5 (Automated Alerting, v62) — low-stock-alert edge function rebuilt on Feature 2's real effective_reorder_point, baseline-snapshot behavior (only alerts on a NEW crossing worse than each SKU's own baseline, silent on enablement), real per-SKU-per-condition-per-day dedupe, and negative-stock-attempt alerting (a write rejected by the DB-level non-negative-stock trigger is now logged and alerted on separately) &bull; Feature 8 (Dynamic New-SKU Registration, v61) — New Stock In / Returns In against a SKU or ASIN the database has never seen now offers an inline "Register New SKU" panel right there in MOVE, instead of a hard block; registering saves it to the SKU database (create-only — refuses to touch an existing SKU's data) and immediately continues the exact same stock movement in one flow. PICK/scan-out against a still-unregistered SKU stays a hard block, unchanged — selling something never received is an error, not a new-SKU event. &bull; Phase 2 of the 7-Features/6-Gaps build: dynamic reorder points (Feature 2) — reorder point is now the manual threshold if set, else calculated from real trailing-30-day sales velocity × lead time; STOCK tab shows the reasoning on each row and the LOW_STOCK/OUT_OF_STOCK banner is now a real, working number (it silently always showed 0 before, since every SKU had a manual threshold of exactly 0) &bull; ABC/velocity classification (Feature 3) — every active SKU tagged A/B/C by standard 80/20 Pareto method on real sales volume, new STOCK tab filter; will show C for everyone until real sales history accumulates &bull; Returns grading (Gap 4) — Returns mode now asks Good/Damaged/Wrong Item; Damaged and Wrong Item are recorded as arrived but immediately held, never silently added to sellable stock (v60) &bull; Settings' local scan log renamed to "My Recent Scans (this device only)" so it can never be confused with the real, permanent, server-side Audit Log in the Admin Panel; new "My Activity (server record)" section added underneath it, pulling the logged-in employee's own last 50 actions straight from the live ledger — durable, survives clearing this device, on-demand load (v59) &bull; STOCK tab now has full filters &amp; sort — by stock status (in stock / low stock / out of stock), by category, and sort by SKU, ASIN, or Product Title (A&rarr;Z or Z&rarr;A), plus Qty high&rarr;low/low&rarr;high; every row now shows product name, category, and a colour status badge (v58) &bull; New SKU inbound via Quick Scan now defaults the bin to A1 automatically when no bin is entered and the SKU has no bin history yet — clearly shown as a hint under the bin field (v58) &bull; Bin is now mandatory on EVERY stock movement, zero exceptions — including Set True Count / Manual Correction, whose bin exemption is removed at both the UI and database level (Seller Flex discipline) (v57) &bull; Live stock can no longer go negative — database-level check on every removal, at both SKU and bin level, rejecting anything that would exceed what is actually recorded there (v56) &bull; Notes are now recommended, never mandatory, on Found/Remove-Lost/QC Hold/Set True Count (v56) &bull; Bin auto-fill and mismatch warnings now trust live bin data over the SKU registry's (sometimes stale) usual-bin field, and a live per-bin quantity line shows under the bin field on every SKU scan (v56) &bull; Bin-mismatch warning now also fires for SKUs with no registered default bin, using their live bin data instead — closes the gap behind the 2026-08-19 bin A1 (-4) ledger anomaly; same fix applied to MOVE tab bin auto-fill, Set True Count, and Bulk Upload (v55) &bull; All remaining unchunked .in() lookups (Stock list bin map, Bin Lookup activity breakdown) now chunked for consistency (v55) &bull; Export Full Inventory fixed &amp; expanded — chunked lookups (no more silent data loss on large batches), now includes pricing, reorder threshold, active status, and full per-SKU activity breakdown (v54) &bull; Live Stock list now shows bin(s) per SKU (v53) &bull; One-click Export Full Inventory - all SKUs, ASIN, product, qty, bins (v53) &bull; Set True Count / Manual Correction (v52) &bull; Bin Lookup Full Detail Table with Activity Breakdown, ASIN, Last Updated (v52) &bull; Bin Usage Summary (v52) &bull; Per-SKU History Drilldown (v52) &bull; Bin Lookup CSV Export (v52) &bull; Soft Bin-Mismatch Note (MOVE + Bulk Upload, never blocks) &bull; entry_source Audit Tag on Every Write &bull; Bulk Upload from CSV (Inbound/Transfer/Found/Lost/Rejected/QC) &bull; Live Bin Lookup (Single SKU / Single Bin / Bulk) &bull; Dynamic Bins (auto-created, no fixed list) &bull; Mandatory Bin on Every Stock Movement &bull; Owner Dashboard (DASH) &bull; 14-Day Staff Performance &bull; Print Product/Bin Labels &bull; QC Hold/Damage &bull; Low-Stock Alerts &bull; Daily Reconciliation &bull; Admin PIN-Lock Unlock &bull; Real Employee Login (PIN) &bull; RBAC &bull; Live Database (Supabase) &bull; Admin-Secret-Gated PIN Recovery &bull; Permanent Audit Log &bull; Hardened Employee Writes (Admin-RPC-Only) &bull; Call Timeouts &amp; Error Handling (Performance Fix)</div>
             </div>
         </div>
     </div>
@@ -1003,6 +1035,14 @@
         <!-- v66: torch/flash toggle — hidden by default via CSS, shown by JS only
              when this device's active track reports torch support. -->
         <button class="cam-torch-btn" id="cam-torch-btn" onclick="toggleTorch()" title="Toggle flashlight" aria-label="Toggle flashlight">&#128161;</button>
+        <!-- v69 (Master Prompt v12, item 2): zoom control — hidden by default via
+             CSS, shown by JS only when this device's active track reports a real
+             zoom range (mirrors the torch button's pattern). -->
+        <div class="cam-zoom-controls" id="cam-zoom-controls">
+            <button class="cam-zoom-btn" onclick="adjustZoom(1)" title="Zoom in" aria-label="Zoom in">&#43;</button>
+            <div class="cam-zoom-label" id="cam-zoom-label">1.0x</div>
+            <button class="cam-zoom-btn" onclick="adjustZoom(-1)" title="Zoom out" aria-label="Zoom out">&#8722;</button>
+        </div>
         <!-- v64: shown only when zero decoders (ZXing/BarcodeDetector/jsQR) initialized -->
         <div class="cam-no-decoder-banner" id="cam-no-decoder-banner">
             &#9888; No barcode scanner available on this device/connection
@@ -1011,6 +1051,11 @@
         <video id="cam-video" playsinline autoplay muted></video>
         <div class="cam-frame" id="cam-frame"><span></span></div>
         <div class="cam-scan-line"></div>
+        <!-- v69 (Master Prompt v12, item 1): tap-to-focus visual confirmation ring,
+             positioned via inline style at the tapped point each time. -->
+        <div class="cam-focus-ring" id="cam-focus-ring"></div>
+        <!-- v69: transient toast (e.g. "tap-to-focus not supported on this camera") -->
+        <div class="cam-tap-toast" id="cam-tap-toast"></div>
         <!-- v67: ROI-crop debug readout — see .cam-debug comment above. -->
         <div class="cam-debug" id="cam-debug"></div>
         <div class="cam-bottom">
@@ -1382,7 +1427,16 @@ var state = {
     scanLoop:     null,
     scanTarget:   null,   // v49: when set to an input id, the next successful scan fills that field instead of running the PICK flow
     torchOn:      false,  // v66: current torch/flash state, reset on every camera close
-    scanDebug:    false   // v67: ROI-crop debug readout — ?debug=1 URL param or 5-tap on the version badge
+    scanDebug:    false,  // v67: ROI-crop debug readout — ?debug=1 URL param or 5-tap on the version badge
+    // v69 (Master Prompt v12): tap-to-focus support detected on the active
+    // track — null (not yet checked), 'poi' (pointsOfInterest), 'manual' /
+    // 'single-shot' (focusDistance-based), or 'unsupported'.
+    tapFocusMethod: null,
+    zoomSupported: false,  // v69: does the active track report a real zoom range
+    zoomMin:      1,
+    zoomMax:      1,
+    zoomStep:     0.1,
+    zoomValue:    1
 };
 
 // v67: enable the scan-target debug readout via ?debug=1, or a 5-tap gesture
@@ -4744,6 +4798,17 @@ function computeScanTargetRect(video, camFrameEl) {
     var sWidth  = fxWidth  * cover.sWidth;
     var sHeight = fxHeight * cover.sHeight;
 
+    // v69 (Master Prompt v12, item 3): pad the mapped rect by ~15% on each
+    // side before clamping, so a barcode sitting close to the edge of the
+    // on-screen .cam-frame brackets still keeps its full quiet zone inside
+    // the crop. Padding both dimensions by the same fraction preserves the
+    // aspect ratio; the existing clamp below still bounds it to the buffer.
+    var padX = sWidth  * 0.15;
+    var padY = sHeight * 0.15;
+    sx -= padX; sy -= padY;
+    sWidth  += padX * 2;
+    sHeight += padY * 2;
+
     // Clamp into the raw buffer bounds — defensive against rounding at the edges.
     sx = Math.max(0, Math.min(vw - 1, sx));
     sy = Math.max(0, Math.min(vh - 1, sy));
@@ -4820,6 +4885,11 @@ function wireVideoTrack(track) {
         }
     } catch (e) { /* getCapabilities/applyConstraints unsupported on this device — safe to ignore, camera still works */ }
     updateTorchAvailability(track);
+    // v69 (Master Prompt v12): detect zoom range and tap-to-focus method on
+    // this specific track, same pattern as torch — re-checked on every open
+    // since capabilities can differ across camera swaps/reconnects.
+    updateZoomAvailability(track);
+    updateTapFocusAvailability(track);
 }
 
 // v66 (Section 2): show/hide the torch toggle based on this specific track's
@@ -4847,6 +4917,129 @@ function toggleTorch() {
         var btn = document.getElementById('cam-torch-btn');
         if (btn) btn.classList.toggle('active', next);
     }).catch(function() { /* torch toggle failed — leave state as-is, not fatal to scanning */ });
+}
+
+// v69 (Master Prompt v12, item 2): show/hide the zoom control based on this
+// specific track's real capabilities — only shown when the browser reports a
+// usable min/max zoom range (most desktop/laptop webcams do not).
+function updateZoomAvailability(track) {
+    var ctrl = document.getElementById('cam-zoom-controls');
+    var hasZoom = false;
+    try {
+        var caps = track && track.getCapabilities ? track.getCapabilities() : null;
+        if (caps && caps.zoom && typeof caps.zoom.min === 'number' && typeof caps.zoom.max === 'number' && caps.zoom.max > caps.zoom.min) {
+            hasZoom = true;
+            state.zoomMin = caps.zoom.min;
+            state.zoomMax = caps.zoom.max;
+            // A visible step per tap — the device's own reported step is often
+            // too fine-grained to feel like anything happened, so floor it at
+            // an eighth of the full range.
+            state.zoomStep = Math.max(caps.zoom.step || 0, (caps.zoom.max - caps.zoom.min) / 8);
+            var settings = track.getSettings ? track.getSettings() : null;
+            state.zoomValue = (settings && typeof settings.zoom === 'number') ? settings.zoom : state.zoomMin;
+        }
+    } catch (e) { hasZoom = false; }
+    state.zoomSupported = hasZoom;
+    if (ctrl) ctrl.classList.toggle('visible', hasZoom);
+    if (hasZoom) updateZoomLabel();
+}
+
+function updateZoomLabel() {
+    var label = document.getElementById('cam-zoom-label');
+    if (label) label.textContent = state.zoomValue.toFixed(1) + 'x';
+}
+
+function adjustZoom(direction) {
+    if (!state.zoomSupported || !state.camStream) return;
+    var track = state.camStream.getVideoTracks()[0];
+    if (!track) return;
+    var next = Math.max(state.zoomMin, Math.min(state.zoomMax, state.zoomValue + direction * state.zoomStep));
+    track.applyConstraints({ advanced: [{ zoom: next }] }).then(function() {
+        state.zoomValue = next;
+        updateZoomLabel();
+    }).catch(function() { /* zoom adjust failed — leave state as-is, not fatal to scanning */ });
+}
+
+// v69 (Master Prompt v12, item 1): detect which tap-to-focus mechanism (if
+// any) this track actually supports, checked once per track wire-up rather
+// than per-tap, so the debug overlay can report real support status even
+// before the user has tapped. Checked in the order the master prompt
+// specifies: manual/single-shot focusDistance first, pointsOfInterest second.
+function updateTapFocusAvailability(track) {
+    var method = null;
+    try {
+        var caps = track && track.getCapabilities ? track.getCapabilities() : null;
+        if (caps && caps.focusMode && caps.focusDistance &&
+            (caps.focusMode.indexOf('single-shot') !== -1 || caps.focusMode.indexOf('manual') !== -1)) {
+            method = caps.focusMode.indexOf('single-shot') !== -1 ? 'single-shot' : 'manual';
+        } else if (caps && caps.pointsOfInterest) {
+            method = 'poi';
+        }
+    } catch (e) { method = null; }
+    state.tapFocusMethod = method; // null here just means "not yet determined"; handleCamVideoTap treats anything other than a known method as unsupported
+}
+
+var camTapToastTimer = null;
+function showCamTapToast(msg) {
+    var el = document.getElementById('cam-tap-toast');
+    if (!el) return;
+    el.textContent = msg;
+    el.classList.add('visible');
+    if (camTapToastTimer) clearTimeout(camTapToastTimer);
+    camTapToastTimer = setTimeout(function() { el.classList.remove('visible'); }, 1800);
+}
+
+function showFocusRing(x, y) {
+    var ring = document.getElementById('cam-focus-ring');
+    if (!ring) return;
+    ring.style.left = x + 'px';
+    ring.style.top  = y + 'px';
+    ring.classList.remove('show');
+    void ring.offsetWidth; // force reflow so re-adding the class restarts the CSS animation
+    ring.classList.add('show');
+}
+
+// v69 (Master Prompt v12, item 1): tap-anywhere-on-preview focus bias, the
+// standard scanning-app UX for "the camera won't lock focus on my object".
+// Tries manual focusDistance first (biased toward the near end of the
+// supported range, matching this feature's small/close-object use case —
+// there is no standard way to map a screen tap to a specific focus distance),
+// falls back to pointsOfInterest (a genuine point-based hint) when that's
+// what the device exposes instead, and shows an explicit "not supported"
+// toast rather than silently doing nothing when neither is available.
+function handleCamVideoTap(evt) {
+    if (!state.camStream) return;
+    var track = state.camStream.getVideoTracks()[0];
+    if (!track) return;
+    var video = document.getElementById('cam-video');
+    var rect = video.getBoundingClientRect();
+    if (!rect.width || !rect.height) return;
+    var pt = (evt.changedTouches && evt.changedTouches.length) ? evt.changedTouches[0] : evt;
+    var clientX = pt.clientX, clientY = pt.clientY;
+    var nx = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+    var ny = Math.max(0, Math.min(1, (clientY - rect.top)  / rect.height));
+
+    showFocusRing(clientX, clientY);
+
+    if (state.tapFocusMethod === 'manual' || state.tapFocusMethod === 'single-shot') {
+        try {
+            var caps = track.getCapabilities();
+            var fd = caps.focusDistance.min + (caps.focusDistance.max - caps.focusDistance.min) * 0.15;
+            track.applyConstraints({ advanced: [{ focusMode: state.tapFocusMethod, focusDistance: fd }] }).then(function() {
+                // Hand focus back to continuous after a moment rather than
+                // leaving it locked at this one distance for the rest of the scan.
+                setTimeout(function() {
+                    track.applyConstraints({ advanced: [{ focusMode: 'continuous' }] }).catch(function() {});
+                }, 1500);
+            }).catch(function() {});
+        } catch (e) {}
+    } else if (state.tapFocusMethod === 'poi') {
+        try {
+            track.applyConstraints({ advanced: [{ pointsOfInterest: [{ x: nx, y: ny }] }] }).catch(function() {});
+        } catch (e) {}
+    } else {
+        showCamTapToast('Tap-to-focus not supported on this camera');
+    }
 }
 
 // v66 (Section 1, v7 prompt): a track can die without ever firing 'ended' on
@@ -5128,6 +5321,12 @@ function startScanLoop(video) {
         }
 
         var activeDecoderLabel = barcodeDetector ? 'Native (ML Kit)' : zxingDecoder ? 'ZXing (fallback)' : (typeof jsQR !== 'undefined' && jsQR) ? 'jsQR (fallback)' : 'none';
+        // v69 (Master Prompt v12, item 4): report whether tap-to-focus and
+        // zoom are actually supported on this device, so a future diagnosis
+        // has this data without guessing.
+        var focusLabel = (state.tapFocusMethod === 'manual' || state.tapFocusMethod === 'single-shot') ? 'tap-supported (focus distance)' :
+                          (state.tapFocusMethod === 'poi') ? 'tap-supported (point of interest)' : 'unsupported';
+        var zoomLabel = state.zoomSupported ? (state.zoomMin.toFixed(1) + 'x-' + state.zoomMax.toFixed(1) + 'x') : 'unsupported';
         if (state.scanDebug && debugEl) {
             debugEl.classList.add('visible');
             debugEl.textContent =
@@ -5137,7 +5336,8 @@ function startScanLoop(video) {
                 'crop canvas: ' + cw + 'x' + ch + ' (x' + CROP_UPSCALE + ')\n' +
                 'sharpness: ' + sharpness.toFixed(1) + ' / threshold ' + BLUR_SCORE_THRESHOLD +
                 (sharpness < BLUR_SCORE_THRESHOLD ? '  [BLURRY]' : '  [OK]') + '\n' +
-                'decoder: ' + activeDecoderLabel;
+                'decoder: ' + activeDecoderLabel + '\n' +
+                'focus: ' + focusLabel + ' | zoom: ' + zoomLabel;
         } else if (debugEl && debugEl.classList.contains('visible') && !state.scanDebug) {
             debugEl.classList.remove('visible');
         }
@@ -5231,6 +5431,14 @@ function closeCamera() {
     if (torchBtn) torchBtn.classList.remove('active');
     var blurHintEl = document.getElementById('cam-blur-hint');
     if (blurHintEl) blurHintEl.classList.remove('visible');
+    // v69: same stale-UI reset for zoom/tap-focus — recomputed fresh from the
+    // new track's real capabilities on the next open via wireVideoTrack().
+    state.zoomSupported = false;
+    state.tapFocusMethod = null;
+    var zoomCtrl = document.getElementById('cam-zoom-controls');
+    if (zoomCtrl) zoomCtrl.classList.remove('visible');
+    var tapToastEl = document.getElementById('cam-tap-toast');
+    if (tapToastEl) tapToastEl.classList.remove('visible');
     // v49: pop the history marker pushed on open, so the Back stack stays
     // tidy and a second Back press doesn't feel "off by one".
     if (history.state && history.state[CAM_HISTORY_MARKER]) {
@@ -6020,6 +6228,12 @@ document.addEventListener('DOMContentLoaded', function() {
     document.getElementById('scan-input').addEventListener('keydown', function(e) {
         if (e.key === 'Enter') { processScan(e.target.value); }
     });
+
+    // v69 (Master Prompt v12, item 1): tap-to-focus — the video element is
+    // static across camera opens/closes (only its srcObject changes), so this
+    // listener is registered once here rather than re-attached on every open.
+    var camVideoEl = document.getElementById('cam-video');
+    if (camVideoEl) camVideoEl.addEventListener('click', handleCamVideoTap);
 
     // v37: real login. If a valid session already exists in sessionStorage
     // (e.g. page refresh mid-shift), skip straight into the app — the PIN
