@@ -388,7 +388,7 @@
     </style>
 </head>
 <body>
-<div class="ver-corner" id="verCornerBadge" onclick="handleVerBadgeTap()">v71</div>
+<div class="ver-corner" id="verCornerBadge" onclick="handleVerBadgeTap()">v72</div>
 <!-- v63: Gap 2 — offline write-queue indicator. Hidden (display:none) unless
      something is actually queued or failed. Tapping it shows the queue detail
      panel (openOfflineQueuePanel()). -->
@@ -1010,8 +1010,8 @@
 
             <!-- Version -->
             <div class="ver-badge">
-                <div class="ver-name">&#128230; ArtzFolio Scan-Pick-Pack v71</div>
-                <div class="ver-sub">Camera controls (v71): torch, zoom, and tap-to-focus availability are now re-checked twice more (~400ms and ~1000ms after the camera opens), on top of the original immediate check &mdash; on some Android Chrome versions, `track.getCapabilities()` reports an incomplete capability set (e.g. no zoom range) in the first moment after the camera stream starts, with the true range only settling a short delay later, which could leave a real zoom/torch/tap-focus control wrongly hidden for the whole session even though the device does support it &bull; Barcode scanning (v70): fixed a correctness bug where the decoder could accept a single misread frame as a final result with zero verification &mdash; a scan now only fires once the SAME value decodes on 2 consecutive scan ticks in a row (~100-200ms added latency); if a different value appears before that, the count resets rather than being averaged/voted. Applies uniformly across all three decoder paths (native BarcodeDetector, ZXing, jsQR). Root cause: direct code read of the v69 scan loop confirmed `onCodeDetected(value)` fired the instant ANY single tick decoded ANYTHING, with no repeat-read requirement and no checksum validation anywhere &bull; Checksum validation added as a secondary safety net for EAN-13/EAN-8/UPC-A &mdash; a decoded value that fails the standard GS1 check-digit algorithm for its length is rejected outright, treated exactly like a failed decode (deliberately NOT applied to UPC-E, whose check digit is only meaningful after expanding to its full UPC-A form via a zero-suppression table &mdash; getting that expansion subtly wrong risked falsely rejecting real, valid UPC-E barcodes, so UPC-E relies on the 2-consecutive-read requirement alone instead of a guessed checksum) &bull; MOVE tab: scanning/typing a SKU or ASIN that isn't in the database now shows an immediate "not found" hint right under the field (previously silent until Save was tapped) &bull; Confirmed via live code read: Bin Lookup and MOVE-tab SKU field already populate with whatever a scan decodes (URL included) as plain text, and both already show a clear "not found" state when it doesn't match anything on file; PICK-tab's AF2-only QR flow already shows the raw scanned value alongside its "not a valid Pick List QR" / "wrong bin" / "wrong product" messaging, so a read that succeeded but didn't match is never silent there either &bull; Barcode scanning (v69): tap-to-focus &mdash; tap anywhere on the live camera preview to bias the camera's focus toward that point, using whichever of manual focusDistance or pointsOfInterest the device/browser exposes (checked in that order); a brief orange ring confirms the tap registered, and devices with neither capability get an explicit "Tap-to-focus not supported on this camera" toast instead of the tap silently doing nothing &bull; Zoom +/&minus; control shown next to the torch button, only when the active camera track reports a real zoom range &mdash; lets a small barcode be enlarged on-screen without walking the camera past its own minimum focus distance &bull; ROI crop now padded by ~15% on every side before cropping, so a barcode sitting close to the edge of the on-screen orange brackets keeps its full quiet zone inside the scanned region &bull; Root cause addressed: Rajat's own live `?debug=1` testing on a small, curved-label sanitizer bottle showed sharpness climbing (7.6&rarr;8.2&rarr;9.5&rarr;9.5) but plateauing below the pass threshold across 4 real attempts &mdash; consistent with the phone's lens hitting its minimum focus distance (commonly ~8-10cm) on a small, close, curved object, a genuine optics limit rather than a decoder or crop bug (v67's ROI crop and v68's decoder-priority flip were both independently reconfirmed correct and unchanged on this same device). Debug readout (`?debug=1`) now also reports whether tap-focus and zoom are actually supported on the current device &bull; Barcode scanning: decoder PRIORITY FLIP — native BarcodeDetector (ML-Kit-backed on Android/macOS Chrome) is now tried FIRST every scan tick, falling back to ZXing only when native is unavailable. Root cause: BarcodeDetector was previously only ever initialized when ZXing was ABSENT, but the ZXing CDN script loads on essentially every device — so native detection, the class of engine professional scanning apps use, was permanently unreachable dead code; every scan went through ZXing's unmaintained pure-JS pattern matching alone, which benchmarks measurably lower real-world recall than ML-based detection. Both decoders now always initialize; only which one actually runs each tick changed. Evaluated replacing @zxing/library with the newer native-first/zxing-wasm-fallback `barcode-detector` package per the research brief and deliberately kept @zxing/library as the final fallback instead — a WASM module doesn't fit this app's synchronous ES5 script-tag/PWA-cache architecture without real risk, and ZXing already covers the non-native browsers (iOS Safari, Firefox) that BarcodeDetector doesn't. BarcodeDetector's format list is now explicit (Code128/EAN-13/EAN-8/UPC-A/UPC-E/QR/Code39/ITF/DataMatrix/PDF417/Aztec) rather than accepting the browser's raw supported-format list unfiltered. Debug readout (v67's `?debug=1`) now also shows which decoder path is actually active each tick (v68) &bull; Session persistence: new opt-in "Remember this device for 30 days" checkbox on the login screen (unchecked by default — shared-tablet behavior is unchanged unless explicitly opted in), backed by localStorage so the session survives the browser tab actually closing or being silently killed by mobile Chrome under memory pressure (the likely real cause of frequent unwanted logouts, since that silently wipes the existing sessionStorage-based session exactly like a deliberate close). Logout now also forgets a remembered device, so tapping Logout always means logged out (v68) &bull; Barcode scanning: THE structural fix — the blur check and every decoder (ZXing/BarcodeDetector/jsQR) now run against the raw camera frame CROPPED to the on-screen orange targeting brackets (accounting for the video's own object-fit:cover display crop and read fresh every tick regardless of device orientation), not the full uncropped frame as before. Root cause: those brackets were purely decorative CSS the scan loop never referenced — a barcode occupying a modest part of a mostly-blank frame diluted the blur average and hurt decode reliability, matching a documented ZXing-js issue (small target in a large frame). The crop is modestly upscaled (~1.75x) to help resolve fine bar spacing. Adds a permanent debug readout (enable via ?debug=1 or 5 taps on the version badge) showing the live target rectangle, video dimensions, and sharpness score, so any future scanning issue can be diagnosed from real numbers instead of guesswork (v67) &bull; Barcode scanning: fixed the camera stream silently dying mid-session with zero error shown (track 'ended' listener + cached-stream health check + a stall watchdog, all converging on one actionable "Tap to reconnect" recovery banner instead of scanning a frozen black frame forever) &bull; fixed a decode-loop bug that was logging a console warning on every single scan tick under fully normal operation (NotFoundException check was comparing against a minified/mangled .name string instead of the actual exception class) &bull; image-quality mitigations for the deeper "camera focuses too far away to read barcodes" problem found via live testing: continuous-autofocus requested where the device supports it, a torch/flash toggle shown only when the active camera track reports real torch support, and a blur/stability hint that now tells the user WHY nothing is scanning instead of leaving them guessing forever (v66) &bull; Fixed: DASH tab's Top Movers and Daily Activity Trend charts silently ignored the dashboard filter bar (Category/ABC/Status/Bin) — the transaction ledger feeding those two charts is now filtered to the same SKU set as every other dashboard chart before rendering (v65) &bull; Phase 4, Gap 2 (Offline Mode / Installable PWA, v63) — the App can now be installed (manifest + service worker caching the app shell) and keeps working with NO network at all: a MOVE write that can't reach the live database is queued on-device instead of failing, shows "Queued (offline)", and syncs automatically the moment connectivity returns; a SKU lookup falls back to an on-device cache synced whenever online. A real bug was found and fixed via live testing — a write that actually succeeded server-side could still report a client-side timeout, and retrying it would have silently double-written real stock; every queued write now carries a server-enforced idempotency key so a retry after a false timeout is recognised as already-synced instead of duplicated &bull; Phase 3, Feature 4 (Scheduled Cycle Counting, v62) — MOVE tab now has a "Today's Cycle Count" list (auto-generated daily, ~12 SKUs, A-tier + least-recently-counted prioritised), Count jumps straight into Set True Count with the SKU pre-filled, Skip marks it skipped; a real count still writes through the exact same MANUAL_CORRECTION path as always &bull; Feature 5 (Automated Alerting, v62) — low-stock-alert edge function rebuilt on Feature 2's real effective_reorder_point, baseline-snapshot behavior (only alerts on a NEW crossing worse than each SKU's own baseline, silent on enablement), real per-SKU-per-condition-per-day dedupe, and negative-stock-attempt alerting (a write rejected by the DB-level non-negative-stock trigger is now logged and alerted on separately) &bull; Feature 8 (Dynamic New-SKU Registration, v61) — New Stock In / Returns In against a SKU or ASIN the database has never seen now offers an inline "Register New SKU" panel right there in MOVE, instead of a hard block; registering saves it to the SKU database (create-only — refuses to touch an existing SKU's data) and immediately continues the exact same stock movement in one flow. PICK/scan-out against a still-unregistered SKU stays a hard block, unchanged — selling something never received is an error, not a new-SKU event. &bull; Phase 2 of the 7-Features/6-Gaps build: dynamic reorder points (Feature 2) — reorder point is now the manual threshold if set, else calculated from real trailing-30-day sales velocity × lead time; STOCK tab shows the reasoning on each row and the LOW_STOCK/OUT_OF_STOCK banner is now a real, working number (it silently always showed 0 before, since every SKU had a manual threshold of exactly 0) &bull; ABC/velocity classification (Feature 3) — every active SKU tagged A/B/C by standard 80/20 Pareto method on real sales volume, new STOCK tab filter; will show C for everyone until real sales history accumulates &bull; Returns grading (Gap 4) — Returns mode now asks Good/Damaged/Wrong Item; Damaged and Wrong Item are recorded as arrived but immediately held, never silently added to sellable stock (v60) &bull; Settings' local scan log renamed to "My Recent Scans (this device only)" so it can never be confused with the real, permanent, server-side Audit Log in the Admin Panel; new "My Activity (server record)" section added underneath it, pulling the logged-in employee's own last 50 actions straight from the live ledger — durable, survives clearing this device, on-demand load (v59) &bull; STOCK tab now has full filters &amp; sort — by stock status (in stock / low stock / out of stock), by category, and sort by SKU, ASIN, or Product Title (A&rarr;Z or Z&rarr;A), plus Qty high&rarr;low/low&rarr;high; every row now shows product name, category, and a colour status badge (v58) &bull; New SKU inbound via Quick Scan now defaults the bin to A1 automatically when no bin is entered and the SKU has no bin history yet — clearly shown as a hint under the bin field (v58) &bull; Bin is now mandatory on EVERY stock movement, zero exceptions — including Set True Count / Manual Correction, whose bin exemption is removed at both the UI and database level (Seller Flex discipline) (v57) &bull; Live stock can no longer go negative — database-level check on every removal, at both SKU and bin level, rejecting anything that would exceed what is actually recorded there (v56) &bull; Notes are now recommended, never mandatory, on Found/Remove-Lost/QC Hold/Set True Count (v56) &bull; Bin auto-fill and mismatch warnings now trust live bin data over the SKU registry's (sometimes stale) usual-bin field, and a live per-bin quantity line shows under the bin field on every SKU scan (v56) &bull; Bin-mismatch warning now also fires for SKUs with no registered default bin, using their live bin data instead — closes the gap behind the 2026-08-19 bin A1 (-4) ledger anomaly; same fix applied to MOVE tab bin auto-fill, Set True Count, and Bulk Upload (v55) &bull; All remaining unchunked .in() lookups (Stock list bin map, Bin Lookup activity breakdown) now chunked for consistency (v55) &bull; Export Full Inventory fixed &amp; expanded — chunked lookups (no more silent data loss on large batches), now includes pricing, reorder threshold, active status, and full per-SKU activity breakdown (v54) &bull; Live Stock list now shows bin(s) per SKU (v53) &bull; One-click Export Full Inventory - all SKUs, ASIN, product, qty, bins (v53) &bull; Set True Count / Manual Correction (v52) &bull; Bin Lookup Full Detail Table with Activity Breakdown, ASIN, Last Updated (v52) &bull; Bin Usage Summary (v52) &bull; Per-SKU History Drilldown (v52) &bull; Bin Lookup CSV Export (v52) &bull; Soft Bin-Mismatch Note (MOVE + Bulk Upload, never blocks) &bull; entry_source Audit Tag on Every Write &bull; Bulk Upload from CSV (Inbound/Transfer/Found/Lost/Rejected/QC) &bull; Live Bin Lookup (Single SKU / Single Bin / Bulk) &bull; Dynamic Bins (auto-created, no fixed list) &bull; Mandatory Bin on Every Stock Movement &bull; Owner Dashboard (DASH) &bull; 14-Day Staff Performance &bull; Print Product/Bin Labels &bull; QC Hold/Damage &bull; Low-Stock Alerts &bull; Daily Reconciliation &bull; Admin PIN-Lock Unlock &bull; Real Employee Login (PIN) &bull; RBAC &bull; Live Database (Supabase) &bull; Admin-Secret-Gated PIN Recovery &bull; Permanent Audit Log &bull; Hardened Employee Writes (Admin-RPC-Only) &bull; Call Timeouts &amp; Error Handling (Performance Fix)</div>
+                <div class="ver-name">&#128230; ArtzFolio Scan-Pick-Pack v72</div>
+                <div class="ver-sub">Camera hardening (v72): fixed a serious gap where the scanner could get stuck on "Loading scanner..." with a black video and zero error shown, with no way out except reloading the page &mdash; every `video.play()` call is now wrapped in try/catch (not just its returned Promise), since a synchronous throw from `.play()` would previously skip `beginScanning()` entirely and decoders would never initialize; a new watchdog also fires if the scanner genuinely hasn't started ~4.5s after the camera overlay opens, showing the same "tap to reconnect" recovery banner already used for a dead camera track instead of leaving the screen frozen &bull; Added console checkpoints at each step of the camera-open chain (stream acquired, onloadedmetadata/fallback-timer fired, beginScanning entered, initDecoders completed) so a future recurrence has real diagnostic data instead of requiring another blind code read &bull; Camera controls (v71): torch, zoom, and tap-to-focus availability are now re-checked twice more (~400ms and ~1000ms after the camera opens), on top of the original immediate check &mdash; on some Android Chrome versions, `track.getCapabilities()` reports an incomplete capability set (e.g. no zoom range) in the first moment after the camera stream starts, with the true range only settling a short delay later, which could leave a real zoom/torch/tap-focus control wrongly hidden for the whole session even though the device does support it &bull; Barcode scanning (v70): fixed a correctness bug where the decoder could accept a single misread frame as a final result with zero verification &mdash; a scan now only fires once the SAME value decodes on 2 consecutive scan ticks in a row (~100-200ms added latency); if a different value appears before that, the count resets rather than being averaged/voted. Applies uniformly across all three decoder paths (native BarcodeDetector, ZXing, jsQR). Root cause: direct code read of the v69 scan loop confirmed `onCodeDetected(value)` fired the instant ANY single tick decoded ANYTHING, with no repeat-read requirement and no checksum validation anywhere &bull; Checksum validation added as a secondary safety net for EAN-13/EAN-8/UPC-A &mdash; a decoded value that fails the standard GS1 check-digit algorithm for its length is rejected outright, treated exactly like a failed decode (deliberately NOT applied to UPC-E, whose check digit is only meaningful after expanding to its full UPC-A form via a zero-suppression table &mdash; getting that expansion subtly wrong risked falsely rejecting real, valid UPC-E barcodes, so UPC-E relies on the 2-consecutive-read requirement alone instead of a guessed checksum) &bull; MOVE tab: scanning/typing a SKU or ASIN that isn't in the database now shows an immediate "not found" hint right under the field (previously silent until Save was tapped) &bull; Confirmed via live code read: Bin Lookup and MOVE-tab SKU field already populate with whatever a scan decodes (URL included) as plain text, and both already show a clear "not found" state when it doesn't match anything on file; PICK-tab's AF2-only QR flow already shows the raw scanned value alongside its "not a valid Pick List QR" / "wrong bin" / "wrong product" messaging, so a read that succeeded but didn't match is never silent there either &bull; Barcode scanning (v69): tap-to-focus &mdash; tap anywhere on the live camera preview to bias the camera's focus toward that point, using whichever of manual focusDistance or pointsOfInterest the device/browser exposes (checked in that order); a brief orange ring confirms the tap registered, and devices with neither capability get an explicit "Tap-to-focus not supported on this camera" toast instead of the tap silently doing nothing &bull; Zoom +/&minus; control shown next to the torch button, only when the active camera track reports a real zoom range &mdash; lets a small barcode be enlarged on-screen without walking the camera past its own minimum focus distance &bull; ROI crop now padded by ~15% on every side before cropping, so a barcode sitting close to the edge of the on-screen orange brackets keeps its full quiet zone inside the scanned region &bull; Root cause addressed: Rajat's own live `?debug=1` testing on a small, curved-label sanitizer bottle showed sharpness climbing (7.6&rarr;8.2&rarr;9.5&rarr;9.5) but plateauing below the pass threshold across 4 real attempts &mdash; consistent with the phone's lens hitting its minimum focus distance (commonly ~8-10cm) on a small, close, curved object, a genuine optics limit rather than a decoder or crop bug (v67's ROI crop and v68's decoder-priority flip were both independently reconfirmed correct and unchanged on this same device). Debug readout (`?debug=1`) now also reports whether tap-focus and zoom are actually supported on the current device &bull; Barcode scanning: decoder PRIORITY FLIP — native BarcodeDetector (ML-Kit-backed on Android/macOS Chrome) is now tried FIRST every scan tick, falling back to ZXing only when native is unavailable. Root cause: BarcodeDetector was previously only ever initialized when ZXing was ABSENT, but the ZXing CDN script loads on essentially every device — so native detection, the class of engine professional scanning apps use, was permanently unreachable dead code; every scan went through ZXing's unmaintained pure-JS pattern matching alone, which benchmarks measurably lower real-world recall than ML-based detection. Both decoders now always initialize; only which one actually runs each tick changed. Evaluated replacing @zxing/library with the newer native-first/zxing-wasm-fallback `barcode-detector` package per the research brief and deliberately kept @zxing/library as the final fallback instead — a WASM module doesn't fit this app's synchronous ES5 script-tag/PWA-cache architecture without real risk, and ZXing already covers the non-native browsers (iOS Safari, Firefox) that BarcodeDetector doesn't. BarcodeDetector's format list is now explicit (Code128/EAN-13/EAN-8/UPC-A/UPC-E/QR/Code39/ITF/DataMatrix/PDF417/Aztec) rather than accepting the browser's raw supported-format list unfiltered. Debug readout (v67's `?debug=1`) now also shows which decoder path is actually active each tick (v68) &bull; Session persistence: new opt-in "Remember this device for 30 days" checkbox on the login screen (unchecked by default — shared-tablet behavior is unchanged unless explicitly opted in), backed by localStorage so the session survives the browser tab actually closing or being silently killed by mobile Chrome under memory pressure (the likely real cause of frequent unwanted logouts, since that silently wipes the existing sessionStorage-based session exactly like a deliberate close). Logout now also forgets a remembered device, so tapping Logout always means logged out (v68) &bull; Barcode scanning: THE structural fix — the blur check and every decoder (ZXing/BarcodeDetector/jsQR) now run against the raw camera frame CROPPED to the on-screen orange targeting brackets (accounting for the video's own object-fit:cover display crop and read fresh every tick regardless of device orientation), not the full uncropped frame as before. Root cause: those brackets were purely decorative CSS the scan loop never referenced — a barcode occupying a modest part of a mostly-blank frame diluted the blur average and hurt decode reliability, matching a documented ZXing-js issue (small target in a large frame). The crop is modestly upscaled (~1.75x) to help resolve fine bar spacing. Adds a permanent debug readout (enable via ?debug=1 or 5 taps on the version badge) showing the live target rectangle, video dimensions, and sharpness score, so any future scanning issue can be diagnosed from real numbers instead of guesswork (v67) &bull; Barcode scanning: fixed the camera stream silently dying mid-session with zero error shown (track 'ended' listener + cached-stream health check + a stall watchdog, all converging on one actionable "Tap to reconnect" recovery banner instead of scanning a frozen black frame forever) &bull; fixed a decode-loop bug that was logging a console warning on every single scan tick under fully normal operation (NotFoundException check was comparing against a minified/mangled .name string instead of the actual exception class) &bull; image-quality mitigations for the deeper "camera focuses too far away to read barcodes" problem found via live testing: continuous-autofocus requested where the device supports it, a torch/flash toggle shown only when the active camera track reports real torch support, and a blur/stability hint that now tells the user WHY nothing is scanning instead of leaving them guessing forever (v66) &bull; Fixed: DASH tab's Top Movers and Daily Activity Trend charts silently ignored the dashboard filter bar (Category/ABC/Status/Bin) — the transaction ledger feeding those two charts is now filtered to the same SKU set as every other dashboard chart before rendering (v65) &bull; Phase 4, Gap 2 (Offline Mode / Installable PWA, v63) — the App can now be installed (manifest + service worker caching the app shell) and keeps working with NO network at all: a MOVE write that can't reach the live database is queued on-device instead of failing, shows "Queued (offline)", and syncs automatically the moment connectivity returns; a SKU lookup falls back to an on-device cache synced whenever online. A real bug was found and fixed via live testing — a write that actually succeeded server-side could still report a client-side timeout, and retrying it would have silently double-written real stock; every queued write now carries a server-enforced idempotency key so a retry after a false timeout is recognised as already-synced instead of duplicated &bull; Phase 3, Feature 4 (Scheduled Cycle Counting, v62) — MOVE tab now has a "Today's Cycle Count" list (auto-generated daily, ~12 SKUs, A-tier + least-recently-counted prioritised), Count jumps straight into Set True Count with the SKU pre-filled, Skip marks it skipped; a real count still writes through the exact same MANUAL_CORRECTION path as always &bull; Feature 5 (Automated Alerting, v62) — low-stock-alert edge function rebuilt on Feature 2's real effective_reorder_point, baseline-snapshot behavior (only alerts on a NEW crossing worse than each SKU's own baseline, silent on enablement), real per-SKU-per-condition-per-day dedupe, and negative-stock-attempt alerting (a write rejected by the DB-level non-negative-stock trigger is now logged and alerted on separately) &bull; Feature 8 (Dynamic New-SKU Registration, v61) — New Stock In / Returns In against a SKU or ASIN the database has never seen now offers an inline "Register New SKU" panel right there in MOVE, instead of a hard block; registering saves it to the SKU database (create-only — refuses to touch an existing SKU's data) and immediately continues the exact same stock movement in one flow. PICK/scan-out against a still-unregistered SKU stays a hard block, unchanged — selling something never received is an error, not a new-SKU event. &bull; Phase 2 of the 7-Features/6-Gaps build: dynamic reorder points (Feature 2) — reorder point is now the manual threshold if set, else calculated from real trailing-30-day sales velocity × lead time; STOCK tab shows the reasoning on each row and the LOW_STOCK/OUT_OF_STOCK banner is now a real, working number (it silently always showed 0 before, since every SKU had a manual threshold of exactly 0) &bull; ABC/velocity classification (Feature 3) — every active SKU tagged A/B/C by standard 80/20 Pareto method on real sales volume, new STOCK tab filter; will show C for everyone until real sales history accumulates &bull; Returns grading (Gap 4) — Returns mode now asks Good/Damaged/Wrong Item; Damaged and Wrong Item are recorded as arrived but immediately held, never silently added to sellable stock (v60) &bull; Settings' local scan log renamed to "My Recent Scans (this device only)" so it can never be confused with the real, permanent, server-side Audit Log in the Admin Panel; new "My Activity (server record)" section added underneath it, pulling the logged-in employee's own last 50 actions straight from the live ledger — durable, survives clearing this device, on-demand load (v59) &bull; STOCK tab now has full filters &amp; sort — by stock status (in stock / low stock / out of stock), by category, and sort by SKU, ASIN, or Product Title (A&rarr;Z or Z&rarr;A), plus Qty high&rarr;low/low&rarr;high; every row now shows product name, category, and a colour status badge (v58) &bull; New SKU inbound via Quick Scan now defaults the bin to A1 automatically when no bin is entered and the SKU has no bin history yet — clearly shown as a hint under the bin field (v58) &bull; Bin is now mandatory on EVERY stock movement, zero exceptions — including Set True Count / Manual Correction, whose bin exemption is removed at both the UI and database level (Seller Flex discipline) (v57) &bull; Live stock can no longer go negative — database-level check on every removal, at both SKU and bin level, rejecting anything that would exceed what is actually recorded there (v56) &bull; Notes are now recommended, never mandatory, on Found/Remove-Lost/QC Hold/Set True Count (v56) &bull; Bin auto-fill and mismatch warnings now trust live bin data over the SKU registry's (sometimes stale) usual-bin field, and a live per-bin quantity line shows under the bin field on every SKU scan (v56) &bull; Bin-mismatch warning now also fires for SKUs with no registered default bin, using their live bin data instead — closes the gap behind the 2026-08-19 bin A1 (-4) ledger anomaly; same fix applied to MOVE tab bin auto-fill, Set True Count, and Bulk Upload (v55) &bull; All remaining unchunked .in() lookups (Stock list bin map, Bin Lookup activity breakdown) now chunked for consistency (v55) &bull; Export Full Inventory fixed &amp; expanded — chunked lookups (no more silent data loss on large batches), now includes pricing, reorder threshold, active status, and full per-SKU activity breakdown (v54) &bull; Live Stock list now shows bin(s) per SKU (v53) &bull; One-click Export Full Inventory - all SKUs, ASIN, product, qty, bins (v53) &bull; Set True Count / Manual Correction (v52) &bull; Bin Lookup Full Detail Table with Activity Breakdown, ASIN, Last Updated (v52) &bull; Bin Usage Summary (v52) &bull; Per-SKU History Drilldown (v52) &bull; Bin Lookup CSV Export (v52) &bull; Soft Bin-Mismatch Note (MOVE + Bulk Upload, never blocks) &bull; entry_source Audit Tag on Every Write &bull; Bulk Upload from CSV (Inbound/Transfer/Found/Lost/Rejected/QC) &bull; Live Bin Lookup (Single SKU / Single Bin / Bulk) &bull; Dynamic Bins (auto-created, no fixed list) &bull; Mandatory Bin on Every Stock Movement &bull; Owner Dashboard (DASH) &bull; 14-Day Staff Performance &bull; Print Product/Bin Labels &bull; QC Hold/Damage &bull; Low-Stock Alerts &bull; Daily Reconciliation &bull; Admin PIN-Lock Unlock &bull; Real Employee Login (PIN) &bull; RBAC &bull; Live Database (Supabase) &bull; Admin-Secret-Gated PIN Recovery &bull; Permanent Audit Log &bull; Hardened Employee Writes (Admin-RPC-Only) &bull; Call Timeouts &amp; Error Handling (Performance Fix)</div>
             </div>
         </div>
     </div>
@@ -1437,7 +1437,8 @@ var state = {
     zoomMax:      1,
     zoomStep:     0.1,
     zoomValue:    1,
-    capabilityRecheckTimers: []  // v71: pending delayed torch/zoom/tap-focus re-checks, cleared on camera close
+    capabilityRecheckTimers: [], // v71: pending delayed torch/zoom/tap-focus re-checks, cleared on camera close
+    cameraWatchdogTimer: null    // v72: fires if the scanner never actually starts after the overlay opens
 };
 
 // v67: enable the scan-target debug readout via ?debug=1, or a 5-tap gesture
@@ -4750,6 +4751,7 @@ function initDecoders() {
     scanCtx    = scanCanvas.getContext('2d', { willReadFrequently: true });
 
     refreshDecoderStatus();
+    console.log('[cam] initDecoders completed — barcodeDetector:', !!barcodeDetector, 'zxingDecoder:', !!zxingDecoder, 'jsQR:', typeof jsQR !== 'undefined' && !!jsQR);
 }
 
 // v67 (Section 1a+1b, v10 prompt): standard object-fit:cover crop math — the
@@ -5076,6 +5078,28 @@ function handleCameraDeath(msg) {
     showCamError(msg || 'Camera connection was lost. Tap below to reconnect.', { reconnect: true });
 }
 
+// v72 (Master Prompt v16): a real, if uncommon, gap in the camera-open chain
+// left the overlay stuck on "Loading scanner..." forever with zero error
+// shown — a synchronous throw from video.play() (only its returned Promise's
+// rejection was ever handled) would skip beginScanning() entirely, so
+// initDecoders() never runs and startScanLoop() never sets state.scanLoop.
+// This watchdog is the backstop: if the scanner hasn't actually started
+// within ~4.5s of the overlay opening, treat it exactly like a dead camera
+// track (same reconnect banner, same "tap to retry" flow) instead of leaving
+// the user staring at a frozen black screen with no way out but to reload.
+function startCameraWatchdog() {
+    if (state.cameraWatchdogTimer) clearTimeout(state.cameraWatchdogTimer);
+    state.cameraWatchdogTimer = setTimeout(function() {
+        if (!state.scanLoop) {
+            console.warn('[cam] watchdog fired — scanner did not start within 4.5s of the camera overlay opening');
+            handleCameraDeath("Camera opened but the scanner didn't start. Tap below to retry.");
+        }
+    }, 4500);
+}
+function clearCameraWatchdog() {
+    if (state.cameraWatchdogTimer) { clearTimeout(state.cameraWatchdogTimer); state.cameraWatchdogTimer = null; }
+}
+
 // v49: Back-button safety net for the full-screen camera overlay. Mobile
 // browsers (and the Android gesture/hardware Back action) have no built-in
 // concept of "close this in-page modal" — by default, Back exits/reloads the
@@ -5120,6 +5144,7 @@ function openCamera() {
     }
 
     document.getElementById('cam-overlay').classList.add('active');
+    startCameraWatchdog(); // v72: backstop in case the scanner never actually starts
     var hintEl = document.getElementById('cam-hint');
     if (hintEl) hintEl.innerHTML = '&#128247; <strong style="color:#F39C12">Requesting camera...</strong><br><small style="color:rgba(255,255,255,.75)">Tap Allow when the permission prompt appears</small>';
     setCamBtn(true);
@@ -5130,6 +5155,7 @@ function openCamera() {
         // fatal, on devices/browsers that don't understand focusMode.
         video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 }, advanced: [{ focusMode: 'continuous' }] }
     }).then(function(stream) {
+        console.log('[cam] stream acquired');
         setCamBtn(false);
         state.camStream = stream;
         stream.getVideoTracks().forEach(wireVideoTrack);
@@ -5137,25 +5163,41 @@ function openCamera() {
         video.srcObject = stream;
         function beginScanning() {
             if (state.scanLoop) return;
+            console.log('[cam] beginScanning entered');
             initDecoders(); updateCamHint(); startScanLoop(video);
         }
+        // v72: video.play() can throw SYNCHRONOUSLY (not just reject its
+        // returned Promise) on some browser/media-error edge cases — before
+        // this fix, that throw would propagate out of the onloadedmetadata/
+        // setTimeout handler and beginScanning() would simply never run,
+        // leaving decoders uninitialized and "Loading scanner..." stuck
+        // forever with no error shown. Wrapping the call itself, not just its
+        // Promise, means every path still reaches beginScanning().
+        function safePlay(video) {
+            try {
+                var pr = video.play();
+                if (pr && typeof pr.then === 'function') {
+                    pr.then(beginScanning).catch(function(e) { console.warn('[cam] video.play() rejected:', e); beginScanning(); });
+                } else { beginScanning(); }
+            } catch (e) {
+                console.warn('[cam] video.play() threw synchronously:', e);
+                beginScanning();
+            }
+        }
         video.onloadedmetadata = function() {
-            var pr = video.play();
-            if (pr && typeof pr.then === 'function') {
-                pr.then(beginScanning).catch(function() { beginScanning(); });
-            } else { beginScanning(); }
+            console.log('[cam] onloadedmetadata fired');
+            safePlay(video);
         };
         setTimeout(function() {
             if (!state.scanLoop) {
-                var pr = video.play();
-                if (pr && typeof pr.then === 'function') {
-                    pr.then(beginScanning).catch(function() { beginScanning(); });
-                } else { beginScanning(); }
+                console.log('[cam] 2.5s fallback timer fired (onloadedmetadata never fired or play() never resolved)');
+                safePlay(video);
             }
         }, 2500);
     }).catch(function(err) {
         setCamBtn(false);
         document.getElementById('cam-overlay').classList.remove('active');
+        clearCameraWatchdog(); // v72: getUserMedia itself failed — its own error message below is authoritative, the stuck-loading backstop doesn't apply
         var msg = 'Camera error.';
         if (err) {
             switch (err.name) {
@@ -5180,19 +5222,41 @@ function openCamera() {
 
 function retryBasicCamera() {
     navigator.mediaDevices.getUserMedia({ video: true }).then(function(stream) {
+        console.log('[cam] stream acquired (retryBasicCamera)');
         setCamBtn(false);
         state.camStream = stream;
         stream.getVideoTracks().forEach(wireVideoTrack);
         var video = document.getElementById('cam-video');
         video.srcObject = stream;
         document.getElementById('cam-overlay').classList.add('active');
+        startCameraWatchdog(); // v72: same stuck-loading backstop as openCamera()
+        var go = function() {
+            if (state.scanLoop) return;
+            console.log('[cam] beginScanning entered (retryBasicCamera)');
+            initDecoders(); updateCamHint(); startScanLoop(video);
+        };
+        // v72: see safePlay() in openCamera() — video.play() can throw
+        // synchronously, not just reject its Promise; wrap the call itself.
+        function safePlay() {
+            try {
+                var pr = video.play();
+                if (pr && typeof pr.then === 'function') {
+                    pr.then(go).catch(function(e) { console.warn('[cam] video.play() rejected (retryBasicCamera):', e); go(); });
+                } else { go(); }
+            } catch (e) {
+                console.warn('[cam] video.play() threw synchronously (retryBasicCamera):', e);
+                go();
+            }
+        }
         video.onloadedmetadata = function() {
-            var pr = video.play();
-            var go = function() { if (state.scanLoop) return; initDecoders(); updateCamHint(); startScanLoop(video); };
-            if (pr && typeof pr.then === 'function') { pr.then(go).catch(go); } else { go(); }
+            console.log('[cam] onloadedmetadata fired (retryBasicCamera)');
+            safePlay();
         };
         setTimeout(function() {
-            if (!state.scanLoop) { initDecoders(); updateCamHint(); startScanLoop(video); }
+            if (!state.scanLoop) {
+                console.log('[cam] 2.5s fallback timer fired (retryBasicCamera)');
+                safePlay();
+            }
         }, 2500);
     }).catch(function() {
         setCamBtn(false);
@@ -5205,13 +5269,23 @@ function _showOverlay() {
     var video = document.getElementById('cam-video');
     if (state.camStream && !video.srcObject) video.srcObject = state.camStream;
     if (!state.scanLoop) {
+        startCameraWatchdog(); // v72: same stuck-loading backstop — this path re-plays a cached stream, so it can hang too
         if (video.readyState >= 2) {
             startScanLoop(video);
         } else {
             video.onloadedmetadata = function() {
-                var pr = video.play();
+                console.log('[cam] onloadedmetadata fired (_showOverlay)');
                 var go = function() { if (!state.scanLoop) startScanLoop(video); };
-                if (pr && typeof pr.then === 'function') { pr.then(go).catch(go); } else { go(); }
+                // v72: see safePlay() in openCamera() — same synchronous-throw guard.
+                try {
+                    var pr = video.play();
+                    if (pr && typeof pr.then === 'function') {
+                        pr.then(go).catch(function(e) { console.warn('[cam] video.play() rejected (_showOverlay):', e); go(); });
+                    } else { go(); }
+                } catch (e) {
+                    console.warn('[cam] video.play() threw synchronously (_showOverlay):', e);
+                    go();
+                }
             };
         }
     }
@@ -5289,6 +5363,7 @@ var CROP_UPSCALE         = 1.75; // v67: modest upscale of the ROI crop, matchin
                                   // do — helps resolve fine bar spacing (ZXing #474)
 
 function startScanLoop(video) {
+    clearCameraWatchdog(); // v72: the scanner is genuinely starting — the stuck-loading backstop is no longer needed for this open
     if (state.scanLoop) { clearInterval(state.scanLoop); }
     var camFrameEl = document.getElementById('cam-frame');
     var debugEl    = document.getElementById('cam-debug');
@@ -5558,6 +5633,7 @@ function closeCamera() {
     // don't fire against a track that's already been stopped/torn down.
     state.capabilityRecheckTimers.forEach(clearTimeout);
     state.capabilityRecheckTimers = [];
+    clearCameraWatchdog(); // v72: don't let a stuck-loading check fire after a deliberate/clean close
     document.getElementById('cam-overlay').classList.remove('active');
     setCamBtn(false);
     state.scanTarget = null; // v49: cancel any pending scan-to-field target (e.g. user hit the X without scanning)
