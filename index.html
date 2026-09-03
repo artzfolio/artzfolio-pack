@@ -388,7 +388,7 @@
     </style>
 </head>
 <body>
-<div class="ver-corner" id="verCornerBadge" onclick="handleVerBadgeTap()">v74</div>
+<div class="ver-corner" id="verCornerBadge" onclick="handleVerBadgeTap()">v75</div>
 <!-- v63: Gap 2 — offline write-queue indicator. Hidden (display:none) unless
      something is actually queued or failed. Tapping it shows the queue detail
      panel (openOfflineQueuePanel()). -->
@@ -911,7 +911,27 @@
                     <li><strong>Set True Count</strong> &mdash; 7th pill on the MOVE tab, for a physical stock count only (not daily use). Type the SKU's real total right now and confirm the bin you counted it in; the app looks up the current live number and saves only the difference as one correction. A note is recommended but not required. Bin is required here too, like every other action.</li>
                     <!-- v50: QC Release used to be CSV/Bulk-only; note the new single-row screen -->
                     <li><strong>QC Release</strong> &mdash; new 6th pill on the MOVE tab, previously only reachable via Bulk Upload (CSV). Releases stock that was QC-Held back into sellable count, using the same SKU/Bin/Qty/Note form as the rest of this tab.</li>
-                    <li><strong>Bulk Upload (CSV)</strong> &mdash; on the MOVE tab: download the template, fill it, upload. Same actions as the Excel bulk tool (INBOUND / RETURN_IN / FOUND / LOST / REJECTED / QC_HOLD / QC_RELEASE / TRANSFER), same per-row OK/FAILED result.</li>
+                    <!-- v75: GENERATED from 03_SOPs/action_taxonomy_v1.json by
+                         03_Scripts/2026.09.03_OMS_generate_action_taxonomy_outputs_v1.py
+                         Do NOT hand-edit this list -- edit the master file and re-run the
+                         generator, which also regenerates the Excel template and the Word SOP
+                         section so all three can never drift apart again. -->
+                    <li><strong>Bulk Upload (CSV)</strong> &mdash; on the MOVE tab: download the template, fill it, upload.
+                        There are exactly <strong>8</strong> allowed Action values, and the Excel template now blocks anything else:
+                        <ul>
+                            <li><strong>INBOUND</strong> &mdash; New stock arriving into the warehouse for the first time — a fresh purchase or production batch being put away. <em>(adds to stock; needs SKU, Bin, Qty)</em></li>
+                            <li><strong>RETURN_IN</strong> &mdash; A customer return physically received back into the warehouse. <em>(adds to stock; needs SKU, Bin, Qty)</em></li>
+                            <li><strong>FOUND</strong> &mdash; Untracked stock discovered during a physical count — genuinely present on the shelf but missing from the system. <em>(adds to stock; needs SKU, Bin, Qty)</em></li>
+                            <li><strong>LOST</strong> &mdash; Stock leaving the system without a sale: missing, shrinkage, theft, damage, expiry or any deliberate write-off. Put the actual reason in the Note column — that is what separates a breakage from a theft in the permanent record. <em>(reduces stock; needs SKU, Bin, Qty, Note)</em></li>
+                            <li><strong>REJECTED</strong> &mdash; Stock that failed a quality check and is being taken out of sellable stock permanently. <em>(reduces stock; needs SKU, Bin, Qty, Note)</em></li>
+                            <li><strong>QC_HOLD</strong> &mdash; Quarantine: takes stock out of the sellable count while it waits for a quality decision. The goods are still physically there — they just must not be sold yet. Release them later with QC_RELEASE. <em>(reduces stock; needs SKU, Bin, Qty)</em></li>
+                            <li><strong>QC_RELEASE</strong> &mdash; The opposite of QC_HOLD — passes quarantined stock back into the sellable count after it clears its quality check. <em>(adds to stock; needs SKU, Bin, Qty)</em></li>
+                            <li><strong>TRANSFER</strong> &mdash; Moves stock from one shelf location to another. Total stock does not change — only where it sits. Bin is where it is moving FROM, ToBin is where it is moving TO. <em>(moves between bins, total unchanged; needs SKU, Bin, ToBin, Qty)</em></li>
+                        </ul>
+                        <strong>TRANSFER</strong> is the only Action that uses <strong>ToBin</strong>, and one TRANSFER row
+                        deliberately writes two ledger entries (out of one bin, into the other) so the move is traceable at both ends.
+                        Every row needs a <strong>Bin</strong> and a <strong>positive Qty</strong> &mdash; never type a negative quantity,
+                        the Action itself decides the direction. Same per-row OK/FAILED result as before.</li>
                     <li><strong>Bin-mismatch note</strong> &mdash; if the bin you use is different from that SKU's usual bin, the result still says OK (this is never blocked) but adds a short note so you can catch a typo, e.g. "OK (note: this SKU's usual bin is A12, this entry used B04)".</li>
                     <li><strong>STOCK tab</strong> &mdash; live, read-only view of current quantities. Search by SKU, ASIN, or Bin to find where something is right now.</li>
                     <li>MOVE / STOCK / Bulk Upload all write to the SAME live database as this Excel file and the Admin Panel &mdash; there is no separate copy anywhere, and every write is tagged with which tool made it (visible to an admin as "entry_source").</li>
@@ -1018,7 +1038,7 @@
 
             <!-- Version -->
             <div class="ver-badge">
-                <div class="ver-name">&#128230; ArtzFolio Scan-Pick-Pack v74</div>
+                <div class="ver-name">&#128230; ArtzFolio Scan-Pick-Pack v75</div>
                 <div class="ver-sub">Full changelog available on request.</div>
             </div>
         </div>
