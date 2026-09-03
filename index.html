@@ -388,7 +388,7 @@
     </style>
 </head>
 <body>
-<div class="ver-corner" id="verCornerBadge" onclick="handleVerBadgeTap()">v73</div>
+<div class="ver-corner" id="verCornerBadge" onclick="handleVerBadgeTap()">v74</div>
 <!-- v63: Gap 2 — offline write-queue indicator. Hidden (display:none) unless
      something is actually queued or failed. Tapping it shows the queue detail
      panel (openOfflineQueuePanel()). -->
@@ -553,7 +553,15 @@
                          code then sends Enter, so this now behaves like tabbing to the bin
                          field (same prefillMoveBin() the onblur already uses) instead of
                          doing nothing. -->
-                    <input type="text" class="settings-input" id="move-sku-input" placeholder="Scan or type SKU / ASIN" autocomplete="off" autocorrect="off" autocapitalize="off" onblur="prefillMoveBin()" onkeydown="if(event.key==='Enter'){prefillMoveBin();document.getElementById('move-bin-input').focus();}">
+                    <!-- v74 (Master Prompt v18, Part B): inputmode="none" ships in the
+                         markup so the very first arming of this field (MOVE opening) can
+                         never pop the on-screen keyboard. The field is still genuinely
+                         focused, so a Bluetooth scanner gun's keystrokes still land here
+                         with zero taps -- see the v50 Enter-key handler below, which is
+                         what that gun support depends on. onpointerdown ->
+                         allowSoftKeyboard() drops inputmode on a DELIBERATE tap, which is
+                         what raises the keyboard for manual typing. -->
+                    <input type="text" class="settings-input" id="move-sku-input" inputmode="none" placeholder="Scan or type SKU / ASIN" autocomplete="off" autocorrect="off" autocapitalize="off" onpointerdown="allowSoftKeyboard(this)" onblur="prefillMoveBin()" onkeydown="if(event.key==='Enter'){prefillMoveBin();document.getElementById('move-bin-input').focus();}">
                     <!-- v49: camera scan-to-fill, shared by New Stock/Returns/Found/Lost-Theft/QC Hold since they all reuse this one field -->
                     <button class="scan-cam-btn" onclick="openScannerFor('move-sku-input')" title="Scan SKU/ASIN barcode">
                         <svg viewBox="0 0 24 24"><path d="M12 9a4 4 0 1 0 4 4 4 4 0 0 0-4-4zm0 6a2 2 0 1 1 2-2 2 2 0 0 1-2 2z"/><path d="M20 4h-2.76l-1.63-2H8.39L6.76 4H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2zm0 15H4V6h3.56L9.19 4h5.62l1.63 2H20z"/></svg>
@@ -1010,7 +1018,7 @@
 
             <!-- Version -->
             <div class="ver-badge">
-                <div class="ver-name">&#128230; ArtzFolio Scan-Pick-Pack v73</div>
+                <div class="ver-name">&#128230; ArtzFolio Scan-Pick-Pack v74</div>
                 <div class="ver-sub">Full changelog available on request.</div>
             </div>
         </div>
@@ -2677,6 +2685,37 @@ function skipCountRow(skuCode) {
     withTimeout(db.rpc('oms_resolve_cycle_count_queue_row', { p_sku_code: skuCode, p_status: 'SKIPPED' }), 8000, 'Cycle count skip')
         .then(function() { refreshTodaysCountList(); }).catch(function() {});
 }
+// v74 (Master Prompt v18, Part B): MOVE and all 7 of its modes used to pop the
+// on-screen keyboard the instant the screen opened, because setMoveMode() focuses
+// move-sku-input on every mode set -- and switchTab('move') calls setMoveMode().
+// The Stock/Log/Guide/Dash tabs never did this, which is exactly why only MOVE
+// was affected.
+//
+// The field genuinely does need to STAY focused: move-sku-input is wired for a
+// Bluetooth scanner gun (the v50 Enter-key handler in its markup), and such a gun
+// types the barcode as real keystrokes into whatever currently has focus. So focus
+// is kept and only the SOFT keyboard is suppressed, via inputmode="none". A
+// deliberate tap on the field clears inputmode and the keyboard appears as normal.
+function armScanInputNoKeyboard(id) {
+    var el = document.getElementById(id);
+    if (!el) return;
+    try {
+        // Re-arm: an earlier deliberate tap may have cleared the attribute.
+        el.setAttribute('inputmode', 'none');
+        el.focus();
+    } catch (e) {}
+}
+function allowSoftKeyboard(el) {
+    if (!el || el.getAttribute('inputmode') !== 'none') return;
+    el.removeAttribute('inputmode');
+    // Android Chrome only re-evaluates inputmode when an element RECEIVES focus.
+    // Here it is normally already focused (MOVE armed it on open), so removing the
+    // attribute alone would raise no keyboard -- force a fresh focus to do it.
+    if (document.activeElement === el) {
+        try { el.blur(); } catch (e) {}
+        setTimeout(function () { try { el.focus(); } catch (e) {} }, 0);
+    }
+}
 function setMoveMode(mode) {
     if (!MOVE_MODES[mode]) return;
     moveMode = mode;
@@ -2719,7 +2758,7 @@ function setMoveMode(mode) {
     var gradeSel = document.getElementById('move-return-grade');
     if (gradeSel) gradeSel.value = 'GOOD';
     loadBinList();
-    try { document.getElementById('move-sku-input').focus(); } catch(e) {}
+    armScanInputNoKeyboard('move-sku-input');
 }
 function submitMoveTransaction() {
     // v51: double-submit guard — submitMoveTransaction() makes a chained
@@ -2846,7 +2885,7 @@ function submitMoveTransaction() {
                     document.getElementById('move-qty-input').value = '0';
                     document.getElementById('move-note-input').value = '';
                     if (document.getElementById('move-live-bin-hint')) document.getElementById('move-live-bin-hint').textContent = '';
-                    try { document.getElementById('move-sku-input').focus(); } catch(e) {}
+                    armScanInputNoKeyboard('move-sku-input');
                 });
             });
         }
@@ -2910,7 +2949,7 @@ function proceedMoveWithSku(sku, binVal, qtyVal, note, resEl) {
                 document.getElementById('move-qty-input').value = '1';
                 document.getElementById('move-note-input').value = '';
                 if (document.getElementById('move-live-bin-hint')) document.getElementById('move-live-bin-hint').textContent = '';
-                try { document.getElementById('move-sku-input').focus(); } catch(e) {}
+                armScanInputNoKeyboard('move-sku-input');
             });
         });
     }
@@ -2946,7 +2985,7 @@ function proceedMoveWithSku(sku, binVal, qtyVal, note, resEl) {
         document.getElementById('move-qty-input').value = '1';
         document.getElementById('move-note-input').value = '';
         if (document.getElementById('move-live-bin-hint')) document.getElementById('move-live-bin-hint').textContent = '';
-        try { document.getElementById('move-sku-input').focus(); } catch(e) {}
+        armScanInputNoKeyboard('move-sku-input');
     });
 }
 // v61: Feature 8 panel controls — show/cancel/submit for "Register New SKU".
@@ -6271,7 +6310,21 @@ function loadDash14dPerformance() {
 // button. No realtime subscription (spec says refresh-on-open is enough).
 // v64: rebuilt to a full KPI+chart dashboard — see the block above renderDashTiles().
 function loadDashboard(manualRefresh) {
-    if (!state.session || state.session.role !== 'ADMIN') return; // belt-and-braces, mirrors renderAdminPanel()
+    // v74 (Master Prompt v18, Part E): this used to read
+    // `state.session.role !== 'ADMIN'` -- a leftover from the pre-v73 fixed-role
+    // model. v73 replaced roles with per-employee checkbox permissions, so a
+    // CUSTOM-role employee with dash:true passed switchTab()'s permission guard,
+    // opened the tab, and then hit this early return -- leaving #dash-tiles on its
+    // hardcoded "Loading..." placeholder forever. It now gates on exactly what
+    // switchTab() gates on, so the two layers cannot disagree again.
+    if (!state.session) return;
+    if (effectivePermissions().dash !== true) {
+        // A permission gate must hide or omit -- never hang. Say so plainly
+        // instead of leaving a spinner up indefinitely.
+        var dashDeniedEl = document.getElementById('dash-tiles');
+        if (dashDeniedEl) dashDeniedEl.innerHTML = '<div class="settings-info">Dashboard access is not enabled for your login.</div>';
+        return;
+    }
     if (!db) { showDashOffline(); return; }
     hideDashOffline();
     ensureDashFilterDefaults();
