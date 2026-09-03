@@ -293,7 +293,7 @@ tbody tr:hover{background:#f9fbfd}
     </ul>
     <div class="sidebar-footer">
       <button class="logout-btn" onclick="adminLogout()">⎋ Logout</button>
-      <div class="ver-footer">ArtzFolio Admin Panel v2.14</div>
+      <div class="ver-footer">ArtzFolio Admin Panel v2.15</div>
     </div>
   </div>
 
@@ -2662,11 +2662,11 @@ function unlockEmployee(code) {
 // Same shape as the App's own ROLE_PERMISSIONS object (index.html) — kept
 // in sync by hand since this is a static-HTML pair, not a shared module.
 var ROLE_PERMISSION_PRESETS = {
-  WAREHOUSE_STAFF:  { pick: true,  move: false, stock: false, log: true, logScope: 'own', guide: true, settings: false, dash: false },
-  BILLING_OPERATOR: { pick: true,  move: false, stock: true,  log: true, logScope: 'own', guide: true, settings: false, dash: false },
-  INVENTORY_LEAD:   { pick: true,  move: true,  stock: true,  log: true, logScope: 'all', guide: true, settings: false, dash: false },
-  PRODUCTION_LEAD:  { pick: false, move: false, stock: true,  log: true, logScope: 'all', guide: true, settings: false, dash: false },
-  ADMIN:            { pick: true,  move: true,  stock: true,  log: true, logScope: 'all', guide: true, settings: true,  dash: true }
+  WAREHOUSE_STAFF:  { pick: true,  move: false, stock: false, log: true, logScope: 'own', guide: true, settings: false, dash: false, sessions: false },
+  BILLING_OPERATOR: { pick: true,  move: false, stock: true,  log: true, logScope: 'own', guide: true, settings: false, dash: false, sessions: false },
+  INVENTORY_LEAD:   { pick: true,  move: true,  stock: true,  log: true, logScope: 'all', guide: true, settings: false, dash: false, sessions: false },
+  PRODUCTION_LEAD:  { pick: false, move: false, stock: true,  log: true, logScope: 'all', guide: true, settings: false, dash: false, sessions: false },
+  ADMIN:            { pick: true,  move: true,  stock: true,  log: true, logScope: 'all', guide: true, settings: true,  dash: true, sessions: false }
 };
 var PERMISSION_SECTIONS = [
   { key: 'pick',     label: 'Pick',      help: 'Scan and fulfil customer orders — the App\'s main PICK tab.' },
@@ -2675,7 +2675,11 @@ var PERMISSION_SECTIONS = [
   { key: 'log',      label: 'Log',       help: 'View the activity log. Choose below whether they see only their own actions, or the whole team\'s.' },
   { key: 'guide',    label: 'Guide',     help: 'The App\'s in-app help/reference guide. Almost never worth hiding — checked by default.' },
   { key: 'settings', label: 'Settings',  help: 'The App\'s own Settings tab (device/session tools). Not the same as this Admin Panel.' },
-  { key: 'dash',     label: 'Dashboard', help: 'The Owner Dashboard tab inside the phone App (KPIs/charts). Separate from this Admin Panel\'s own Dashboard page.' }
+  { key: 'dash',     label: 'Dashboard', help: 'The Owner Dashboard tab inside the phone App (KPIs/charts). Separate from this Admin Panel\'s own Dashboard page.' },
+  // v2.15 (Master Prompt v19, Part 2) — Scan Sessions. Ships OFF for everyone,
+  // including ADMIN and every preset. Turn it on for one person for a week
+  // before rolling it out to the floor.
+  { key: 'sessions', label: 'Scan Sessions', help: 'Lets this person group a batch of MOVE scans into a session, review it for double-counts and missed items, then commit it or reverse the whole batch. Off by default. Reversing a session needs the Admin Secret.' }
 ];
 
 function buildPermissionUIHtml(prefix) {

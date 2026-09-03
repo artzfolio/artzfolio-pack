@@ -388,7 +388,7 @@
     </style>
 </head>
 <body>
-<div class="ver-corner" id="verCornerBadge" onclick="handleVerBadgeTap()">v75</div>
+<div class="ver-corner" id="verCornerBadge" onclick="handleVerBadgeTap()">v76</div>
 <!-- v63: Gap 2 — offline write-queue indicator. Hidden (display:none) unless
      something is actually queued or failed. Tapping it shows the queue detail
      panel (openOfflineQueuePanel()). -->
@@ -516,6 +516,12 @@
              flow above — this is for warehouse events that aren't order dispatch. -->
         <div id="move-tab" class="tab-content">
             <div class="db-offline-banner" id="move-offline-banner">&#9888; Live database not reachable right now. Movements cannot be recorded until this reconnects — check your internet connection.</div>
+            <!-- v76 (Master Prompt v19, Part 2): Scan Sessions mount point.
+                 Rendered entirely from renderSessionBar(). Stays display:none
+                 unless the logged-in employee has permissions.sessions === true,
+                 which defaults OFF for everyone including ADMIN. With the flag
+                 off this element is empty and the MOVE tab is identical to v75. -->
+            <div id="session-bar" style="display:none;"></div>
             <!-- v62: Phase 3, Feature 4 — Scheduled Cycle Counting. A small daily
                  list generated automatically (oms_generate_cycle_count_queue, pg_cron
                  3:15 UTC daily), prioritising A-tier SKUs and whichever haven't been
@@ -1038,7 +1044,7 @@
 
             <!-- Version -->
             <div class="ver-badge">
-                <div class="ver-name">&#128230; ArtzFolio Scan-Pick-Pack v75</div>
+                <div class="ver-name">&#128230; ArtzFolio Scan-Pick-Pack v76</div>
                 <div class="ver-sub">Full changelog available on request.</div>
             </div>
         </div>
@@ -1443,6 +1449,7 @@ function writeAuditLog(actionType, opts) {
 var state = {
     tab:          'pick',
     session:      null,    // { employee_code, display_name, role } — set on login (v37)
+    moveSession:  null,    // v76: the OPEN scan session for this device, or null
     pickState:    'IDLE',  // IDLE | NEED_BIN | NEED_SKU | NEXT_LINE | READY
     order:        null,
     bin:          null,
@@ -1513,11 +1520,11 @@ var CH_NAME = {
 // v40: added "dash" key (Owner Dashboard tab) — true only for ADMIN. Every
 // other existing key/value on every role is unchanged.
 var ROLE_PERMISSIONS = {
-    WAREHOUSE_STAFF:  { pick:true,  move:false, stock:false, log:true, guide:true, settings:false, dash:false, logScope:'own' },
-    BILLING_OPERATOR: { pick:true,  move:false, stock:true,  log:true, guide:true, settings:false, dash:false, logScope:'own' },
-    INVENTORY_LEAD:   { pick:true,  move:true,  stock:true,  log:true, guide:true, settings:false, dash:false, logScope:'all' },
-    PRODUCTION_LEAD:  { pick:false, move:false, stock:true,  log:true, guide:true, settings:false, dash:false, logScope:'all' },
-    ADMIN:            { pick:true,  move:true,  stock:true,  log:true, guide:true, settings:true,  dash:true,  logScope:'all' }
+    WAREHOUSE_STAFF:  { pick:true,  move:false, stock:false, log:true, guide:true, settings:false, dash:false, sessions:false, logScope:'own' },
+    BILLING_OPERATOR: { pick:true,  move:false, stock:true,  log:true, guide:true, settings:false, dash:false, sessions:false, logScope:'own' },
+    INVENTORY_LEAD:   { pick:true,  move:true,  stock:true,  log:true, guide:true, settings:false, dash:false, sessions:false, logScope:'all' },
+    PRODUCTION_LEAD:  { pick:false, move:false, stock:true,  log:true, guide:true, settings:false, dash:false, sessions:false, logScope:'all' },
+    ADMIN:            { pick:true,  move:true,  stock:true,  log:true, guide:true, settings:true,  dash:true,  sessions:false, logScope:'all' }
 };
 // v73 (Master Prompt v17, Part C): per-employee checkbox permissions from
 // the Admin Panel now override this fixed role lookup when present —
@@ -1783,6 +1790,200 @@ function logout() {
 // Hides (display:none, not just disabled) the bottom-nav buttons for tabs
 // the logged-in role cannot access. switchTab() itself also refuses to
 // enter a forbidden tab, so this is belt-and-braces, not the only guard.
+
+// ══════════════════ SCAN SESSIONS (v76, Master Prompt v19, Part 2) ══════════════════
+// Design: 00_Briefs/2026.09.03_OMS_ScanSession_VoidCommit_Design_Proposal_v1.md
+// Locked decisions, deliberately NOT re-litigated here:
+//   * per-device sessions (a shared multi-device session is a v2, out of scope)
+//   * Option B — rows write to the ledger LIVE and simply carry a session_id.
+//     Commit is a status flip. Void writes one REVERSING row per session row.
+//     Nothing is ever hidden from live stock and nothing is ever deleted.
+//   * MOVE only — PICK is untouched (a voided dispatch has already left the
+//     building), and so is bulk CSV upload.
+//   * behind permissions.sessions, default OFF for every login including ADMIN.
+function scanSessionsEnabled() {
+    return effectivePermissions().sessions === true;
+}
+// A stable per-device id. Sessions are per-device by design, so this is what
+// distinguishes two phones used by the same employee.
+function scanSessionDeviceHint() {
+    var h = lsGet('af_device_hint');
+    if (!h) { h = 'dev-' + Math.random().toString(36).slice(2, 10); lsSet('af_device_hint', h); }
+    return h;
+}
+function refreshScanSessionState() {
+    if (!scanSessionsEnabled() || !db || !state.session) { renderSessionBar(); return; }
+    // Re-attach to whatever is genuinely OPEN server-side for this device,
+    // so a reload, a re-login or a second tab never loses or duplicates one.
+    withTimeout(db.from('oms_scan_sessions')
+        .select('session_id,status,opened_at')
+        .eq('employee_code', state.session.employee_code)
+        .eq('device_hint', scanSessionDeviceHint())
+        .eq('status', 'OPEN').limit(1), 8000, 'Scan session lookup')
+    .then(function (res) {
+        var row = res && res.data && res.data[0];
+        if (!row) { state.moveSession = null; renderSessionBar(); return; }
+        return withTimeout(db.from('oms_inventory_transactions')
+                .select('txn_id', { count: 'exact', head: true })
+                .eq('session_id', row.session_id), 8000, 'Scan session count')
+            .then(function (c) {
+                row.scan_count = (c && typeof c.count === 'number') ? c.count : 0;
+                state.moveSession = row; renderSessionBar();
+            });
+    }).catch(function () { renderSessionBar(); });
+}
+function renderSessionBar() {
+    var el = document.getElementById('session-bar');
+    if (!el) return;
+    if (!scanSessionsEnabled()) { el.style.display = 'none'; el.innerHTML = ''; return; }
+    el.style.display = '';
+    var s = state.moveSession;
+    if (!s || s.status !== 'OPEN') {
+        el.innerHTML =
+            '<div class="settings-section" style="margin-bottom:10px;">' +
+            '<h3 style="margin-top:0;">&#128260; Scan Session</h3>' +
+            '<div class="settings-info">Group the next batch of scans together, then review them as one before committing &mdash; or reverse the whole batch if it went wrong. Your scans still save live either way.</div>' +
+            '<button class="settings-btn" onclick="startScanSession()">&#9654;&#65039; Start Session</button>' +
+            '</div>';
+        return;
+    }
+    var t = new Date(s.opened_at);
+    var hh = ('0' + t.getHours()).slice(-2) + ':' + ('0' + t.getMinutes()).slice(-2);
+    el.innerHTML =
+        '<div class="settings-section" style="margin-bottom:10px;border:1px solid #1B7A3A;background:#f3fbf5;">' +
+        '<h3 style="margin-top:0;">&#128994; Session open &middot; ' + (s.scan_count || 0) + ' scans &middot; started ' + hh + '</h3>' +
+        '<div class="settings-info">Everything you submit below saves live exactly as normal, and is also tagged to this session.</div>' +
+        '<button class="settings-btn" onclick="closeScanSession()">&#9209;&#65039; Close Session &amp; Review</button>' +
+        '</div>';
+}
+function startScanSession() {
+    if (!db) { alert('No live connection — a session cannot be started offline.'); return; }
+    withTimeout(db.rpc('oms_open_scan_session', {
+        p_employee_code: state.session.employee_code,
+        p_device_hint: scanSessionDeviceHint()
+    }), 10000, 'Start session').then(function (res) {
+        if (res.error) { alert('Could not start a session: ' + res.error.message); return; }
+        var d = res.data || {};
+        state.moveSession = { session_id: d.session_id, status: 'OPEN',
+                              opened_at: d.opened_at, scan_count: d.scan_count || 0 };
+        renderSessionBar();
+    }).catch(function (e) { alert('Could not start a session: ' + e); });
+}
+function closeScanSession() {
+    if (!db || !state.moveSession) return;
+    withTimeout(db.rpc('oms_close_scan_session', {
+        p_session_id: state.moveSession.session_id,
+        p_employee_code: state.session.employee_code
+    }), 15000, 'Close session').then(function (res) {
+        if (res.error) { alert('Could not close the session: ' + res.error.message); return; }
+        state.moveSession = null;
+        renderReconciliation(res.data || {});
+    }).catch(function (e) { alert('Could not close the session: ' + e); });
+}
+function renderReconciliation(r) {
+    var el = document.getElementById('session-bar');
+    if (!el) return;
+    var h = '<div class="settings-section" style="margin-bottom:10px;border:1px solid #d9a63a;background:#fff8e6;">' +
+        '<h3 style="margin-top:0;">&#128203; Session closed &mdash; review before you decide</h3>' +
+        '<div class="settings-info"><strong>' + (r.scan_count || 0) + '</strong> entries &middot; <strong>' +
+        (r.distinct_skus || 0) + '</strong> different SKUs &middot; net qty <strong>' + (r.total_qty || 0) + '</strong></div>';
+
+    var d = r.duplicates || [];
+    if (d.length) {
+        h += '<div style="margin-top:8px;font-size:12px;"><strong>&#9888;&#65039; Scanned more than once in this session</strong>' +
+             '<div style="font-size:11px;color:#666;margin-bottom:4px;">The likely double-count. Check these physically before committing.</div>';
+        for (var i = 0; i < d.length; i++) {
+            h += '<div>&bull; <strong>' + d[i].sku_code + '</strong> &mdash; ' + d[i].times_scanned +
+                 ' entries, total qty ' + d[i].total_qty + '</div>';
+        }
+        h += '</div>';
+    } else {
+        h += '<div style="margin-top:8px;font-size:12px;color:#1B7A3A;">&#10003; No SKU was scanned twice in this session.</div>';
+    }
+
+    var m = r.expected_not_scanned;
+    if (m === null || typeof m === 'undefined') {
+        h += '<div style="margin-top:8px;font-size:11px;color:#888;">No manifest was provided for this session, so &ldquo;missed items&rdquo; cannot be checked.</div>';
+    } else if (m.length) {
+        h += '<div style="margin-top:8px;font-size:12px;"><strong>&#9888;&#65039; On the manifest but never scanned</strong>';
+        for (var j = 0; j < m.length; j++) {
+            h += '<div>&bull; <strong>' + m[j].sku_code + '</strong> &mdash; expected ' + m[j].expected_qty + '</div>';
+        }
+        h += '</div>';
+    } else {
+        h += '<div style="margin-top:8px;font-size:12px;color:#1B7A3A;">&#10003; Every SKU on the manifest was scanned.</div>';
+    }
+
+    var v = r.variances;
+    if (v && v.length) {
+        h += '<div style="margin-top:8px;font-size:12px;"><strong>&#9888;&#65039; Counted differently from the manifest</strong>';
+        for (var k = 0; k < v.length; k++) {
+            h += '<div>&bull; <strong>' + v[k].sku_code + '</strong> &mdash; expected ' + v[k].expected_qty +
+                 ', scanned ' + v[k].scanned_qty + ' (' + (v[k].variance > 0 ? '+' : '') + v[k].variance + ')</div>';
+        }
+        h += '</div>';
+    }
+
+    h += '<div style="display:flex;gap:8px;margin-top:12px;">' +
+         '<button class="settings-btn" style="flex:1" onclick="commitScanSession(\'' + r.session_id + '\')">&#10003; Commit</button>' +
+         '<button class="settings-btn" style="flex:1;background:#a33;" onclick="voidScanSession(\'' + r.session_id + '\',' + (r.scan_count || 0) + ')">&#8630; Reverse</button>' +
+         '</div>' +
+         '<div style="font-size:11px;color:#666;margin-top:6px;">Commit accepts the entries as they are &mdash; they are already live, so nothing else changes. ' +
+         'Reverse writes one balancing entry for each one, backing the batch out. The original entries stay in the log either way.</div>' +
+         '<div id="session-action-result" class="move-result"></div></div>';
+    el.style.display = '';
+    el.innerHTML = h;
+}
+function commitScanSession(sid) {
+    var out = document.getElementById('session-action-result');
+    // Design doc 6.5: a session must not be committable while this device
+    // still holds unflushed writes, or the commit would bless a batch that
+    // is not actually complete in the ledger yet.
+    getOfflineQueue().then(function (rows) {
+        var pending = rows.filter(function (r) { return r.status === 'QUEUED' || r.status === 'FAILED'; }).length;
+        if (pending > 0) {
+            if (out) { out.className = 'move-result err';
+                out.textContent = 'Cannot commit yet — ' + pending + ' entry(s) from this device have not reached the database. Reconnect and let them sync first.'; }
+            return null;
+        }
+        return withTimeout(db.rpc('oms_commit_scan_session', {
+            p_session_id: sid, p_employee_code: state.session.employee_code
+        }), 10000, 'Commit session').then(function (res) {
+            if (res.error) {
+                if (out) { out.className = 'move-result err'; out.textContent = 'Could not commit: ' + res.error.message; }
+                return;
+            }
+            state.moveSession = null;
+            if (out) { out.className = 'move-result'; out.textContent = 'Committed — ' + ((res.data || {}).entries || 0) + ' entries accepted.'; }
+            setTimeout(refreshScanSessionState, 1200);
+        });
+    }).catch(function (e) {
+        if (out) { out.className = 'move-result err'; out.textContent = 'Could not commit: ' + e; }
+    });
+}
+function voidScanSession(sid, n) {
+    var out = document.getElementById('session-action-result');
+    if (!confirm('Reverse this whole session?\n\n' + n + ' entry(s) will each get a balancing entry that backs them out of live stock.\n\nNothing is deleted — the original entries stay in the log, and so do the balancing ones.')) return;
+    var secret = prompt('Reversing a session changes live stock in bulk, so it needs the Admin Secret:');
+    if (!secret) return;
+    withTimeout(db.rpc('oms_void_scan_session', {
+        p_session_id: sid, p_admin_secret: secret,
+        p_employee_code: state.session.employee_code, p_note: null
+    }), 20000, 'Reverse session').then(function (res) {
+        if (res.error) {
+            if (out) { out.className = 'move-result err'; out.textContent = 'Not reversed: ' + res.error.message; }
+            return;
+        }
+        state.moveSession = null;
+        // Wording matters here: these entries were REVERSED, not deleted.
+        if (out) { out.className = 'move-result';
+            out.textContent = 'Reversed — ' + ((res.data || {}).entries_reversed || 0) + ' entries backed out.'; }
+        setTimeout(refreshScanSessionState, 1200);
+    }).catch(function (e) {
+        if (out) { out.className = 'move-result err'; out.textContent = 'Not reversed: ' + e; }
+    });
+}
+
 function applyRolePermissions() {
     if (!state.session) return;
     var perm = effectivePermissions();
@@ -2442,7 +2643,15 @@ function buildLedgerTxnRow(opts, emp) {
         bin_code: opts.binCode || null,
         employee_code: emp ? emp.code : null,
         note: opts.note || null,
-        entry_source: 'APP'
+        entry_source: 'APP',
+        // v76 (Master Prompt v19, Part 2): the ONE place a session id is ever
+        // attached to a ledger row. Only the interactive MOVE submit path opts
+        // in via sessionEligible, so bulk CSV upload and PICK stay untagged and
+        // behave exactly as v75 — MOVE-only was a locked design decision.
+        // With the feature flag off there is no open session, so this is null
+        // and the row is byte-for-byte what v75 produced.
+        session_id: (opts.sessionEligible && state.moveSession && state.moveSession.status === 'OPEN')
+                    ? state.moveSession.session_id : null
     };
 }
 function writeLedgerTxn(opts) {
@@ -2480,6 +2689,13 @@ function writeLedgerTxn(opts) {
             return { ok: false, reason: res.error.message };
         }
         setDbOnline();
+        // v76: a tagged write just landed — keep the session banner's count
+        // truthful without another round trip. Purely a UI counter; the
+        // authoritative count is always recomputed server-side on Close.
+        if (row.session_id && state.moveSession) {
+            state.moveSession.scan_count = (state.moveSession.scan_count || 0) + 1;
+            try { renderSessionBar(); } catch (e) {}
+        }
         return { ok: true, row: res.data && res.data[0] };
     }).catch(function(err) {
         setDbOffline(err);
@@ -2870,6 +3086,7 @@ function submitMoveTransaction() {
                 if (!sure) { resEl.className = 'move-result'; resEl.textContent = 'Cancelled — nothing was saved.'; return null; }
                 resEl.textContent = 'Saving correction...';
                 return writeLedgerTxn({
+                    sessionEligible: true,
                     skuCode: sku.sku_code,
                     asin: sku.asin,
                     qtyDelta: delta,
@@ -2943,6 +3160,7 @@ function proceedMoveWithSku(sku, binVal, qtyVal, note, resEl) {
         var holdLabel = returnGrade === 'DAMAGED' ? 'Damaged return — auto QC-held, not sellable.' : 'Wrong item — flagged for manual review, not restocked.';
         var combinedNote = holdLabel + (note ? ' ' + note : '');
         return writeLedgerTxn({
+            sessionEligible: true,
             skuCode: sku.sku_code, asin: sku.asin, qtyDelta: qtyVal,
             txnType: 'RETURN_IN', binCode: binVal, note: combinedNote
         }).then(function(result1) {
@@ -2952,6 +3170,7 @@ function proceedMoveWithSku(sku, binVal, qtyVal, note, resEl) {
                 return;
             }
             return writeLedgerTxn({
+                sessionEligible: true,
                 skuCode: sku.sku_code, asin: sku.asin, qtyDelta: -qtyVal,
                 txnType: holdType, binCode: binVal, note: combinedNote
             }).then(function(result2) {
@@ -2976,6 +3195,7 @@ function proceedMoveWithSku(sku, binVal, qtyVal, note, resEl) {
 
     resEl.textContent = 'Saving...';
     return writeLedgerTxn({
+        sessionEligible: true,
         skuCode: sku.sku_code,
         asin: sku.asin,
         qtyDelta: cfg.sign * qtyVal,
@@ -6457,6 +6677,7 @@ function switchTab(tab) {
     if (tab === 'move') {
         if (!dbOnline && db) { /* let a fresh call retry */ }
         setMoveMode(moveMode);
+        refreshScanSessionState();   // v76
     }
     if (tab === 'stock') {
         loadStockTab(false);
