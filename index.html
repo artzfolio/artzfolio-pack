@@ -250,6 +250,11 @@
         .sku-detail-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:220;align-items:flex-end;justify-content:center}
         .sku-detail-overlay.open{display:flex}
         .sku-detail-sheet{background:#fff;width:100%;max-width:520px;max-height:82vh;overflow-y:auto;border-radius:16px 16px 0 0;padding:16px 16px calc(20px + env(safe-area-inset-bottom,0px));box-shadow:0 -4px 24px rgba(0,0,0,.25)}
+        /* v78: small inline copy-to-clipboard chip, used next to SKU/ASIN/Title
+           in the SKU Detail sheet. Deliberately tiny and low-contrast so it
+           doesn't compete with the text it sits next to. */
+        .copy-chip{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;margin-left:5px;border:none;background:#f0f2f5;color:#666;border-radius:6px;font-size:12px;cursor:pointer;vertical-align:middle;padding:0}
+        .copy-chip.copied{background:#eafaf1;color:#1e8449}
         .stock-qty.low{color:#c0392b;background:#fdedec}
         .stock-live-dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:#27AE60;margin-right:5px;box-shadow:0 0 0 0 rgba(39,174,96,.6);animation:livepulse 1.6s infinite}
         @keyframes livepulse{0%{box-shadow:0 0 0 0 rgba(39,174,96,.55)}70%{box-shadow:0 0 0 6px rgba(39,174,96,0)}100%{box-shadow:0 0 0 0 rgba(39,174,96,0)}}
@@ -393,7 +398,7 @@
     </style>
 </head>
 <body>
-<div class="ver-corner" id="verCornerBadge" onclick="handleVerBadgeTap()">v77</div>
+<div class="ver-corner" id="verCornerBadge" onclick="handleVerBadgeTap()">v78</div>
 <!-- v63: Gap 2 — offline write-queue indicator. Hidden (display:none) unless
      something is actually queued or failed. Tapping it shows the queue detail
      panel (openOfflineQueuePanel()). -->
@@ -446,6 +451,15 @@
     <!-- MAIN CONTENT -->
     <div class="content">
         <div id="pick-tab" class="tab-content active">
+            <!-- v78: top-of-page refresh. PICK is scan-driven (each order/SKU is
+                 already looked up fresh from the server at scan time, not a
+                 cached list), so unlike STOCK/LOG/MOVE there's no stale on-screen
+                 list to reload — this instead clears any in-progress pick back to
+                 a clean scanning state and re-pulls the offline SKU cache, the
+                 one thing on this tab that genuinely can go stale. -->
+            <div style="display:flex;justify-content:flex-end;margin-bottom:6px;">
+                <button class="csv-btn" onclick="refreshPickTab()">&#8635; Refresh</button>
+            </div>
             <!-- Steps -->
             <div class="steps">
                 <div class="step" id="step-1">1 PICK LIST</div>
@@ -521,6 +535,12 @@
              flow above — this is for warehouse events that aren't order dispatch. -->
         <div id="move-tab" class="tab-content">
             <div class="db-offline-banner" id="move-offline-banner">&#9888; Live database not reachable right now. Movements cannot be recorded until this reconnects — check your internet connection.</div>
+            <!-- v78: refresh button, same "csv-btn / &#8635; Refresh" pattern already
+                 used on STOCK and DASH — reloads the bin list, this device's scan
+                 session state, and Today's Cycle Count, without leaving the tab. -->
+            <div style="display:flex;justify-content:flex-end;margin-bottom:6px;">
+                <button class="csv-btn" onclick="refreshMoveTab()">&#8635; Refresh</button>
+            </div>
             <!-- v76 (Master Prompt v19, Part 2): Scan Sessions mount point.
                  Rendered entirely from renderSessionBar(). Stays display:none
                  unless the logged-in employee has permissions.sessions === true,
@@ -778,7 +798,14 @@
         <div id="log-tab" class="tab-content">
             <div class="log-header">
                 <h2>&#128220; Scan Log (<span id="log-count">0</span>)</h2>
-                <button class="csv-btn" onclick="exportCSV()">&#8595; CSV</button>
+                <div style="display:flex;gap:6px;">
+                    <!-- v78: top-of-page refresh, same csv-btn pattern as STOCK/DASH/MOVE.
+                         Pulls both this device's own log (loadServerActivity(), previously
+                         only reachable via a button further down the page) and the
+                         store-wide reconciliation summary. -->
+                    <button class="csv-btn" onclick="refreshLogTab()">&#8635; Refresh</button>
+                    <button class="csv-btn" onclick="exportCSV()">&#8595; CSV</button>
+                </div>
             </div>
             <div class="settings-notice" id="log-scope-note" style="display:none;margin-bottom:8px;">&#128100; Showing your activity only.</div>
 
@@ -980,6 +1007,13 @@
 
         <!-- SETTINGS TAB -->
         <div id="settings-tab" class="tab-content">
+            <!-- v78: top-of-page refresh, same pattern as every other tab. SET
+                 already re-runs refreshSettingsTab()/renderAdminPanel() every time
+                 you switch onto this tab, so this button mainly matters if you're
+                 already sitting on SET and want fresh data without leaving it. -->
+            <div style="display:flex;justify-content:flex-end;margin-bottom:6px;">
+                <button class="csv-btn" onclick="refreshSettingsTab();renderAdminPanel();">&#8635; Refresh</button>
+            </div>
 
             <!-- Employee (v37: real login session, not free-text) -->
             <div class="settings-section">
@@ -1066,7 +1100,7 @@
 
             <!-- Version -->
             <div class="ver-badge">
-                <div class="ver-name">&#128230; ArtzFolio Scan-Pick-Pack v77</div>
+                <div class="ver-name">&#128230; ArtzFolio Scan-Pick-Pack v78</div>
                 <div class="ver-sub">Full changelog available on request.</div>
             </div>
         </div>
@@ -2283,6 +2317,14 @@ function esc59(s) {
         return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
     });
 }
+// v78: top-of-page LOG refresh — pulls this device's own server-recorded
+// activity and the store-wide reconciliation summary together, so one tap
+// covers everything this tab shows without needing to know which of the
+// two separate load functions actually holds the stale data.
+function refreshLogTab() {
+    loadServerActivity();
+    loadReconciliation();
+}
 function loadServerActivity() {
     var box = document.getElementById('server-activity-list');
     if (!box) return;
@@ -2858,6 +2900,18 @@ function loadBinList() {
             }
         })
         .catch(function() {});
+}
+// v78: manual refresh for the MOVE tab (the owner flagged that only STOCK
+// and DASH had a way to pull fresh data without switching tabs and back).
+// Re-fetches everything MOVE holds that can go stale: the bin datalist
+// (loadBinList() normally caches after its first fetch — cleared here so it
+// genuinely re-fetches), this device's scan session state, and Today's
+// Cycle Count. Does NOT touch anything mid-entry in the form itself.
+function refreshMoveTab() {
+    BIN_LIST = null;
+    loadBinList();
+    refreshScanSessionState();
+    refreshTodaysCountList();
 }
 // v57 NEW: warehouse-wide fallback bin for brand-new stock. Rajat has
 // consolidated the physical warehouse so A1 is now the default landing
@@ -4310,6 +4364,47 @@ function closeSkuDetail() {
 function skuDetailCloseBtn() {
     return '<div style="text-align:right;"><button class="csv-btn" onclick="closeSkuDetail()">&times; Close</button></div>';
 }
+// v78: copy-to-clipboard chip, requested for the SKU Detail sheet's SKU
+// code, ASIN, and Product Title. navigator.clipboard needs a secure context
+// (HTTPS, which oms.artzfolio.com already is) but isn't available in every
+// browser/webview, so this falls back to the older execCommand('copy')
+// approach via a hidden textarea rather than silently doing nothing.
+function copyToClipboard(text, btnEl) {
+    if (!text) return;
+    var showCopied = function() {
+        if (!btnEl) return;
+        btnEl.classList.add('copied');
+        btnEl.innerHTML = '&#10003;';
+        setTimeout(function() { btnEl.classList.remove('copied'); btnEl.innerHTML = '&#128203;'; }, 1200);
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(showCopied).catch(function() { legacyCopyFallback(text, showCopied); });
+    } else {
+        legacyCopyFallback(text, showCopied);
+    }
+}
+function legacyCopyFallback(text, cb) {
+    var ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed'; ta.style.left = '-9999px'; ta.style.top = '-9999px';
+    document.body.appendChild(ta);
+    ta.focus(); ta.select();
+    try { document.execCommand('copy'); } catch (e) {}
+    document.body.removeChild(ta);
+    if (cb) cb();
+}
+// Builds one copy chip. Value goes into a data-copy attribute (HTML-attribute
+// escaped only) rather than inline into an onclick string, so a product
+// title containing a quote or ampersand can't break the markup or need a
+// second layer of JS-string escaping.
+function copyChipHtml(text) {
+    if (!text) return '';
+    var esc = String(text).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    return '<button type="button" class="copy-chip" data-copy="' + esc + '" onclick="event.stopPropagation();copyFromChip(this)" title="Copy">&#128203;</button>';
+}
+function copyFromChip(btn) {
+    copyToClipboard(btn.getAttribute('data-copy'), btn);
+}
 function renderSkuDetailSheet(r, bin) {
     var sheet = document.getElementById('sku-detail-sheet');
     if (!sheet) return;
@@ -4329,9 +4424,9 @@ function renderSkuDetailSheet(r, bin) {
     sheet.innerHTML =
         skuDetailCloseBtn() +
         '<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-top:4px;">' +
-        '<div><div class="stock-sku" style="font-size:15px;">' + (r.sku_code || '') + '<span class="stock-status-badge ' + badgeCls + '">' + badgeText + '</span>' + abcBadge + '</div>' +
-        (r.product_name ? ('<div class="stock-name">' + r.product_name + '</div>') : '') +
-        '<div class="stock-asin">ASIN: ' + (r.asin || '—') + '</div>' +
+        '<div><div class="stock-sku" style="font-size:15px;">' + (r.sku_code || '') + copyChipHtml(r.sku_code) + '<span class="stock-status-badge ' + badgeCls + '">' + badgeText + '</span>' + abcBadge + '</div>' +
+        (r.product_name ? ('<div class="stock-name">' + r.product_name + copyChipHtml(r.product_name) + '</div>') : '') +
+        '<div class="stock-asin">ASIN: ' + (r.asin || '—') + copyChipHtml(r.asin) + '</div>' +
         (r.product_type ? ('<div class="stock-cat">' + r.product_type + '</div>') : '') +
         '</div>' +
         '<div class="stock-qty">' + r.qty_on_hand + '<div style="font-size:9px;color:#999;font-weight:400;text-align:center;">on hand</div></div>' +
@@ -5187,6 +5282,12 @@ function reportIssue() {
     setStatus('&#9888; Issue logged. Please inform your supervisor.', 'error');
     vibrate([100, 50, 100, 50, 200]);
     resetPick();
+}
+// v78: see the button comment on pick-tab for why this differs from
+// refreshMoveTab()/refreshLogTab() — no stale list to reload here.
+function refreshPickTab() {
+    resetPick();
+    if (db) syncSkuCacheForOffline();
 }
 function resetPick() {
     state.pickState    = 'IDLE';
