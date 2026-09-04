@@ -293,7 +293,7 @@ tbody tr:hover{background:#f9fbfd}
     </ul>
     <div class="sidebar-footer">
       <button class="logout-btn" onclick="adminLogout()">⎋ Logout</button>
-      <div class="ver-footer">ArtzFolio Admin Panel v2.15</div>
+      <div class="ver-footer">ArtzFolio Admin Panel v2.16</div>
     </div>
   </div>
 
@@ -547,7 +547,11 @@ tbody tr:hover{background:#f9fbfd}
       <div class="page-header">
         <div>
           <div class="page-title">SKU &amp; Stock Search</div>
-          <div class="page-sub">11,192 SKUs live — searched and paginated server-side, not pulled all at once.</div>
+          <!-- v2.16 fix (found alongside the App's v20.1 round): this used to be a
+               static "11,192 SKUs live" string that never updated as the real count
+               changed — same class of stale/hardcoded-number issue fixed in the App
+               this round. Now filled in live by loadSkuStock() below. -->
+          <div class="page-sub"><span id="sku-stock-total-count">Loading…</span> SKUs live — searched and paginated server-side, not pulled all at once.</div>
         </div>
         <div>
           <button class="btn btn-gold" onclick="exportSkuCSV()">⬇ Export CSV (loaded page)</button>
@@ -2978,8 +2982,25 @@ function buildSkuBaseQuery() {
   return query.order('sku_code');
 }
 
+// v2.16 fix: true live count for the page-sub line above the SKU & Stock
+// table (was a static "11,192" that never updated). Loaded once per session
+// like the App's own loadStockCategoryOptions() — a plain SKU count barely
+// changes minute to minute, so there's no need to re-query it on every
+// search/filter/page change the way the actual results are.
+var skuStockTotalCountLoaded = false;
+function loadSkuStockTotalCount() {
+  if (skuStockTotalCountLoaded || !db) return;
+  skuStockTotalCountLoaded = true;
+  withTimeout(db.from('oms_sku_master').select('sku_code', { count: 'exact', head: true }), 10000, 'SKU total count')
+    .then(function (res) {
+      var el = document.getElementById('sku-stock-total-count');
+      if (el && !res.error && typeof res.count === 'number') el.textContent = res.count.toLocaleString();
+    })
+    .catch(function () { skuStockTotalCountLoaded = false; });
+}
 function loadSkuStock(page) {
   if (!db) { refreshOfflineBanner(); return; }
+  loadSkuStockTotalCount();
   skuPage = page;
   var body = document.getElementById('sku-body');
   body.innerHTML = '<tr class="empty-row"><td colspan="13">Loading...</td></tr>';
