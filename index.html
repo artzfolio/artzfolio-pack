@@ -398,7 +398,7 @@
     </style>
 </head>
 <body>
-<div class="ver-corner" id="verCornerBadge" onclick="handleVerBadgeTap()">v78</div>
+<div class="ver-corner" id="verCornerBadge" onclick="handleVerBadgeTap()">v79</div>
 <!-- v63: Gap 2 — offline write-queue indicator. Hidden (display:none) unless
      something is actually queued or failed. Tapping it shows the queue detail
      panel (openOfflineQueuePanel()). -->
@@ -1100,7 +1100,7 @@
 
             <!-- Version -->
             <div class="ver-badge">
-                <div class="ver-name">&#128230; ArtzFolio Scan-Pick-Pack v78</div>
+                <div class="ver-name">&#128230; ArtzFolio Scan-Pick-Pack v79</div>
                 <div class="ver-sub">Full changelog available on request.</div>
             </div>
         </div>
@@ -1580,8 +1580,14 @@ var ROLE_PERMISSIONS = {
     BILLING_OPERATOR: { pick:true,  move:false, stock:true,  log:true, guide:true, settings:false, dash:false, sessions:false, logScope:'own' },
     INVENTORY_LEAD:   { pick:true,  move:true,  stock:true,  log:true, guide:true, settings:false, dash:false, sessions:false, logScope:'all' },
     PRODUCTION_LEAD:  { pick:false, move:false, stock:true,  log:true, guide:true, settings:false, dash:false, sessions:false, logScope:'all' },
-    ADMIN:            { pick:true,  move:true,  stock:true,  log:true, guide:true, settings:true,  dash:true,  sessions:false, logScope:'all' }
+    ADMIN:            { pick:true,  move:true,  stock:true,  log:true, guide:true, settings:true,  dash:true,  sessions:true,  logScope:'all' }
 };
+// v79 (Master Prompt v21, Part 5): the "default off for everyone" launch
+// decision behind Scan Sessions (v76) is scoped to ADMIN specifically ending
+// here — every other key for ADMIN was already true; sessions was the one
+// deliberate holdout. WAREHOUSE_STAFF/BILLING_OPERATOR/INVENTORY_LEAD/
+// PRODUCTION_LEAD are untouched (still sessions:false) — this is not a
+// rollout to everyone, only the end of ADMIN's own exception.
 // v73 (Master Prompt v17, Part C): per-employee checkbox permissions from
 // the Admin Panel now override this fixed role lookup when present —
 // state.session.permissions is set from oms_verify_login's widened return
@@ -1689,6 +1695,56 @@ function loadRememberSession() {
 }
 function clearRememberSession() {
     try { localStorage.removeItem(OMS_REMEMBER_KEY); } catch (e) {}
+}
+
+// v79 (Master Prompt v21, Part 4.3): PIN-less permission self-heal. Confirmed
+// root cause of "sessions:true in the DB but the App still won't show it" —
+// permissions are only ever read at login and cached forever (state.session,
+// sessionStorage, the remember-device payload); nothing ever re-fetches them,
+// so a device logged in before a server-side permission change stays stale
+// until an explicit logout. This calls the new PIN-less oms_get_employee_permissions
+// RPC and, if anything actually changed, re-applies it live — no forced logout.
+// Throttled (at most once every 60s) unless force=true, since this is called
+// opportunistically from scanSessionsEnabled() as well as on app resume; a
+// concurrent call is skipped via _permRefresh.inFlight rather than queued.
+var _permRefresh = { lastAttempt: 0, inFlight: false };
+function refreshSessionPermissions(force) {
+    if (!db || !state.session || !state.session.employee_code) return;
+    if (_permRefresh.inFlight) return;
+    var now = Date.now();
+    if (!force && (now - _permRefresh.lastAttempt) < 60000) return;
+    _permRefresh.lastAttempt = now;
+    _permRefresh.inFlight = true;
+    withTimeout(db.rpc('oms_get_employee_permissions', { p_employee_code: state.session.employee_code }),
+        10000, 'Permission refresh').then(function (res) {
+        _permRefresh.inFlight = false;
+        if (res.error || !res.data || !res.data.length) return;
+        var row = res.data[0];
+        if (row.active === false) return; // don't silently deactivate a live session client-side
+        var changed = JSON.stringify(row.permissions || null) !== JSON.stringify(state.session.permissions || null);
+        state.session.permissions = row.permissions || null;
+        if (row.role) state.session.role = row.role;
+        saveSessionToStorage(state.session);
+        // Keep a remembered-device payload's permissions in sync too, so a
+        // later reload doesn't resurrect the exact staleness this just fixed
+        // — but preserve its original expiresAt rather than resetting it via
+        // saveRememberSession(), which this refresh should not silently extend.
+        try {
+            var raw = localStorage.getItem(OMS_REMEMBER_KEY);
+            if (raw) {
+                var parsed = JSON.parse(raw);
+                if (parsed && parsed.session && parsed.session.employee_code === state.session.employee_code) {
+                    parsed.session.permissions = state.session.permissions;
+                    parsed.session.role = state.session.role;
+                    localStorage.setItem(OMS_REMEMBER_KEY, JSON.stringify(parsed));
+                }
+            }
+        } catch (e) {}
+        if (changed) {
+            applyRolePermissions();
+            refreshScanSessionState();
+        }
+    }).catch(function () { _permRefresh.inFlight = false; });
 }
 
 function showLoginModal() {
@@ -1858,7 +1914,12 @@ function logout() {
 //     building), and so is bulk CSV upload.
 //   * behind permissions.sessions, default OFF for every login including ADMIN.
 function scanSessionsEnabled() {
-    return effectivePermissions().sessions === true;
+    var on = effectivePermissions().sessions === true;
+    // v79 (Part 4.3): a false reading triggers one throttled, silent
+    // background permission re-fetch before we conclude the feature is
+    // genuinely off — self-heals a stale cache without an explicit logout.
+    if (!on) refreshSessionPermissions();
+    return on;
 }
 // A stable per-device id. Sessions are per-device by design, so this is what
 // distinguishes two phones used by the same employee.
@@ -6982,6 +7043,70 @@ function loadDashboard(manualRefresh) {
 }
 
 // ── TAB SWITCHING ────────────────────────────────────────────
+// ══════════════════ PULL-TO-REFRESH (v79, Master Prompt v21, Part 2) ══════════════════
+// All tabs live inside one shared scrollable container (.content — see CSS,
+// .tab-content{display:none} except .active), so one gesture handler on it
+// covers every tab. Reuses the exact same refresh function each tab's own
+// button already calls -- no second, parallel refresh path. GUIDE is
+// deliberately excluded, same reasoning as its missing tap-refresh button:
+// 100% static content, nothing to refresh, a gesture there would mislead.
+var PTR_THRESHOLD = 72; // px of pull before release triggers a refresh — tune on a real device
+var ptr = { pulling: false, startY: 0, indicatorEl: null };
+var PTR_REFRESH_FNS = {
+    pick:     function () { refreshPickTab(); },
+    move:     function () { refreshMoveTab(); },
+    stock:    function () { loadStockTab(true); },
+    log:      function () { refreshLogTab(); },
+    settings: function () { refreshSettingsTab(); renderAdminPanel(); },
+    dash:     function () { loadDashboard(true); }
+};
+function initPullToRefresh(containerEl, getActiveTab) {
+    if (!containerEl) return;
+    var ind = document.createElement('div');
+    ind.className = 'ptr-indicator';
+    ind.style.cssText = 'height:0;overflow:hidden;display:flex;align-items:center;justify-content:center;font-size:13px;color:#666;transition:height .15s ease;';
+    containerEl.insertBefore(ind, containerEl.firstChild);
+    containerEl.addEventListener('touchstart', function (e) {
+        var tab = getActiveTab();
+        if (tab === 'guide' || !PTR_REFRESH_FNS[tab]) { ptr.pulling = false; return; }
+        // Round-1 audit fix: #sku-detail-overlay/#sku-detail-sheet is a DOM
+        // descendant of .content (it lives inside the STOCK tab markup)
+        // despite rendering as a fixed overlay with its own independent
+        // scroll -- without this guard, a swipe inside that sheet bubbled up
+        // and stole the gesture from the sheet's own scrolling.
+        if (e.target.closest && e.target.closest('.sku-detail-overlay')) { ptr.pulling = false; return; }
+        if (containerEl.scrollTop > 0 || e.touches.length !== 1) { ptr.pulling = false; return; }
+        ptr.pulling = true;
+        ptr.startY = e.touches[0].clientY;
+    }, { passive: true });
+    containerEl.addEventListener('touchmove', function (e) {
+        if (!ptr.pulling) return;
+        var dy = e.touches[0].clientY - ptr.startY;
+        if (dy <= 0) { ind.style.height = '0px'; ind.textContent = ''; return; }
+        if (containerEl.scrollTop > 0) { ptr.pulling = false; ind.style.height = '0px'; ind.textContent = ''; return; }
+        e.preventDefault(); // own the drag while genuinely pulling from the top
+        var dist = Math.min(dy * 0.5, PTR_THRESHOLD * 1.6);
+        ind.style.height = dist + 'px';
+        ind.textContent = dist >= PTR_THRESHOLD ? '⬇️ Release to refresh' : '⬇️ Pull to refresh';
+    }, { passive: false });
+    containerEl.addEventListener('touchend', function () {
+        if (!ptr.pulling) return;
+        ptr.pulling = false;
+        var height = parseFloat(ind.style.height) || 0;
+        ind.style.height = '0px';
+        ind.textContent = '';
+        if (height >= PTR_THRESHOLD) {
+            var fn = PTR_REFRESH_FNS[getActiveTab()];
+            if (fn) fn();
+        }
+    }, { passive: true });
+    containerEl.addEventListener('touchcancel', function () {
+        ptr.pulling = false;
+        ind.style.height = '0px';
+        ind.textContent = '';
+    }, { passive: true });
+}
+
 function switchTab(tab) {
     // v37 RBAC guard — refuses to enter a tab the logged-in role can't
     // access, independent of whether the nav button is hidden. This is the
@@ -7092,6 +7217,10 @@ document.addEventListener('DOMContentLoaded', function() {
         if (e.key === 'Enter') { processScan(e.target.value); }
     });
 
+    // v79 (Part 2): native pull-to-refresh, on top of the existing tap-refresh
+    // buttons -- see initPullToRefresh() above.
+    initPullToRefresh(document.querySelector('.content'), function () { return state.tab; });
+
     // v69 (Master Prompt v12, item 1): tap-to-focus — the video element is
     // static across camera opens/closes (only its srcObject changes), so this
     // listener is registered once here rather than re-attached on every open.
@@ -7115,9 +7244,24 @@ document.addEventListener('DOMContentLoaded', function() {
     if (existingSession) {
         state.session = existingSession;
         enterApp();
+        // v79 (Part 4.3): a restored session is exactly the stale-cache case
+        // root-caused this round — force a permission refresh right away
+        // rather than waiting for the next false scanSessionsEnabled() check.
+        refreshSessionPermissions(true);
     } else {
         showLoginModal();
     }
+
+    // v79 (Part 4.3): "app foreground/resume" — a backgrounded tab/app coming
+    // back to the front re-checks permissions the same way a restored session
+    // does above. visibilitychange fires reliably for this on both mobile
+    // (app-switch) and desktop (tab-switch); throttled internally, so this is
+    // cheap even if it fires often.
+    document.addEventListener('visibilitychange', function () {
+        if (document.visibilityState === 'visible' && state.session) {
+            refreshSessionPermissions(true);
+        }
+    });
 
     window.addEventListener('beforeunload', releaseCamera);
     // v49: hardware/gesture Back button while the camera scanner is open must
