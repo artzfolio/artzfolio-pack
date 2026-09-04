@@ -241,10 +241,15 @@
         .stock-name{font-size:11px;color:#444;margin:1px 0}
 
         .stock-search{flex:1;border:1.5px solid #c5d0de;border-radius:8px;padding:9px 11px;font-size:12px;outline:none}
-        .stock-row{display:flex;justify-content:space-between;align-items:center;padding:9px 10px;border-bottom:1px solid #f0f2f5;font-size:12px}
+        .stock-row{display:flex;justify-content:space-between;align-items:center;padding:9px 10px;border-bottom:1px solid #f0f2f5;font-size:12px;cursor:pointer}
         .stock-sku{font-weight:700;color:#1B4F8A}
         .stock-asin{font-size:10px;color:#888;font-family:monospace}
         .stock-qty{font-size:15px;font-weight:800;color:#1e8449;padding:3px 10px;border-radius:8px;background:#eafaf1}
+        /* v77: SKU Detail slide-in sheet (Part 7) — same rounded-panel/backdrop
+           idiom as the camera overlay elsewhere in this file, not a new pattern. */
+        .sku-detail-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:220;align-items:flex-end;justify-content:center}
+        .sku-detail-overlay.open{display:flex}
+        .sku-detail-sheet{background:#fff;width:100%;max-width:520px;max-height:82vh;overflow-y:auto;border-radius:16px 16px 0 0;padding:16px 16px calc(20px + env(safe-area-inset-bottom,0px));box-shadow:0 -4px 24px rgba(0,0,0,.25)}
         .stock-qty.low{color:#c0392b;background:#fdedec}
         .stock-live-dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:#27AE60;margin-right:5px;box-shadow:0 0 0 0 rgba(39,174,96,.6);animation:livepulse 1.6s infinite}
         @keyframes livepulse{0%{box-shadow:0 0 0 0 rgba(39,174,96,.55)}70%{box-shadow:0 0 0 6px rgba(39,174,96,0)}100%{box-shadow:0 0 0 0 rgba(39,174,96,0)}}
@@ -388,7 +393,7 @@
     </style>
 </head>
 <body>
-<div class="ver-corner" id="verCornerBadge" onclick="handleVerBadgeTap()">v76</div>
+<div class="ver-corner" id="verCornerBadge" onclick="handleVerBadgeTap()">v77</div>
 <!-- v63: Gap 2 — offline write-queue indicator. Hidden (display:none) unless
      something is actually queued or failed. Tapping it shows the queue detail
      panel (openOfflineQueuePanel()). -->
@@ -531,6 +536,10 @@
                  the same submitMoveTransaction()/MANUAL_CORRECTION path as always. -->
             <div class="settings-section" id="cycle-count-section" style="margin-bottom:10px;">
                 <h3 style="margin-top:0;cursor:pointer;" onclick="toggleTodaysCountList()">&#128203; Today's Cycle Count <span id="cycle-count-badge" style="font-size:11px;color:#888;"></span> <span id="cycle-count-toggle-icon">&#9660;</span></h3>
+                <!-- v77 (Part 10): plain-language explainer, worded honestly about the
+                     current ABC-tier caveat (still all "C" today — see the reorder
+                     threshold report — so it isn't yet doing real tier prioritization). -->
+                <div style="font-size:11px;color:#888;margin:-4px 0 8px;">A small daily list of SKUs to physically recount, so drift gets caught early. Tap Count to enter what you actually find, or Skip for today.</div>
                 <div id="cycle-count-body" style="display:none;">
                     <div id="cycle-count-list" style="font-size:12px;"></div>
                 </div>
@@ -695,7 +704,13 @@
                 <div id="bin-lookup-result"></div>
             </div>
 
-            <div class="cam-error-banner" id="low-stock-banner" style="margin-bottom:10px;"><strong id="low-stock-banner-text">&#9888; 0 SKUs at or below reorder point</strong></div>
+            <div class="cam-error-banner" id="low-stock-banner" style="margin-bottom:10px;cursor:pointer;" onclick="jumpToLowStock()" title="Tap to view these SKUs"><strong id="low-stock-banner-text">&#9888; 0 SKUs at or below reorder point</strong></div>
+            <!-- v77: SKU Detail slide-in (Part 7) — one shared modal, opened from
+                 Live Stock rows, Bin Lookup cards, and (indirectly, via the filter
+                 above) the Low Stock banner. -->
+            <div class="sku-detail-overlay" id="sku-detail-overlay" onclick="if(event.target===this)closeSkuDetail()">
+                <div class="sku-detail-sheet" id="sku-detail-sheet"></div>
+            </div>
             <div class="log-header">
                 <h2><span class="stock-live-dot" id="stock-live-dot" style="display:none;"></span>Live Stock (<span id="stock-count">0</span>)</h2>
                 <div style="display:flex;gap:6px;align-items:center;">
@@ -723,7 +738,14 @@
                 <select id="stock-filter-status" onchange="onStockFilterChange()">
                     <option value="">All stock status</option>
                     <option value="IN_STOCK">&#9989; In stock</option>
-                    <option value="LOW_STOCK">&#9888; Low stock (at/below reorder point)</option>
+                    <!-- v77 fix (independent audit Round 1, finding C): this option's own
+                         label always promised "at/below reorder point" -- exactly the
+                         oms_low_stock view's real definition (LOW_STOCK OR OUT_OF_STOCK) --
+                         but its value only ever filtered the narrower LOW_STOCK status
+                         alone, silently under-delivering whenever every flagged SKU
+                         happened to be fully OUT_OF_STOCK rather than partially low.
+                         Retargeted to match its own label; see applyStockFilters(). -->
+                    <option value="AT_OR_BELOW_REORDER">&#9888; Low stock (at/below reorder point)</option>
                     <option value="OUT_OF_STOCK">&#10060; Out of stock</option>
                 </select>
                 <select id="stock-filter-category" onchange="onStockFilterChange()">
@@ -1044,7 +1066,7 @@
 
             <!-- Version -->
             <div class="ver-badge">
-                <div class="ver-name">&#128230; ArtzFolio Scan-Pick-Pack v76</div>
+                <div class="ver-name">&#128230; ArtzFolio Scan-Pick-Pack v77</div>
                 <div class="ver-sub">Full changelog available on request.</div>
             </div>
         </div>
@@ -1816,7 +1838,7 @@ function refreshScanSessionState() {
     // Re-attach to whatever is genuinely OPEN server-side for this device,
     // so a reload, a re-login or a second tab never loses or duplicates one.
     withTimeout(db.from('oms_scan_sessions')
-        .select('session_id,status,opened_at')
+        .select('session_id,status,opened_at,default_bin_code')
         .eq('employee_code', state.session.employee_code)
         .eq('device_hint', scanSessionDeviceHint())
         .eq('status', 'OPEN').limit(1), 8000, 'Scan session lookup')
@@ -1829,8 +1851,32 @@ function refreshScanSessionState() {
             .then(function (c) {
                 row.scan_count = (c && typeof c.count === 'number') ? c.count : 0;
                 state.moveSession = row; renderSessionBar();
+                applySessionDefaultBin();
             });
     }).catch(function () { renderSessionBar(); });
+}
+// v77 (Part 9.2): PO-scoped session default bin. When a session with a
+// default bin is open, the bin field pre-fills with it -- this is called
+// FIRST, ahead of prefillMoveBin()'s per-SKU live-bin guessing, since
+// telling the app "everything in this session goes to bin X" is a stronger,
+// more deliberate signal than an inferred usual bin. Only ever fills a
+// BLANK field -- never overwrites a value staff already typed/scanned for a
+// genuine floor exception, and the field stays fully editable either way.
+function applySessionDefaultBin() {
+    var binEl = document.getElementById('move-bin-input');
+    if (!binEl || (binEl.value || '').trim()) return;
+    var bin = state.moveSession && state.moveSession.default_bin_code;
+    if (bin) binEl.value = bin;
+}
+// v77: replaces the bare `move-bin-input.value = ''` used at every
+// clear-fields-for-next-entry site (mode switch, and after each of the 3
+// interactive MOVE submit paths) so the session default bin re-applies
+// immediately for the next scan instead of staying blank until the next SKU
+// resolves.
+function resetMoveBinField() {
+    var binEl = document.getElementById('move-bin-input');
+    if (binEl) binEl.value = '';
+    applySessionDefaultBin();
 }
 function renderSessionBar() {
     var el = document.getElementById('session-bar');
@@ -1843,29 +1889,41 @@ function renderSessionBar() {
             '<div class="settings-section" style="margin-bottom:10px;">' +
             '<h3 style="margin-top:0;">&#128260; Scan Session</h3>' +
             '<div class="settings-info">Group the next batch of scans together, then review them as one before committing &mdash; or reverse the whole batch if it went wrong. Your scans still save live either way.</div>' +
+            // v77 (Part 9.2): optional default bin, e.g. a PO number -- pre-fills
+            // the MOVE bin field for every scan in this session while it stays
+            // open, never locked (still editable per scan). Left blank behaves
+            // exactly as before v77.
+            '<input type="text" class="settings-input" id="scan-session-default-bin" placeholder="Default bin for this session (optional, e.g. a PO number)" autocomplete="off" autocorrect="off" autocapitalize="characters" style="text-transform:uppercase;margin:8px 0;">' +
             '<button class="settings-btn" onclick="startScanSession()">&#9654;&#65039; Start Session</button>' +
             '</div>';
         return;
     }
     var t = new Date(s.opened_at);
     var hh = ('0' + t.getHours()).slice(-2) + ':' + ('0' + t.getMinutes()).slice(-2);
+    var binTxt = s.default_bin_code ? (' &middot; Bin ' + s.default_bin_code) : '';
     el.innerHTML =
         '<div class="settings-section" style="margin-bottom:10px;border:1px solid #1B7A3A;background:#f3fbf5;">' +
-        '<h3 style="margin-top:0;">&#128994; Session open &middot; ' + (s.scan_count || 0) + ' scans &middot; started ' + hh + '</h3>' +
-        '<div class="settings-info">Everything you submit below saves live exactly as normal, and is also tagged to this session.</div>' +
+        '<h3 style="margin-top:0;">&#128994; Session open' + binTxt + ' &middot; ' + (s.scan_count || 0) + ' scans &middot; started ' + hh + '</h3>' +
+        '<div class="settings-info">Everything you submit below saves live exactly as normal, and is also tagged to this session.' +
+        (s.default_bin_code ? ' The bin field pre-fills with ' + s.default_bin_code + ' for each scan — still editable any time you need a real exception.' : '') + '</div>' +
         '<button class="settings-btn" onclick="closeScanSession()">&#9209;&#65039; Close Session &amp; Review</button>' +
         '</div>';
+    applySessionDefaultBin();
 }
 function startScanSession() {
     if (!db) { alert('No live connection — a session cannot be started offline.'); return; }
+    var binEl = document.getElementById('scan-session-default-bin');
+    var defaultBin = (binEl && binEl.value || '').trim().toUpperCase();
     withTimeout(db.rpc('oms_open_scan_session', {
         p_employee_code: state.session.employee_code,
-        p_device_hint: scanSessionDeviceHint()
+        p_device_hint: scanSessionDeviceHint(),
+        p_default_bin_code: defaultBin || null
     }), 10000, 'Start session').then(function (res) {
         if (res.error) { alert('Could not start a session: ' + res.error.message); return; }
         var d = res.data || {};
         state.moveSession = { session_id: d.session_id, status: 'OPEN',
-                              opened_at: d.opened_at, scan_count: d.scan_count || 0 };
+                              opened_at: d.opened_at, scan_count: d.scan_count || 0,
+                              default_bin_code: d.default_bin_code || null };
         renderSessionBar();
     }).catch(function (e) { alert('Could not start a session: ' + e); });
 }
@@ -2817,6 +2875,10 @@ function prefillMoveBin() {
     var hintEl = document.getElementById('move-live-bin-hint');
     var skuVal = (document.getElementById('move-sku-input').value || '').trim();
     if (hintEl) hintEl.textContent = '';
+    // v77 (Part 9.2): session default bin wins over the per-SKU live-bin
+    // guessing below -- checked first, so if it fills the (blank) field, the
+    // per-SKU logic's own "only fill when blank" guards naturally no-op.
+    applySessionDefaultBin();
     if (!skuVal) return;
     resolveSkuOrAsin(skuVal).then(function(sku) {
         if (!sku) {
@@ -2967,7 +3029,7 @@ function setMoveMode(mode) {
     document.getElementById('move-mode-desc').textContent = cfg.desc.replace(/&#\d+;/g, '');
     document.getElementById('move-result').textContent = '';
     document.getElementById('move-sku-input').value = '';
-    document.getElementById('move-bin-input').value = '';
+    resetMoveBinField();
     var liveBinHintEl = document.getElementById('move-live-bin-hint');
     if (liveBinHintEl) liveBinHintEl.textContent = '';
     // v52: "Set True Count" reuses the qty field for an absolute count, not a
@@ -3118,7 +3180,7 @@ function submitMoveTransaction() {
                         }).catch(function() {});
                     }
                     document.getElementById('move-sku-input').value = '';
-                    document.getElementById('move-bin-input').value = '';
+                    resetMoveBinField();
                     document.getElementById('move-qty-input').value = '0';
                     document.getElementById('move-note-input').value = '';
                     if (document.getElementById('move-live-bin-hint')) document.getElementById('move-live-bin-hint').textContent = '';
@@ -3184,7 +3246,7 @@ function proceedMoveWithSku(sku, binVal, qtyVal, note, resEl) {
                 logEvent(sku.sku_code, 'Return (' + returnGrade + '): +' + qtyVal + ' then -' + qtyVal + ' (' + holdType + ') @ ' + binVal + (note ? ' — ' + note : ''));
                 writeAuditLog('RETURN_IN', { skuCode: sku.sku_code, details: { grade: returnGrade, qty: qtyVal, bin_code: binVal, note: note || null, product_name: sku.product_name || null } });
                 document.getElementById('move-sku-input').value = '';
-                document.getElementById('move-bin-input').value = '';
+                resetMoveBinField();
                 document.getElementById('move-qty-input').value = '1';
                 document.getElementById('move-note-input').value = '';
                 if (document.getElementById('move-live-bin-hint')) document.getElementById('move-live-bin-hint').textContent = '';
@@ -3221,7 +3283,7 @@ function proceedMoveWithSku(sku, binVal, qtyVal, note, resEl) {
         logEvent(sku.sku_code, MOVE_MODES[moveMode].title.replace(/&#\d+;/g, '').trim() + ': ' + (cfg.sign > 0 ? '+' : '') + (cfg.sign * qtyVal) + ' @ ' + binVal + (note ? ' — ' + note : '') + (result.queued ? ' (queued offline)' : ''));
         writeAuditLog(moveMode, { skuCode: sku.sku_code, details: { qty_delta: cfg.sign * qtyVal, bin_code: binVal, note: note || null, product_name: sku.product_name || null } });
         document.getElementById('move-sku-input').value = '';
-        document.getElementById('move-bin-input').value = '';
+        resetMoveBinField();
         document.getElementById('move-qty-input').value = '1';
         document.getElementById('move-note-input').value = '';
         if (document.getElementById('move-live-bin-hint')) document.getElementById('move-live-bin-hint').textContent = '';
@@ -3371,6 +3433,13 @@ var stockPage = 0;
 var stockHasMore = false;
 var stockSearchActive = false;
 var stockSearchDebounceTimer = null;
+// v77: true filtered total, separate from stockData.length (which is only
+// ever the current page of up to 75, or up to 200 search matches). The
+// "Live Stock (N)" header used to show rows.length directly, so it silently
+// read as a full total when it was actually just the page/search-cap size.
+// Fetched via the same {count:'exact', head:true} pattern already used for
+// the Dashboard's cycle-count/negative-stock/employee-count tiles.
+var stockTotalCount = null;
 function onStockSearchInput() {
     if (stockSearchDebounceTimer) clearTimeout(stockSearchDebounceTimer);
     stockSearchDebounceTimer = setTimeout(function() {
@@ -3453,7 +3522,18 @@ function applyStockFilters(query) {
     var statusVal = (document.getElementById('stock-filter-status') || {}).value || '';
     var catVal = (document.getElementById('stock-filter-category') || {}).value || '';
     var abcVal = (document.getElementById('stock-filter-abc') || {}).value || '';
-    if (statusVal) query = query.eq('stock_status', statusVal);
+    // v77 fix (independent audit Round 1, finding C): a sentinel value the
+    // Low Stock banner uses -- "at or below reorder point" genuinely means
+    // LOW_STOCK **or** OUT_OF_STOCK (matching oms_low_stock's own
+    // definition, which the banner's own count comes from), not just
+    // LOW_STOCK alone. Without this, tapping the banner could land on a
+    // filter matching zero rows whenever every flagged SKU happens to
+    // currently be fully OUT_OF_STOCK rather than partially LOW_STOCK.
+    if (statusVal === 'AT_OR_BELOW_REORDER') {
+        query = query.in('stock_status', ['LOW_STOCK', 'OUT_OF_STOCK']);
+    } else if (statusVal) {
+        query = query.eq('stock_status', statusVal);
+    }
     if (catVal) query = query.eq('product_type', catVal);
     if (abcVal) query = query.eq('abc_tier', abcVal);
     return query;
@@ -3488,6 +3568,15 @@ function loadStockTab(manualRefresh) {
         renderStockList();
         setupStockRealtime();
     }).catch(function(err) { setDbOffline(err); });
+    // v77: exact total for the current filter set, fetched in parallel with
+    // the page above (head:true — no rows transferred, just the count).
+    stockTotalCount = null;
+    var countQ = applyStockFilters(db.from('oms_stock_explorer').select('sku_code', { count: 'exact', head: true }));
+    withTimeout(countQ, 10000, 'Stock total count').then(function(res) {
+        if (res.error) return; // non-fatal — header falls back to page size
+        stockTotalCount = res.count;
+        renderStockList();
+    }).catch(function() { /* non-fatal */ });
 }
 // v53: batched bin-breakdown lookup for whatever set of SKUs is currently on
 // screen (a page of 75, or up to 200 search results) — one query, not one
@@ -3517,12 +3606,15 @@ function loadStockBinMap(rows) {
 function runStockSearch(term) {
     if (!db) return;
     stockSearchActive = true;
+    stockTotalCount = null;
     var v = term.toUpperCase().replace(/[,%]/g, '');
     var sort = currentStockSort();
-    var q = db.from('oms_stock_explorer').select(STOCK_EXPLORER_COLS)
-        .or('sku_code.ilike.%' + v + '%,asin.ilike.%' + v + '%,product_name.ilike.%' + v + '%');
-    q = applyStockFilters(q);
-    q = q.order(sort.field, { ascending: sort.ascending }).limit(200);
+    function buildSearchQuery(select, exactCount) {
+        var qq = db.from('oms_stock_explorer').select(select, exactCount ? { count: 'exact', head: true } : undefined)
+            .or('sku_code.ilike.%' + v + '%,asin.ilike.%' + v + '%,product_name.ilike.%' + v + '%');
+        return applyStockFilters(qq);
+    }
+    var q = buildSearchQuery(STOCK_EXPLORER_COLS).order(sort.field, { ascending: sort.ascending }).limit(200);
     withTimeout(q, 10000, 'Stock search').then(function(res) {
         if (res.error) { setDbOffline(res.error.message); return; }
         setDbOnline();
@@ -3533,6 +3625,14 @@ function runStockSearch(term) {
         renderStockList();
         setupStockRealtime();
     }).catch(function(err) { setDbOffline(err); });
+    // v77: exact match total, same reasoning as loadStockTab's count query —
+    // the 200-result cap is a safety limit, not the real total.
+    var countQ = buildSearchQuery('sku_code', true);
+    withTimeout(countQ, 10000, 'Stock search total count').then(function(res) {
+        if (res.error) return;
+        stockTotalCount = res.count;
+        renderStockList();
+    }).catch(function() { /* non-fatal */ });
 }
 function loadLowStock() {
     if (!db) return;
@@ -3572,7 +3672,11 @@ function renderStockList() {
     var list = document.getElementById('stock-list');
     var countEl = document.getElementById('stock-count');
     var rows = stockData;
-    countEl.textContent = rows.length;
+    // v77: header shows the true filtered total once it arrives (parallel
+    // count query), not rows.length -- which is only ever the current page
+    // (<=75) or search cap (<=200). Falls back to rows.length while the
+    // count query is still in flight, so the header never shows "0".
+    countEl.textContent = (stockTotalCount === null ? rows.length : stockTotalCount);
     if (!rows.length) {
         list.innerHTML = '<div style="text-align:center;color:#aaa;font-size:12px;padding:20px 0;">No matching SKUs.</div>';
         renderStockPagination();
@@ -3623,12 +3727,15 @@ function renderStockList() {
             reorderLine = '<div class="stock-cat" style="color:#8a6d00;">&#128204; Reorder at: ' + r.effective_reorder_point +
                 (isManual ? ' (manual)' : ' (calculated — ~' + (Math.round(r.avg_daily_sales_30d * 10) / 10) + '/day avg)') + '</div>';
         }
-        html += '<div class="stock-row">' +
+        // v77 (Part 7): the whole row opens the SKU Detail sheet; the print
+        // button keeps its own click zone via stopPropagation so it still
+        // just prints, without also popping the detail sheet behind it.
+        html += '<div class="stock-row" onclick="openSkuDetail(\'' + skuForOnclick + '\')">' +
             '<div><div class="stock-sku">' + (r.sku_code || '') + '<span class="stock-status-badge ' + badgeCls + '">' + badgeText + '</span>' + abcBadge + '</div>' + nameLine +
             '<div class="stock-asin">' + (r.asin || '') + '</div>' + catLine + reorderLine + binLine + '</div>' +
             '<div style="display:flex;align-items:center;">' +
             '<div class="stock-qty' + lowCls + '">' + r.qty_on_hand + '</div>' +
-            '<button class="print-label-btn" onclick="printLabel(\'' + skuForOnclick + '\')" title="Print label">&#128424;</button>' +
+            '<button class="print-label-btn" onclick="event.stopPropagation();printLabel(\'' + skuForOnclick + '\')" title="Print label">&#128424;</button>' +
             '</div>' +
             '</div>';
     }
@@ -3764,14 +3871,24 @@ function exportFullInventoryCSV() {
 function renderStockPagination() {
     var el = document.getElementById('stock-pagination');
     if (!el) return;
+    // v77: both branches now say explicitly "showing X of Y" instead of a
+    // bare page number / a static "up to 200" line, so page-vs-total is
+    // never ambiguous. stockTotalCount is null until its count query
+    // resolves; shown once available, omitted (not guessed) until then.
     if (stockSearchActive) {
-        el.innerHTML = '<div style="text-align:center;color:#888;font-size:11px;padding:6px 0;">Search results (up to 200 matches) &mdash; clear the search box to browse all stock by page.</div>';
+        var searchTotalTxt = (stockTotalCount === null) ? '' :
+            (' of ' + stockTotalCount + ' matching' + (stockTotalCount > stockData.length ? ' (showing first ' + stockData.length + ')' : ''));
+        el.innerHTML = '<div style="text-align:center;color:#888;font-size:11px;padding:6px 0;">Showing ' + stockData.length + searchTotalTxt +
+            ' &mdash; clear the search box to browse all stock by page.</div>';
         return;
     }
+    var from = stockPage * STOCK_PAGE_SIZE;
+    var to = from + stockData.length;
+    var rangeTxt = stockData.length ? ('Showing ' + (from + 1) + '&ndash;' + to + (stockTotalCount === null ? '' : ' of ' + stockTotalCount)) : '';
     el.innerHTML =
         '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:8px 0;">' +
         '<button class="settings-btn"' + (stockPage === 0 ? ' disabled style="opacity:.5"' : '') + ' onclick="stockPrevPage()">&larr; Prev</button>' +
-        '<span style="font-size:11px;color:#666;">Page ' + (stockPage + 1) + '</span>' +
+        '<span style="font-size:11px;color:#666;">' + rangeTxt + '</span>' +
         '<button class="settings-btn"' + (!stockHasMore ? ' disabled style="opacity:.5"' : '') + ' onclick="stockNextPage()">Next &rarr;</button>' +
         '</div>';
 }
@@ -3871,6 +3988,15 @@ function processBulkRowsSequentially(rows, idx, empCode, results, resultEl) {
     var qtyVal = parseFloat(r[4]);
     var note = (r[5] || '').trim();
     var productName = (r[6] || '').trim(); // v61: Feature 8 — see downloadBulkTemplate()
+    // v77 (Part 9.3): a blank Bin column uses the open session's default bin
+    // (PO-scoped sessions) -- an explicit value in the CSV still always wins.
+    // Only kicks in when a session with a default bin is genuinely open; a
+    // plain session (no default bin) leaves bulk CSV upload untouched, same
+    // as before v77. ToBin is untouched either way -- it keeps its own
+    // separate meaning and stays mandatory for TRANSFER rows.
+    var sessionBin = state.moveSession && state.moveSession.status === 'OPEN' ? state.moveSession.default_bin_code : null;
+    var bulkSessionEligible = !!sessionBin;
+    if (!bin && sessionBin) bin = sessionBin;
 
     function finish(status) {
         results.push({ row: idx + 1, sku: sku || '(blank)', action: action || '(blank)', status: status });
@@ -3920,9 +4046,9 @@ function processBulkRowsSequentially(rows, idx, empCode, results, resultEl) {
 
         if (action === 'TRANSFER') {
             if (!bin || !toBin) { finish('FAILED - TRANSFER needs Bin and ToBin'); return; }
-            writeLedgerTxn({ skuCode: realSku, asin: skuRow.asin, qtyDelta: -qtyVal, txnType: 'BIN_TRANSFER_OUT', binCode: bin, note: note }).then(function(res1) {
+            writeLedgerTxn({ sessionEligible: bulkSessionEligible, skuCode: realSku, asin: skuRow.asin, qtyDelta: -qtyVal, txnType: 'BIN_TRANSFER_OUT', binCode: bin, note: note }).then(function(res1) {
                 if (!res1.ok) { finish('FAILED - ' + res1.reason); return; }
-                writeLedgerTxn({ skuCode: realSku, asin: skuRow.asin, qtyDelta: qtyVal, txnType: 'BIN_TRANSFER_IN', binCode: toBin, note: note }).then(function(res2) {
+                writeLedgerTxn({ sessionEligible: bulkSessionEligible, skuCode: realSku, asin: skuRow.asin, qtyDelta: qtyVal, txnType: 'BIN_TRANSFER_IN', binCode: toBin, note: note }).then(function(res2) {
                     finish(res2.ok ? ('OK' + prefix + mismatchNote) : 'FAILED - ' + res2.reason);
                 });
             });
@@ -3932,7 +4058,7 @@ function processBulkRowsSequentially(rows, idx, empCode, results, resultEl) {
         var cfg = ACTION_TXN_MAP[action];
         if (!cfg) { finish('FAILED - unknown Action: ' + action); return; }
         if (!bin) { finish('FAILED - ' + action + ' needs a Bin'); return; }
-        writeLedgerTxn({ skuCode: realSku, asin: skuRow.asin, qtyDelta: cfg.sign * qtyVal, txnType: cfg.txnType, binCode: bin, note: note }).then(function(res) {
+        writeLedgerTxn({ sessionEligible: bulkSessionEligible, skuCode: realSku, asin: skuRow.asin, qtyDelta: cfg.sign * qtyVal, txnType: cfg.txnType, binCode: bin, note: note }).then(function(res) {
             finish(res.ok ? ('OK' + prefix + mismatchNote) : 'FAILED - ' + res.reason);
         });
     }
@@ -4052,7 +4178,13 @@ function runBinLookup() {
                     '</div>' +
                     (badgeHtml ? ('<div style="margin-top:5px;">' + badgeHtml + '</div>') : '') +
                     '<div style="margin-top:6px;">' + binsHtml + '</div>' +
-                    '<div style="margin-top:5px;"><button class="csv-btn" style="font-size:10px;padding:3px 8px;" onclick="toggleSkuHistory(\'' + g.sku_code.replace(/'/g, "\\'") + '\')">History &#9662;</button></div>' +
+                    '<div style="margin-top:5px;">' +
+                    '<button class="csv-btn" style="font-size:10px;padding:3px 8px;" onclick="toggleSkuHistory(\'' + g.sku_code.replace(/'/g, "\\'") + '\')">History &#9662;</button> ' +
+                    // v77 (Part 7): opens the full SKU Detail sheet (category, reorder
+                    // reasoning, paginated history) alongside this card's own quick
+                    // inline bins/badges/History toggle — additive, doesn't touch it.
+                    '<button class="csv-btn" style="font-size:10px;padding:3px 8px;" onclick="openSkuDetail(\'' + g.sku_code.replace(/'/g, "\\'") + '\')">Full Detail</button>' +
+                    '</div>' +
                     '<div id="sku-history-' + cssId(g.sku_code) + '" style="display:none;margin-top:6px;"></div>' +
                     '</div>';
             }
@@ -4105,6 +4237,20 @@ function fmtRelTime(iso) {
 // characters that aren't valid in an HTML id — this strips them).
 function cssId(s) { return String(s || '').replace(/[^A-Za-z0-9_-]/g, '_'); }
 
+// v77: shared row formatter, factored out of toggleSkuHistory() so the SKU
+// Detail sheet's paginated history (Part 7) renders identically instead of
+// re-implementing this markup a second time.
+function fmtSkuHistoryRowHtml(r) {
+    var sign = r.qty_delta > 0 ? '+' : '';
+    var color = r.qty_delta > 0 ? '#27AE60' : (r.qty_delta < 0 ? '#E74C3C' : '#888');
+    return '<div style="font-size:10px;color:#555;padding:3px 0;border-bottom:1px solid #f5f5f5;">' +
+        '<span style="color:#999;">' + (r.created_at || '').replace('T', ' ').slice(0, 16) + '</span> &bull; ' +
+        '<strong>' + (r.txn_type || '') + '</strong> &bull; ' +
+        '<span style="color:' + color + ';font-weight:700;">' + sign + r.qty_delta + '</span> &bull; ' +
+        'bin ' + (r.bin_code || '—') + ' &bull; ' + (r.employee_code || '—') +
+        (r.note ? (' &bull; "' + r.note + '"') : '') + '</div>';
+}
+
 // v52: per-SKU audit trail — last 25 ledger entries, toggled open under
 // the SKU's Bin Lookup card. Reads oms_inventory_transactions directly
 // (already the permanent, append-only source of truth every other feature
@@ -4119,19 +4265,113 @@ function toggleSkuHistory(skuCode) {
         var rows = res.data || [];
         if (!rows.length) { box.innerHTML = '<div style="font-size:11px;color:#aaa;padding:4px 0;">No history found.</div>'; return; }
         var html = '<div style="border-top:1px dashed #e0e0e0;padding-top:5px;">';
-        rows.forEach(function(r) {
-            var sign = r.qty_delta > 0 ? '+' : '';
-            var color = r.qty_delta > 0 ? '#27AE60' : (r.qty_delta < 0 ? '#E74C3C' : '#888');
-            html += '<div style="font-size:10px;color:#555;padding:3px 0;border-bottom:1px solid #f5f5f5;">' +
-                '<span style="color:#999;">' + (r.created_at || '').replace('T', ' ').slice(0, 16) + '</span> &bull; ' +
-                '<strong>' + (r.txn_type || '') + '</strong> &bull; ' +
-                '<span style="color:' + color + ';font-weight:700;">' + sign + r.qty_delta + '</span> &bull; ' +
-                'bin ' + (r.bin_code || '—') + ' &bull; ' + (r.employee_code || '—') +
-                (r.note ? (' &bull; "' + r.note + '"') : '') + '</div>';
-        });
+        rows.forEach(function(r) { html += fmtSkuHistoryRowHtml(r); });
         html += '</div>';
         box.innerHTML = html;
     }).catch(function(err) { box.innerHTML = '<div style="font-size:11px;color:#E74C3C;">' + String(err) + '</div>'; });
+}
+
+// ── SKU DETAIL SHEET (v77, Part 7) ───────────────────────────────────────
+// Opened from a Live Stock row, a Bin Lookup card's "Full Detail" button, or
+// (via the Low Stock banner's jump-to-filtered-list) a filtered Live Stock
+// row. Always fetches fresh from oms_stock_explorer + oms_sku_bin_breakdown
+// by sku_code -- both callers' already-loaded row shapes differ (Bin Lookup
+// reads oms_current_stock, not oms_stock_explorer), so re-querying by SKU
+// code here is simpler and more robust than reshaping two different sources.
+var skuDetailHistoryLimit = {}; // skuCode -> current page size, for "Load more"
+function openSkuDetail(skuCode) {
+    if (!skuCode) return;
+    var overlay = document.getElementById('sku-detail-overlay');
+    var sheet = document.getElementById('sku-detail-sheet');
+    if (!overlay || !sheet) return;
+    overlay.classList.add('open');
+    sheet.innerHTML = '<div style="text-align:center;color:#aaa;font-size:12px;padding:24px 0;">Loading…</div>';
+    skuDetailHistoryLimit[skuCode] = 25;
+    if (!db) { sheet.innerHTML = skuDetailCloseBtn() + '<div class="move-result err">No live database connection.</div>'; return; }
+
+    Promise.all([
+        withTimeout(db.from('oms_stock_explorer').select('sku_code,asin,qty_on_hand,last_movement_at,product_name,product_type,stock_status,reorder_threshold,effective_reorder_point,calculated_reorder_point,avg_daily_sales_30d,abc_tier').eq('sku_code', skuCode).maybeSingle(), 8000, 'SKU detail'),
+        withTimeout(db.from('oms_sku_bin_breakdown').select('bin_count,bin_breakdown_text').eq('sku_code', skuCode).maybeSingle(), 8000, 'SKU detail bins')
+    ]).then(function(results) {
+        var skuRes = results[0], binRes = results[1];
+        if (skuRes.error || !skuRes.data) {
+            sheet.innerHTML = skuDetailCloseBtn() + '<div class="move-result err">Could not load details for ' + skuCode + '.</div>';
+            return;
+        }
+        renderSkuDetailSheet(skuRes.data, binRes && binRes.data);
+    }).catch(function(err) {
+        sheet.innerHTML = skuDetailCloseBtn() + '<div class="move-result err">' + String(err) + '</div>';
+    });
+}
+function closeSkuDetail() {
+    var overlay = document.getElementById('sku-detail-overlay');
+    if (overlay) overlay.classList.remove('open');
+}
+function skuDetailCloseBtn() {
+    return '<div style="text-align:right;"><button class="csv-btn" onclick="closeSkuDetail()">&times; Close</button></div>';
+}
+function renderSkuDetailSheet(r, bin) {
+    var sheet = document.getElementById('sku-detail-sheet');
+    if (!sheet) return;
+    var status = r.stock_status || (r.qty_on_hand <= 0 ? 'OUT_OF_STOCK' : 'IN_STOCK');
+    var badgeCls = status === 'OUT_OF_STOCK' ? 'out' : (status === 'LOW_STOCK' ? 'low' : 'in');
+    var badgeText = status === 'OUT_OF_STOCK' ? 'OUT OF STOCK' : (status === 'LOW_STOCK' ? 'LOW STOCK' : 'IN STOCK');
+    var abcBadge = r.abc_tier ? ('<span class="stock-status-badge" style="background:#eee;color:#555;margin-left:4px;">' + r.abc_tier + '</span>') : '';
+    var reorderLine = '';
+    if (r.effective_reorder_point > 0) {
+        var isManual = r.reorder_threshold > 0;
+        reorderLine = '<div class="stock-cat" style="color:#8a6d00;margin-top:4px;">&#128204; Reorder at: ' + r.effective_reorder_point +
+            (isManual ? ' (manual)' : ' (calculated — ~' + (Math.round((r.avg_daily_sales_30d || 0) * 10) / 10) + '/day avg, still ABC tier "' + (r.abc_tier || 'C') + '" — not yet a real signal, see the reorder-threshold report)') + '</div>';
+    }
+    var binLine = bin && bin.bin_breakdown_text
+        ? ('<div class="stock-asin" style="color:#1B4F8A;margin-top:4px;">&#128230; ' + bin.bin_breakdown_text + '</div>')
+        : '<div class="stock-asin" style="color:#bbb;margin-top:4px;">&#128230; no bin recorded</div>';
+    sheet.innerHTML =
+        skuDetailCloseBtn() +
+        '<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-top:4px;">' +
+        '<div><div class="stock-sku" style="font-size:15px;">' + (r.sku_code || '') + '<span class="stock-status-badge ' + badgeCls + '">' + badgeText + '</span>' + abcBadge + '</div>' +
+        (r.product_name ? ('<div class="stock-name">' + r.product_name + '</div>') : '') +
+        '<div class="stock-asin">ASIN: ' + (r.asin || '—') + '</div>' +
+        (r.product_type ? ('<div class="stock-cat">' + r.product_type + '</div>') : '') +
+        '</div>' +
+        '<div class="stock-qty">' + r.qty_on_hand + '<div style="font-size:9px;color:#999;font-weight:400;text-align:center;">on hand</div></div>' +
+        '</div>' +
+        reorderLine + binLine +
+        '<div style="margin-top:12px;font-size:12px;font-weight:700;color:#444;border-top:1px solid #eee;padding-top:8px;">Transaction history</div>' +
+        '<div id="sku-detail-history-body"></div>' +
+        '<div id="sku-detail-history-more" style="text-align:center;margin-top:6px;"></div>';
+    renderSkuDetailHistory(r.sku_code);
+}
+// v77: extends toggleSkuHistory's approach with real pagination (a "Load
+// more" button that widens the same query's LIMIT by 25 each press) instead
+// of a second, differently-shaped history query -- same table, same columns,
+// same row formatter (fmtSkuHistoryRowHtml).
+function renderSkuDetailHistory(skuCode) {
+    var body = document.getElementById('sku-detail-history-body');
+    var moreEl = document.getElementById('sku-detail-history-more');
+    if (!body) return;
+    var limit = skuDetailHistoryLimit[skuCode] || 25;
+    if (moreEl) moreEl.innerHTML = '';
+    body.innerHTML = '<div style="text-align:center;color:#aaa;font-size:11px;padding:6px 0;">Loading…</div>';
+    withTimeout(db.from('oms_inventory_transactions').select('created_at,txn_type,qty_delta,bin_code,employee_code,note,entry_source').eq('sku_code', skuCode).order('created_at', { ascending: false }).limit(limit), 8000, 'SKU detail history').then(function(res) {
+        var rows = res.data || [];
+        if (!rows.length) { body.innerHTML = '<div style="font-size:11px;color:#aaa;padding:4px 0;">No history found.</div>'; return; }
+        var html = '<div style="border-top:1px dashed #e0e0e0;padding-top:5px;">';
+        rows.forEach(function(r) { html += fmtSkuHistoryRowHtml(r); });
+        html += '</div>';
+        body.innerHTML = html;
+        if (rows.length === limit && moreEl) {
+            moreEl.innerHTML = '<button class="csv-btn" style="font-size:11px;" onclick="skuDetailHistoryLimit[\'' + skuCode.replace(/'/g, "\\'") + '\'] = ' + (limit + 25) + '; renderSkuDetailHistory(\'' + skuCode.replace(/'/g, "\\'") + '\')">Load 25 more</button>';
+        }
+    }).catch(function(err) { body.innerHTML = '<div style="font-size:11px;color:#E74C3C;">' + String(err) + '</div>'; });
+}
+// v77: Low Stock banner (Part 7) — jumps to the Stock tab with the
+// LOW_STOCK filter applied, so tapping it lands on individually-clickable
+// rows rather than trying to cram per-SKU links into the banner text itself.
+function jumpToLowStock() {
+    switchTab('stock');
+    var sel = document.getElementById('stock-filter-status');
+    if (sel) { sel.value = 'AT_OR_BELOW_REORDER'; onStockFilterChange(); }
 }
 
 // v52: CSV export of whatever the Bin Lookup currently shows — one row per
