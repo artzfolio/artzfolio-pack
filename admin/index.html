@@ -261,13 +261,23 @@ tbody tr:hover{background:#f9fbfd}
     </div>
     <!-- v2.14 (Master Prompt v17, Part A) — opt-in, unchecked by default,
          mirrors the App's own "remember this device" checkbox and
-         localStorage pattern. The 30-min idle auto-logout still applies on
-         top of this — it only skips re-entering the secret after the tab
-         was closed, not after an idle-triggered logout (adminLogout()
-         clears the remembered token too). -->
+         localStorage pattern.
+         v2.17 (Master Prompt v21, Part 3) — folded "stay signed in" into
+         this same checkbox rather than adding a second one (Rajat expressed
+         no preference either way; the prompt's own default is to combine):
+         checking it now ALSO exempts this device from the 30-minute idle
+         auto-logout for the chosen number of days, not just from re-entering
+         the secret after the tab closes. Unchecked (default) is completely
+         unchanged — 30-min idle logout, secret re-entry every time the tab
+         reopens. See the tradeoff note in the decision log: a lost/stolen
+         unlocked device stays signed in for the full N days chosen. -->
     <label class="remember-device-row" for="login-remember-input">
-      <input type="checkbox" id="login-remember-input">
-      <span>Remember this device for 30 days</span>
+      <input type="checkbox" id="login-remember-input" onchange="document.getElementById('login-remember-days-input').disabled = !this.checked;">
+      <span>Keep me signed in for</span>
+      <input type="number" id="login-remember-days-input" min="1" max="365" value="7" disabled
+             style="width:52px;padding:3px 6px;border:1px solid #dce4f0;border-radius:6px;font-size:12px;"
+             onclick="event.preventDefault()">
+      <span>days</span>
     </label>
     <button class="login-btn" id="login-submit-btn" onclick="attemptAdminLogin()">Enter Admin Panel</button>
     <div class="login-err" id="login-err-msg"></div>
@@ -285,6 +295,8 @@ tbody tr:hover{background:#f9fbfd}
     <ul class="nav-list">
       <li class="nav-item active" data-page="dashboard" onclick="switchPage('dashboard')"><span class="nav-icon">📊</span><span class="nav-label">Dashboard</span></li>
       <li class="nav-item" data-page="audit" onclick="switchPage('audit')"><span class="nav-icon">📜</span><span class="nav-label">Audit Log</span></li>
+      <!-- v2.17 (Master Prompt v21, Part 4.2) -->
+      <li class="nav-item" data-page="sessions" onclick="switchPage('sessions')"><span class="nav-icon">🔄</span><span class="nav-label">Scan Sessions</span></li>
       <li class="nav-item" data-page="employees" onclick="switchPage('employees')"><span class="nav-icon">👥</span><span class="nav-label">Employees</span></li>
       <li class="nav-item" data-page="sku" onclick="switchPage('sku')"><span class="nav-icon">📦</span><span class="nav-label">SKU &amp; Stock</span></li>
       <li class="nav-item" data-page="bins" onclick="switchPage('bins')"><span class="nav-icon">🗂</span><span class="nav-label">Bin Management</span></li>
@@ -293,7 +305,7 @@ tbody tr:hover{background:#f9fbfd}
     </ul>
     <div class="sidebar-footer">
       <button class="logout-btn" onclick="adminLogout()">⎋ Logout</button>
-      <div class="ver-footer">ArtzFolio Admin Panel v2.16</div>
+      <div class="ver-footer">ArtzFolio Admin Panel v2.17</div>
     </div>
   </div>
 
@@ -468,6 +480,46 @@ tbody tr:hover{background:#f9fbfd}
           <button id="audit-prev-btn" onclick="auditPagePrev()">← Prev</button>
           <button id="audit-next-btn" onclick="auditPageNext()">Next →</button>
         </div>
+      </div>
+    </div>
+
+    <!-- ══════════════ SCAN SESSIONS (v2.17, Master Prompt v21, Part 4.2) ══════════════ -->
+    <!-- The real admin-side workflow behind "an employee can work, then an admin
+         cross-checks it, voids it, or passes it through" -- an admin reviewing
+         and committing/voiding a session from ANY device, independent of which
+         phone actually scanned it. Complements, does not replace, the App's own
+         same-device MOVE-tab Commit/Reverse. -->
+    <div class="page" id="page-sessions">
+      <div class="page-header">
+        <div>
+          <div class="page-title">Scan Sessions</div>
+          <div class="page-sub">Every PO-scoped scan session, any employee, any device — review, commit, or void from here.</div>
+        </div>
+      </div>
+      <div class="filter-bar">
+        <div class="filter-field"><label>Status</label>
+          <select id="sessions-status">
+            <option value="">All</option>
+            <option value="OPEN">Open</option>
+            <option value="CLOSED_PENDING_REVIEW" selected>Closed — pending review</option>
+            <option value="COMMITTED">Committed</option>
+            <option value="VOIDED">Voided</option>
+            <option value="ABANDONED">Abandoned</option>
+          </select>
+        </div>
+        <div class="filter-field"><label>Employee</label>
+          <select id="sessions-employee"><option value="">All</option></select>
+        </div>
+        <div class="filter-actions">
+          <button class="btn btn-grey" onclick="resetSessionsFilters()">Reset</button>
+          <button class="btn btn-primary" onclick="loadScanSessions()">Apply Filters</button>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th></th><th>Opened</th><th>Employee</th><th>Device</th><th>Status</th><th>Bin/PO</th><th>Scans</th><th>Net Qty</th><th>Actions</th></tr></thead>
+          <tbody id="sessions-body"><tr class="empty-row"><td colspan="9">Enter your admin secret via login to load scan sessions.</td></tr></tbody>
+        </table>
       </div>
     </div>
 
@@ -1136,10 +1188,14 @@ function clearAdminSecret() {
 // survives the tab closing (sessionStorage doesn't), always re-verified
 // server-side on load rather than blindly trusted (see bootstrap() below).
 var ADMIN_REMEMBER_KEY = 'oms_admin_remember_secret';
-var ADMIN_REMEMBER_DAYS = 30;
-function saveRememberedSecret(val) {
+var ADMIN_REMEMBER_DAYS_DEFAULT = 7;
+// v2.17 (Part 3): days is now Rajat's own choice, typed at login (default 7,
+// suggested by the prompt) rather than a fixed 30 -- clamped to a sane
+// 1..365 range regardless of what reaches this function.
+function saveRememberedSecret(val, days) {
   try {
-    var payload = { value: val, expiresAt: Date.now() + ADMIN_REMEMBER_DAYS * 24 * 60 * 60 * 1000 };
+    var d = Math.max(1, Math.min(365, parseInt(days, 10) || ADMIN_REMEMBER_DAYS_DEFAULT));
+    var payload = { value: val, expiresAt: Date.now() + d * 24 * 60 * 60 * 1000, days: d };
     localStorage.setItem(ADMIN_REMEMBER_KEY, JSON.stringify(payload));
   } catch (e) {}
 }
@@ -1229,6 +1285,8 @@ function attemptAdminLogin() {
   if (!val) { errEl.textContent = 'Please enter the admin secret.'; return; }
   var rememberEl = document.getElementById('login-remember-input');
   var remember = !!(rememberEl && rememberEl.checked);
+  var daysEl = document.getElementById('login-remember-days-input');
+  var rememberDays = daysEl ? daysEl.value : ADMIN_REMEMBER_DAYS_DEFAULT;
   errEl.textContent = 'Verifying...';
   if (btn) btn.disabled = true;
   verifyAdminSecret(val, function () {
@@ -1237,7 +1295,12 @@ function attemptAdminLogin() {
     setAdminSecret(val);
     // v2.14 (Master Prompt v17, Part A): only ever written when the box was
     // checked — unchecked (default) behaves exactly as before.
-    if (remember) { saveRememberedSecret(val); } else { clearRememberedSecret(); }
+    // v2.17 (Part 3): the chosen day-count now also decides how long this
+    // device is exempt from the 30-min idle logout (see SESSION_IDLE_LIMIT_MS
+    // below) -- resetting lastActivityAt here too so a just-completed login
+    // never appears "already idle" if the tab was left open on this screen.
+    lastActivityAt = Date.now();
+    if (remember) { saveRememberedSecret(val, rememberDays); } else { clearRememberedSecret(); }
     showAppShell();
   }, function (msg) {
     recordLoginFailure();
@@ -1306,6 +1369,14 @@ document.addEventListener('keydown', function () { lastActivityAt = Date.now(); 
 setInterval(function () {
   var shell = document.getElementById('app-shell');
   if (!shell || shell.style.display === 'none') return;
+  // v2.17 (Master Prompt v21, Part 3): a "keep me signed in" device (a
+  // present, not-yet-expired remembered-secret token) is exempt from the
+  // 30-minute idle logout entirely -- its own chosen expiresAt is the only
+  // thing that can end it early, and that's enforced up in bootstrap()'s
+  // re-verification on load, not here. loadRememberedSecret() itself already
+  // clears and returns null once expired, so this check alone is sufficient.
+  // Unchecked (default) behaviour is completely unchanged below.
+  if (loadRememberedSecret()) return;
   if (Date.now() - lastActivityAt >= SESSION_IDLE_LIMIT_MS) {
     adminLogout();
     var errEl = document.getElementById('login-err-msg');
@@ -1386,6 +1457,79 @@ function initAppShell() {
   document.getElementById('txn-to').value = today;
   subscribeDashboardRealtime();
 }
+// ══════════════════ PULL-TO-REFRESH (v2.17, Master Prompt v21, Part 2) ══════
+// This panel scrolls at the document/window level (no fixed-height .main —
+// see CSS), unlike the App's single .content container, so this checks
+// window scroll position instead of a container's scrollTop. Reuses exactly
+// whatever each page's own refresh/"Apply Filters" action already does — no
+// second, parallel refresh path — since a phone browser can open this panel
+// too and the same UX expectation applies.
+var ADMIN_PTR_THRESHOLD = 72;
+var adminPtr = { pulling: false, startY: 0 };
+var ADMIN_PTR_REFRESH_FNS = {
+  // Round-1 audit fix: loadDashboard() takes no parameters (unlike the
+  // App's loadDashboard(force)) -- the real "↻ Refresh" button calls it
+  // bare. Passing true was silently-ignored copy/paste drift, not a
+  // functional bug, but it contradicted this map's own claim of reusing
+  // exactly what each button already does.
+  dashboard: function () { loadDashboard(); },
+  audit:     function () { refreshAuditFromBanner(); },
+  sessions:  function () { loadScanSessions(); },
+  employees: function () { loadEmployees(); },
+  sku:       function () { loadSkuStock(0); },
+  bins:      function () { loadBins(); },
+  reports:   function () { loadTransactions(0); },
+  settings:  function () { loadSettingsPage(); }
+};
+function initAdminPullToRefresh() {
+  var mainEl = document.querySelector('.main');
+  if (!mainEl) return;
+  var ind = document.createElement('div');
+  ind.className = 'ptr-indicator';
+  ind.style.cssText = 'height:0;overflow:hidden;display:flex;align-items:center;justify-content:center;font-size:13px;color:#666;transition:height .15s ease;';
+  mainEl.insertBefore(ind, mainEl.firstChild);
+  document.addEventListener('touchstart', function (e) {
+    var shell = document.getElementById('app-shell');
+    if (!shell || shell.style.display === 'none' || !ADMIN_PTR_REFRESH_FNS[currentPage]) { adminPtr.pulling = false; return; }
+    // Round-1 audit fix: several .modal elements (Edit Access, Adjust Stock,
+    // Relocate Bin, ...) are independently scrollable (max-height:85vh;
+    // overflow-y:auto) inside a position:fixed .modal-bg, so window.scrollY
+    // stays 0 while one is open -- without this guard, swiping inside an
+    // open modal stole the gesture from the modal's own scroll instead.
+    if (e.target.closest && e.target.closest('.modal-bg')) { adminPtr.pulling = false; return; }
+    if (window.scrollY > 0 || e.touches.length !== 1) { adminPtr.pulling = false; return; }
+    adminPtr.pulling = true;
+    adminPtr.startY = e.touches[0].clientY;
+  }, { passive: true });
+  document.addEventListener('touchmove', function (e) {
+    if (!adminPtr.pulling) return;
+    var dy = e.touches[0].clientY - adminPtr.startY;
+    if (dy <= 0) { ind.style.height = '0px'; ind.textContent = ''; return; }
+    if (window.scrollY > 0) { adminPtr.pulling = false; ind.style.height = '0px'; ind.textContent = ''; return; }
+    e.preventDefault();
+    var dist = Math.min(dy * 0.5, ADMIN_PTR_THRESHOLD * 1.6);
+    ind.style.height = dist + 'px';
+    ind.textContent = dist >= ADMIN_PTR_THRESHOLD ? '⬇️ Release to refresh' : '⬇️ Pull to refresh';
+  }, { passive: false });
+  document.addEventListener('touchend', function () {
+    if (!adminPtr.pulling) return;
+    adminPtr.pulling = false;
+    var height = parseFloat(ind.style.height) || 0;
+    ind.style.height = '0px';
+    ind.textContent = '';
+    if (height >= ADMIN_PTR_THRESHOLD) {
+      var fn = ADMIN_PTR_REFRESH_FNS[currentPage];
+      if (fn) fn();
+    }
+  }, { passive: true });
+  document.addEventListener('touchcancel', function () {
+    adminPtr.pulling = false;
+    ind.style.height = '0px';
+    ind.textContent = '';
+  }, { passive: true });
+}
+document.addEventListener('DOMContentLoaded', initAdminPullToRefresh);
+
 function switchPage(name) {
   document.querySelectorAll('.page').forEach(function (p) { p.classList.remove('active'); });
   document.querySelectorAll('.nav-item').forEach(function (n) { n.classList.remove('active'); });
@@ -1402,6 +1546,7 @@ function switchPage(name) {
   currentPage = name;
 
   if (name === 'audit' && !auditLoadedOnce) { loadAuditLog(0); }
+  if (name === 'sessions' && !sessionsLoadedOnce) { loadScanSessions(); }
   if (name === 'employees' && !empLoadedOnce) { loadEmployees(); }
   if (name === 'settings' && !settingsLoadedOnce) { loadSettingsPage(); }
   if (name === 'bins' && !binsLoadedOnce) { loadBins(); }
@@ -1478,9 +1623,17 @@ function populateEmployeeDropdowns() {
     var opts = visible.map(function (e) {
       return '<option value="' + esc(e.employee_code) + '">' + esc(e.employee_code) + ' — ' + esc(e.display_name) + '</option>';
     }).join('');
-    ['audit-employee', 'txn-employee'].forEach(function (id) {
+    ['audit-employee', 'txn-employee', 'sessions-employee'].forEach(function (id) {
       var sel = document.getElementById(id);
-      if (sel) sel.innerHTML = '<option value="">All</option>' + opts;
+      if (!sel) return;
+      // Round-2 audit fix: now also called from loadScanSessions() on every
+      // Apply-Filters/refresh (not just once at boot), so the currently
+      // selected filter must survive a repopulate -- previously this always
+      // reset to "All", which would have silently discarded whatever the
+      // admin had picked every time they refreshed that page.
+      var prevVal = sel.value;
+      sel.innerHTML = '<option value="">All</option>' + opts;
+      if (prevVal && visible.some(function (e) { return e.employee_code === prevVal; })) sel.value = prevVal;
     });
   }).catch(function () {});
 }
@@ -2460,6 +2613,196 @@ function exportAuditFullCSV() {
   });
 }
 
+// ═══════════════════════ SCAN SESSIONS (v2.17, Master Prompt v21, Part 4.2) ═══
+// Admin-side visibility on top of the App's own per-device Scan Sessions
+// feature (v76) -- an admin reviewing, committing, or voiding ANY employee's
+// session from ANY device, not just the phone that scanned it. Same
+// secret-gating UX as everywhere else in this file: the admin secret is
+// already held from login (getAdminSecret()) and reused silently, never
+// re-prompted per action -- exactly how unlockEmployee()/relocateBin() work.
+var sessionsLoadedOnce = false;
+var sessionsLastRows = [];
+
+function resetSessionsFilters() {
+  document.getElementById('sessions-status').value = 'CLOSED_PENDING_REVIEW';
+  document.getElementById('sessions-employee').value = '';
+  loadScanSessions();
+}
+
+function loadScanSessions() {
+  if (!db) { refreshOfflineBanner(); return; }
+  sessionsLoadedOnce = true;
+  // Round-2 audit fix: populateEmployeeDropdowns() was previously only ever
+  // called from initAppShell() (once at boot) and loadEmployees() (only when
+  // the Employees page itself loads) -- so the "sessions-employee" filter
+  // silently went stale for anyone who worked this page without separately
+  // visiting Employees. Mirrors loadEmployees()'s own call to this.
+  populateEmployeeDropdowns();
+  var body = document.getElementById('sessions-body');
+  body.innerHTML = '<tr class="empty-row"><td colspan="9">Loading...</td></tr>';
+  var statusVal = document.getElementById('sessions-status').value || null;
+  var params = {
+    p_admin_secret: getAdminSecret(),
+    p_status: statusVal,
+    p_caller_employee_code: getAdminPanelEmployeeCode()
+  };
+  withTimeout(db.rpc('oms_admin_list_scan_sessions', params), 10000, 'Scan Sessions').then(function (res) {
+    if (res.error) {
+      if (isBadSecretError(res.error)) { handleBadSecret('Scan Sessions'); return; }
+      body.innerHTML = '<tr class="empty-row"><td colspan="9">Error: ' + esc(res.error.message) + '</td></tr>';
+      return;
+    }
+    var rows = res.data || [];
+    var empVal = document.getElementById('sessions-employee').value;
+    if (empVal) rows = rows.filter(function (r) { return r.employee_code === empVal; });
+    sessionsLastRows = rows;
+    if (!rows.length) {
+      body.innerHTML = '<tr class="empty-row"><td colspan="9">No scan sessions match these filters.</td></tr>';
+      return;
+    }
+    body.innerHTML = rows.map(function (r, idx) { return scanSessionRowHtml(r, idx); }).join('');
+  }).catch(function (err) {
+    body.innerHTML = '<tr class="empty-row"><td colspan="9">Error: ' + esc(String(err && err.message || err)) + '</td></tr>';
+  });
+}
+
+var SESSION_STATUS_LABEL = {
+  OPEN: '🟢 Open', CLOSED_PENDING_REVIEW: '📋 Pending review',
+  COMMITTED: '✓ Committed', VOIDED: '↺ Voided', ABANDONED: '⚠ Abandoned'
+};
+
+function scanSessionRowHtml(s, idx) {
+  var canReview = s.status === 'CLOSED_PENDING_REVIEW';
+  // applyReadOnlyModeToUI() only hides .write-only-control elements already
+  // present in the DOM at login time -- it never re-scans rows rendered
+  // later by loadScanSessions(), so a READ_ONLY_ADMIN checked directly here
+  // instead of relying on that class for these dynamic buttons. Real
+  // enforcement is server-side either way (oms_check_not_readonly_admin).
+  var actions = (canReview && !isReadOnlyAdmin())
+    ? '<button class="btn btn-primary" style="padding:4px 10px;font-size:11px;" onclick="adminCommitScanSession(\'' + s.session_id + '\',' + idx + ')">✓ Commit</button> ' +
+      '<button class="btn" style="padding:4px 10px;font-size:11px;background:#a33;color:#fff;" onclick="adminVoidScanSession(\'' + s.session_id + '\',' + idx + ')">↺ Void</button>'
+    : (canReview
+        ? '<span style="color:#999;font-size:11px;">Read-only — ask a full Admin</span>'
+        : '<span style="color:#999;font-size:11px;">' + (s.resolved_by ? 'by ' + esc(s.resolved_by) : '—') + '</span>');
+  var row =
+    '<tr>' +
+    '<td><button class="btn btn-grey" style="padding:2px 8px;font-size:11px;" onclick="toggleScanSessionDetail(' + idx + ')" id="sess-toggle-' + idx + '">▾</button></td>' +
+    '<td>' + fmtDateTime(s.opened_at) + '</td>' +
+    '<td>' + esc(s.employee_code) + '</td>' +
+    '<td>' + esc(s.device_hint || '—') + '</td>' +
+    '<td>' + (SESSION_STATUS_LABEL[s.status] || esc(s.status)) + '</td>' +
+    '<td>' + esc(s.default_bin_code || '—') + '</td>' +
+    '<td>' + fmtNum(s.scan_count) + '</td>' +
+    '<td>' + fmtNum(s.total_qty) + '</td>' +
+    '<td>' + actions + '</td>' +
+    '</tr>' +
+    '<tr class="sess-detail-row" id="sess-detail-' + idx + '" style="display:none;"><td colspan="9">' +
+    scanSessionDetailHtml(s) + '</td></tr>';
+  return row;
+}
+
+// Deliberately mirrors the App's own renderReconciliation() phrasing exactly
+// ("Scanned more than once...", "On the manifest but never scanned...",
+// "Counted differently from the manifest...") so the same event reads
+// identically whether reviewed on the phone that scanned it or here.
+function scanSessionDetailHtml(s) {
+  var h = '<div style="padding:8px 4px;font-size:12.5px;">';
+  h += '<div><strong>' + fmtNum(s.scan_count) + '</strong> entries &middot; <strong>' + fmtNum(s.distinct_skus) + '</strong> different SKUs &middot; net qty <strong>' + fmtNum(s.total_qty) + '</strong></div>';
+
+  var d = s.duplicates || [];
+  if (d.length) {
+    h += '<div style="margin-top:6px;"><strong>⚠️ Scanned more than once in this session</strong>' +
+         '<div style="font-size:11px;color:#666;">The likely double-count.</div>';
+    d.forEach(function (x) {
+      h += '<div>&bull; <strong>' + esc(x.sku_code) + '</strong> — ' + x.times_scanned + ' entries, total qty ' + fmtNum(x.total_qty) + '</div>';
+    });
+    h += '</div>';
+  } else if (s.status === 'CLOSED_PENDING_REVIEW') {
+    h += '<div style="margin-top:6px;color:#1B7A3A;">✓ No SKU was scanned twice in this session.</div>';
+  }
+
+  var m = s.expected_not_scanned;
+  if (m === null || typeof m === 'undefined') {
+    h += '<div style="margin-top:6px;color:#888;font-size:11px;">No manifest was provided for this session, so "missed items" cannot be checked.</div>';
+  } else if (m.length) {
+    h += '<div style="margin-top:6px;"><strong>⚠️ On the manifest but never scanned</strong>';
+    m.forEach(function (x) { h += '<div>&bull; <strong>' + esc(x.sku_code) + '</strong> — expected ' + fmtNum(x.expected_qty) + '</div>'; });
+    h += '</div>';
+  } else if (s.status === 'CLOSED_PENDING_REVIEW') {
+    h += '<div style="margin-top:6px;color:#1B7A3A;">✓ Every SKU on the manifest was scanned.</div>';
+  }
+
+  var v = s.variances;
+  if (v && v.length) {
+    h += '<div style="margin-top:6px;"><strong>⚠️ Counted differently from the manifest</strong>';
+    v.forEach(function (x) {
+      h += '<div>&bull; <strong>' + esc(x.sku_code) + '</strong> — expected ' + fmtNum(x.expected_qty) +
+           ', scanned ' + fmtNum(x.scanned_qty) + ' (' + (x.variance > 0 ? '+' : '') + x.variance + ')</div>';
+    });
+    h += '</div>';
+  }
+  if (s.note) h += '<div style="margin-top:6px;color:#666;font-size:11px;">Note: ' + esc(s.note) + '</div>';
+  h += '<div id="sess-action-result-' + s.session_id + '" class="result-msg"></div>';
+  h += '</div>';
+  return h;
+}
+
+function toggleScanSessionDetail(idx) {
+  var row = document.getElementById('sess-detail-' + idx);
+  var btn = document.getElementById('sess-toggle-' + idx);
+  if (!row) return;
+  var show = row.style.display === 'none';
+  row.style.display = show ? '' : 'none';
+  if (btn) btn.textContent = show ? '▴' : '▾';
+}
+
+function adminCommitScanSession(sessionId, idx) {
+  var s = sessionsLastRows[idx];
+  if (!s) return;
+  if (!confirm('Commit this session (' + (s.scan_count || 0) + ' entries, employee ' + s.employee_code + ')? The entries are already live -- this just accepts them, nothing else changes.')) return;
+  var resEl = document.getElementById('sess-action-result-' + sessionId);
+  if (resEl) { resEl.className = 'result-msg'; resEl.textContent = 'Committing...'; }
+  withTimeout(db.rpc('oms_commit_scan_session', {
+    p_session_id: sessionId,
+    p_employee_code: getAdminPanelEmployeeCode(),
+    p_admin_secret: getAdminSecret()
+  }), 10000, 'Commit session').then(function (res) {
+    if (res.error) {
+      if (isBadSecretError(res.error)) { handleBadSecret('Scan Sessions'); return; }
+      if (resEl) { resEl.className = 'result-msg err'; resEl.textContent = 'Error: ' + res.error.message; }
+      return;
+    }
+    // No client-side writeAuditLog() here — oms_commit_scan_session already
+    // writes a SCAN_SESSION_COMMITTED audit row server-side with the real
+    // acting employee_code; a second client-side row would just duplicate it.
+    loadScanSessions();
+  }).catch(function (err) { if (resEl) { resEl.className = 'result-msg err'; resEl.textContent = 'Error: ' + esc(String(err && err.message || err)); } });
+}
+
+function adminVoidScanSession(sessionId, idx) {
+  var s = sessionsLastRows[idx];
+  if (!s) return;
+  if (!confirm('Reverse (void) this session (' + (s.scan_count || 0) + ' entries, employee ' + s.employee_code + ')? This writes one balancing entry per scan -- nothing is deleted, but the batch is backed out. This cannot be undone (though it never edits history).')) return;
+  var note = prompt('Optional note for this void (why it\'s being reversed):', '') || null;
+  var resEl = document.getElementById('sess-action-result-' + sessionId);
+  if (resEl) { resEl.className = 'result-msg'; resEl.textContent = 'Voiding...'; }
+  withTimeout(db.rpc('oms_void_scan_session', {
+    p_session_id: sessionId,
+    p_admin_secret: getAdminSecret(),
+    p_employee_code: getAdminPanelEmployeeCode(),
+    p_note: note
+  }), 10000, 'Void session').then(function (res) {
+    if (res.error) {
+      if (isBadSecretError(res.error)) { handleBadSecret('Scan Sessions'); return; }
+      if (resEl) { resEl.className = 'result-msg err'; resEl.textContent = 'Error: ' + res.error.message; }
+      return;
+    }
+    // No client-side writeAuditLog() here either — oms_void_scan_session
+    // already writes a SCAN_SESSION_VOIDED audit row server-side.
+    loadScanSessions();
+  }).catch(function (err) { if (resEl) { resEl.className = 'result-msg err'; resEl.textContent = 'Error: ' + esc(String(err && err.message || err)); } });
+}
+
 // ═══════════════════════ EMPLOYEES ═══════════════════════
 var empLoadedOnce = false;
 var binsLoadedOnce = false;
@@ -2670,8 +3013,14 @@ var ROLE_PERMISSION_PRESETS = {
   BILLING_OPERATOR: { pick: true,  move: false, stock: true,  log: true, logScope: 'own', guide: true, settings: false, dash: false, sessions: false },
   INVENTORY_LEAD:   { pick: true,  move: true,  stock: true,  log: true, logScope: 'all', guide: true, settings: false, dash: false, sessions: false },
   PRODUCTION_LEAD:  { pick: false, move: false, stock: true,  log: true, logScope: 'all', guide: true, settings: false, dash: false, sessions: false },
-  ADMIN:            { pick: true,  move: true,  stock: true,  log: true, logScope: 'all', guide: true, settings: true,  dash: true, sessions: false }
+  ADMIN:            { pick: true,  move: true,  stock: true,  log: true, logScope: 'all', guide: true, settings: true,  dash: true, sessions: true }
 };
+// v2.17 (Master Prompt v21, Part 5): matches the App's own ROLE_PERMISSIONS.ADMIN
+// fix — the "off for everyone, including ADMIN" launch decision behind Scan
+// Sessions ends here, scoped to ADMIN only. The other 4 presets are untouched
+// (still sessions:false). applyPermissionPreset('ADMIN') needs no separate
+// change — it just reads this object, so clicking the Admin preset now
+// correctly ticks Scan Sessions along with everything else already true here.
 var PERMISSION_SECTIONS = [
   { key: 'pick',     label: 'Pick',      help: 'Scan and fulfil customer orders — the App\'s main PICK tab.' },
   { key: 'move',     label: 'Move',      help: 'Receive new stock, transfer between bins, and make manual stock corrections.' },
@@ -2680,10 +3029,12 @@ var PERMISSION_SECTIONS = [
   { key: 'guide',    label: 'Guide',     help: 'The App\'s in-app help/reference guide. Almost never worth hiding — checked by default.' },
   { key: 'settings', label: 'Settings',  help: 'The App\'s own Settings tab (device/session tools). Not the same as this Admin Panel.' },
   { key: 'dash',     label: 'Dashboard', help: 'The Owner Dashboard tab inside the phone App (KPIs/charts). Separate from this Admin Panel\'s own Dashboard page.' },
-  // v2.15 (Master Prompt v19, Part 2) — Scan Sessions. Ships OFF for everyone,
-  // including ADMIN and every preset. Turn it on for one person for a week
-  // before rolling it out to the floor.
-  { key: 'sessions', label: 'Scan Sessions', help: 'Lets this person group a batch of MOVE scans into a session, review it for double-counts and missed items, then commit it or reverse the whole batch. Off by default. Reversing a session needs the Admin Secret.' }
+  // v2.15 (Master Prompt v19, Part 2) — Scan Sessions, OFF by default for
+  // every preset. v2.17 (Master Prompt v21, Part 5) ended that specifically
+  // for the ADMIN preset (see ROLE_PERMISSION_PRESETS.ADMIN above) — every
+  // other preset is still OFF by default. Turn it on for one warehouse-staff
+  // person for a week before rolling it out to the floor.
+  { key: 'sessions', label: 'Scan Sessions', help: 'Lets this person group a batch of MOVE scans into a session, review it for double-counts and missed items, then commit it or reverse the whole batch. Off by default for every role except ADMIN. Reversing a session needs the Admin Secret.' }
 ];
 
 function buildPermissionUIHtml(prefix) {
