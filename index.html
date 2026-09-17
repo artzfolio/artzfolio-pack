@@ -398,7 +398,7 @@
     </style>
 </head>
 <body>
-<div class="ver-corner" id="verCornerBadge" onclick="handleVerBadgeTap()">v81</div>
+<div class="ver-corner" id="verCornerBadge" onclick="handleVerBadgeTap()">v82</div>
 <!-- v63: Gap 2 — offline write-queue indicator. Hidden (display:none) unless
      something is actually queued or failed. Tapping it shows the queue detail
      panel (openOfflineQueuePanel()). -->
@@ -762,7 +762,7 @@
                  the Excel bulk tool does. -->
             <div class="settings-section" style="margin-top:10px;">
                 <h3>&#128190; Bulk Upload (CSV)</h3>
-                <div class="settings-info">For many rows at once. Download the template, fill it in Excel, then upload it here. <strong>v80: the template is now a real Excel file</strong> &mdash; drop-down on the Action column, filters, an Instructions sheet and worked sample rows, so there is no guessing what to type. Save it as <strong>CSV</strong> before uploading. Action can be: INBOUND, RETURN_IN, FOUND, LOST, REJECTED, QC_HOLD, QC_RELEASE, or TRANSFER (needs both Bin and ToBin).</div>
+                <div class="settings-info">For many rows at once. Download the template, fill it in Excel, then upload it here. <strong>v80: the template is now a real Excel file</strong> &mdash; drop-down on the Action column, filters, an Instructions sheet and worked sample rows, so there is no guessing what to type. Save it as <strong>CSV</strong> before uploading. Action can be: INBOUND, RETURN_IN, FOUND, LOST, REJECTED, QC_HOLD, QC_RELEASE, TRANSFER (needs both Bin and ToBin), or <strong>DISPATCH</strong> (stock leaving for an order &mdash; put the <strong>order number</strong> in the ToBin column).</div>
                 <div class="settings-row">
                     <button class="settings-btn" style="flex:1" onclick="downloadBulkTemplate()">&#8681; Download Template</button>
                 </div>
@@ -1043,6 +1043,7 @@
                     <!-- v52: Set True Count — new 7th pill, for physical stock counts only -->
                     <li><strong>Set True Count</strong> &mdash; 7th pill on the MOVE tab, for a physical stock count only (not daily use). <strong>v80: this now counts ONE BIN at a time.</strong> Type the bin you physically counted and the number you found <em>in that bin</em>; the app compares it against what that same bin currently shows and saves only the difference. Any other bin holding the same SKU is listed in the confirmation box and is never changed. A note is recommended but not required. Bin is required here too, like every other action.
                         <br><em>Why this changed:</em> before v80 the app compared your one-bin count against the SKU's total across every bin, so counting a SKU that lived in two bins silently pushed one bin negative &mdash; and the next action on that bin then failed with a confusing error. If a SKU sits in several bins, count each bin separately.</li>
+                    <li><strong>&#128190; Bulk DISPATCH</strong> &mdash; <strong>v82.</strong> The Bulk Upload (CSV) list now also accepts <strong>DISPATCH</strong>, for booking out many orders at once. Put the <strong>order number in the ToBin column</strong>. This is the same action, same wording and same column as the Excel sheet's DISPATCH, so one filled-in sheet works in either place.</li>
                     <li><strong>&#128228; Dispatch / Order Out</strong> &mdash; <strong>new 8th pill (v81).</strong> Use it whenever stock physically leaves for a customer order. Scan the SKU, confirm the bin it came from, enter how many, and add the order number and channel.
                         <br><em>Why this matters:</em> until now the system recorded 2,702 stock-<em>in</em> entries and <strong>not one</strong> stock-<em>out</em>. That is why low-stock alerts never fired and every SKU showed as ABC tier &ldquo;C&rdquo; &mdash; the reports had no sales to work from. Booking dispatches here (or completing a pick on the PICK tab) is what switches all of that on.</li>
                     <!-- v80: Quick Add New Listing -->
@@ -1184,7 +1185,7 @@
 
             <!-- Version -->
             <div class="ver-badge">
-                <div class="ver-name">&#128230; ArtzFolio Scan-Pick-Pack v81</div>
+                <div class="ver-name">&#128230; ArtzFolio Scan-Pick-Pack v82</div>
                 <div class="ver-sub">Full changelog available on request.</div>
             </div>
         </div>
@@ -4338,12 +4339,20 @@ var ACTION_TXN_MAP = {
     LOST:        { txnType: 'ADJUSTMENT_LOST_THEFT',  sign: -1 },
     REJECTED:    { txnType: 'ADJUSTMENT_REJECTED',    sign: -1 },
     QC_HOLD:     { txnType: 'QC_HOLD',                sign: -1 },
-    QC_RELEASE:  { txnType: 'ADJUSTMENT_QC_RELEASE',  sign: 1  }
+    QC_RELEASE:  { txnType: 'ADJUSTMENT_QC_RELEASE',  sign: 1  },
+    // v82 (2026-09-17): DISPATCH closes the last gap in the three-way sync.
+    // The MOVE tab got a Dispatch Out pill in v81 and the Excel bulk sheet got
+    // a DISPATCH action in modBulkWarehouseOps v2.4 - this bulk CSV path was
+    // the only remaining route that could book stock IN but never OUT. All
+    // three now write the identical txn_type into the identical table.
+    // On a DISPATCH row the ToBin column carries the ORDER NUMBER, exactly as
+    // it does on the Excel sheet, so one filled-in template works in both.
+    DISPATCH:    { txnType: 'SCAN_OUT_ORDER',         sign: -1 }
 };
 function downloadBulkTemplate() {
     // v80: try the real Excel template first; fall back to the plain CSV below
     // if it is not deployed yet or the device is offline.
-    var XLSX_TEMPLATE = 'ArtzFolio_OMS_Bulk_Upload_Template_v1.0_2026-09.xlsx';
+    var XLSX_TEMPLATE = 'ArtzFolio_OMS_Bulk_Upload_Template_v1.1_2026-09.xlsx';
     try {
         fetch(XLSX_TEMPLATE, { method: 'GET', cache: 'no-store' }).then(function(r) {
             if (!r.ok) throw new Error('not deployed');
@@ -4374,7 +4383,7 @@ function downloadBulkTemplateCsvFallback() {
               'INBOUND,AZPER200596FRA_NM_01-S5_BL,A12,,50,Sample row - delete this,\r\n' +
               ',,,,,,\r\n' +
               'VALID ACTIONS:,INBOUND,RETURN_IN,FOUND,LOST,REJECTED,QC_HOLD\r\n' +
-              ',QC_RELEASE,TRANSFER (needs Bin AND ToBin),,,,\r\n';
+              ',QC_RELEASE,TRANSFER (needs Bin AND ToBin),DISPATCH (order no. in ToBin),,,\r\n';
     var blob = new Blob([csv], { type: 'text/csv' });
     var url = URL.createObjectURL(blob);
     var a = document.createElement('a');
@@ -4520,7 +4529,12 @@ function processBulkRowsSequentially(rows, idx, empCode, results, resultEl) {
         var cfg = ACTION_TXN_MAP[action];
         if (!cfg) { finish('FAILED - unknown Action: ' + action); return; }
         if (!bin) { finish('FAILED - ' + action + ' needs a Bin'); return; }
-        writeLedgerTxn({ sessionEligible: bulkSessionEligible, skuCode: realSku, asin: skuRow.asin, qtyDelta: cfg.sign * qtyVal, txnType: cfg.txnType, binCode: bin, note: note }).then(function(res) {
+        // v82: on a DISPATCH row the ToBin column is the order number, and it
+        // goes to the ledger's own order_id column rather than into the note,
+        // because the velocity and ABC-tier views read that column. Identical
+        // handling to the Excel sheet's DISPATCH action.
+        var bulkOrderId = (action === 'DISPATCH' && toBin) ? toBin : null;
+        writeLedgerTxn({ sessionEligible: bulkSessionEligible, skuCode: realSku, asin: skuRow.asin, qtyDelta: cfg.sign * qtyVal, txnType: cfg.txnType, binCode: bin, orderId: bulkOrderId, note: note }).then(function(res) {
             finish(res.ok ? ('OK' + prefix + mismatchNote) : 'FAILED - ' + res.reason);
         });
     }
