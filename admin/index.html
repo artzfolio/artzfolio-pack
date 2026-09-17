@@ -305,7 +305,7 @@ tbody tr:hover{background:#f9fbfd}
     </ul>
     <div class="sidebar-footer">
       <button class="logout-btn" onclick="adminLogout()">⎋ Logout</button>
-      <div class="ver-footer">ArtzFolio Admin Panel v2.17</div>
+      <div class="ver-footer">ArtzFolio Admin Panel v2.18</div>
     </div>
   </div>
 
@@ -997,6 +997,42 @@ try {
   }
 } catch (e) { console.warn('DB init failed:', e); dbOnline = false; }
 
+// ══ v2.18 (2026-09-17) — READ-ONLY ADMIN LOCKOUT FIX, LAYER 1 OF 4 ═════════
+// THE BUG: a READ_ONLY_ADMIN never sets an admin secret (by design — there is
+// nothing for them to unlock), so getAdminSecret() returns ''. But only 5 of
+// the panel's controls carried the .write-only-control class, while 18 write
+// functions read that secret. Clicking any of the other 13 sent an empty
+// secret, the RPC correctly rejected it with Postgres errcode 28000,
+// isBadSecretError() treated that as "wrong passphrase", and handleBadSecret()
+// bounced the whole panel to the Admin Secret screen — which a read-only
+// account can never satisfy and which hides the employee login screen. Dead
+// end, no way back, exactly as reported.
+//
+// THE FIX, LAYER 1: one choke point instead of 18 separate patches. Every RPC
+// call carrying p_admin_secret is intercepted here. From a read-only session
+// it is answered locally with a clear permission error and never reaches the
+// server — so the 28000 path that caused the bounce can no longer be entered.
+// Error code is 42501 (insufficient privilege), deliberately NOT 28000, so
+// isBadSecretError() returns false and nothing bounces. This also covers any
+// write function added in future, with no further changes.
+if (db && typeof db.rpc === 'function') {
+  var _omsRawRpc = db.rpc.bind(db);
+  db.rpc = function (fnName, args) {
+    try {
+      if (args && Object.prototype.hasOwnProperty.call(args, 'p_admin_secret') && isReadOnlyAdmin()) {
+        return Promise.resolve({
+          data: null,
+          error: {
+            code: '42501',
+            message: 'Read-only access: this account can view everything but cannot make changes. Ask a full Admin to do this.'
+          }
+        });
+      }
+    } catch (e) { /* if the check itself fails, fall through to the real call */ }
+    return _omsRawRpc(fnName, args);
+  };
+}
+
 function refreshOfflineBanner() {
   var el = document.getElementById('db-offline-banner');
   if (!el) return;
@@ -1108,8 +1144,34 @@ function applyReadOnlyModeToUI() {
   document.querySelectorAll('.write-only-control').forEach(function (el) {
     el.style.display = 'none';
   });
+  // v2.18 — READ-ONLY ADMIN LOCKOUT FIX, LAYER 3 OF 4.
+  // The 5 hand-tagged .write-only-control elements above never covered the
+  // 18 functions that actually read the admin secret, which is why write
+  // buttons stayed clickable for a read-only account. Rather than tag 13 more
+  // by hand (and miss the next one added), this asks each control's own
+  // handler whether it reads the secret, and disables it if so. Self-
+  // maintaining: a new write button is covered automatically.
+  var disabled = 0;
+  document.querySelectorAll('[onclick]').forEach(function (el) {
+    var attr = el.getAttribute('onclick') || '';
+    var m = attr.match(/([A-Za-z_$][A-Za-z0-9_$]*)\s*\(/);
+    if (!m) return;
+    var fn = null;
+    try { fn = window[m[1]]; } catch (e) { return; }
+    if (typeof fn !== 'function') return;
+    var srcText = '';
+    try { srcText = Function.prototype.toString.call(fn); } catch (e) { return; }
+    if (!/getAdminSecret\s*\(/.test(srcText)) return;
+    if (m[1] === 'adminLogout') return;           // logout must stay available
+    el.disabled = true;
+    el.style.opacity = '0.45';
+    el.style.cursor = 'not-allowed';
+    el.title = 'Read-only access \u2014 ask a full Admin to make this change.';
+    disabled++;
+  });
   var banner = document.getElementById('readonly-admin-banner');
   if (banner) banner.classList.add('visible');
+  try { console.log('[v2.18] read-only mode: ' + disabled + ' write control(s) disabled'); } catch (e) {}
 }
 
 function attemptEmployeeLogin() {
@@ -1222,6 +1284,20 @@ function isBadSecretError(error) {
   return error.code === '28000' || /invalid admin secret/i.test(error.message || '');
 }
 function handleBadSecret(context) {
+  // v2.18 — READ-ONLY ADMIN LOCKOUT FIX, LAYER 2 OF 4.
+  // A read-only account has no secret to re-enter, so bouncing it to the
+  // secret screen strands it with no way back. Layer 1 should already stop
+  // this being reached, but if any path ever does reach it, say so in place
+  // and leave the panel exactly where it is.
+  if (isReadOnlyAdmin()) {
+    var roBanner = document.getElementById('readonly-admin-banner');
+    if (roBanner) {
+      roBanner.classList.add('visible');
+      roBanner.innerHTML = '\uD83D\uDC41 Read-only access \u2014 "' + context + '" needs full Admin rights, so it was not run. Everything else on this page still works normally.';
+      try { roBanner.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); } catch (e) {}
+    }
+    return;
+  }
   clearAdminSecret();
   unsubscribeDashboardRealtime();
   unsubscribeAuditRealtime();
@@ -1314,10 +1390,38 @@ document.addEventListener('DOMContentLoaded', function () {
   if (input) input.addEventListener('keydown', function (e) { if (e.key === 'Enter') attemptAdminLogin(); });
 });
 
+// v2.18 — READ-ONLY ADMIN LOCKOUT FIX, LAYER 4 OF 4.
+// A structural safety net, independent of the read-only role: the Admin
+// Secret screen previously had no exit at all. Anyone who reached it without
+// a usable secret — for ANY reason, including a rotated secret or a wrong
+// role — was stuck with no way back to the employee login. This adds one
+// way out, injected rather than hard-coded into the markup so it cannot be
+// missed on a future screen edit.
+function ensureSecretScreenEscapeHatch() {
+  if (document.getElementById('login-escape-btn')) return;
+  var card = document.querySelector('#login-screen .login-card');
+  if (!card) return;
+  var wrap = document.createElement('div');
+  wrap.style.cssText = 'margin-top:14px;text-align:center;';
+  wrap.innerHTML =
+    '<button id="login-escape-btn" type="button" ' +
+    'style="background:none;border:none;color:#1B3F6B;font-size:12px;text-decoration:underline;cursor:pointer;padding:6px;">' +
+    'Sign in as a different employee</button>' +
+    '<div style="font-size:11px;color:#6B7280;margin-top:4px;">Use this if you do not have the Admin Secret.</div>';
+  card.appendChild(wrap);
+  document.getElementById('login-escape-btn').addEventListener('click', function () {
+    clearAdminSecret();
+    clearRememberedSecret();
+    clearAdminPanelSession();
+    document.getElementById('login-screen').style.display = 'none';
+    showEmployeeLoginScreen('');
+  });
+}
 function showLoginScreen(message) {
   document.getElementById('app-shell').style.display = 'none';
   document.getElementById('employee-login-screen').style.display = 'none';
   document.getElementById('login-screen').style.display = 'flex';
+  ensureSecretScreenEscapeHatch();
   var errEl = document.getElementById('login-err-msg');
   if (errEl) errEl.textContent = message || '';
   var input = document.getElementById('login-secret-input');
