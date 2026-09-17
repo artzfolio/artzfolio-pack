@@ -11,7 +11,7 @@
 // flushing it on reconnect) lives entirely in index.html's own JS
 // (IndexedDB-backed write queue) - this service worker's only job is
 // keeping the app shell itself loadable.
-const CACHE_NAME = 'artzfolio-oms-shell-v1';
+const CACHE_NAME = 'artzfolio-oms-shell-v2';
 const SHELL_FILES = ['./index.html', './manifest.json', './icon.svg'];
 
 self.addEventListener('install', function (event) {
