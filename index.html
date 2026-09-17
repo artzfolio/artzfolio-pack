@@ -398,7 +398,7 @@
     </style>
 </head>
 <body>
-<div class="ver-corner" id="verCornerBadge" onclick="handleVerBadgeTap()">v79</div>
+<div class="ver-corner" id="verCornerBadge" onclick="handleVerBadgeTap()">v81</div>
 <!-- v63: Gap 2 — offline write-queue indicator. Hidden (display:none) unless
      something is actually queued or failed. Tapping it shows the queue detail
      panel (openOfflineQueuePanel()). -->
@@ -579,6 +579,17 @@
                 <div class="pill-btn" id="move-pill-ADJUSTMENT_QC_RELEASE" onclick="setMoveMode('ADJUSTMENT_QC_RELEASE')">&#128275; QC Release</div>
                 <!-- v52: 7th MOVE mode — Set True Count (manual correction from a physical stock count). -->
                 <div class="pill-btn" id="move-pill-MANUAL_CORRECTION" onclick="setMoveMode('MANUAL_CORRECTION')">&#9878; Set True Count</div>
+                <!-- v81 (2026-09-17): 8th MOVE mode — Dispatch / Order Out.
+                     WHY THIS EXISTS: the ledger had 2,702 stock-IN rows and
+                     ZERO SCAN_OUT_ORDER rows, ever. The PICK tab does write
+                     that row correctly, but it can only be reached by scanning
+                     a Pick List QR produced by the Excel tool, and that flow
+                     has never once been used in production. So stock only ever
+                     went in and never came out, which is why SKU velocity, ABC
+                     tiers and reorder points were all dead. This pill records a
+                     dispatch directly, no QR package needed. Same txn_type the
+                     PICK tab writes, so both feed the same reports. -->
+                <div class="pill-btn" id="move-pill-SCAN_OUT_ORDER" onclick="setMoveMode('SCAN_OUT_ORDER')">&#128228; Dispatch Out</div>
             </div>
             <div class="settings-section">
                 <h3 id="move-mode-title">&#128230; New Stock In</h3>
@@ -637,6 +648,20 @@
                         <option value="WRONG_ITEM">&#10067; Wrong item — flag for manual review, not restocked</option>
                     </select>
                 </div>
+                <!-- v81: only shown in Dispatch mode. Written to the ledger's own
+                     order_id / channel columns, not buried in the note text, so
+                     dispatches can be reported on properly. -->
+                <div class="settings-row" id="move-dispatch-row" style="display:none;">
+                    <input type="text" class="settings-input" id="move-order-input" placeholder="Order number (recommended)" autocomplete="off" style="text-transform:uppercase">
+                    <select class="settings-input" id="move-channel-input" style="max-width:130px">
+                        <option value="">Channel…</option>
+                        <option value="AMAZON">Amazon</option>
+                        <option value="SHOPIFY">Shopify</option>
+                        <option value="MYNTRA">Myntra</option>
+                        <option value="OFFLINE">Offline / B2B</option>
+                        <option value="OTHER">Other</option>
+                    </select>
+                </div>
                 <div class="settings-row">
                     <input type="number" class="settings-input" id="move-qty-input" placeholder="Quantity" min="1" value="1" style="max-width:110px">
                     <input type="text" class="settings-input" id="move-note-input" placeholder="Note (optional — e.g. PO number, reason)">
@@ -676,6 +701,59 @@
                 </div>
             </div>
 
+            <!-- ══ v80 (2026-09-17): QUICK ADD NEW LISTING ══════════════════════
+                 A front door for adding a product that is not in the system yet.
+                 Before v80 the ONLY way to register a new SKU was to fail a stock
+                 movement first (scan an unknown code in New Stock / Returns and
+                 wait for the amber panel). That worked, but nobody could find it.
+                 This section does the same two things in one deliberate step:
+                   1. registers the listing  (oms_employee_register_sku)
+                   2. puts its opening stock into a bin (writeLedgerTxn, NEW_STOCK_IN)
+                 It is not a new code path - it calls the exact same RPC and the
+                 exact same single ledger-writing function everything else uses. -->
+            <div class="settings-section" style="margin-top:10px;border:1px solid #1B4F8A;">
+                <h3 style="margin-top:0;cursor:pointer;" onclick="toggleQuickAdd()">&#10133; Quick Add New Listing <span id="quick-add-toggle-icon">&#9660;</span></h3>
+                <div id="quick-add-body" style="display:none;">
+                    <div class="settings-info">For a product that is <strong>not in the system yet</strong>. Fills in the listing and its opening stock in one go. Already-known products go through the normal MOVE pills above.</div>
+                    <div class="settings-row">
+                        <input type="text" class="settings-input" id="qa-title-input" placeholder="Product title (required)">
+                    </div>
+                    <div class="settings-row">
+                        <input type="text" class="settings-input" id="qa-sku-input" placeholder="SKU code (required)" autocomplete="off" autocorrect="off" autocapitalize="characters" style="text-transform:uppercase">
+                        <button class="scan-cam-btn" onclick="openScannerFor('qa-sku-input')" title="Scan SKU barcode">
+                            <svg viewBox="0 0 24 24"><path d="M12 9a4 4 0 1 0 4 4 4 4 0 0 0-4-4zm0 6a2 2 0 1 1 2-2 2 2 0 0 1-2 2z"/><path d="M20 4h-2.76l-1.63-2H8.39L6.76 4H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2zm0 15H4V6h3.56L9.19 4h5.62l1.63 2H20z"/></svg>
+                        </button>
+                    </div>
+                    <div class="settings-row">
+                        <input type="text" class="settings-input" id="qa-asin-input" placeholder="ASIN (leave blank if not on Amazon)" autocomplete="off" autocorrect="off" autocapitalize="characters" style="text-transform:uppercase">
+                        <button class="scan-cam-btn" onclick="openScannerFor('qa-asin-input')" title="Scan ASIN barcode">
+                            <svg viewBox="0 0 24 24"><path d="M12 9a4 4 0 1 0 4 4 4 4 0 0 0-4-4zm0 6a2 2 0 1 1 2-2 2 2 0 0 1-2 2z"/><path d="M20 4h-2.76l-1.63-2H8.39L6.76 4H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2zm0 15H4V6h3.56L9.19 4h5.62l1.63 2H20z"/></svg>
+                        </button>
+                    </div>
+                    <div class="settings-row">
+                        <input type="text" class="settings-input" id="qa-type-input" placeholder="Product type (required)" list="qa-type-list">
+                        <datalist id="qa-type-list"></datalist>
+                    </div>
+                    <div class="settings-row">
+                        <input type="text" class="settings-input" id="qa-bin-input" placeholder="Bin number (required)" list="move-bin-list" autocomplete="off" autocorrect="off" autocapitalize="characters" style="text-transform:uppercase">
+                        <button class="scan-cam-btn" onclick="openScannerFor('qa-bin-input')" title="Scan bin barcode/QR">
+                            <svg viewBox="0 0 24 24"><path d="M12 9a4 4 0 1 0 4 4 4 4 0 0 0-4-4zm0 6a2 2 0 1 1 2-2 2 2 0 0 1-2 2z"/><path d="M20 4h-2.76l-1.63-2H8.39L6.76 4H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2zm0 15H4V6h3.56L9.19 4h5.62l1.63 2H20z"/></svg>
+                        </button>
+                    </div>
+                    <div class="settings-row">
+                        <input type="number" class="settings-input" id="qa-qty-input" placeholder="Opening stock" min="0" value="0" style="max-width:130px">
+                        <input type="number" class="settings-input" id="qa-mrp-input" placeholder="MRP (optional)" min="0" style="max-width:130px">
+                    </div>
+                    <div class="settings-row">
+                        <input type="text" class="settings-input" id="qa-note-input" placeholder="Note (optional - e.g. PO number)">
+                    </div>
+                    <div class="settings-row">
+                        <button class="settings-btn" style="flex:1" id="qa-submit-btn" onclick="submitQuickAdd()">&#10003; Add Listing &amp; Stock</button>
+                        <button class="settings-btn" style="flex:0 0 auto;background:#888" onclick="clearQuickAdd()">Clear</button>
+                    </div>
+                    <div class="move-result" id="qa-result"></div>
+                </div>
+            </div>
             <!-- v46: Bulk Upload (CSV) — for many rows at once, directly from the phone/
                  desktop browser, no Excel needed. Same live table as everything else on
                  this tab (oms_inventory_transactions) — this is not a separate import
@@ -684,7 +762,7 @@
                  the Excel bulk tool does. -->
             <div class="settings-section" style="margin-top:10px;">
                 <h3>&#128190; Bulk Upload (CSV)</h3>
-                <div class="settings-info">For many rows at once. Download the template, fill it in Excel or Sheets, then upload it here. ACTION can be: INBOUND, RETURN_IN, FOUND, LOST, REJECTED, QC_HOLD, QC_RELEASE, or TRANSFER (needs both Bin and ToBin).</div>
+                <div class="settings-info">For many rows at once. Download the template, fill it in Excel, then upload it here. <strong>v80: the template is now a real Excel file</strong> &mdash; drop-down on the Action column, filters, an Instructions sheet and worked sample rows, so there is no guessing what to type. Save it as <strong>CSV</strong> before uploading. Action can be: INBOUND, RETURN_IN, FOUND, LOST, REJECTED, QC_HOLD, QC_RELEASE, or TRANSFER (needs both Bin and ToBin).</div>
                 <div class="settings-row">
                     <button class="settings-btn" style="flex:1" onclick="downloadBulkTemplate()">&#8681; Download Template</button>
                 </div>
@@ -963,7 +1041,13 @@
                 <ul>
                     <li><strong>MOVE tab</strong> &mdash; records one stock movement at a time (New Stock In / Returns In / Found / Remove-Lost / QC Hold / QC Release / Set True Count). A <strong>Bin is now required on every movement except Set True Count</strong> &mdash; the app auto-fills the SKU's usual bin, but you can always overwrite it (e.g. new stock landing in RECEIVING instead of the SKU's normal shelf).</li>
                     <!-- v52: Set True Count — new 7th pill, for physical stock counts only -->
-                    <li><strong>Set True Count</strong> &mdash; 7th pill on the MOVE tab, for a physical stock count only (not daily use). Type the SKU's real total right now and confirm the bin you counted it in; the app looks up the current live number and saves only the difference as one correction. A note is recommended but not required. Bin is required here too, like every other action.</li>
+                    <li><strong>Set True Count</strong> &mdash; 7th pill on the MOVE tab, for a physical stock count only (not daily use). <strong>v80: this now counts ONE BIN at a time.</strong> Type the bin you physically counted and the number you found <em>in that bin</em>; the app compares it against what that same bin currently shows and saves only the difference. Any other bin holding the same SKU is listed in the confirmation box and is never changed. A note is recommended but not required. Bin is required here too, like every other action.
+                        <br><em>Why this changed:</em> before v80 the app compared your one-bin count against the SKU's total across every bin, so counting a SKU that lived in two bins silently pushed one bin negative &mdash; and the next action on that bin then failed with a confusing error. If a SKU sits in several bins, count each bin separately.</li>
+                    <li><strong>&#128228; Dispatch / Order Out</strong> &mdash; <strong>new 8th pill (v81).</strong> Use it whenever stock physically leaves for a customer order. Scan the SKU, confirm the bin it came from, enter how many, and add the order number and channel.
+                        <br><em>Why this matters:</em> until now the system recorded 2,702 stock-<em>in</em> entries and <strong>not one</strong> stock-<em>out</em>. That is why low-stock alerts never fired and every SKU showed as ABC tier &ldquo;C&rdquo; &mdash; the reports had no sales to work from. Booking dispatches here (or completing a pick on the PICK tab) is what switches all of that on.</li>
+                    <!-- v80: Quick Add New Listing -->
+                    <li><strong>&#10133; Quick Add New Listing</strong> &mdash; new section on the MOVE tab, for a product that is <strong>not in the system yet</strong>. Fill in product title, SKU, ASIN (leave blank if it is not on Amazon), product type, bin number and opening stock, then tap <strong>Add Listing &amp; Stock</strong>. It registers the listing and puts its opening stock into that bin in one step.
+                        <br><em>What happens if you just scan an unknown code instead:</em> nothing is ever placed in a random bin. On <strong>New Stock</strong> or <strong>Returns</strong> an amber &ldquo;Register New SKU&rdquo; panel opens so you can add it and carry straight on. On <strong>Remove/Lost, QC Hold, QC Release or Set True Count</strong> the app refuses outright &mdash; counting or removing something that was never received is a mistake, not a new product.</li>
                     <!-- v50: QC Release used to be CSV/Bulk-only; note the new single-row screen -->
                     <li><strong>QC Release</strong> &mdash; new 6th pill on the MOVE tab, previously only reachable via Bulk Upload (CSV). Releases stock that was QC-Held back into sellable count, using the same SKU/Bin/Qty/Note form as the rest of this tab.</li>
                     <!-- v75: GENERATED from 03_SOPs/action_taxonomy_v1.json by
@@ -1100,7 +1184,7 @@
 
             <!-- Version -->
             <div class="ver-badge">
-                <div class="ver-name">&#128230; ArtzFolio Scan-Pick-Pack v79</div>
+                <div class="ver-name">&#128230; ArtzFolio Scan-Pick-Pack v81</div>
                 <div class="ver-sub">Full changelog available on request.</div>
             </div>
         </div>
@@ -2912,6 +2996,11 @@ var MOVE_MODES = {
     // using the same key here means this pill writes the identical txn_type the
     // bulk path already writes, with zero special-casing.
     ADJUSTMENT_QC_RELEASE: { title: '&#128275; QC Release',    desc: 'Release previously-held stock back into sellable inventory. Scan or type the SKU/ASIN, confirm the bin, and submit.', sign: 1 },
+    // v81: Dispatch / Order Out. The mode key doubles as the txn_type, and
+    // SCAN_OUT_ORDER is already an allowed value on the table's own check
+    // constraint and is exactly what the PICK tab writes — so this needs no
+    // special-casing at all, only sign: -1.
+    SCAN_OUT_ORDER:        { title: '&#128228; Dispatch / Order Out', desc: 'Stock physically leaving for a customer order. Scan or type the SKU/ASIN, confirm the bin it is picked from, enter how many, and add the order number. This is what makes sales velocity, ABC tiers and reorder alerts work — without it the system only ever sees stock coming in.', sign: -1 },
     // v52: Set True Count — for a physical stock count only, NOT daily use.
     // Unlike every other MOVE mode, the number typed here is not a delta to
     // add or subtract — it's the TRUE total quantity just counted, across all
@@ -2923,7 +3012,7 @@ var MOVE_MODES = {
     // (Seller Flex discipline: every transaction, every txn_type, tied to a
     // real bin, zero exceptions). isCorrection now only controls the
     // absolute-count-vs-delta math, not the bin requirement.
-    MANUAL_CORRECTION:     { title: '&#9878; Set True Count', desc: 'For a physical stock count only — not daily use. Enter the SKU\u2019s TRUE total quantity right now, across all bins, and confirm the bin you counted it in. The app looks up the current live total and saves only the difference. A note is recommended but not required.', isCorrection: true }
+    MANUAL_CORRECTION:     { title: '&#9878; Set True Count', desc: 'For a physical stock count only — not daily use. Enter the SKU\u2019s TRUE quantity in ONE bin. Type the bin you physically counted, then the number you found in that bin only. The app compares it against what that same bin currently shows and saves just the difference. Other bins are never touched. A note is recommended but not required.', isCorrection: true }
 };
 var moveMode = 'NEW_STOCK_IN';
 // v61: Feature 8 — Dynamic New-SKU Registration. Holds the in-flight MOVE
@@ -3154,7 +3243,7 @@ function setMoveMode(mode) {
     var binInput = document.getElementById('move-bin-input');
     if (cfg.isCorrection) {
         qtyInput.min = '0';
-        qtyInput.placeholder = 'True count (0 or more)';
+        qtyInput.placeholder = 'Count in THIS bin (0+)';
         qtyInput.value = '0';
     } else {
         qtyInput.min = '1';
@@ -3170,6 +3259,15 @@ function setMoveMode(mode) {
     if (gradeRow) gradeRow.style.display = (mode === 'RETURN_IN') ? '' : 'none';
     var gradeSel = document.getElementById('move-return-grade');
     if (gradeSel) gradeSel.value = 'GOOD';
+    // v81: dispatch-only fields, and a live honesty check on whether stock has
+    // actually been going out at all.
+    var dispRow = document.getElementById('move-dispatch-row');
+    if (dispRow) dispRow.style.display = (mode === 'SCAN_OUT_ORDER') ? '' : 'none';
+    var ordEl = document.getElementById('move-order-input');
+    if (ordEl) ordEl.value = '';
+    var chEl = document.getElementById('move-channel-input');
+    if (chEl) chEl.value = '';
+    if (mode === 'SCAN_OUT_ORDER') { showDispatchHealthNote(); }
     loadBinList();
     armScanInputNoKeyboard('move-sku-input');
 }
@@ -3236,20 +3334,43 @@ function submitMoveTransaction() {
             // v52: look up the CURRENT live total first (across all bins),
             // then write only the difference — mirrors PushClosingStockOverride
             // on the Excel side exactly, so both sides use the same logic.
-            resEl.textContent = 'Checking current live count...';
-            return withTimeout(db.from('oms_current_stock').select('qty_on_hand').eq('sku_code', sku.sku_code).maybeSingle(), 10000, 'Current stock lookup').then(function(csRes) {
-                var currentQty = (csRes && csRes.data && Number(csRes.data.qty_on_hand)) || 0;
+            resEl.textContent = 'Checking what this bin currently shows...';
+            // v80 (2026-09-17): CRITICAL FIX - Set True Count was reading
+            // oms_current_stock, which is a whole-SKU total ACROSS ALL BINS
+            // (its view groups by company_id + sku_code only). The typed count
+            // is a count of ONE bin, so for any SKU held in 2+ bins the delta
+            // was wrong by whatever sat in the other bins, and that wrong delta
+            // was then written to the counted bin. Because MANUAL_CORRECTION is
+            // exempt from oms_enforce_non_negative_stock, the bad write was
+            // accepted silently and drove the bin negative; the NEXT ordinary
+            // action on that bin then failed with a confusing "only -73 unit(s)
+            // are currently recorded in that bin" error. Real damage found in
+            // production 2026-09-17: bin A1 at -294 units across 15 SKUs.
+            // The count is now compared against THIS BIN's own balance only.
+            return withTimeout(db.from('oms_bin_stock').select('bin_code,qty_on_hand').eq('sku_code', sku.sku_code), 10000, 'Current bin stock lookup').then(function(csRes) {
+                var binRows = (csRes && csRes.data) || [];
+                var currentQty = 0, skuTotal = 0, otherBins = [];
+                for (var bi = 0; bi < binRows.length; bi++) {
+                    var bq = Number(binRows[bi].qty_on_hand) || 0;
+                    skuTotal += bq;
+                    if (String(binRows[bi].bin_code || '').trim().toUpperCase() === binVal) { currentQty = bq; }
+                    else if (bq !== 0) { otherBins.push(binRows[bi].bin_code + ': ' + bq); }
+                }
                 var delta = qtyVal - currentQty;
                 if (delta === 0) {
                     resEl.className = 'move-result ok';
-                    resEl.textContent = '✓ No change needed — ' + sku.sku_code + ' is already at ' + qtyVal + ' live.';
+                    resEl.textContent = '✓ No change needed — ' + sku.sku_code + ' already shows ' + qtyVal + ' in bin ' + binVal + '.' + (otherBins.length ? ' (Other bins, untouched: ' + otherBins.join(', ') + ')' : '');
                     // v62: Feature 4 — a count that matches exactly (no
                     // variance) is still a genuine completed count, not a
                     // no-op — it must resolve the queue row too, same as a
                     // count that DID find a difference. Missing this meant
                     // an exact-match count silently left the SKU stuck
                     // PENDING forever.
-                    if (db) {
+                    // v80: the cycle-count queue tracks a SKU, not a bin. A
+                    // one-bin count of a multi-bin SKU is NOT a completed SKU
+                    // count, so it no longer resolves the queue row - that row
+                    // stays PENDING until every bin holding the SKU is counted.
+                    if (db && otherBins.length === 0) {
                         withTimeout(db.rpc('oms_resolve_cycle_count_queue_row', {
                             p_sku_code: sku.sku_code, p_status: 'COUNTED',
                             p_counted_qty: qtyVal, p_live_qty_at_count: currentQty
@@ -3259,7 +3380,20 @@ function submitMoveTransaction() {
                     }
                     return null;
                 }
-                var sure = confirm('Set ' + sku.sku_code + ' (' + (sku.product_name || '') + ') to ' + qtyVal + ' units?\n\nCurrently live: ' + currentQty + '\nThis will record a correction of ' + (delta > 0 ? '+' : '') + delta + '.\n\nThis cannot be undone (though it can be corrected again later).');
+                // v80: the dialog now states plainly that this is a ONE-BIN
+                // correction and lists every other bin holding this SKU, so a
+                // partial count can never be mistaken for a full SKU count.
+                var sure = confirm(
+                    'Set ' + sku.sku_code + ' (' + (sku.product_name || '') + ')\n' +
+                    'in BIN ' + binVal + ' only.\n\n' +
+                    'That bin shows now : ' + currentQty + '\n' +
+                    'You counted        : ' + qtyVal + '\n' +
+                    'Correction to save : ' + (delta > 0 ? '+' : '') + delta + '\n\n' +
+                    (otherBins.length
+                        ? 'This SKU is ALSO in ' + otherBins.length + ' other bin(s):\n  ' + otherBins.join('\n  ') +
+                          '\nThose are NOT changed. SKU total goes ' + skuTotal + ' \u2192 ' + (skuTotal + delta) + '.\n\n'
+                        : 'This SKU is only in this bin.\n\n') +
+                    'This cannot be undone (though it can be corrected again later).');
                 if (!sure) { resEl.className = 'move-result'; resEl.textContent = 'Cancelled — nothing was saved.'; return null; }
                 resEl.textContent = 'Saving correction...';
                 return writeLedgerTxn({
@@ -3277,8 +3411,8 @@ function submitMoveTransaction() {
                         return;
                     }
                     resEl.className = 'move-result ok';
-                    resEl.textContent = '✓ Saved — ' + sku.sku_code + ' corrected from ' + currentQty + ' to ' + qtyVal + ' (' + (delta > 0 ? '+' : '') + delta + ') @ bin ' + binVal + binMismatchNote(sku, binVal);
-                    logEvent(sku.sku_code, 'Set True Count: ' + currentQty + ' \u2192 ' + qtyVal + ' (' + (delta > 0 ? '+' : '') + delta + ') @ ' + binVal + (note ? ' — ' + note : ''));
+                    resEl.textContent = '✓ Saved — ' + sku.sku_code + ' in bin ' + binVal + ' corrected from ' + currentQty + ' to ' + qtyVal + ' (' + (delta > 0 ? '+' : '') + delta + ')' + (otherBins.length ? '. Other bins untouched: ' + otherBins.join(', ') : '') + binMismatchNote(sku, binVal);
+                    logEvent(sku.sku_code, 'Set True Count @ bin ' + binVal + ': ' + currentQty + ' \u2192 ' + qtyVal + ' (' + (delta > 0 ? '+' : '') + delta + ')' + (otherBins.length ? ' [other bins untouched: ' + otherBins.join(', ') + ']' : '') + (note ? ' — ' + note : ''));
                     writeAuditLog('MANUAL_CORRECTION', { skuCode: sku.sku_code, details: { qty_delta: delta, from: currentQty, to: qtyVal, bin_code: binVal, note: note || null, product_name: sku.product_name || null } });
                     // v62: Feature 4 (Scheduled Cycle Counting) — if this SKU has a
                     // PENDING row in today's count queue, mark it COUNTED with the
@@ -3286,7 +3420,11 @@ function submitMoveTransaction() {
                     // correction already saved above, never blocks/reverses it. A SKU
                     // counted outside today's assigned list just gets NO_PENDING_ROW
                     // back and nothing else happens.
-                    if (db) {
+                    // v80: the cycle-count queue tracks a SKU, not a bin. A
+                    // one-bin count of a multi-bin SKU is NOT a completed SKU
+                    // count, so it no longer resolves the queue row - that row
+                    // stays PENDING until every bin holding the SKU is counted.
+                    if (db && otherBins.length === 0) {
                         withTimeout(db.rpc('oms_resolve_cycle_count_queue_row', {
                             p_sku_code: sku.sku_code, p_status: 'COUNTED',
                             p_counted_qty: qtyVal, p_live_qty_at_count: currentQty
@@ -3328,6 +3466,29 @@ function submitMoveTransaction() {
 // can reach the exact same write logic once a brand-new SKU has just been
 // created — no separate/duplicated write path for the two ways a MOVE
 // submission can end up with a resolved sku row.
+// v81: tells the truth about whether dispatches are actually being recorded.
+// A warehouse that only ever books stock IN looks healthy on the Dashboard
+// while every demand-driven number quietly stays at zero — that is exactly
+// the state this system was in until today.
+function showDispatchHealthNote() {
+    var el = document.getElementById('move-mode-desc');
+    if (!el || !db) return;
+    var since = new Date(Date.now() - 30 * 86400000).toISOString();
+    withTimeout(db.from('oms_inventory_transactions').select('txn_id', { count: 'exact', head: true })
+        .eq('txn_type', 'SCAN_OUT_ORDER').gte('created_at', since), 8000, 'Dispatch health')
+        .then(function(res) {
+            if (res.error) return;
+            var n = res.count || 0;
+            var note = document.createElement('div');
+            note.style.cssText = 'margin-top:6px;font-size:11px;padding:6px 8px;border-radius:6px;' +
+                (n === 0 ? 'background:#fff4e5;color:#9A6700;border:1px solid #f0c674;'
+                         : 'background:#eaf7ef;color:#1B7A3A;border:1px solid #bfe3cc;');
+            note.textContent = (n === 0)
+                ? '\u26A0 No dispatch has been recorded in the last 30 days. Until stock is booked out here (or through PICK), sales velocity, ABC tiers and reorder alerts stay empty.'
+                : '\u2713 ' + n + ' dispatch line(s) recorded in the last 30 days.';
+            el.appendChild(note);
+        }).catch(function() {});
+}
 function proceedMoveWithSku(sku, binVal, qtyVal, note, resEl) {
     var cfg = MOVE_MODES[moveMode];
     var returnGrade = (moveMode === 'RETURN_IN') ? ((document.getElementById('move-return-grade') || {}).value || 'GOOD') : 'GOOD';
@@ -3371,6 +3532,17 @@ function proceedMoveWithSku(sku, binVal, qtyVal, note, resEl) {
     }
 
     resEl.textContent = 'Saving...';
+    // v81: a dispatch carries its order number and channel in the ledger's own
+    // columns (order_id / channel), which is what the velocity and ABC views
+    // read. Read from the DOM here rather than widening this function's
+    // signature, which every caller would otherwise have to change.
+    var dispOrder = null, dispChannel = null;
+    if (moveMode === 'SCAN_OUT_ORDER') {
+        var _o = document.getElementById('move-order-input');
+        var _c = document.getElementById('move-channel-input');
+        dispOrder   = _o && _o.value ? _o.value.trim().toUpperCase() : null;
+        dispChannel = _c && _c.value ? _c.value : null;
+    }
     return writeLedgerTxn({
         sessionEligible: true,
         skuCode: sku.sku_code,
@@ -3378,6 +3550,8 @@ function proceedMoveWithSku(sku, binVal, qtyVal, note, resEl) {
         qtyDelta: cfg.sign * qtyVal,
         txnType: moveMode,
         binCode: binVal,
+        orderId: dispOrder,
+        channel: dispChannel,
         note: note || null
     }).then(function(result) {
         if (!result.ok) {
@@ -3401,6 +3575,7 @@ function proceedMoveWithSku(sku, binVal, qtyVal, note, resEl) {
         resetMoveBinField();
         document.getElementById('move-qty-input').value = '1';
         document.getElementById('move-note-input').value = '';
+        if (document.getElementById('move-order-input')) document.getElementById('move-order-input').value = '';
         if (document.getElementById('move-live-bin-hint')) document.getElementById('move-live-bin-hint').textContent = '';
         armScanInputNoKeyboard('move-sku-input');
     });
@@ -3495,6 +3670,10 @@ function registerNewSkuAndContinue() {
             infoEl.textContent = 'Unexpected response — please try again.';
             return;
         }
+        // v80: clears the long-standing staleness bug. registerTypeOptionsLoaded
+        // was set true once and never reset, so a product type created during a
+        // session never showed up in this datalist again until a full reload.
+        if (status === 'CREATED') { registerTypeOptionsLoaded = false; }
         // ALREADY_REGISTERED (a race — e.g. someone else registered the same
         // SKU a moment ago): never overwritten, just resume with real data,
         // same as a normal successful registration.
@@ -3516,6 +3695,147 @@ function registerNewSkuAndContinue() {
     });
 }
 
+
+// ══ v80 (2026-09-17): QUICK ADD NEW LISTING ═══════════════════════════════
+// Registers a brand-new listing AND its opening stock in one deliberate step.
+// Deliberately NOT a new write path: registration goes through the same
+// oms_employee_register_sku RPC the amber panel uses, and the stock goes
+// through writeLedgerTxn(), the one and only ledger-writing function in this
+// file. An existing SKU is never overwritten - it just gets the stock added.
+function toggleQuickAdd() {
+    var body = document.getElementById('quick-add-body');
+    var icon = document.getElementById('quick-add-toggle-icon');
+    if (!body) return;
+    var opening = body.style.display === 'none';
+    body.style.display = opening ? '' : 'none';
+    if (icon) icon.innerHTML = opening ? '&#9650;' : '&#9660;';
+    if (opening) { loadBinList(); loadQuickAddTypeOptions(); }
+}
+function clearQuickAdd() {
+    ['qa-title-input','qa-sku-input','qa-asin-input','qa-type-input','qa-bin-input','qa-mrp-input','qa-note-input']
+        .forEach(function(id) { var el = document.getElementById(id); if (el) el.value = ''; });
+    var q = document.getElementById('qa-qty-input'); if (q) q.value = '0';
+    var r = document.getElementById('qa-result'); if (r) { r.className = 'move-result'; r.textContent = ''; }
+}
+// v80: separate datalist from the amber panel's, and deliberately NOT cached
+// behind a never-cleared flag - see the registerTypeOptionsLoaded bug this
+// version also fixes. Cheap enough to reload each time the section is opened.
+function loadQuickAddTypeOptions() {
+    if (!db) return;
+    withTimeout(db.from('oms_sku_master').select('product_type'), 10000, 'Product types (Quick Add)').then(function(res) {
+        if (res.error || !res.data) return;
+        var seen = {}, cats = [];
+        res.data.forEach(function(r) {
+            var v = (r.product_type || '').trim();
+            if (v && !seen[v]) { seen[v] = true; cats.push(v); }
+        });
+        cats.sort();
+        var dl = document.getElementById('qa-type-list');
+        if (!dl) return;
+        dl.innerHTML = '';
+        cats.forEach(function(c) { var o = document.createElement('option'); o.value = c; dl.appendChild(o); });
+    }).catch(function() {});
+}
+function submitQuickAdd() {
+    var btn = document.getElementById('qa-submit-btn');
+    if (btn && btn.disabled) return;
+    var resEl = document.getElementById('qa-result');
+    var title = (document.getElementById('qa-title-input').value || '').trim();
+    var sku   = (document.getElementById('qa-sku-input').value   || '').trim().toUpperCase();
+    var asin  = (document.getElementById('qa-asin-input').value  || '').trim().toUpperCase();
+    var type  = (document.getElementById('qa-type-input').value  || '').trim();
+    var bin   = (document.getElementById('qa-bin-input').value   || '').trim().toUpperCase();
+    var note  = (document.getElementById('qa-note-input').value  || '').trim();
+    var qty   = parseInt(document.getElementById('qa-qty-input').value, 10);
+    var mrpRaw = document.getElementById('qa-mrp-input').value;
+    var mrp = (mrpRaw !== '' && !isNaN(parseFloat(mrpRaw))) ? parseFloat(mrpRaw) : null;
+
+    function fail(msg) { resEl.className = 'move-result err'; resEl.textContent = msg; }
+
+    if (!title) { fail('Product title is required.'); return; }
+    if (!sku)   { fail('SKU code is required.'); return; }
+    if (!type)  { fail('Product type is required.'); return; }
+    if (!bin)   { fail('Bin number is required - every listing must live in a real bin.'); return; }
+    if (isNaN(qty) || qty < 0) { fail('Opening stock must be 0 or more.'); return; }
+    var emp = loadEmployee();
+    if (!emp || !emp.code) { fail('Set your employee code first (Settings tab).'); return; }
+    if (!db) { fail('Database not reachable right now - try again when back online.'); return; }
+
+    if (btn) btn.disabled = true;
+    resEl.className = 'move-result'; resEl.textContent = 'Checking whether this SKU already exists...';
+
+    resolveSkuOrAsin(sku).then(function(existing) {
+        var alreadyThere = !!existing;
+        if (alreadyThere) {
+            if (!confirm('"' + sku + '" is ALREADY in the system as:\n  ' + (existing.product_name || '(no name)') +
+                         '\n\nIts listing details will NOT be changed.\n' +
+                         (qty > 0 ? 'Only the opening stock of ' + qty + ' will be added to bin ' + bin + '.' : 'Nothing will be added, because opening stock is 0.') +
+                         '\n\nContinue?')) {
+                if (btn) btn.disabled = false;
+                resEl.className = 'move-result'; resEl.textContent = 'Cancelled - nothing was saved.';
+                return null;
+            }
+            return { status: 'ALREADY_REGISTERED' };
+        }
+        resEl.textContent = 'Registering the new listing...';
+        return withTimeout(db.rpc('oms_employee_register_sku', {
+            p_sku_code: sku,
+            p_product_name: title,
+            p_employee_code: emp.code,
+            p_employee_name: emp.name || null,
+            p_asin: asin || null,
+            p_product_type: type,
+            p_default_bin: bin,
+            p_mrp: mrp
+        }), 10000, 'Quick Add registration').then(function(res) {
+            if (res.error) throw new Error(res.error.message);
+            var st = res.data && res.data.status;
+            if (st !== 'CREATED' && st !== 'ALREADY_REGISTERED') throw new Error('Unexpected response from the SKU registration.');
+            // v80: a genuinely new product_type is now in the database, so both
+            // type datalists must be allowed to reload. This also fixes the
+            // long-standing registerTypeOptionsLoaded staleness bug.
+            registerTypeOptionsLoaded = false;
+            loadQuickAddTypeOptions();
+            return { status: st };
+        });
+    }).then(function(outcome) {
+        if (!outcome) return null;
+        if (qty === 0) {
+            if (btn) btn.disabled = false;
+            resEl.className = 'move-result ok';
+            resEl.textContent = '✓ Listing saved for ' + sku + ' (home bin ' + bin + '). No opening stock added, because the quantity was 0.';
+            logEvent(sku, 'Quick Add: listing created, no opening stock');
+            writeAuditLog('QUICK_ADD_LISTING', { skuCode: sku, details: { product_name: title, asin: asin || null, product_type: type, default_bin: bin, opening_qty: 0 } });
+            clearQuickAdd();
+            return null;
+        }
+        resEl.textContent = 'Adding opening stock...';
+        return resolveSkuOrAsin(sku).then(function(fresh) {
+            if (!fresh) throw new Error('Listing saved, but it could not be read back. Add the stock from the New Stock pill above.');
+            return writeLedgerTxn({
+                sessionEligible: true,
+                skuCode: fresh.sku_code,
+                asin: fresh.asin,
+                qtyDelta: qty,
+                txnType: 'NEW_STOCK_IN',
+                binCode: bin,
+                note: note || 'Quick Add opening stock'
+            }).then(function(w) {
+                if (btn) btn.disabled = false;
+                if (!w.ok) { fail('Listing WAS saved, but the opening stock failed: ' + w.reason + ' - add it from the New Stock pill above.'); return; }
+                resEl.className = 'move-result ok';
+                resEl.textContent = '✓ Done - ' + (outcome.status === 'CREATED' ? 'listing created' : 'listing already existed') +
+                                    ', ' + qty + ' unit(s) added to bin ' + bin + '.';
+                logEvent(sku, 'Quick Add: ' + (outcome.status === 'CREATED' ? 'new listing' : 'existing listing') + ' + ' + qty + ' opening stock @ ' + bin);
+                writeAuditLog('QUICK_ADD_LISTING', { skuCode: sku, details: { product_name: title, asin: asin || null, product_type: type, default_bin: bin, opening_qty: qty, was_new: outcome.status === 'CREATED', note: note || null } });
+                clearQuickAdd();
+            });
+        });
+    }).catch(function(err) {
+        if (btn) btn.disabled = false;
+        fail('Could not complete: ' + (err && err.message ? err.message : err));
+    });
+}
 // ── STOCK TAB (live, read-only) ──────────────────────────────────────
 var stockData = [];
 // v53: SKU -> bin breakdown text for whatever page/search is currently shown
@@ -4021,13 +4341,40 @@ var ACTION_TXN_MAP = {
     QC_RELEASE:  { txnType: 'ADJUSTMENT_QC_RELEASE',  sign: 1  }
 };
 function downloadBulkTemplate() {
+    // v80: try the real Excel template first; fall back to the plain CSV below
+    // if it is not deployed yet or the device is offline.
+    var XLSX_TEMPLATE = 'ArtzFolio_OMS_Bulk_Upload_Template_v1.0_2026-09.xlsx';
+    try {
+        fetch(XLSX_TEMPLATE, { method: 'GET', cache: 'no-store' }).then(function(r) {
+            if (!r.ok) throw new Error('not deployed');
+            return r.blob();
+        }).then(function(blob) {
+            var u = URL.createObjectURL(blob);
+            var el = document.createElement('a');
+            el.href = u; el.download = XLSX_TEMPLATE;
+            document.body.appendChild(el); el.click(); document.body.removeChild(el);
+            setTimeout(function() { URL.revokeObjectURL(u); }, 1000);
+        }).catch(function() { downloadBulkTemplateCsvFallback(); });
+        return;
+    } catch (e) { /* falls through to the CSV below */ }
+    downloadBulkTemplateCsvFallback();
+}
+function downloadBulkTemplateCsvFallback() {
     // v61: Feature 8 — new optional 7th column, ProductName. Appended at the
     // end (existing 6 columns unchanged) so an in-progress copy of the old
     // template still lines up correctly. Only read when a row's SKU is not
     // found AND the row's Action is genuinely inbound-type (INBOUND /
     // RETURN_IN / FOUND) — see processBulkRowsSequentially().
+    // v80: CSV cannot hold dropdowns, filters, an instruction sheet or sample
+    // rows - it is plain text by definition. The real template is now a proper
+    // .xlsx sitting next to this page, with a locked Action dropdown, filters,
+    // an Instructions sheet and worked examples. This CSV stays only as an
+    // offline fallback if that file cannot be fetched.
     var csv = 'Action,SKU,Bin,ToBin,Qty,Note,ProductName\r\n' +
-              'INBOUND,AZPER200596FRA_NM_01-S5_BL,A12,,50,Sample row - delete this,\r\n';
+              'INBOUND,AZPER200596FRA_NM_01-S5_BL,A12,,50,Sample row - delete this,\r\n' +
+              ',,,,,,\r\n' +
+              'VALID ACTIONS:,INBOUND,RETURN_IN,FOUND,LOST,REJECTED,QC_HOLD\r\n' +
+              ',QC_RELEASE,TRANSFER (needs Bin AND ToBin),,,,\r\n';
     var blob = new Blob([csv], { type: 'text/csv' });
     var url = URL.createObjectURL(blob);
     var a = document.createElement('a');
