@@ -31,10 +31,14 @@
 // v8 (2026-09-18): bumped for App v89. An offline phone must not keep
 // serving v88, which says nothing when an Admin closes or reverses the
 // batch the operator is working in.
+// v10 (2026-09-18): bumped for App v91. An offline phone must not keep
+// serving v90, whose self-service two-factor screens read a wrong PIN as a
+// thrown error rather than the plain refusal the database now sends, and
+// which does not say who is asking on the four administrative calls.
 // v9 (2026-09-18): bumped for App v90. An offline phone must not keep
 // serving v89, which does not send its device code at sign-in and so
 // would not be stopped by a block.
-const CACHE_NAME = 'artzfolio-oms-shell-v9';
+const CACHE_NAME = 'artzfolio-oms-shell-v10';
 const SHELL_FILES = ['./index.html', './manifest.json', './icon.svg'];
 
 self.addEventListener('install', function (event) {
