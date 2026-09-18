@@ -305,7 +305,7 @@ tbody tr:hover{background:#f9fbfd}
     </ul>
     <div class="sidebar-footer">
       <button class="logout-btn" onclick="adminLogout()">⎋ Logout</button>
-      <div class="ver-footer">ArtzFolio Admin Panel v2.19</div>
+      <div class="ver-footer">ArtzFolio Admin Panel v2.20</div>
     </div>
   </div>
 
@@ -2901,6 +2901,14 @@ function adminVoidScanSession(sessionId, idx) {
       if (resEl) { resEl.className = 'result-msg err'; resEl.textContent = 'Error: ' + res.error.message; }
       return;
     }
+    // v2.20: this call uses the Admin Secret, which still reports failure as a
+    // real error. The PIN path reports a refusal as a normal reply carrying
+    // ok:false so that its failed-attempt count survives, so guard for that here
+    // too rather than assuming this call site can never see one.
+    if (res.data && res.data.ok === false) {
+      if (resEl) { resEl.className = 'result-msg err'; resEl.textContent = res.data.message || 'Not reversed.'; }
+      return;
+    }
     // No client-side writeAuditLog() here either — oms_void_scan_session
     // already writes a SCAN_SESSION_VOIDED audit row server-side.
     loadScanSessions();
@@ -2929,7 +2937,7 @@ function loadEmployees() {
   withTimeout(db.from('oms_employees').select(
       'employee_code,display_name,role,active,archived,archived_at,original_employee_code,' +
       'last_login_at,locked_until,failed_pin_count,permissions,permission_preset,created_at,' +
-      'totp_enabled,totp_enrolled_at'
+      'totp_enabled,totp_enrolled_at,totp_required,totp_required_at'
     ).order('employee_code'), 10000, 'Employees').then(function (res) {
     if (res.error) { body.innerHTML = '<tr class="empty-row"><td colspan="9">Error: ' + esc(res.error.message) + '</td></tr>'; return; }
     employeesCache = res.data || [];
@@ -2971,9 +2979,15 @@ function renderEmployees() {
     var lockBadge = isLocked ? '<span class="badge badge-red">LOCKED</span>' : '<span class="badge badge-grey">—</span>';
     // v2.19: two-factor status, read from the only two 2FA columns the app's
     // key is allowed to see. The secret itself is not readable from here.
+    // v2.20: three states, not two. REQUIRED means an Admin has made it
+    // compulsory but the employee has not finished setting it up yet - the App
+    // will not let them past the setup screen until they do.
     var twofaBadge = e.totp_enabled
-      ? '<span class="badge badge-green" title="Asks for an authenticator code after the PIN">ON</span>'
-      : '<span class="badge badge-grey" title="PIN only">OFF</span>';
+      ? '<span class="badge badge-green" title="Asks for an authenticator code after the PIN">ON</span>' +
+        (e.totp_required ? ' <span class="badge badge-amber" title="Required by an Admin - the employee cannot switch it off">LOCKED ON</span>' : '')
+      : (e.totp_required
+          ? '<span class="badge badge-red" title="Required by an Admin, not set up yet - the App blocks this account until they finish setup">REQUIRED</span>'
+          : '<span class="badge badge-grey" title="PIN only">OFF</span>');
     var code = esc(e.employee_code);
     // Archived rows show the original human-readable code (the live
     // employee_code has been suffixed to free it for reuse) — this is the
@@ -2987,6 +3001,9 @@ function renderEmployees() {
         '<button class="btn btn-sm ' + (e.active ? 'btn-grey' : 'btn-green') + '" onclick="toggleEmployeeActive(\'' + code + '\', ' + !!e.active + ')">' + (e.active ? 'Deactivate' : 'Reactivate') + '</button>' +
         '<button class="btn btn-sm btn-primary" onclick="resetEmployeePin(\'' + code + '\')">Reset PIN</button>' +
         '<button class="btn btn-sm btn-gold" onclick="unlockEmployee(\'' + code + '\')">Unlock</button>' +
+        (e.totp_required
+           ? '<button class="btn btn-sm btn-grey" onclick="setEmployeeTwoFactorRequired(\'' + code + '\', false)" title="Stop requiring the authenticator code for this account">2FA: stop requiring</button>'
+           : '<button class="btn btn-sm btn-gold" onclick="setEmployeeTwoFactorRequired(\'' + code + '\', true)" title="Make the authenticator code compulsory for this account">Require 2FA</button>') +
         (e.totp_enabled ? '<button class="btn btn-sm btn-grey" onclick="clearEmployeeTwoFactor(\'' + code + '\')" title="Use when someone has lost the phone holding their authenticator app">Clear 2FA</button>' : '') +
         '<button class="btn btn-sm btn-primary" onclick="openEditAccessModal(\'' + code + '\')">Edit Access</button>' +
         '<button class="btn btn-sm btn-grey" onclick="archiveEmployee(\'' + code + '\')">Archive &amp; Free Code</button>' +
@@ -3128,6 +3145,55 @@ function unlockEmployee(code) {
     loadEmployees();
   }).catch(function (err) { if (resEl) { resEl.className = 'result-msg err'; resEl.textContent = 'Error: ' + String(err && err.message || err); } });
 }
+// v2.20 (2026-09-18): two-factor is decided HERE, by an Admin, not by staff
+// in the phone App's own settings. Turning this on means the employee is shown
+// a setup screen the next time they sign in and cannot get past it until they
+// have scanned the QR on their own phone.
+//
+// The employee still scans it themselves, and that is deliberate: the whole
+// value of a second factor is that only their phone holds the secret. If this
+// panel generated it, whoever runs this panel would know it too, and it would
+// stop being a second factor at all. What an Admin controls from here is the
+// decision - who must use it, and who may switch it off - not the secret.
+function setEmployeeTwoFactorRequired(code, required) {
+  if (!db) return;
+  var msg = required
+    ? 'Require the authenticator code for ' + code + '?\n\nThe next time they sign in, the App will show them a setup screen and will not let them into the App until they have scanned the QR code on their own phone.'
+    : 'Stop requiring the authenticator code for ' + code + '?\n\nIf they have already set it up it stays switched on, but they will be able to remove it themselves.';
+  if (!confirm(msg)) return;
+  var resEl = empResultEl(code);
+  var caller = getAdminPanelEmployeeCode();
+  var pin = prompt('Enter YOUR own 4-digit Admin PIN to authorise this' + (caller ? ' (signed in as ' + caller + ')' : '') + '.\n\nLeave blank to use the Admin Secret instead:');
+  if (pin === null) return;
+  pin = String(pin).trim();
+  var args = { p_employee_code: code, p_required: !!required, p_caller_employee_code: caller };
+  if (pin) { args.p_admin_pin = pin; }
+  else {
+    var secret = getAdminSecret();
+    if (!secret) return;
+    args.p_admin_secret = secret;
+  }
+  if (resEl) { resEl.className = 'result-msg'; resEl.textContent = 'Working...'; }
+  withTimeout(db.rpc('oms_admin_set_totp_required', args), 15000, 'Require two-factor').then(function (res) {
+    if (res.error) {
+      if (isBadSecretError(res.error)) { handleBadSecret('a two-factor requirement change'); return; }
+      if (resEl) { resEl.className = 'result-msg err'; resEl.textContent = 'Error: ' + res.error.message; }
+      return;
+    }
+    // This RPC reports a refused Admin PIN as a normal reply carrying ok:false,
+    // so that the failed-attempt count survives. It has to be read here or a
+    // refusal would look like it worked.
+    if (res.data && res.data.ok === false) {
+      if (resEl) { resEl.className = 'result-msg err'; resEl.textContent = res.data.message || 'Not changed.'; }
+      return;
+    }
+    writeAuditLog(required ? 'ADMIN_TOTP_REQUIRED_ON' : 'ADMIN_TOTP_REQUIRED_OFF',
+      { details: { target_employee_code: code, authorised_by: (res.data && res.data.authorised_by) || null } });
+    if (resEl) { resEl.className = 'result-msg ok'; resEl.textContent = (res.data && res.data.message) || 'Done.'; }
+    loadEmployees();
+  }).catch(function (err) { if (resEl) { resEl.className = 'result-msg err'; resEl.textContent = 'Error: ' + String(err && err.message || err); } });
+}
+
 // v2.19 (2026-09-18): the rescue path for "a staff member lost the phone
 // with their authenticator app on it". Clearing two-factor does NOT change
 // their PIN and does not unlock anything else — they simply go back to
