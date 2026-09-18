@@ -2715,7 +2715,7 @@ var qrcode = function() {
     </style>
 </head>
 <body>
-<div class="ver-corner" id="verCornerBadge" onclick="handleVerBadgeTap()">v86</div>
+<div class="ver-corner" id="verCornerBadge" onclick="handleVerBadgeTap()">v87</div>
 <!-- v63: Gap 2 — offline write-queue indicator. Hidden (display:none) unless
      something is actually queued or failed. Tapping it shows the queue detail
      panel (openOfflineQueuePanel()). -->
@@ -3428,7 +3428,7 @@ var qrcode = function() {
                  every account including Admin. Nothing here changes how an
                  account that has not switched it on signs in. -->
             <div class="settings-section" id="twofa-section">
-                <h3>&#128274; Two-Factor Security</h3>
+                <h3>&#128274; Phone Code</h3>
                 <div class="settings-info" id="twofa-status">Loading...</div>
                 <div id="twofa-actions" style="margin-top:10px;"></div>
                 <div id="twofa-setup" style="display:none;margin-top:14px;padding-top:14px;border-top:1px solid #dce4f0;">
@@ -3526,7 +3526,7 @@ var qrcode = function() {
 
             <!-- Version -->
             <div class="ver-badge">
-                <div class="ver-name">&#128230; ArtzFolio Scan-Pick-Pack v86</div>
+                <div class="ver-name">&#128230; ArtzFolio Scan-Pick-Pack v87</div>
                 <div class="ver-sub">Full changelog available on request.</div>
             </div>
         </div>
@@ -3544,11 +3544,11 @@ var qrcode = function() {
         <div style="max-width:460px;margin:24px auto;padding:18px;">
             <div style="text-align:center;margin-bottom:14px;">
                 <div style="font-size:34px;">&#128274;</div>
-                <div style="font-weight:700;color:#0A1628;font-size:17px;margin-top:6px;">Two-factor setup is required</div>
+                <div style="font-weight:700;color:#0A1628;font-size:17px;margin-top:6px;">One-time setup needed</div>
                 <div style="color:#6B7280;font-size:13px;line-height:1.55;margin-top:8px;">
-                    An Admin has made the 6-digit authenticator code compulsory for this account.
-                    Finish the short setup below and the app will open. It takes about a minute
-                    and you only do it once.
+                    From now on this account also needs a 6-digit code from your phone.
+                    Follow the three short steps below and the app will open. It takes about a
+                    minute, and you only ever do it once.
                 </div>
             </div>
             <div class="f2fa-slot"></div>
@@ -3643,14 +3643,14 @@ var qrcode = function() {
     <!-- v84 (2026-09-18): the second step of sign-in, shown only for accounts
          that have switched two-factor on. Everyone else never sees it. -->
     <div class="emp-modal" id="totp-view" style="display:none;">
-        <h2>&#128241; Authenticator Code</h2>
-        <p id="totp-who">Enter the 6-digit code from your authenticator app.</p>
+        <h2>&#128241; 6-Digit Code</h2>
+        <p id="totp-who">Enter the 6-digit code from the phone that was set up for this account.</p>
         <div class="emp-field">
             <label for="totp-code-input">6-Digit Code</label>
             <input type="tel" inputmode="numeric" maxlength="11" id="totp-code-input" placeholder="&bull;&bull;&bull;&bull;&bull;&bull;" autocomplete="one-time-code"
                    onkeydown="if(event.key==='Enter'){submitTotpCode();}">
         </div>
-        <div class="settings-notice" style="margin-bottom:10px;">&#128161; The code changes every 30 seconds. If it keeps failing, set your phone's clock to <strong>automatic</strong>. You can also type one of your <strong>backup codes</strong> here instead.</div>
+        <div class="settings-notice" style="margin-bottom:10px;">&#128161; The code changes every 30 seconds &mdash; if it has just changed, use the new one. If every code is refused, set the phone's clock to <strong>automatic</strong>. A <strong>backup code</strong> can also be typed here instead.</div>
         <button class="emp-save-btn" onclick="submitTotpCode()">&#10003;&nbsp; Verify</button>
         <div class="emp-err" id="totp-err"></div>
         <div style="text-align:center;margin-top:14px;">
@@ -4338,7 +4338,7 @@ function showTotpStep(row) {
     var who = document.getElementById('totp-who');
     if (who) {
         who.textContent = 'Signing in as ' + ((row && row.display_name) || (pendingLogin && pendingLogin.code) || '') +
-            '. Enter the 6-digit code from your authenticator app.';
+            '. Enter the 6-digit code from the phone that was set up for this account.';
     }
     var e = document.getElementById('totp-err'); if (e) e.textContent = '';
     var i = document.getElementById('totp-code-input');
@@ -7837,23 +7837,23 @@ function renderTwoFactorSection() {
         if (!isAdmin && !state.twofaForced) { sec.style.display = 'none'; return; }
         if (on) {
             var when = row.totp_enrolled_at ? new Date(row.totp_enrolled_at).toLocaleDateString('en-IN') : '';
-            st.innerHTML = '<span style="color:#1B7A3A;font-weight:700;">&#10003; ON</span> &mdash; this account asks for a 6-digit code from your authenticator app after the PIN.' +
+            st.innerHTML = '<span style="color:#1B7A3A;font-weight:700;">&#10003; ON</span> &mdash; this account needs a 6-digit code from a phone, as well as the PIN.' +
                 (when ? ' <span style="color:#6B7280;">Switched on ' + when + '.</span>' : '') +
-                (required ? '<br><span style="color:#9A6700;font-weight:700;">Required by an Admin</span> &mdash; it cannot be switched off from here.' : '');
+                (required ? '<br><span style="color:#9A6700;font-weight:700;">Locked on</span> &mdash; only an Admin can switch this off, from the Admin Panel.' : '');
             ac.innerHTML =
                 '<div class="settings-row">' +
                 '<button class="settings-btn" style="flex:1" onclick="twofaRegenerate()">&#128273; New backup codes</button>' +
-                (required ? '' : '<button class="settings-btn danger" style="flex:1" onclick="twofaDisable()">&#10006; Turn off</button>') +
+                (required ? '' : '<button class="settings-btn danger" style="flex:1" onclick="twofaDisable()">&#10006; Turn off phone code</button>') +
                 '</div>' +
                 (state.twofaForced ? '<div class="settings-row" style="margin-top:8px;"><button class="settings-btn" style="flex:1" onclick="location.reload()">&#10003; Continue to the app</button></div>' : '');
         } else if (required) {
-            st.innerHTML = '<span style="color:#B3261E;font-weight:700;">REQUIRED &mdash; not set up yet</span><br>' +
-                'An Admin has made the 6-digit authenticator code compulsory for this account. Set it up now; you only do this once.';
-            ac.innerHTML = '<div class="settings-row"><button class="settings-btn" style="flex:1" onclick="twofaBeginSetup()">&#128241; Set up two-factor now</button></div>';
+            st.innerHTML = '<span style="color:#B3261E;font-weight:700;">Waiting for setup</span><br>' +
+                'This account needs a 6-digit code from a phone as well as the PIN. Set it up now &mdash; it takes a minute and you only do it once.';
+            ac.innerHTML = '<div class="settings-row"><button class="settings-btn" style="flex:1" onclick="twofaBeginSetup()">&#128241; Set it up now</button></div>';
         } else {
             st.innerHTML = '<span style="color:#9A6700;font-weight:700;">OFF</span> &mdash; this account signs in with the PIN alone. ' +
-                'Switching this on adds a 6-digit code from your phone, so a stolen PIN on its own is not enough to get in.';
-            ac.innerHTML = '<div class="settings-row"><button class="settings-btn" style="flex:1" onclick="twofaBeginSetup()">&#128241; Set up two-factor</button></div>';
+                'Adding a 6-digit code from a phone means a stolen PIN on its own is no longer enough to get in.';
+            ac.innerHTML = '<div class="settings-row"><button class="settings-btn" style="flex:1" onclick="twofaBeginSetup()">&#128241; Turn on phone code</button></div>';
         }
         document.getElementById('twofa-setup').style.display = 'none';
         document.getElementById('twofa-backup').style.display = 'none';
