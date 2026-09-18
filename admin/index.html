@@ -2610,7 +2610,7 @@ tbody tr:hover{background:#f9fbfd}
     </ul>
     <div class="sidebar-footer">
       <button class="logout-btn" onclick="adminLogout()">⎋ Logout</button>
-      <div class="ver-footer">ArtzFolio Admin Panel v2.22</div>
+      <div class="ver-footer">ArtzFolio Admin Panel v2.23</div>
     </div>
   </div>
 
@@ -5607,10 +5607,24 @@ var SYSCHECK = [
   { name: 'Secrets are properly hidden',
     why:  'The PIN codes and phone-code secrets must NOT be readable by the app. This check deliberately tries to read them and expects to be refused.',
     run:  function () {
-      return db.from('oms_employees').select('employee_code,totp_secret').limit(1)
+      // v2.23 FIX. This used to count ANY error as a pass — including a
+      // timeout or a dropped connection. That meant it could tell you the
+      // secrets were safe when the check had never actually reached the
+      // database. A security check that can lie is worse than no check at
+      // all, so it now insists on the specific "permission denied" answer
+      // and says plainly when it could not complete.
+      return db.from('oms_employees').select('employee_code,pin_hash,totp_secret').limit(1)
         .then(function (r) {
-          if (r.error) return { ok: true, detail: 'Refused, exactly as it should be.' };
-          return { ok: false, detail: 'WARNING: the secrets came back readable. This is a serious problem — report it immediately.' };
+          if (!r.error) {
+            return { ok: false, detail: 'SERIOUS: the secrets came back readable. Report this immediately.' };
+          }
+          var code = String(r.error.code || '');
+          var msg  = String(r.error.message || '').toLowerCase();
+          if (code === '42501' || /permission denied/.test(msg)) {
+            return { ok: true, detail: 'Refused with "permission denied", exactly as it should be.' };
+          }
+          return { ok: false, warnOnly: true,
+                   detail: 'Could not complete this check — it was refused, but not for the right reason, so it proves nothing. Run it again.' };
         });
     } },
 
@@ -5697,6 +5711,17 @@ var SYSCHECK = [
                    detail: old.length === 0 ? ((r.data || []).length) + ' open now, none older than 6 hours.'
                                             : old.length + ' open for more than 6 hours: ' + old.map(function (s) { return s.employee_code; }).join(', '),
                    warnOnly: true };
+        });
+    } },
+
+  { name: 'First-time setup would still work on an empty system',
+    why:  'The only way to create the very first Admin account if the staff list were ever wiped. Dormant today, but it is the way back in.',
+    run:  function () {
+      return db.rpc('oms_bootstrap_first_admin', { p_employee_code: '__SYSTEM_CHECK__', p_display_name: 'check', p_pin: '0000' })
+        .then(function (r) {
+          var m = String((r.error && r.error.message) || '');
+          if (/permission denied/i.test(m)) return { ok: false, detail: 'Blocked. If the staff list were ever emptied, nobody could create the first account from the app.' };
+          return { ok: true, detail: 'Available. (It refuses to run while staff accounts exist, which is correct.)' };
         });
     } },
 
