@@ -2513,6 +2513,20 @@ var qrcode = function() {
         .settings-row{display:flex;gap:8px;align-items:center;margin-bottom:8px}
         .settings-input{flex:1;border:1.5px solid #c5d0de;border-radius:8px;padding:9px 11px;font-size:12px;outline:none;color:#222}
         .settings-input:focus{border-color:#1B4F8A}
+        /* v88: always-visible drop-down arrow on every suggestion box
+           (input with a list= attached). The browser's own arrow only
+           appears on hover, which read as "there is no arrow". */
+        input[list]{
+            background-image:url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath fill='%231B4F8A' d='M4.2 6.1a1 1 0 0 1 1.4 0L8 8.5l2.4-2.4a1 1 0 1 1 1.4 1.4l-3.1 3.1a1 1 0 0 1-1.4 0L4.2 7.5a1 1 0 0 1 0-1.4z'/%3E%3C/svg%3E");
+            background-repeat:no-repeat;
+            background-position:right 9px center;
+            background-size:16px 16px;
+            padding-right:31px !important;
+        }
+        /* Remove the browser's own hover-only arrow outright. Merely making it
+           see-through leaves it clickable, and a tap then hits both it and our
+           own handler -- the list opens and closes again in the same tap. */
+        input[list]::-webkit-calendar-picker-indicator{display:none !important}
         .settings-btn{background:#1B4F8A;color:#fff;border:none;padding:9px 14px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;touch-action:manipulation}
         .settings-btn:active{background:#153C6E}
         .settings-btn.danger{background:#E74C3C}
@@ -2545,7 +2559,7 @@ var qrcode = function() {
         .move-result{font-size:12px;margin-top:6px;min-height:16px;font-weight:600}
         .move-result.ok{color:#1e8449}
         .move-result.err{color:#c0392b}
-        .stock-toolbar{display:flex;gap:8px;margin-bottom:10px}
+        .stock-toolbar{display:flex;gap:8px;margin-bottom:10px;align-items:center}
         .stock-filter-row{display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap;align-items:center}
         .stock-filter-row select{flex:1 1 130px;min-width:110px;border:1.5px solid #c5d0de;border-radius:8px;padding:7px 8px;font-size:11px;outline:none;color:#222;background:#fff}
         .stock-filter-row select:focus{border-color:#1B4F8A}
@@ -2715,7 +2729,7 @@ var qrcode = function() {
     </style>
 </head>
 <body>
-<div class="ver-corner" id="verCornerBadge" onclick="handleVerBadgeTap()">v87</div>
+<div class="ver-corner" id="verCornerBadge" onclick="handleVerBadgeTap()">v88</div>
 <!-- v63: Gap 2 — offline write-queue indicator. Hidden (display:none) unless
      something is actually queued or failed. Tapping it shows the queue detail
      panel (openOfflineQueuePanel()). -->
@@ -3142,6 +3156,12 @@ var qrcode = function() {
             <div id="full-export-progress" style="text-align:right;font-size:10px;color:#888;margin-bottom:4px;"></div>
             <div class="stock-toolbar">
                 <input type="text" class="stock-search" id="stock-search-input" placeholder="Filter by SKU, ASIN, or product name..." oninput="onStockSearchInput()">
+                <!-- v88: camera scan-to-filter, same as Bin Lookup. Scanning a
+                     product's barcode fills this box and runs the filter in one
+                     go -- the scanner fires the box's own 'input' event. -->
+                <button class="scan-cam-btn" onclick="openScannerFor('stock-search-input')" title="Scan a SKU, ASIN or QR code to filter">
+                    <svg viewBox="0 0 24 24"><path d="M12 9a4 4 0 1 0 4 4 4 4 0 0 0-4-4zm0 6a2 2 0 1 1 2-2 2 2 0 0 1-2 2z"/><path d="M20 4h-2.76l-1.63-2H8.39L6.76 4H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2zm0 15H4V6h3.56L9.19 4h5.62l1.63 2H20z"/></svg>
+                </button>
             </div>
             <!-- v58: Stock filters + sort. Category list is loaded once from
                  oms_sku_master; status + sort are fixed lists. All three (and
@@ -3526,7 +3546,7 @@ var qrcode = function() {
 
             <!-- Version -->
             <div class="ver-badge">
-                <div class="ver-name">&#128230; ArtzFolio Scan-Pick-Pack v87</div>
+                <div class="ver-name">&#128230; ArtzFolio Scan-Pick-Pack v88</div>
                 <div class="ver-sub">Full changelog available on request.</div>
             </div>
         </div>
@@ -9058,6 +9078,23 @@ function pushCameraHistoryState() {
 // into any input field, instead of the PICK-tab flow. Used by the new scan
 // buttons on MOVE (New Stock/Returns/Found/Lost-Theft/QC Hold all share the
 // same two fields) and STOCK's Bin Lookup.
+
+// ── v88: make the always-visible suggestion arrow actually open the list ──
+// The arrow is drawn by CSS on every input[list]. A tap in the right-hand
+// arrow strip opens the suggestion list; a tap anywhere else in the box just
+// puts the cursor there, so typing is unaffected. showPicker() is wrapped in
+// a try/catch because a browser that does not have it must not throw -- the
+// list still drops down as soon as the person starts typing, exactly as
+// before, so nothing is lost where it is unsupported.
+document.addEventListener('click', function (ev) {
+    var el = ev.target;
+    if (!el || el.tagName !== 'INPUT' || !el.hasAttribute('list')) return;
+    var r = el.getBoundingClientRect();
+    if (ev.clientX < r.right - 26) return;   // not the arrow strip
+    try { el.focus(); } catch (e) {}
+    try { if (typeof el.showPicker === 'function') el.showPicker(); } catch (e) {}
+}, true);
+
 function openScannerFor(targetInputId) {
     state.scanTarget = targetInputId;
     openCamera();
@@ -9251,6 +9288,11 @@ function updateCamHint() {
     }
     if (state.scanTarget === 'bin-lookup-input') {
         hint.innerHTML = 'Point at a <strong>SKU, ASIN, or Bin</strong> barcode to look it up';
+        return;
+    }
+    // v88: Live Stock filter.
+    if (state.scanTarget === 'stock-search-input') {
+        hint.innerHTML = 'Point at a <strong>SKU, ASIN, or product barcode</strong> to filter the stock list';
         return;
     }
     var hasAsin = state.order && state.order.asin && state.order.asin.trim().length > 0;
