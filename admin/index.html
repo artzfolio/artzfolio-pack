@@ -2548,7 +2548,7 @@ tbody tr:hover{background:#f9fbfd}
     </div>
     <button class="login-btn" id="emp-login-submit-btn" onclick="attemptEmployeeLogin()">Continue</button>
     <div class="login-err" id="emp-login-err-msg"></div>
-    <div class="login-hint">Admin, Supervisor and Read-Only Admin accounts can use this panel.</div>
+    <div class="login-hint">Admin and Supervisor accounts can use this panel.</div>
   </div>
 </div>
 
@@ -2601,7 +2601,7 @@ tbody tr:hover{background:#f9fbfd}
       <li class="nav-item" data-page="audit" onclick="switchPage('audit')"><span class="nav-icon">📜</span><span class="nav-label">Audit Log</span></li>
       <!-- v2.17 (Master Prompt v21, Part 4.2) -->
       <li class="nav-item" data-page="sessions" onclick="switchPage('sessions')"><span class="nav-icon">🔄</span><span class="nav-label">Scan Sessions</span></li>
-      <li class="nav-item" data-page="employees" onclick="switchPage('employees')"><span class="nav-icon">👥</span><span class="nav-label">Employees</span></li>
+      <li class="nav-item" data-page="employees" onclick="switchPage('employees')"><span class="nav-icon">👥</span><span class="nav-label">User Management</span></li>
       <li class="nav-item" data-page="devices" onclick="switchPage('devices')"><span class="nav-icon">📱</span><span class="nav-label">Phones</span></li>
       <li class="nav-item" data-page="sku" onclick="switchPage('sku')"><span class="nav-icon">📦</span><span class="nav-label">SKU &amp; Stock</span></li>
       <li class="nav-item" data-page="bins" onclick="switchPage('bins')"><span class="nav-icon">🗂</span><span class="nav-label">Bin Management</span></li>
@@ -2611,7 +2611,7 @@ tbody tr:hover{background:#f9fbfd}
     </ul>
     <div class="sidebar-footer">
       <button class="logout-btn" onclick="adminLogout()">⎋ Logout</button>
-      <div class="ver-footer">ArtzFolio Admin Panel v2.30</div>
+      <div class="ver-footer">ArtzFolio Admin Panel v2.31</div>
     </div>
   </div>
 
@@ -2955,7 +2955,7 @@ tbody tr:hover{background:#f9fbfd}
         Anything it already scanned stays exactly as it is; blocking stops further work, it never undoes any.<br>
         <span style="color:#9A6700;"><strong>It is not the main control for someone leaving.</strong></span>
         Each phone invents its own code the first time the app runs, so clearing the app's data on that phone produces a new
-        code and a fresh start. <strong>When a person leaves, switch their staff account off on the Employees page</strong> —
+        code and a fresh start. <strong>When a person leaves, switch their staff account off under User Management</strong> —
         that stops them signing in anywhere, on any phone. Blocking the handset is a useful extra, not a replacement.
       </div>
 
@@ -2972,8 +2972,8 @@ tbody tr:hover{background:#f9fbfd}
     <div class="page" id="page-employees">
       <div class="page-header">
         <div>
-          <div class="page-title">Employee / User Management</div>
-          <div class="page-sub">Manage warehouse staff accounts, roles, PINs, and lock status.</div>
+          <div class="page-title">User Management</div>
+          <div class="page-sub">Everyone who can use the phone app or this panel — their access level, PIN, phone code and lock status.</div>
         </div>
         <button class="btn btn-primary" onclick="loadEmployees()">↻ Refresh</button>
       </div>
@@ -3019,6 +3019,30 @@ tbody tr:hover{background:#f9fbfd}
         <div id="add-emp-perm-container"></div>
         <button class="btn btn-primary" onclick="submitAddEmployee()">✓ Add Employee</button>
         <div class="result-msg" id="add-emp-result"></div>
+      </div>
+
+      <!-- v2.31: moved here from Settings. Everything about who can use the
+           system now lives on this one page; Settings keeps only the Admin
+           Password and the read-only company and system information. -->
+      <div class="card write-only-control" id="sup-pw-card" style="margin-top:20px;">
+        <h3>🛡 Supervisor Password</h3>
+        <div class="hint-text">
+          Only needed if you make somebody a <strong>Supervisor</strong> above. They sign in with their own
+          employee code and PIN, then unlock this panel with <strong>this</strong> password &mdash; never yours.
+          That is what stops them reaching accounts, access levels and the Admin Password: they do not hold the
+          password those need, so the refusal does not depend on this website behaving itself.
+          <br><br>
+          Leave both boxes empty and press <strong>Remove it</strong> to take Supervisor access away from everyone
+          at once. Nobody's account or history is affected.
+        </div>
+        <div class="form-row">
+          <div class="form-field"><label>New Supervisor Password (min 8 characters)</label><input type="password" id="sup-pw-new" autocomplete="off"></div>
+          <div class="form-field"><label>Confirm</label><input type="password" id="sup-pw-confirm" autocomplete="off"></div>
+        </div>
+        <button class="btn btn-primary" onclick="submitSupervisorPassword()">✓ Save Supervisor Password</button>
+        <button class="btn btn-grey" onclick="clearSupervisorPassword()">Remove it</button>
+        <div class="result-msg" id="sup-pw-status" style="margin-top:8px;"></div>
+        <div class="result-msg" id="sup-pw-result"></div>
       </div>
     </div>
 
@@ -3301,7 +3325,7 @@ tbody tr:hover{background:#f9fbfd}
       <div class="page-header">
         <div>
           <div class="page-title">Settings</div>
-          <div class="page-sub">Admin secret rotation, company info, and system diagnostics.</div>
+          <div class="page-sub">Your own Admin Password, company information, and system details. Everything about people is under User Management.</div>
         </div>
         <button class="btn btn-primary" onclick="loadSettingsPage()">↻ Refresh</button>
       </div>
@@ -3316,33 +3340,6 @@ tbody tr:hover{background:#f9fbfd}
         </div>
         <button class="btn btn-primary" id="rotate-secret-btn" onclick="submitRotateSecret()">✓ Rotate Secret</button>
         <div class="result-msg" id="rotate-secret-result"></div>
-      </div>
-
-      <div class="card write-only-control">
-        <h3>🛡 Supervisor Password</h3>
-        <div class="hint-text">
-          A <strong>Supervisor</strong> is someone who runs this panel on your behalf when you are not around &mdash;
-          batches, phones, stock, bins, and rescuing a staff member who is locked out or has lost their phone.
-          They sign in with their own employee code and PIN, then unlock the panel with <strong>this</strong> password,
-          which must be different from your own Admin Password.
-          <br><br>
-          That difference is the whole point. Because they never hold your password, the database itself refuses them
-          on the things that are yours alone: <strong>adding or switching off an account</strong>,
-          <strong>changing anyone's access level</strong>, <strong>rotating the Admin Password</strong>, and
-          <strong>setting this password</strong>. Those refusals do not depend on this website behaving itself.
-          <br><br>
-          Two steps: set a password here, then open <strong>Employees → Edit Access</strong> on the person you are
-          promoting, tick <em>Can log into Admin Panel</em>, and choose <em>Supervisor</em>.
-          Leave the box blank and press Save to remove Supervisor access from everyone at once.
-        </div>
-        <div class="form-row">
-          <div class="form-field"><label>New Supervisor Password (min 8 characters)</label><input type="password" id="sup-pw-new" autocomplete="off"></div>
-          <div class="form-field"><label>Confirm</label><input type="password" id="sup-pw-confirm" autocomplete="off"></div>
-        </div>
-        <button class="btn btn-primary" onclick="submitSupervisorPassword()">✓ Save Supervisor Password</button>
-        <button class="btn btn-grey" onclick="clearSupervisorPassword()">Remove it</button>
-        <div class="result-msg" id="sup-pw-status" style="margin-top:8px;"></div>
-        <div class="result-msg" id="sup-pw-result"></div>
       </div>
 
       <div class="card">
@@ -3727,7 +3724,7 @@ function applySupervisorModeToUI() {
   var on = isSupervisor();
   var navSettings = document.querySelector('.nav-item[data-page="settings"]');
   if (navSettings) navSettings.style.display = on ? 'none' : '';
-  ['add-emp-card', 'emp-bulk-bar'].forEach(function (id) {
+  ['add-emp-card', 'emp-bulk-bar', 'sup-pw-card'].forEach(function (id) {
     var el = document.getElementById(id);
     if (el) el.style.display = on ? 'none' : '';
   });
@@ -4330,6 +4327,9 @@ function switchPage(name) {
   if (name === 'audit' && !auditLoadedOnce) { loadAuditLog(0); }
   if (name === 'sessions' && !sessionsLoadedOnce) { loadScanSessions(); }
   if (name === 'employees' && !empLoadedOnce) { loadEmployees(); }
+  // v2.31: cheap, and independent of the once-only table load, so the
+  // Supervisor Password line is never stale on a return visit.
+  if (name === 'employees') { loadSupervisorPasswordStatus(); }
   if (name === 'settings' && !settingsLoadedOnce) { loadSettingsPage(); }
   if (name === 'bins' && !binsLoadedOnce) { loadBins(); }
   if (name === 'devices' && !devicesLoadedOnce) { loadDevices(); }
@@ -7040,7 +7040,7 @@ var SYSCHECK = [
     } },
 
   { name: 'Staff accounts can be listed',
-    why:  'This is the Employees page. It broke once before, silently, because it asked for a column it is not allowed to read.',
+    why:  'This is the User Management page. It broke once before, silently, because it asked for a column it is not allowed to read.',
     run:  function () {
       return db.from('oms_employees')
         .select('employee_code,display_name,role,active,totp_enabled,totp_required')
@@ -7071,9 +7071,9 @@ var SYSCHECK = [
                 return { ok: true, detail: sups.length + ' Supervisor account(s), and a Supervisor Password is set. They can sign in.' };
               }
               if (isSet && sups.length === 0) {
-                return { ok: false, warnOnly: true, detail: 'A Supervisor Password is set, but nobody is marked as a Supervisor, so it opens nothing. Either promote someone in Employees → Edit Access, or remove the password in Settings.' };
+                return { ok: false, warnOnly: true, detail: 'A Supervisor Password is set, but nobody is marked as a Supervisor, so it opens nothing. Either promote someone in User Management → Edit Access, or press Remove it on the Supervisor Password card on that same page.' };
               }
-              return { ok: false, warnOnly: true, detail: sups.length + ' account(s) are marked Supervisor, but no Supervisor Password is set — so they cannot actually get in. Set one in Settings.' };
+              return { ok: false, warnOnly: true, detail: sups.length + ' account(s) are marked Supervisor, but no Supervisor Password is set — so they cannot actually get in. Set one in User Management, on the Supervisor Password card.' };
             }).catch(function () {
               return { ok: false, warnOnly: true, detail: 'Could not check the Supervisor Password just now — the connection timed out. Try again.' };
             });
@@ -7081,7 +7081,7 @@ var SYSCHECK = [
     } },
 
   { name: 'Someone can cover for you',
-    why:  'If only one account can run this panel, then unlocking a staff member, reversing a wrong batch or blocking a lost phone can only ever happen when that one person is available. This checks whether anybody else could step in.',
+    why:  'This is not a fault and nothing is broken. It simply reports whether anyone besides you could run this panel if you were away — because unlocking a staff member, reversing a wrong batch or blocking a lost phone can otherwise only happen when you are available. It turns green the moment you make somebody a Supervisor.',
     run:  function () {
       return db.from('oms_employees').select('employee_code,display_name,role,active,archived')
         .then(function (r) {
@@ -7091,7 +7091,7 @@ var SYSCHECK = [
           var rows = r.data || [];
           var admins = rows.filter(function (e) { return e.active && !e.archived && e.role === 'ADMIN'; });
           var sups = rows.filter(function (e) { return e.active && !e.archived && e.role === 'SUPERVISOR'; });
-          var readOnly = rows.filter(function (e) { return e.active && !e.archived && e.role === 'READ_ONLY_ADMIN'; });
+          var readOnly = rows.filter(function (e) { return e.active && !e.archived && e.role === 'READ_ONLY_ADMIN'; });  // retired level; normally zero
           // v2.29: a Supervisor is exactly the cover this check was asking for.
           if (admins.length + sups.length >= 2) {
             return { ok: true, detail: admins.length + ' full Admin' + (admins.length === 1 ? '' : 's') +
@@ -7102,7 +7102,7 @@ var SYSCHECK = [
           return { ok: false, warnOnly: true,
                    detail: 'Only ' + who + ' can run this panel' +
                            (readOnly.length ? ' (' + readOnly.length + ' can look but not act)' : '') +
-                           '. If that person is travelling, ill or simply asleep, nobody can unlock a locked-out staff member, reverse a wrong batch, or block a lost phone until they are back. Settings → Supervisor Password, then Employees → Edit Access, is how you fix this in two minutes.' };
+                           '. If that person is travelling, ill or simply asleep, nobody can unlock a locked-out staff member, reverse a wrong batch, or block a lost phone until they are back. User Management is where you fix this in two minutes: set the Supervisor Password at the bottom of that page, then press Edit Access on the person and choose Supervisor.' };
         });
     } },
 
@@ -7115,7 +7115,7 @@ var SYSCHECK = [
             return { ok: false, warnOnly: true, detail: 'Could not check — the staff list did not load. Try again.' };
           }
           var admins = (r.data || []).filter(function (e) {
-            return e.active && !e.archived && (e.role === 'ADMIN' || e.role === 'READ_ONLY_ADMIN');
+            return e.active && !e.archived && (e.role === 'ADMIN' || e.role === 'SUPERVISOR');
           });
           if (!admins.length) return { ok: false, warnOnly: true, detail: 'No active Admin account found to check.' };
           var withCode = admins.filter(function (a) { return a.totp_enabled; });
@@ -7126,7 +7126,7 @@ var SYSCHECK = [
           // by the app -- that is the same protection that hides PINs. The
           // honest thing is to say what to check rather than invent a number.
           return { ok: true,
-                   detail: withCode.length + ' Admin account(s) use a phone code. How many backup codes are left is deliberately not readable from here, for the same reason PINs are not. Check it on the phone app under Settings, and issue a fresh set if it is running low.' };
+                   detail: withCode.length + ' panel account(s) use a phone code. How many backup codes are left is deliberately not readable from here, for the same reason PINs are not. Check it on the phone app under Settings, and issue a fresh set if it is running low.' };
         });
     } },
 
@@ -7710,7 +7710,7 @@ function buildPermissionUIHtml(prefix) {
 
   var infoRows = PERMISSION_SECTIONS.map(function (s) {
     return '<tr><td>' + s.label + '</td><td>' + s.help + '</td></tr>';
-  }).join('') + '<tr><td>Admin Panel</td><td>This website (separate from the App above) — Dashboard, Audit Log, Employees, SKU &amp; Stock, Bins, Reports, Settings. Full Admin can change anything (secret-gated on every write); Read-Only can see everything but never write.</td></tr>';
+  }).join('') + '<tr><td>Admin Panel</td><td>This website, separate from the phone App above — Dashboard, Audit Log, User Management, SKU &amp; Stock, Bins, Reports, Settings. A <strong>Full Admin</strong> can change anything. A <strong>Supervisor</strong> can run the day but cannot touch accounts, access levels or either password.</td></tr>';
 
   return '<div class="form-field" style="max-width:340px;margin-bottom:4px;">' +
       '<label>App Section Access — Preset</label>' +
@@ -7730,8 +7730,12 @@ function buildPermissionUIHtml(prefix) {
       '<div class="hint-text" style="margin:4px 0 0 21px;">Kept separate from the App-section boxes above — this is the higher-security, secret-phrase-gated Admin Panel, not the phone App.</div>' +
       '<div id="' + prefix + '-admin-level-row" style="display:none;margin:8px 0 0 21px;">' +
         '<label style="margin-right:14px;display:block;margin-bottom:4px;"><input type="radio" name="' + prefix + '-admin-level" value="ADMIN" checked> <strong>Full Admin</strong> &mdash; can change anything, including accounts and both passwords</label>' +
-        '<label style="margin-right:14px;display:block;margin-bottom:4px;"><input type="radio" name="' + prefix + '-admin-level" value="SUPERVISOR"> <strong>Supervisor</strong> &mdash; runs the panel on your behalf: batches, phones, stock, bins, and rescuing staff. Cannot add or switch off accounts, cannot change anyone\'s access level, and cannot touch either password. Signs in with the separate <em>Supervisor Password</em> you set in Settings.</label>' +
-        '<label style="display:block;"><input type="radio" name="' + prefix + '-admin-level" value="READ_ONLY_ADMIN"> <strong>Read-Only</strong> &mdash; view everything, change nothing</label>' +
+        '<label style="display:block;"><input type="radio" name="' + prefix + '-admin-level" value="SUPERVISOR"> <strong>Supervisor</strong> &mdash; runs the panel on your behalf: batches, phones, stock, bins, and rescuing staff. Cannot add or switch off accounts, cannot change anyone\'s access level, and cannot touch either password. Signs in with the separate <em>Supervisor Password</em> set on the User Management page.</label>' +
+        // v2.31: the old "Read-Only Admin" level is retired. It was a half-built
+        // account type whose job the Supervisor role now does properly, and it
+        // carried a route into the audit log that needed no password at all.
+        // The role value still exists in the database so nothing already written
+        // breaks, but no new account can be given it.
       '</div>' +
     '</div>' +
     '<details class="perm-info-panel"><summary>What does each section do?</summary>' +
@@ -7796,15 +7800,18 @@ function onPermCheckboxChange(prefix) {
     presetEl.value = 'CUSTOM';
   }
 }
-// role is only ever ADMIN/READ_ONLY_ADMIN when the Admin Panel Access
-// checkbox is actually on — keeps the existing Admin Panel login gate
-// (role === 'ADMIN' / 'READ_ONLY_ADMIN') meaning exactly what it always
-// has, decoupled from the App-section preset dropdown.
+// The role is only ever ADMIN or SUPERVISOR when the Admin Panel Access
+// checkbox is actually on — which keeps the panel's own login gate meaning
+// exactly what it always has, decoupled from the phone-App preset dropdown.
+// v2.31: READ_ONLY_ADMIN was retired here; the gate still admits it so that
+// nothing already in the database is locked out, but nothing creates it.
 function computeEffectiveRole(prefix) {
   var adminOn = document.getElementById(prefix + '-admin-access').checked;
   if (adminOn) {
     var lvl = document.querySelector('input[name="' + prefix + '-admin-level"]:checked');
-    return lvl ? lvl.value : 'ADMIN';
+    // v2.31: unreachable today (Full Admin carries `checked`), but if it ever
+    // did fire it must fall the SAFE way, not hand out full Admin by accident.
+    return lvl ? lvl.value : 'SUPERVISOR';
   }
   var preset = document.getElementById(prefix + '-preset').value;
   return (preset === 'ADMIN' || preset === 'SUPERVISOR') ? 'CUSTOM' : preset;
@@ -7819,12 +7826,29 @@ function prefillPermissionUI(prefix, e) {
   if (scopeEl) scopeEl.checked = true;
   var presetEl = document.getElementById(prefix + '-preset');
   if (presetEl) presetEl.value = e.permission_preset || (ROLE_PERMISSION_PRESETS[e.role] ? e.role : 'CUSTOM');
-  var isAdminRole = e.role === 'ADMIN' || e.role === 'SUPERVISOR' || e.role === 'READ_ONLY_ADMIN';
+  // v2.31: READ_ONLY_ADMIN is retired and no longer has a radio button here.
+  // Deliberately excluded, so that saving an account still carrying it moves it
+  // DOWN to an ordinary app role rather than UP to full Admin by default.
+  var isAdminRole = e.role === 'ADMIN' || e.role === 'SUPERVISOR';
   var accessEl = document.getElementById(prefix + '-admin-access');
   if (accessEl) accessEl.checked = isAdminRole;
-  if (isAdminRole) {
-    var lvlEl = document.querySelector('input[name="' + prefix + '-admin-level"][value="' + e.role + '"]');
-    if (lvlEl) lvlEl.checked = true;
+  // v2.31: always set the level, never leave the previous employee's choice
+  // sitting there. Editing a Supervisor and then opening a warehouse hand used
+  // to show "Supervisor" pre-selected, which is a quiet way to promote the
+  // wrong person.
+  var wantLevel = isAdminRole ? e.role : 'ADMIN';
+  var lvlEl = document.querySelector('input[name="' + prefix + '-admin-level"][value="' + wantLevel + '"]');
+  if (lvlEl) lvlEl.checked = true;
+  // ── 4: an account still carrying the retired Read-Only level ──────────
+  // Unreachable from this panel (nothing creates one any more), but possible
+  // if one were ever set directly in the database. Say so rather than letting
+  // a routine Save quietly take away their panel access.
+  var noteEl = document.getElementById(prefix + '-result');
+  if (noteEl && e.role === 'READ_ONLY_ADMIN') {
+    noteEl.className = 'result-msg';
+    noteEl.textContent = 'This account still has the old Read-Only level, which has been retired. '
+      + 'Saving now moves it to ordinary app access. If you want this person to keep using the panel, '
+      + 'tick "Can log into Admin Panel" above and choose a level.';
   }
   toggleAdminAccessSub(prefix);
   updateLogScopeVisibility(prefix);
@@ -8641,7 +8665,6 @@ function exportTxnFullCSV() {
 var settingsLoadedOnce = false;
 
 function loadSettingsPage() {
-  loadSupervisorPasswordStatus();
   settingsLoadedOnce = true;
   loadCompanyInfo();
   loadSystemInfo();
@@ -8658,7 +8681,7 @@ function loadSupervisorPasswordStatus() {
   el.className = 'result-msg'; el.textContent = 'Checking...';
   withTimeout(db.rpc('oms_supervisor_password_status', { p_admin_secret: sec }), 10000, 'Supervisor password status')
     .then(function (res) {
-      if (res.error) { el.className = 'result-msg'; el.textContent = ''; return; }
+      if (res.error) { el.className = 'result-msg'; el.textContent = 'Could not check whether a Supervisor Password is set. Press Refresh to try again.'; return; }
       var d = res.data || {};
       if (d.is_set) {
         el.className = 'result-msg ok';
@@ -8667,7 +8690,10 @@ function loadSupervisorPasswordStatus() {
         el.className = 'result-msg';
         el.textContent = 'No Supervisor Password is set yet, so nobody can sign in as a Supervisor.';
       }
-    }).catch(function () { el.textContent = ''; });
+    }).catch(function () {
+      el.className = 'result-msg';
+      el.textContent = 'Could not check whether a Supervisor Password is set. Press Refresh to try again.';
+    });
 }
 function saveSupervisorPassword(newPw, resEl) {
   var sec = getAdminSecret();
