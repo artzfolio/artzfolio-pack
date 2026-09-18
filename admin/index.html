@@ -305,7 +305,7 @@ tbody tr:hover{background:#f9fbfd}
     </ul>
     <div class="sidebar-footer">
       <button class="logout-btn" onclick="adminLogout()">⎋ Logout</button>
-      <div class="ver-footer">ArtzFolio Admin Panel v2.18</div>
+      <div class="ver-footer">ArtzFolio Admin Panel v2.19</div>
     </div>
   </div>
 
@@ -555,8 +555,8 @@ tbody tr:hover{background:#f9fbfd}
       </div>
       <div class="table-wrap">
         <table>
-          <thead><tr><th class="chk-col"><input type="checkbox" id="emp-select-all" onchange="toggleSelectAllEmployees(this)"></th><th>Code</th><th>Name</th><th>Role</th><th>Status</th><th>Locked</th><th>Last Login</th><th>Actions</th></tr></thead>
-          <tbody id="emp-body"><tr class="empty-row"><td colspan="8">Loading...</td></tr></tbody>
+          <thead><tr><th class="chk-col"><input type="checkbox" id="emp-select-all" onchange="toggleSelectAllEmployees(this)"></th><th>Code</th><th>Name</th><th>Role</th><th>Status</th><th>Locked</th><th>2FA</th><th>Last Login</th><th>Actions</th></tr></thead>
+          <tbody id="emp-body"><tr class="empty-row"><td colspan="9">Loading...</td></tr></tbody>
         </table>
       </div>
 
@@ -2917,15 +2917,27 @@ function loadEmployees() {
   if (!db) { refreshOfflineBanner(); return; }
   empLoadedOnce = true;
   var body = document.getElementById('emp-body');
-  body.innerHTML = '<tr class="empty-row"><td colspan="8">Loading...</td></tr>';
-  withTimeout(db.from('oms_employees').select('*').order('employee_code'), 10000, 'Employees').then(function (res) {
-    if (res.error) { body.innerHTML = '<tr class="empty-row"><td colspan="8">Error: ' + esc(res.error.message) + '</td></tr>'; return; }
+  body.innerHTML = '<tr class="empty-row"><td colspan="9">Loading...</td></tr>';
+  // v2.19 (2026-09-18) BUG FIX - this asked for select('*'), and the app's
+  // public key is not allowed to read every column of oms_employees (the PIN
+  // hash is deliberately withheld, and from v2.19 so are the two-factor
+  // secret and backup codes). Postgres refuses the whole query when one
+  // column in it is off limits, so this page was failing with a bare
+  // "permission denied for table oms_employees" instead of listing anyone.
+  // Naming the columns fixes that, and keeps the secrets unreachable by
+  // construction rather than by hoping nobody asks for them.
+  withTimeout(db.from('oms_employees').select(
+      'employee_code,display_name,role,active,archived,archived_at,original_employee_code,' +
+      'last_login_at,locked_until,failed_pin_count,permissions,permission_preset,created_at,' +
+      'totp_enabled,totp_enrolled_at'
+    ).order('employee_code'), 10000, 'Employees').then(function (res) {
+    if (res.error) { body.innerHTML = '<tr class="empty-row"><td colspan="9">Error: ' + esc(res.error.message) + '</td></tr>'; return; }
     employeesCache = res.data || [];
     selectedEmployeeCodes = {};
     updateEmpBulkBar();
     populateEmployeeDropdowns();
     renderEmployees();
-  }).catch(function (err) { body.innerHTML = '<tr class="empty-row"><td colspan="8">Error: ' + esc(String(err && err.message || err)) + '</td></tr>'; });
+  }).catch(function (err) { body.innerHTML = '<tr class="empty-row"><td colspan="9">Error: ' + esc(String(err && err.message || err)) + '</td></tr>'; });
 }
 function renderEmployees() {
   var body = document.getElementById('emp-body');
@@ -2951,12 +2963,17 @@ function renderEmployees() {
     return true;
   });
 
-  if (!rows.length) { body.innerHTML = '<tr class="empty-row"><td colspan="8">No employees match this filter.</td></tr>'; return; }
+  if (!rows.length) { body.innerHTML = '<tr class="empty-row"><td colspan="9">No employees match this filter.</td></tr>'; return; }
 
   body.innerHTML = rows.map(function (e) {
     var isLocked = e.locked_until && new Date(e.locked_until) > now;
     var statusBadge = e.archived ? '<span class="badge badge-grey">ARCHIVED</span>' : (e.active ? '<span class="badge badge-green">ACTIVE</span>' : '<span class="badge badge-grey">INACTIVE</span>');
     var lockBadge = isLocked ? '<span class="badge badge-red">LOCKED</span>' : '<span class="badge badge-grey">—</span>';
+    // v2.19: two-factor status, read from the only two 2FA columns the app's
+    // key is allowed to see. The secret itself is not readable from here.
+    var twofaBadge = e.totp_enabled
+      ? '<span class="badge badge-green" title="Asks for an authenticator code after the PIN">ON</span>'
+      : '<span class="badge badge-grey" title="PIN only">OFF</span>';
     var code = esc(e.employee_code);
     // Archived rows show the original human-readable code (the live
     // employee_code has been suffixed to free it for reuse) — this is the
@@ -2970,6 +2987,7 @@ function renderEmployees() {
         '<button class="btn btn-sm ' + (e.active ? 'btn-grey' : 'btn-green') + '" onclick="toggleEmployeeActive(\'' + code + '\', ' + !!e.active + ')">' + (e.active ? 'Deactivate' : 'Reactivate') + '</button>' +
         '<button class="btn btn-sm btn-primary" onclick="resetEmployeePin(\'' + code + '\')">Reset PIN</button>' +
         '<button class="btn btn-sm btn-gold" onclick="unlockEmployee(\'' + code + '\')">Unlock</button>' +
+        (e.totp_enabled ? '<button class="btn btn-sm btn-grey" onclick="clearEmployeeTwoFactor(\'' + code + '\')" title="Use when someone has lost the phone holding their authenticator app">Clear 2FA</button>' : '') +
         '<button class="btn btn-sm btn-primary" onclick="openEditAccessModal(\'' + code + '\')">Edit Access</button>' +
         '<button class="btn btn-sm btn-grey" onclick="archiveEmployee(\'' + code + '\')">Archive &amp; Free Code</button>' +
         '</div>';
@@ -2980,6 +2998,7 @@ function renderEmployees() {
       '<td>' + esc(e.role) + (e.permission_preset && e.permission_preset !== e.role ? ' <span class="badge badge-grey" title="App section access">' + esc(e.permission_preset) + '</span>' : '') + '</td>' +
       '<td>' + statusBadge + '</td>' +
       '<td>' + lockBadge + '</td>' +
+      '<td>' + twofaBadge + '</td>' +
       '<td>' + fmtDateTime(e.last_login_at) + '</td>' +
       '<td>' +
         actionsHtml +
@@ -3109,6 +3128,39 @@ function unlockEmployee(code) {
     loadEmployees();
   }).catch(function (err) { if (resEl) { resEl.className = 'result-msg err'; resEl.textContent = 'Error: ' + String(err && err.message || err); } });
 }
+// v2.19 (2026-09-18): the rescue path for "a staff member lost the phone
+// with their authenticator app on it". Clearing two-factor does NOT change
+// their PIN and does not unlock anything else — they simply go back to
+// signing in with the PIN alone until they set two-factor up again.
+function clearEmployeeTwoFactor(code) {
+  if (!db) return;
+  if (!confirm('Clear two-factor for ' + code + '?\n\nThey will sign in with their PIN alone until they set it up again on a new phone.\n\nOnly do this once you are sure it is really them asking.')) return;
+  var resEl = empResultEl(code);
+  var caller = getAdminPanelEmployeeCode();
+  var pin = prompt('Enter YOUR own 4-digit Admin PIN to authorise this' + (caller ? ' (signed in as ' + caller + ')' : '') + '.\n\nLeave blank to fall back to the Admin Secret instead:');
+  if (pin === null) return;
+  pin = String(pin).trim();
+  var args = { p_employee_code: code, p_caller_employee_code: caller };
+  if (pin) {
+    args.p_admin_pin = pin;
+  } else {
+    var secret = getAdminSecret();
+    if (!secret) return;
+    args.p_admin_secret = secret;
+  }
+  if (resEl) { resEl.className = 'result-msg'; resEl.textContent = 'Clearing two-factor...'; }
+  withTimeout(db.rpc('oms_admin_totp_reset', args), 15000, 'Clear two-factor').then(function (res) {
+    if (res.error) {
+      if (isBadSecretError(res.error)) { handleBadSecret('a clear-two-factor action'); return; }
+      if (resEl) { resEl.className = 'result-msg err'; resEl.textContent = 'Error: ' + res.error.message; }
+      return;
+    }
+    writeAuditLog('ADMIN_TOTP_RESET', { details: { target_employee_code: code, authorised_by: (res.data && res.data.authorised_by) || null } });
+    if (resEl) { resEl.className = 'result-msg ok'; resEl.textContent = '✓ Two-factor cleared.'; }
+    loadEmployees();
+  }).catch(function (err) { if (resEl) { resEl.className = 'result-msg err'; resEl.textContent = 'Error: ' + String(err && err.message || err); } });
+}
+
 // ══════════════════ PERMISSION CHECKBOXES (v2.14, Master Prompt v17 Part C) ══════════════════
 // Same shape as the App's own ROLE_PERMISSIONS object (index.html) — kept
 // in sync by hand since this is a static-HTML pair, not a shared module.
