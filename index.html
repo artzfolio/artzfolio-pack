@@ -2715,7 +2715,7 @@ var qrcode = function() {
     </style>
 </head>
 <body>
-<div class="ver-corner" id="verCornerBadge" onclick="handleVerBadgeTap()">v85</div>
+<div class="ver-corner" id="verCornerBadge" onclick="handleVerBadgeTap()">v86</div>
 <!-- v63: Gap 2 — offline write-queue indicator. Hidden (display:none) unless
      something is actually queued or failed. Tapping it shows the queue detail
      panel (openOfflineQueuePanel()). -->
@@ -2939,7 +2939,7 @@ var qrcode = function() {
                 <div class="settings-row">
                     <!-- v50: Enter-key support for Bluetooth scanner guns — moves on to Qty
                          rather than submitting, since Qty/Note may still need adjusting. -->
-                    <input type="text" class="settings-input" id="move-bin-input" placeholder="Bin location (required)" list="move-bin-list" autocomplete="off" autocorrect="off" autocapitalize="characters" style="text-transform:uppercase" onkeydown="if(event.key==='Enter'){document.getElementById('move-qty-input').focus();}">
+                    <input type="text" class="settings-input" id="move-bin-input" placeholder="Bin location (required)" list="move-bin-list" autocomplete="off" autocorrect="off" autocapitalize="characters" style="text-transform:uppercase" data-src="" oninput="markMoveBinTouched()" onkeydown="if(event.key==='Enter'){document.getElementById('move-qty-input').focus();}">
                     <datalist id="move-bin-list"></datalist>
                     <!-- v49: camera scan-to-fill for the bin label/QR sticker on the shelf -->
                     <button class="scan-cam-btn" onclick="openScannerFor('move-bin-input')" title="Scan bin barcode/QR">
@@ -3526,7 +3526,7 @@ var qrcode = function() {
 
             <!-- Version -->
             <div class="ver-badge">
-                <div class="ver-name">&#128230; ArtzFolio Scan-Pick-Pack v85</div>
+                <div class="ver-name">&#128230; ArtzFolio Scan-Pick-Pack v86</div>
                 <div class="ver-sub">Full changelog available on request.</div>
             </div>
         </div>
@@ -4588,11 +4588,49 @@ function refreshScanSessionState() {
 // more deliberate signal than an inferred usual bin. Only ever fills a
 // BLANK field -- never overwrites a value staff already typed/scanned for a
 // genuine floor exception, and the field stays fully editable either way.
+// v86 (2026-09-18) BUG FIX. Reported live: a session opened on one account
+// with default bin A1, then a session on another account with default bin A2,
+// and the bin field below still showed A1.
+//
+// CAUSE: this function only ever filled a BLANK field. Anything already sitting
+// in the box — the previous session's bin, or a bin the app itself guessed from
+// the SKU — blocked the new session default from being applied. The comment
+// above claimed the session default was "a stronger, more deliberate signal"
+// than the per-SKU guess, but the code never implemented that: both guarded on
+// "is the field blank", so whichever ran last simply won.
+//
+// FIX: the field now remembers who last set it. A value the app put there
+// (either source) is replaced by the session default. A value a person typed or
+// scanned is never touched — that is a real floor exception and must stand.
+function markMoveBinTouched() {
+    var binEl = document.getElementById('move-bin-input');
+    if (binEl) binEl.setAttribute('data-src', 'user');
+}
+function moveBinWasSetByUser() {
+    var binEl = document.getElementById('move-bin-input');
+    return !!binEl && binEl.getAttribute('data-src') === 'user' && (binEl.value || '').trim() !== '';
+}
+function sessionDefaultBin() {
+    return (state.moveSession && state.moveSession.status === 'OPEN' && state.moveSession.default_bin_code)
+        ? state.moveSession.default_bin_code : null;
+}
 function applySessionDefaultBin() {
     var binEl = document.getElementById('move-bin-input');
-    if (!binEl || (binEl.value || '').trim()) return;
-    var bin = state.moveSession && state.moveSession.default_bin_code;
-    if (bin) binEl.value = bin;
+    if (!binEl) return;
+    var bin = sessionDefaultBin();
+    if (!bin) {
+        // no session default any more (session closed, committed or voided):
+        // clear a value the SESSION put there, but leave a typed one alone
+        if (binEl.getAttribute('data-src') === 'session') {
+            binEl.value = ''; binEl.setAttribute('data-src', '');
+        }
+        return;
+    }
+    if (moveBinWasSetByUser()) return;          // a deliberate floor exception wins
+    if ((binEl.value || '').trim().toUpperCase() !== String(bin).toUpperCase()) {
+        binEl.value = bin;
+    }
+    binEl.setAttribute('data-src', 'session');
 }
 // v77: replaces the bare `move-bin-input.value = ''` used at every
 // clear-fields-for-next-entry site (mode switch, and after each of the 3
@@ -4601,7 +4639,7 @@ function applySessionDefaultBin() {
 // resolves.
 function resetMoveBinField() {
     var binEl = document.getElementById('move-bin-input');
-    if (binEl) binEl.value = '';
+    if (binEl) { binEl.value = ''; binEl.setAttribute('data-src', ''); }
     applySessionDefaultBin();
 }
 function renderSessionBar() {
@@ -4650,6 +4688,12 @@ function startScanSession() {
         state.moveSession = { session_id: d.session_id, status: 'OPEN',
                               opened_at: d.opened_at, scan_count: d.scan_count || 0,
                               default_bin_code: d.default_bin_code || null };
+        // v86: a brand-new session is an explicit instruction, so its bin
+        // replaces whatever the previous session left in the box. Without this
+        // line, opening a session with a different default silently kept
+        // showing the old one.
+        var binEl0 = document.getElementById('move-bin-input');
+        if (binEl0) binEl0.setAttribute('data-src', '');
         renderSessionBar();
     }).catch(function (e) { alert('Could not start a session: ' + e); });
 }
@@ -4661,6 +4705,7 @@ function closeScanSession() {
     }), 15000, 'Close session').then(function (res) {
         if (res.error) { alert('Could not close the session: ' + res.error.message); return; }
         state.moveSession = null;
+        applySessionDefaultBin();   // v86: drops a bin the session had put there
         renderReconciliation(res.data || {});
     }).catch(function (e) { alert('Could not close the session: ' + e); });
 }
@@ -5698,18 +5743,36 @@ function prefillMoveBin() {
         // somewhere) still leaves the field blank on purpose, so staff is
         // never guided to guess at where existing stock might be.
         var usedFallback = false;
-        if (!(binEl.value || '').trim()) {
+        // v86 BUG FIX: when a session with a default bin is open, that bin is an
+        // instruction for the whole session and must not be quietly replaced by
+        // a guess made from where this one SKU's stock happens to sit today.
+        // After the warehouse reset every SKU's stock is in A1, so this guess
+        // was overwriting the session's bin with A1 on literally every scan —
+        // which is exactly what was seen on the floor.
+        var sessBin = sessionDefaultBin();
+        if (sessBin) {
+            if (!moveBinWasSetByUser()) {
+                binEl.value = sessBin;
+                binEl.setAttribute('data-src', 'session');
+            }
+        } else if (!(binEl.value || '').trim()) {
             if (liveBins.length === 1) {
                 binEl.value = liveBins[0].bin_code;
+                binEl.setAttribute('data-src', 'sku');
             } else if (!liveBins.length && sku.default_bin) {
                 binEl.value = sku.default_bin;
+                binEl.setAttribute('data-src', 'sku');
             } else if (!liveBins.length && !sku.default_bin && moveMode === 'NEW_STOCK_IN') {
                 binEl.value = WAREHOUSE_DEFAULT_BIN;
+                binEl.setAttribute('data-src', 'sku');
                 usedFallback = true;
             }
         }
         if (hintEl) {
-            if (liveBins.length) {
+            if (sessBin) {
+                hintEl.textContent = 'Session bin ' + sessBin + ' is in force — edit the box if this one item goes elsewhere.' +
+                    (liveBins.length ? '  (Live: ' + liveBins.map(function(b) { return b.bin_code + ':' + b.qty_on_hand; }).join('  \u2022  ') + ')' : '');
+            } else if (liveBins.length) {
                 hintEl.textContent = 'Live: ' + liveBins.map(function(b) { return b.bin_code + ':' + b.qty_on_hand; }).join('  \u2022  ');
             } else if (sku.default_bin) {
                 hintEl.textContent = 'No live stock recorded yet — usual bin: ' + sku.default_bin;
@@ -7764,11 +7827,14 @@ function renderTwoFactorSection() {
         var on       = !!(row && row.totp_enabled);
         var required = !!(row && row.totp_required);
         var isAdmin  = String((state.session && state.session.role) || '').toUpperCase() === 'ADMIN';
-        // v85: two-factor is now an Admin decision. A staff member who has not
-        // been asked to use it does not see this panel at all - there is no
-        // reason for them to be switching security settings on and off.
-        // Admins always see it, because somebody has to be able to set it up.
-        if (!isAdmin && !required && !on) { sec.style.display = 'none'; return; }
+        // v86: two-factor for a staff account is set up and held by an Admin,
+        // from the Admin Panel. A staff member has no business in this panel at
+        // all, so it is hidden from them outright - they cannot switch it on,
+        // off, or reissue backup codes. Two exceptions, both deliberate:
+        // Admins always see it (somebody has to be able to set their own up),
+        // and it appears inside the forced-setup screen for the case where an
+        // Admin has asked an employee to enrol on their OWN phone instead.
+        if (!isAdmin && !state.twofaForced) { sec.style.display = 'none'; return; }
         if (on) {
             var when = row.totp_enrolled_at ? new Date(row.totp_enrolled_at).toLocaleDateString('en-IN') : '';
             st.innerHTML = '<span style="color:#1B7A3A;font-weight:700;">&#10003; ON</span> &mdash; this account asks for a 6-digit code from your authenticator app after the PIN.' +
@@ -9177,6 +9243,9 @@ function updateCamHint() {
         return;
     }
     if (state.scanTarget === 'move-bin-input') {
+        // v86: scanning a shelf label is a deliberate human choice, exactly like
+        // typing it, so it must not be replaced by the session default.
+        try { markMoveBinTouched(); } catch (e) {}
         hint.innerHTML = 'Point at the <strong>Bin QR sticker</strong> on the shelf';
         return;
     }
