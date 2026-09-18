@@ -28,7 +28,10 @@
 // v7 (2026-09-18): bumped for App v88. An offline phone must not keep
 // serving v87, which has no camera scan on the Live Stock filter and no
 // visible drop-down arrow on the Product Type box.
-const CACHE_NAME = 'artzfolio-oms-shell-v7';
+// v8 (2026-09-18): bumped for App v89. An offline phone must not keep
+// serving v88, which says nothing when an Admin closes or reverses the
+// batch the operator is working in.
+const CACHE_NAME = 'artzfolio-oms-shell-v8';
 const SHELL_FILES = ['./index.html', './manifest.json', './icon.svg'];
 
 self.addEventListener('install', function (event) {
