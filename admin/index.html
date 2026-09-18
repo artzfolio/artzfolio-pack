@@ -2560,8 +2560,8 @@ tbody tr:hover{background:#f9fbfd}
       <div class="login-brand-title">🔐 Admin Panel</div>
     </div>
     <div class="login-field">
-      <label for="login-secret-input">Admin Secret</label>
-      <input type="password" id="login-secret-input" placeholder="Enter admin passphrase" autocomplete="off" autofocus>
+      <label for="login-secret-input">Admin Password <span style="font-weight:400;color:#6B7280;">(Supervisors: your Supervisor Password)</span></label>
+      <input type="password" id="login-secret-input" placeholder="Enter your password" autocomplete="off" autofocus>
     </div>
     <!-- v2.14 (Master Prompt v17, Part A) — opt-in, unchecked by default,
          mirrors the App's own "remember this device" checkbox and
@@ -2585,7 +2585,7 @@ tbody tr:hover{background:#f9fbfd}
     </label>
     <button class="login-btn" id="login-submit-btn" onclick="attemptAdminLogin()">Enter Admin Panel</button>
     <div class="login-err" id="login-err-msg"></div>
-    <div class="login-hint">Your admin secret is kept only in this browser tab's memory (sessionStorage) — it is never saved to disk and is cleared automatically when the tab closes.</div>
+    <div class="login-hint">Your password is kept only in this browser tab's memory (sessionStorage) — it is never saved to disk and is cleared automatically when the tab closes.</div>
   </div>
 </div>
 
@@ -2611,7 +2611,7 @@ tbody tr:hover{background:#f9fbfd}
     </ul>
     <div class="sidebar-footer">
       <button class="logout-btn" onclick="adminLogout()">⎋ Logout</button>
-      <div class="ver-footer">ArtzFolio Admin Panel v2.29</div>
+      <div class="ver-footer">ArtzFolio Admin Panel v2.30</div>
     </div>
   </div>
 
@@ -3750,6 +3750,12 @@ function applySupervisorModeToUI() {
     if (on) {
       el.disabled = true; el.style.opacity = '0.45'; el.style.cursor = 'not-allowed';
       el.title = 'A Supervisor cannot change an Admin or another Supervisor account.';
+    } else if (el.title === 'A Supervisor cannot change an Admin or another Supervisor account.') {
+      // v2.30: symmetry. These rows are normally rebuilt from fresh HTML on
+      // every table load, so nothing depended on this - but a sweep that only
+      // ever switches things OFF is the exact shape of the defect fixed one
+      // function above, and it should not be left sitting here to be inherited.
+      el.disabled = false; el.style.opacity = ''; el.style.cursor = ''; el.title = '';
     }
   });
   var banner = document.getElementById('supervisor-banner');
