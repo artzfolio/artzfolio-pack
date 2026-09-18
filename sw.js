@@ -11,7 +11,15 @@
 // flushing it on reconnect) lives entirely in index.html's own JS
 // (IndexedDB-backed write queue) - this service worker's only job is
 // keeping the app shell itself loadable.
-const CACHE_NAME = 'artzfolio-oms-shell-v2';
+// v3 (2026-09-18): cache name bumped from v2 so that the 'activate' handler
+// below deletes the old shell cache outright. Fetch here is already
+// network-first, so an online phone picks up a deploy on its next load
+// regardless. The bump matters for a phone that was OFFLINE across the
+// deploy: without it, that phone could keep serving the previously cached
+// App v83 shell - which has no two-factor sign-in step in it - until it
+// happened to fetch index.html successfully again. Changing the name
+// guarantees the old shell is discarded the moment this worker activates.
+const CACHE_NAME = 'artzfolio-oms-shell-v3';
 const SHELL_FILES = ['./index.html', './manifest.json', './icon.svg'];
 
 self.addEventListener('install', function (event) {
