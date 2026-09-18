@@ -19,7 +19,10 @@
 // App v83 shell - which has no two-factor sign-in step in it - until it
 // happened to fetch index.html successfully again. Changing the name
 // guarantees the old shell is discarded the moment this worker activates.
-const CACHE_NAME = 'artzfolio-oms-shell-v3';
+// v4 (2026-09-18): bumped again for App v85. Same reason as v3 - a phone that
+// was offline across this deploy must not keep serving v84, which still has
+// the broken Reverse authorisation in it.
+const CACHE_NAME = 'artzfolio-oms-shell-v4';
 const SHELL_FILES = ['./index.html', './manifest.json', './icon.svg'];
 
 self.addEventListener('install', function (event) {
