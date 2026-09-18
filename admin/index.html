@@ -2610,7 +2610,7 @@ tbody tr:hover{background:#f9fbfd}
     </ul>
     <div class="sidebar-footer">
       <button class="logout-btn" onclick="adminLogout()">⎋ Logout</button>
-      <div class="ver-footer">ArtzFolio Admin Panel v2.23</div>
+      <div class="ver-footer">ArtzFolio Admin Panel v2.24</div>
     </div>
   </div>
 
@@ -2748,15 +2748,52 @@ tbody tr:hover{background:#f9fbfd}
         <div class="filter-field"><label>Action Type</label>
           <select id="audit-action">
             <option value="">All</option>
-            <option>LOGIN_SUCCESS</option><option>LOGIN_FAILED</option>
-            <option>PIN_SET_BOOTSTRAP</option><option>PIN_RESET_ADMIN</option>
-            <option>ADMIN_UNLOCK</option><option>PICK_CONFIRMED</option>
-            <option>PICK_ISSUE_REPORTED</option><option>NEW_STOCK_IN</option>
-            <option>RETURN_IN</option><option>ADJUSTMENT_FOUND</option>
-            <option>ADJUSTMENT_LOST_THEFT</option><option>QC_HOLD</option>
-            <option>EMPLOYEE_ADDED</option><option>EMPLOYEE_DEACTIVATED</option>
-            <option>EMPLOYEE_REACTIVATED</option><option>LOGOUT</option>
-            <option>ADMIN_BULK_SKU_UPDATE</option><option>ADMIN_SECRET_ROTATED</option>
+            <optgroup label="Signing in">
+              <option value="LOGIN_SUCCESS">Signed in</option>
+              <option value="LOGIN_FAILED">Sign-in failed</option>
+              <option value="LOGOUT">Signed out</option>
+            </optgroup>
+            <optgroup label="Stock movements">
+              <option value="NEW_STOCK_IN">New stock in</option>
+              <option value="RETURN_IN">Return came back in</option>
+              <option value="ADJUSTMENT_FOUND">Found &mdash; extra stock located</option>
+              <option value="ADJUSTMENT_LOST_THEFT">Lost or stolen</option>
+              <option value="QC_HOLD">Put on QC hold</option>
+              <option value="MANUAL_CORRECTION">Manual correction</option>
+              <option value="BIN_RELOCATE">Bin relocated</option>
+            </optgroup>
+            <optgroup label="Scan sessions">
+              <option value="SCAN_SESSION_OPENED">Scan session started</option>
+              <option value="SCAN_SESSION_CLOSED">Scan session closed for review</option>
+              <option value="SCAN_SESSION_COMMITTED">Scan session accepted</option>
+              <option value="SCAN_SESSION_VOIDED">Scan session reversed</option>
+            </optgroup>
+            <optgroup label="Staff accounts">
+              <option value="EMPLOYEE_ADDED">Staff account created</option>
+              <option value="EMPLOYEE_DEACTIVATED">Staff account switched off</option>
+              <option value="EMPLOYEE_REACTIVATED">Staff account switched back on</option>
+              <option value="EMPLOYEE_PERMISSIONS_UPDATED">Staff permissions changed</option>
+              <option value="PIN_SET_BOOTSTRAP">First PIN set up</option>
+              <option value="PIN_RESET_ADMIN">PIN reset by an Admin</option>
+              <option value="ADMIN_UNLOCK">Account unlocked by an Admin</option>
+            </optgroup>
+            <optgroup label="Phone codes (two-step sign-in)">
+              <option value="TOTP_ENABLED">Phone code turned on</option>
+              <option value="ADMIN_TOTP_ENROLLED">Phone code set up by an Admin</option>
+              <option value="ADMIN_TOTP_RESET">Phone code cleared by an Admin</option>
+              <option value="ADMIN_TOTP_REQUIRED_ON">Phone code made compulsory</option>
+              <option value="ADMIN_TOTP_REQUIRED_OFF">Phone code no longer compulsory</option>
+              <option value="TOTP_BACKUP_REGENERATED">New backup codes issued</option>
+            </optgroup>
+            <optgroup label="Picking">
+              <option value="PICK_CONFIRMED">Pick confirmed</option>
+              <option value="PICK_ISSUE_REPORTED">Problem reported on a pick</option>
+            </optgroup>
+            <optgroup label="Admin actions">
+              <option value="ADMIN_BULK_SKU_UPDATE">Bulk SKU update</option>
+              <option value="ADMIN_SECRET_ROTATED">Admin Password changed</option>
+              <option value="ADMIN_STOCK_ADJUSTMENT">Stock quantity overridden by an Admin</option>
+            </optgroup>
             <!-- v2.3: quick filter for the two highest-risk action families -
                  direct stock quantity overrides and bin relocations. This is
                  a client-side sentinel value, not a real action_type stored
@@ -2798,7 +2835,7 @@ tbody tr:hover{background:#f9fbfd}
       <div class="page-header">
         <div>
           <div class="page-title">Scan Sessions</div>
-          <div class="page-sub">Every PO-scoped scan session, any employee, any device — review, commit, or void from here.</div>
+          <div class="page-sub">Every scan session, any employee, any device. Accept one, or reverse one out of stock — including a session already accepted, or one still open on a phone.</div>
         </div>
       </div>
       <div class="filter-bar">
@@ -3057,14 +3094,28 @@ tbody tr:hover{background:#f9fbfd}
         <div class="filter-field"><label>Txn Type</label>
           <select id="txn-type">
             <option value="">All</option>
-            <option>SCAN_OUT_ORDER</option><option>RETURN_IN</option>
-            <option>NEW_STOCK_IN</option><option>ADJUSTMENT_FOUND</option>
-            <option>ADJUSTMENT_LOST_THEFT</option><option>MANUAL_CORRECTION</option>
-            <option>QC_HOLD</option><option>ADJUSTMENT_QC_RELEASE</option>
-            <option>ADJUSTMENT_REJECTED</option>
-            <option>BIN_TRANSFER_OUT</option><option>BIN_TRANSFER_IN</option>
-            <option>INVENTORY_SYNC</option><option>OPENING_BALANCE</option>
-            <option>RETURN_WRONG_ITEM</option>
+            <optgroup label="Stock coming in">
+              <option value="NEW_STOCK_IN">New stock in</option>
+              <option value="RETURN_IN">Return came back in</option>
+              <option value="ADJUSTMENT_FOUND">Found &mdash; extra stock located</option>
+              <option value="OPENING_BALANCE">Opening balance</option>
+            </optgroup>
+            <optgroup label="Stock going out">
+              <option value="SCAN_OUT_ORDER">Shipped out (order)</option>
+              <option value="ADJUSTMENT_LOST_THEFT">Lost or stolen</option>
+              <option value="ADJUSTMENT_REJECTED">Rejected / written off</option>
+              <option value="RETURN_WRONG_ITEM">Return &mdash; wrong item sent back</option>
+            </optgroup>
+            <optgroup label="Quality control">
+              <option value="QC_HOLD">Put on QC hold</option>
+              <option value="ADJUSTMENT_QC_RELEASE">Released from QC hold</option>
+            </optgroup>
+            <optgroup label="Moves and corrections">
+              <option value="BIN_TRANSFER_OUT">Moved out of a bin</option>
+              <option value="BIN_TRANSFER_IN">Moved into a bin</option>
+              <option value="MANUAL_CORRECTION">Manual correction</option>
+              <option value="INVENTORY_SYNC">Stock sync from Excel</option>
+            </optgroup>
           </select>
         </div>
         <div class="filter-actions">
@@ -4125,6 +4176,67 @@ function downloadCSV(filename, rows) {
   document.body.appendChild(a); a.click(); document.body.removeChild(a);
   URL.revokeObjectURL(url);
 }
+
+// ═══════════════ PLAIN-ENGLISH NAMES FOR THE RAW CODES (v2.24) ═══════════════
+// The database stores short codes like ADJUSTMENT_LOST_THEFT because they are
+// fixed, searchable and must never change. Nobody should have to read them.
+// This is the ONE place those codes are turned into English -- the Reports
+// filter, the Audit Log filter and every badge in both tables all read from
+// here, so a name only ever has to be written once.
+var TXN_LABEL = {
+  SCAN_OUT_ORDER:        'Shipped out (order)',
+  RETURN_IN:             'Return came back in',
+  NEW_STOCK_IN:          'New stock in',
+  ADJUSTMENT_FOUND:      'Found — extra stock located',
+  ADJUSTMENT_LOST_THEFT: 'Lost or stolen',
+  ADJUSTMENT_REJECTED:   'Rejected / written off',
+  MANUAL_CORRECTION:     'Manual correction',
+  QC_HOLD:               'Put on QC hold',
+  ADJUSTMENT_QC_RELEASE: 'Released from QC hold',
+  BIN_TRANSFER_OUT:      'Moved out of a bin',
+  BIN_TRANSFER_IN:       'Moved into a bin',
+  INVENTORY_SYNC:        'Stock sync from Excel',
+  OPENING_BALANCE:       'Opening balance',
+  RETURN_WRONG_ITEM:     'Return — wrong item sent back'
+};
+var ACTION_LABEL = {
+  LOGIN_SUCCESS:                'Signed in',
+  LOGIN_FAILED:                 'Sign-in failed',
+  LOGOUT:                       'Signed out',
+  PIN_SET_BOOTSTRAP:            'First PIN set up',
+  PIN_RESET_ADMIN:              'PIN reset by an Admin',
+  ADMIN_UNLOCK:                 'Account unlocked by an Admin',
+  PICK_CONFIRMED:               'Pick confirmed',
+  PICK_ISSUE_REPORTED:          'Problem reported on a pick',
+  EMPLOYEE_ADDED:               'Staff account created',
+  EMPLOYEE_DEACTIVATED:         'Staff account switched off',
+  EMPLOYEE_REACTIVATED:         'Staff account switched back on',
+  EMPLOYEE_PERMISSIONS_UPDATED: 'Staff permissions changed',
+  ADMIN_BULK_SKU_UPDATE:        'Bulk SKU update',
+  ADMIN_SECRET_ROTATED:         'Admin Password changed',
+  ADMIN_STOCK_ADJUSTMENT:       'Stock quantity overridden by an Admin',
+  BIN_RELOCATE:                 'Bin relocated',
+  AUDIT_LOG_SYSTEM_TEST:        'System check test entry',
+  SCAN_SESSION_OPENED:          'Scan session started',
+  SCAN_SESSION_CLOSED:          'Scan session closed for review',
+  SCAN_SESSION_COMMITTED:       'Scan session accepted',
+  SCAN_SESSION_VOIDED:          'Scan session reversed',
+  TOTP_ENABLED:                 'Phone code turned on',
+  ADMIN_TOTP_ENROLLED:          'Phone code set up by an Admin',
+  ADMIN_TOTP_RESET:             'Phone code cleared by an Admin',
+  ADMIN_TOTP_REQUIRED_ON:       'Phone code made compulsory',
+  ADMIN_TOTP_REQUIRED_OFF:      'Phone code no longer compulsory',
+  TOTP_BACKUP_REGENERATED:      'New backup codes issued'
+};
+// Falls back to a tidied-up version of the code itself, so an action added to
+// the database later still reads sensibly here instead of showing raw.
+function prettyCode(code) {
+  if (!code) return '—';
+  return String(code).toLowerCase().replace(/_/g, ' ').replace(/^./, function (c) { return c.toUpperCase(); });
+}
+function txnLabel(code)    { return TXN_LABEL[code]    || prettyCode(code); }
+function actionLabel(code) { return ACTION_LABEL[code] || prettyCode(code); }
+
 function actionBadgeClass(action) {
   if (!action) return 'badge-grey';
   if (/FAIL|LOST|THEFT|ISSUE|DEACTIVAT/i.test(action)) return 'badge-amber';
@@ -4670,7 +4782,7 @@ function auditRowHtml(r, idx) {
   return '<tr>' +
     '<td class="mono">' + esc(fmtDateTime(r.created_at)) + '</td>' +
     '<td>' + esc(r.employee_code || '—') + (empName ? '<br><span class="mono" style="color:#888">' + esc(empName) + '</span>' : '') + '</td>' +
-    '<td><span class="badge ' + actionBadgeClass(r.action_type) + '">' + esc(r.action_type || '—') + '</span></td>' +
+    '<td><span class="badge ' + actionBadgeClass(r.action_type) + '" title="' + esc(r.action_type || '') + '">' + esc(actionLabel(r.action_type)) + '</span></td>' +
     '<td>' + esc(r.order_id || '—') + '</td>' +
     '<td class="mono">' + esc(r.sku_code || '—') + '</td>' +
     '<td>' + esc(r.channel || '—') + '</td>' +
@@ -5203,18 +5315,38 @@ var SESSION_STATUS_LABEL = {
 };
 
 function scanSessionRowHtml(s, idx) {
-  var canReview = s.status === 'CLOSED_PENDING_REVIEW';
   // applyReadOnlyModeToUI() only hides .write-only-control elements already
   // present in the DOM at login time -- it never re-scans rows rendered
   // later by loadScanSessions(), so a READ_ONLY_ADMIN checked directly here
   // instead of relying on that class for these dynamic buttons. Real
   // enforcement is server-side either way (oms_check_not_readonly_admin).
-  var actions = (canReview && !isReadOnlyAdmin())
-    ? '<button class="btn btn-primary" style="padding:4px 10px;font-size:11px;" onclick="adminCommitScanSession(\'' + s.session_id + '\',' + idx + ')">✓ Commit</button> ' +
-      '<button class="btn" style="padding:4px 10px;font-size:11px;background:#a33;color:#fff;" onclick="adminVoidScanSession(\'' + s.session_id + '\',' + idx + ')">↺ Void</button>'
-    : (canReview
-        ? '<span style="color:#999;font-size:11px;">Read-only — ask a full Admin</span>'
-        : '<span style="color:#999;font-size:11px;">' + (s.resolved_by ? 'by ' + esc(s.resolved_by) : '—') + '</span>');
+  // v2.24: a session can now be reversed from here whatever state it is in --
+  // including one already marked Committed, and one still Open on a phone.
+  // Every button routes through the same place: openSessionReverse(), which
+  // shows exactly what would change BEFORE anything happens.
+  var btnRev = 'padding:4px 10px;font-size:11px;background:#a33;color:#fff;';
+  var actions;
+  if (isReadOnlyAdmin()) {
+    // A Read-Only Admin is told to ask someone only where there is actually
+    // something to do. On a finished session they keep seeing who resolved it,
+    // which is the whole reason they open this page.
+    actions = (s.status === 'CLOSED_PENDING_REVIEW' || s.status === 'OPEN')
+      ? '<span style="color:#999;font-size:11px;">Read-only — ask a full Admin</span>'
+      : '<span style="color:#999;font-size:11px;">' + (s.resolved_by ? 'by ' + esc(s.resolved_by) : '—') + '</span>';
+  } else if (s.status === 'CLOSED_PENDING_REVIEW') {
+    actions = '<button class="btn btn-primary" style="padding:4px 10px;font-size:11px;" onclick="adminCommitScanSession(\'' + s.session_id + '\',' + idx + ')">✓ Accept</button> ' +
+              '<button class="btn" style="' + btnRev + '" onclick="openSessionReverse(\'' + s.session_id + '\',' + idx + ')">↺ Reverse</button>';
+  } else if (s.status === 'COMMITTED') {
+    actions = '<button class="btn" style="' + btnRev + '" onclick="openSessionReverse(\'' + s.session_id + '\',' + idx + ')">↺ Reverse</button>' +
+              '<div style="color:#999;font-size:10.5px;margin-top:2px;">accepted' + (s.resolved_by ? ' by ' + esc(s.resolved_by) : '') + '</div>';
+  } else if (s.status === 'OPEN') {
+    actions = '<button class="btn" style="' + btnRev + '" onclick="openSessionReverse(\'' + s.session_id + '\',' + idx + ')">⏹ Stop &amp; reverse</button>';
+  } else if (s.status === 'ABANDONED') {
+    actions = '<button class="btn" style="' + btnRev + '" onclick="openSessionReverse(\'' + s.session_id + '\',' + idx + ')">↺ Reverse</button>';
+  } else { // VOIDED
+    actions = '<button class="btn btn-grey" style="padding:4px 10px;font-size:11px;" title="Checks whether any late scan landed in this session after it was reversed, and backs out only that." onclick="openSessionReverse(\'' + s.session_id + '\',' + idx + ')">↺ Re-check</button>' +
+              '<div style="color:#999;font-size:10.5px;margin-top:2px;">' + (s.resolved_by ? 'by ' + esc(s.resolved_by) : '—') + '</div>';
+  }
   var row =
     '<tr>' +
     '<td><button class="btn btn-grey" style="padding:2px 8px;font-size:11px;" onclick="toggleScanSessionDetail(' + idx + ')" id="sess-toggle-' + idx + '">▾</button></td>' +
@@ -5310,36 +5442,250 @@ function adminCommitScanSession(sessionId, idx) {
   }).catch(function (err) { if (resEl) { resEl.className = 'result-msg err'; resEl.textContent = esc(friendlyError(err)); } });
 }
 
-function adminVoidScanSession(sessionId, idx) {
+// ═══════════ REVERSING A SCAN SESSION FROM THE ADMIN PANEL (v2.24) ═══════════
+// What this is, in plain words: an operator scanned a batch wrongly. This backs
+// the whole batch out of stock. It does NOT delete anything -- for every scan
+// in the session it writes one opposite entry, so the history stays intact and
+// the stock figure comes back to where it was.
+//
+// Two things make this safe to offer on ANY session, including one already
+// marked Accepted:
+//   1. Nothing happens until you have SEEN what would happen. The panel below
+//      lists every product, the quantity that would come back out, and the
+//      stock before and after -- read from the live database, not guessed.
+//   2. A scan already reversed is never reversed twice. The system matches
+//      them one by one, so pressing this again is harmless.
+//
+// Accepting a session never moved any stock in the first place -- each scan
+// already updated stock the moment it was made on the phone. That is why an
+// Accepted session can be reversed exactly like any other.
+
+var sessionPreviewCache = {}; // session_id -> preview payload
+
+function openSessionReverse(sessionId, idx) {
   var s = sessionsLastRows[idx];
   if (!s) return;
-  if (!confirm('Reverse (void) this session (' + (s.scan_count || 0) + ' entries, employee ' + s.employee_code + ')? This writes one balancing entry per scan -- nothing is deleted, but the batch is backed out. This cannot be undone (though it never edits history).')) return;
-  var note = prompt('Optional note for this void (why it\'s being reversed):', '') || null;
+  // Make sure the detail row is open, since that is where the panel is drawn.
+  var detail = document.getElementById('sess-detail-' + idx);
+  var tbtn = document.getElementById('sess-toggle-' + idx);
+  if (detail && detail.style.display === 'none') {
+    detail.style.display = '';
+    if (tbtn) tbtn.textContent = '▴';
+  }
   var resEl = document.getElementById('sess-action-result-' + sessionId);
-  if (resEl) { resEl.className = 'result-msg'; resEl.textContent = 'Voiding...'; }
-  withTimeout(db.rpc('oms_void_scan_session', {
+  if (resEl) { resEl.className = 'result-msg'; resEl.innerHTML = 'Checking exactly what this would change…'; }
+
+  withTimeout(db.rpc('oms_admin_preview_session_void', {
     p_session_id: sessionId,
     p_admin_secret: getAdminSecret(),
-    p_employee_code: getAdminPanelEmployeeCode(),
-    p_note: note
-  }), 10000, 'Void session').then(function (res) {
+    p_caller_employee_code: getAdminPanelEmployeeCode()
+  }), 12000, 'Reverse preview').then(function (res) {
     if (res.error) {
       if (isBadSecretError(res.error)) { handleBadSecret('Scan Sessions'); return; }
       if (resEl) { resEl.className = 'result-msg err'; resEl.textContent = friendlyError(res.error); }
       return;
     }
-    // v2.20: this call uses the Admin Secret, which still reports failure as a
-    // real error. The PIN path reports a refusal as a normal reply carrying
-    // ok:false so that its failed-attempt count survives, so guard for that here
-    // too rather than assuming this call site can never see one.
-    if (res.data && res.data.ok === false) {
-      if (resEl) { resEl.className = 'result-msg err'; resEl.textContent = res.data.message || 'Not reversed.'; }
+    var p = res.data;
+    if (!p || p.ok !== true) {
+      if (resEl) { resEl.className = 'result-msg err'; resEl.textContent = 'Could not work out what this would change. Nothing has been touched.'; }
       return;
     }
-    // No client-side writeAuditLog() here either — oms_void_scan_session
-    // already writes a SCAN_SESSION_VOIDED audit row server-side.
-    loadScanSessions();
-  }).catch(function (err) { if (resEl) { resEl.className = 'result-msg err'; resEl.textContent = esc(friendlyError(err)); } });
+    p._takenAt = Date.now();
+    p._statusAtPreview = p.status;
+    sessionPreviewCache[sessionId] = p;
+    if (resEl) { resEl.className = 'result-msg'; resEl.innerHTML = sessionReversePanelHtml(sessionId, idx, p); }
+  }).catch(function (err) {
+    if (resEl) { resEl.className = 'result-msg err'; resEl.textContent = friendlyError(err); }
+  });
+}
+
+function sessionReversePanelHtml(sessionId, idx, p) {
+  var lines = p.lines || [];
+  var needsForce = p.needs_force === true;
+  var nothingLeft = (p.scans_to_reverse || 0) === 0;
+
+  var h = '<div style="border:1px solid #E2E8F0;border-radius:6px;padding:12px;background:#fff;text-align:left;">';
+  h += '<div style="font-weight:bold;color:#0A1628;font-size:13px;margin-bottom:6px;">Reverse this scan session — check this first</div>';
+
+  // A one-line statement of what state the session is in and what that means.
+  var stateLine;
+  if (p.status === 'OPEN') {
+    stateLine = 'This session is <strong>still open</strong> on ' + esc(p.device_hint || 'a phone') + '. Reversing it will close it first, so no further scans can be added to it, and then back out everything scanned so far.';
+  } else if (p.status === 'COMMITTED') {
+    stateLine = 'This session was already <strong>accepted</strong>. That is fine to reverse: accepting never moved any stock by itself — each scan had already changed stock the moment it was made.';
+  } else if (p.status === 'VOIDED') {
+    stateLine = 'This session has <strong>already been reversed</strong>. This re-check looks for any scan that arrived afterwards and was therefore missed.';
+  } else if (p.status === 'ABANDONED') {
+    stateLine = 'This session was <strong>abandoned</strong> without being reviewed.';
+  } else {
+    stateLine = 'This session is <strong>closed and waiting for review</strong>.';
+  }
+  h += '<div style="font-size:12px;color:#1A1A1A;margin-bottom:8px;">' + stateLine + '</div>';
+
+  if (nothingLeft) {
+    h += '<div style="background:#F8F9FB;border:1px solid #E2E8F0;padding:10px;font-size:12px;">' +
+         'There is nothing left to reverse in this session. ' +
+         (p.already_reversed ? ('All ' + fmtNum(p.already_reversed) + ' of its scans have already been backed out.') : 'It has no scans in it at all.') +
+         ' Nothing will be changed.</div>' +
+         '<div style="margin-top:10px;"><button class="btn btn-grey" style="padding:6px 12px;font-size:12px;" onclick="cancelSessionReverse(\'' + sessionId + '\')">Close</button></div></div>';
+    return h;
+  }
+
+  h += '<div style="font-size:12px;margin-bottom:8px;">Started by <strong>' + esc(p.session_owner || '—') + '</strong>' +
+       ' on ' + esc(p.device_hint || '—') + ' · opened ' + fmtDateTime(p.opened_at) + '</div>';
+
+  h += '<div style="background:#EEF2F8;padding:8px 10px;border-radius:4px;font-size:12.5px;margin-bottom:8px;">' +
+       'This will back out <strong>' + fmtNum(p.scans_to_reverse) + '</strong> scan' + (p.scans_to_reverse === 1 ? '' : 's') +
+       ' across <strong>' + fmtNum(p.distinct_skus) + '</strong> product' + (p.distinct_skus === 1 ? '' : 's') +
+       ', a total of <strong>' + fmtNum(p.net_qty_to_reverse) + '</strong> units.' +
+       (p.already_reversed ? ' (' + fmtNum(p.already_reversed) + ' scan' + (p.already_reversed === 1 ? ' was' : 's were') + ' already reversed earlier and will be left alone.)' : '') +
+       '</div>';
+
+  // The line-by-line table. This is the whole point of the panel.
+  h += '<div style="max-height:260px;overflow:auto;border:1px solid #E2E8F0;">';
+  h += '<table style="width:100%;border-collapse:collapse;font-size:11.5px;">';
+  h += '<thead><tr style="background:#0A1628;color:#fff;">' +
+       '<th style="text-align:left;padding:5px 6px;">Product (SKU)</th>' +
+       '<th style="text-align:left;padding:5px 6px;">Bin</th>' +
+       '<th style="text-align:right;padding:5px 6px;">Scans</th>' +
+       '<th style="text-align:right;padding:5px 6px;">Comes back out</th>' +
+       '<th style="text-align:right;padding:5px 6px;">Stock now</th>' +
+       '<th style="text-align:right;padding:5px 6px;">Stock after</th></tr></thead><tbody>';
+  lines.forEach(function (l) {
+    var bad = l.would_go_negative === true;
+    h += '<tr style="border-bottom:1px solid #E2E8F0;' + (bad ? 'background:#FDECEA;' : '') + '">' +
+         '<td style="padding:4px 6px;font-family:monospace;">' + esc(l.sku_code) + '</td>' +
+         '<td style="padding:4px 6px;">' + esc(l.bin_code) + '</td>' +
+         '<td style="padding:4px 6px;text-align:right;">' + fmtNum(l.scans) + '</td>' +
+         '<td style="padding:4px 6px;text-align:right;">' + (l.qty_to_reverse > 0 ? '−' : '+') + fmtNum(Math.abs(l.qty_to_reverse)) + '</td>' +
+         '<td style="padding:4px 6px;text-align:right;">' + fmtNum(l.bin_stock_now) + '</td>' +
+         '<td style="padding:4px 6px;text-align:right;font-weight:bold;' + (bad ? 'color:#B3261E;' : '') + '">' + fmtNum(l.bin_stock_after) + '</td>' +
+         '</tr>';
+  });
+  h += '</tbody></table></div>';
+
+  if ((p.blockers || 0) > 0) {
+    h += '<div style="margin-top:8px;background:#FDECEA;border:1px solid #B3261E;padding:10px;font-size:12px;color:#B3261E;">' +
+         '<strong>This cannot be reversed as things stand.</strong> Stock has moved on since these scans were made, so backing them out would take ' +
+         fmtNum(p.blockers) + ' line' + (p.blockers === 1 ? '' : 's') + ' below zero (shown in red above). ' +
+         'Put the true count in first on those products, then reverse. The button below is switched off until then, and the database would refuse it in any case.</div>';
+  }
+
+  // The confirmation. An override -- Accepted or still Open -- has to be typed
+  // out, so it cannot happen by a stray click on a phone.
+  h += '<div style="margin-top:10px;">';
+  if (needsForce) {
+    h += '<div style="font-size:12px;margin-bottom:5px;">This session is <strong>' + esc((SESSION_STATUS_LABEL[p.status] || p.status)) + '</strong>, so reversing it is an override. ' +
+         'Type <strong>REVERSE</strong> below to confirm you have read the list above.</div>' +
+         '<input type="text" id="sess-confirm-' + sessionId + '" placeholder="Type REVERSE" autocomplete="off" ' +
+         'style="padding:6px 8px;font-size:12px;border:1px solid #E2E8F0;border-radius:4px;width:150px;margin-right:6px;">';
+  }
+  h += '<input type="text" id="sess-note-' + sessionId + '" placeholder="Why is this being reversed?" autocomplete="off" ' +
+       'style="padding:6px 8px;font-size:12px;border:1px solid #E2E8F0;border-radius:4px;width:260px;margin-right:6px;">';
+  var blocked = (p.blockers || 0) > 0;
+  h += '<button class="btn" id="sess-go-' + sessionId + '"' + (blocked ? ' disabled' : '') +
+       ' style="padding:6px 14px;font-size:12px;background:' + (blocked ? '#bbb' : '#a33') + ';color:#fff;' + (blocked ? 'cursor:not-allowed;' : '') + '" ' +
+       'onclick="confirmSessionReverse(\'' + sessionId + '\',' + idx + ')">' +
+       (blocked ? 'Cannot reverse — fix the counts first' : ('Reverse ' + fmtNum(p.scans_to_reverse) + ' scan' + (p.scans_to_reverse === 1 ? '' : 's'))) + '</button> ';
+  h += '<button class="btn btn-grey" style="padding:6px 12px;font-size:12px;" onclick="cancelSessionReverse(\'' + sessionId + '\')">Cancel</button>';
+  h += '<div id="sess-reverse-msg-' + sessionId + '" style="margin-top:6px;font-size:12px;"></div>';
+  h += '</div></div>';
+  return h;
+}
+
+function cancelSessionReverse(sessionId) {
+  var resEl = document.getElementById('sess-action-result-' + sessionId);
+  if (resEl) { resEl.className = 'result-msg'; resEl.innerHTML = ''; }
+}
+
+function confirmSessionReverse(sessionId, idx) {
+  var p = sessionPreviewCache[sessionId];
+  var msgEl = document.getElementById('sess-reverse-msg-' + sessionId);
+  function say(text, isErr) {
+    if (msgEl) { msgEl.style.color = isErr ? '#B3261E' : '#1B7A3A'; msgEl.textContent = text; }
+  }
+  if (!p) { say('Please press Reverse again to re-check this session first.', true); return; }
+
+  if (p.needs_force === true) {
+    var typed = (document.getElementById('sess-confirm-' + sessionId) || {}).value || '';
+    if (typed.trim().toUpperCase() !== 'REVERSE') {
+      say('Type REVERSE in the box to confirm. Nothing has been changed.', true);
+      return;
+    }
+  }
+  var noteEl = document.getElementById('sess-note-' + sessionId);
+  var note = noteEl && noteEl.value ? noteEl.value.trim() : '';
+  if (!note) { say('Please say why this is being reversed — it is recorded against the entry.', true); return; }
+
+  // The figures on screen were read at preview time. Acting on a preview that
+  // has gone cold would mean confirming one set of numbers and changing
+  // another, so it is refused and re-taken instead.
+  var ageMs = Date.now() - (p._takenAt || 0);
+  if (ageMs > 90000) {
+    delete sessionPreviewCache[sessionId];
+    say('These figures were checked more than a minute ago and stock may have moved since. Nothing has been changed — press Reverse again to re-check.', true);
+    setTimeout(function () { openSessionReverse(sessionId, idx); }, 1400);
+    return;
+  }
+
+  // Switch the controls off for the duration. Without this, a second click --
+  // or a click after a timeout message -- sends a second reversal.
+  var goBtn   = document.getElementById('sess-go-' + sessionId);
+  var cfmEl   = document.getElementById('sess-confirm-' + sessionId);
+  function setBusy(on) {
+    if (goBtn)  { goBtn.disabled = on; goBtn.style.background = on ? '#bbb' : '#a33'; goBtn.style.cursor = on ? 'wait' : 'pointer'; }
+    if (noteEl) { noteEl.disabled = on; }
+    if (cfmEl)  { cfmEl.disabled = on; }
+  }
+  setBusy(true);
+  say('Reversing…', false);
+
+  withTimeout(db.rpc('oms_void_scan_session', {
+    p_session_id: sessionId,
+    p_admin_secret: getAdminSecret(),
+    p_employee_code: getAdminPanelEmployeeCode(),
+    p_note: note,
+    p_force: (p.needs_force === true)
+  }), 20000, 'Reverse session').then(function (res) {
+    if (res.error) {
+      setBusy(false);
+      if (isBadSecretError(res.error)) { handleBadSecret('Scan Sessions'); return; }
+      say(friendlyError(res.error), true);
+      return;
+    }
+    // The PIN path reports a refusal as a normal reply carrying ok:false, so
+    // its failed-attempt count survives. Guard for that here too.
+    if (res.data && res.data.ok === false) { setBusy(false); say(res.data.message || 'Not reversed.', true); return; }
+    var d = res.data || {};
+    delete sessionPreviewCache[sessionId];
+    // The result stays on screen until it is read. Reloading the list straight
+    // away would wipe it, and on the default filter the session itself would
+    // vanish from view at the same moment.
+    var resEl = document.getElementById('sess-action-result-' + sessionId);
+    if (resEl) {
+      resEl.className = 'result-msg';
+      resEl.innerHTML =
+        '<div style="border:1px solid #1B7A3A;border-radius:6px;padding:12px;background:#fff;text-align:left;">' +
+        '<div style="color:#1B7A3A;font-weight:bold;font-size:13px;">✓ Reversed.</div>' +
+        '<div style="font-size:12px;margin-top:4px;"><strong>' + fmtNum(d.entries_reversed || 0) + '</strong> scan' +
+        ((d.entries_reversed === 1) ? ' has' : 's have') + ' been backed out of stock. Nothing was deleted — one opposite entry was written for each.' +
+        (d.already_reversed ? ' ' + fmtNum(d.already_reversed) + ' had already been reversed earlier and were left alone.' : '') + '</div>' +
+        '<div style="margin-top:8px;"><button class="btn btn-primary" style="padding:6px 12px;font-size:12px;" onclick="loadScanSessions()">Refresh the list</button></div>' +
+        '</div>';
+    }
+    // No client-side writeAuditLog() -- oms_void_scan_session already writes a
+    // SCAN_SESSION_VOIDED row server-side with the real acting employee code.
+  }).catch(function (err) {
+    // A timed-out call may still be running on the server. Re-enabling the
+    // button here would invite exactly the second reversal we must avoid.
+    var msg = String((err && err.message) || err || '');
+    if (/timed out/i.test(msg)) {
+      say('This is taking longer than expected. Do NOT press Reverse again — it may still be going through. Refresh the list in a moment and check before doing anything else.', true);
+      return;
+    }
+    setBusy(false);
+    say(friendlyError(err), true);
+  });
 }
 
 // ═══════════════════════ EMPLOYEES ═══════════════════════
@@ -5659,7 +6005,7 @@ var SYSCHECK = [
     run:  function () {
       return db.rpc('oms_void_scan_session', {
           p_session_id: '00000000-0000-0000-0000-000000000000',
-          p_employee_code: '__SYSTEM_CHECK__', p_admin_secret: '__not_the_secret__', p_note: null })
+          p_employee_code: '__SYSTEM_CHECK__', p_admin_secret: '__not_the_secret__', p_note: null, p_force: false })
         .then(function (r) {
           var m = String((r.error && r.error.message) || (r.data && r.data.message) || '');
           if (/could not find the function|schema cache/i.test(m)) return { ok: false, detail: 'Not installed — the Reverse button would fail.' };
@@ -6967,7 +7313,7 @@ function loadTransactions(page) {
         var qtyStr = (Number(t.qty_delta) >= 0 ? '+' : '') + fmtNum(t.qty_delta);
         return '<tr>' +
           '<td class="mono">' + esc(fmtDateTime(t.created_at)) + '</td>' +
-          '<td><span class="badge ' + txnBadgeClass(t.txn_type) + '">' + esc(t.txn_type) + '</span></td>' +
+          '<td><span class="badge ' + txnBadgeClass(t.txn_type) + '" title="' + esc(t.txn_type || '') + '">' + esc(txnLabel(t.txn_type)) + '</span></td>' +
           '<td class="mono">' + esc(t.sku_code) + '</td>' +
           '<td class="' + qtyClass + '">' + qtyStr + '</td>' +
           '<td>' + esc(t.channel || '—') + '</td>' +
