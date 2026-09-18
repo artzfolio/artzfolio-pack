@@ -222,8 +222,21 @@
         /* MOVE / STOCK TABS (live inventory) */
         .db-offline-banner{display:none;background:#fdedec;border:2px solid #c0392b;border-radius:10px;padding:10px 12px;margin-bottom:10px;font-size:12px;color:#7b241c;font-weight:600}
         .db-offline-banner.visible{display:block}
-        .pill-row{display:flex;gap:6px;margin-bottom:12px}
-        .pill-btn{flex:1;background:#eef2f8;border:2px solid #dce4f0;border-radius:20px;padding:9px 4px;text-align:center;font-size:11px;font-weight:700;color:#546e7a;cursor:pointer;touch-action:manipulation}
+        /* v83 (2026-09-18) UI FIX - the action pills ran off the screen.
+           CAUSE: the row was a single non-wrapping flex line, and a flex item's
+           default min-width:auto stops it shrinking below its longest word
+           ("Remove/Lost"). At 7 pills it just fitted; the 8th (Dispatch Out)
+           pushed the row past the screen edge and it was clipped, with no
+           scrollbar on a phone to hint that anything was there.
+           FIX: let the row wrap, and give every pill the same flex basis of
+           roughly a quarter-width, so 8 pills form two even rows of four at any
+           phone size. min-width:0 lets a long label shrink and wrap instead of
+           forcing the row wider; the flex centring keeps one-line and two-line
+           labels the same height so the grid stays square. */
+        .pill-row{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px}
+        .pill-btn{flex:1 1 calc(25% - 5px);min-width:0;display:flex;align-items:center;justify-content:center;min-height:48px;background:#eef2f8;border:2px solid #dce4f0;border-radius:16px;padding:8px 4px;text-align:center;font-size:11px;line-height:1.2;font-weight:700;color:#546e7a;cursor:pointer;touch-action:manipulation;overflow-wrap:anywhere}
+        /* Very narrow phones get three per row rather than four cramped ones. */
+        @media (max-width:330px){ .pill-btn{flex:1 1 calc(33.333% - 4px)} }
         .pill-btn.active{background:#1B4F8A;border-color:#1B4F8A;color:#fff}
         .move-result{font-size:12px;margin-top:6px;min-height:16px;font-weight:600}
         .move-result.ok{color:#1e8449}
@@ -398,7 +411,7 @@
     </style>
 </head>
 <body>
-<div class="ver-corner" id="verCornerBadge" onclick="handleVerBadgeTap()">v82</div>
+<div class="ver-corner" id="verCornerBadge" onclick="handleVerBadgeTap()">v83</div>
 <!-- v63: Gap 2 — offline write-queue indicator. Hidden (display:none) unless
      something is actually queued or failed. Tapping it shows the queue detail
      panel (openOfflineQueuePanel()). -->
@@ -1185,7 +1198,7 @@
 
             <!-- Version -->
             <div class="ver-badge">
-                <div class="ver-name">&#128230; ArtzFolio Scan-Pick-Pack v82</div>
+                <div class="ver-name">&#128230; ArtzFolio Scan-Pick-Pack v83</div>
                 <div class="ver-sub">Full changelog available on request.</div>
             </div>
         </div>
@@ -2202,12 +2215,26 @@ function commitScanSession(sid) {
 function voidScanSession(sid, n) {
     var out = document.getElementById('session-action-result');
     if (!confirm('Reverse this whole session?\n\n' + n + ' entry(s) will each get a balancing entry that backs them out of live stock.\n\nNothing is deleted — the original entries stay in the log, and so do the balancing ones.')) return;
-    var secret = prompt('Reversing a session changes live stock in bulk, so it needs the Admin Secret:');
-    if (!secret) return;
-    withTimeout(db.rpc('oms_void_scan_session', {
-        p_session_id: sid, p_admin_secret: secret,
-        p_employee_code: state.session.employee_code, p_note: null
-    }), 20000, 'Reverse session').then(function (res) {
+    // v83 (2026-09-18) SECURITY + USABILITY FIX.
+    // BEFORE: this asked for the shared Admin Secret - a long random string
+    // nobody can remember, which therefore gets written down or passed around,
+    // and which proves nothing about WHO reversed the session.
+    // NOW: the person authorises with their OWN Admin PIN. The database checks
+    // that the PIN belongs to an active ADMIN account, counts wrong attempts
+    // towards the same 5-try lockout as login, and records in the audit log
+    // which of the two routes was used. The shared secret still works as a
+    // break-glass path, so a forgotten PIN can never make a reverse impossible.
+    var pin = prompt('Reversing changes live stock in bulk.\n\nEnter YOUR Admin PIN to authorise it (the same PIN you log in with).\n\nLeave this blank if you need to use the Admin Secret instead.');
+    if (pin === null) return;                       // Cancel
+    var voidArgs = { p_session_id: sid, p_employee_code: state.session.employee_code, p_note: null };
+    if (String(pin).trim()) {
+        voidArgs.p_admin_pin = String(pin).trim();
+    } else {
+        var secret = prompt('Admin Secret (break-glass - prefer your Admin PIN above):');
+        if (!secret) return;
+        voidArgs.p_admin_secret = secret;
+    }
+    withTimeout(db.rpc('oms_void_scan_session', voidArgs), 20000, 'Reverse session').then(function (res) {
         if (res.error) {
             if (out) { out.className = 'move-result err'; out.textContent = 'Not reversed: ' + res.error.message; }
             return;
@@ -7494,6 +7521,16 @@ function switchTab(tab) {
     if (activeTab) activeTab.classList.add('active');
     if (activeBtn) activeBtn.classList.add('active');
     syncScanBar();
+    // v83 (2026-09-18) FIX - the Scan Session panel, and with it the default-bin
+    // field, was missing on the MOVE tab for anyone who had logged in normally.
+    // CAUSE: renderSessionBar() only ever ran at app boot and from the MOVE
+    // tab's own Refresh button. A login happens AFTER boot, so on a fresh
+    // login the panel was simply never drawn - it looked like the feature was
+    // switched off for that account when it was not.
+    // FIX: draw it whenever the MOVE tab is entered. refreshScanSessionState()
+    // is idempotent and already guards on the permission, so this is safe to
+    // call every time.
+    if (tab === 'move') { try { refreshScanSessionState(); } catch (e) {} }
     if (tab === 'pick') {
         setTimeout(function() { try { document.getElementById('scan-input').focus(); } catch(e) {} }, 50);
     }
