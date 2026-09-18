@@ -22,7 +22,9 @@
 // v4 (2026-09-18): bumped again for App v85. Same reason as v3 - a phone that
 // was offline across this deploy must not keep serving v84, which still has
 // the broken Reverse authorisation in it.
-const CACHE_NAME = 'artzfolio-oms-shell-v4';
+// v5 (2026-09-18): bumped for App v86. An offline phone must not keep serving
+// v85, which still has the bin-field bug and the staff-visible 2FA panel.
+const CACHE_NAME = 'artzfolio-oms-shell-v5';
 const SHELL_FILES = ['./index.html', './manifest.json', './icon.svg'];
 
 self.addEventListener('install', function (event) {
