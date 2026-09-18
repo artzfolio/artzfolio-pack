@@ -25,7 +25,10 @@
 // v5 (2026-09-18): bumped for App v86. An offline phone must not keep serving
 // v85, which still has the bin-field bug and the staff-visible 2FA panel.
 // v6 (2026-09-18): bumped for App v87.
-const CACHE_NAME = 'artzfolio-oms-shell-v6';
+// v7 (2026-09-18): bumped for App v88. An offline phone must not keep
+// serving v87, which has no camera scan on the Live Stock filter and no
+// visible drop-down arrow on the Product Type box.
+const CACHE_NAME = 'artzfolio-oms-shell-v7';
 const SHELL_FILES = ['./index.html', './manifest.json', './icon.svg'];
 
 self.addEventListener('install', function (event) {
