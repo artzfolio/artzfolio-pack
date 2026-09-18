@@ -2610,7 +2610,7 @@ tbody tr:hover{background:#f9fbfd}
     </ul>
     <div class="sidebar-footer">
       <button class="logout-btn" onclick="adminLogout()">⎋ Logout</button>
-      <div class="ver-footer">ArtzFolio Admin Panel v2.25</div>
+      <div class="ver-footer">ArtzFolio Admin Panel v2.26</div>
     </div>
   </div>
 
@@ -2838,6 +2838,73 @@ tbody tr:hover{background:#f9fbfd}
           <div class="page-sub">Every scan batch, any employee, any device. Look inside one safely, close one on an operator&rsquo;s behalf, accept it, reverse it out of stock, or tidy away an empty one. Every state has a way out.</div>
         </div>
       </div>
+      <details id="sessions-legend" open style="margin:0 0 12px 0;border:1px solid #E2E8F0;border-radius:6px;background:#F8F9FB;">
+        <summary style="cursor:pointer;padding:9px 12px;font-size:12.5px;font-weight:bold;color:#0A1628;list-style:none;">
+          What can I do with a batch here? <span style="font-weight:normal;color:#6B7280;">(click to hide)</span>
+        </summary>
+        <div style="padding:0 12px 12px 12px;">
+          <div style="font-size:12px;color:#1A1A1A;margin-bottom:8px;">
+            Each button only appears on a batch it actually applies to, so you will not see all of these at once.
+            Nothing below changes stock except <strong>Reverse</strong>.
+          </div>
+          <table style="width:100%;border-collapse:collapse;font-size:11.5px;background:#fff;">
+            <thead><tr style="background:#0A1628;color:#fff;">
+              <th style="text-align:left;padding:5px 7px;">Button</th>
+              <th style="text-align:left;padding:5px 7px;">What it does</th>
+              <th style="text-align:left;padding:5px 7px;">Changes stock?</th>
+              <th style="text-align:left;padding:5px 7px;">Shows up on</th>
+            </tr></thead>
+            <tbody>
+              <tr style="border-bottom:1px solid #E2E8F0;">
+                <td style="padding:5px 7px;white-space:nowrap;">👁 See the scans</td>
+                <td style="padding:5px 7px;">Look inside: every product, bin, quantity and the stock in that bin now.</td>
+                <td style="padding:5px 7px;color:#1B7A3A;">No</td>
+                <td style="padding:5px 7px;">Every batch, always</td>
+              </tr>
+              <tr style="border-bottom:1px solid #E2E8F0;">
+                <td style="padding:5px 7px;white-space:nowrap;">⏹ Close it for them</td>
+                <td style="padding:5px 7px;">Closes an operator&rsquo;s batch for you to review — for when someone scanned correctly and went home without closing it.</td>
+                <td style="padding:5px 7px;color:#1B7A3A;">No</td>
+                <td style="padding:5px 7px;"><strong>Open</strong> batches with scans in them</td>
+              </tr>
+              <tr style="border-bottom:1px solid #E2E8F0;">
+                <td style="padding:5px 7px;white-space:nowrap;">✓ Accept</td>
+                <td style="padding:5px 7px;">Records that you checked the batch and it is right.</td>
+                <td style="padding:5px 7px;color:#1B7A3A;">No — the scans already counted when they were made</td>
+                <td style="padding:5px 7px;"><strong>Closed — pending review</strong></td>
+              </tr>
+              <tr style="border-bottom:1px solid #E2E8F0;">
+                <td style="padding:5px 7px;white-space:nowrap;">✓ Accept anyway</td>
+                <td style="padding:5px 7px;">Same, for a batch left open so long it was marked abandoned. Look inside first.</td>
+                <td style="padding:5px 7px;color:#1B7A3A;">No</td>
+                <td style="padding:5px 7px;"><strong>Abandoned</strong> batches with scans</td>
+              </tr>
+              <tr style="border-bottom:1px solid #E2E8F0;background:#FDECEA;">
+                <td style="padding:5px 7px;white-space:nowrap;"><strong>↺ Reverse</strong></td>
+                <td style="padding:5px 7px;">Backs every scan out of stock by writing one opposite entry each. Nothing is deleted. Shows you exactly what will change first.</td>
+                <td style="padding:5px 7px;color:#B3261E;"><strong>YES</strong></td>
+                <td style="padding:5px 7px;">Any batch with scans in it, in any state</td>
+              </tr>
+              <tr style="border-bottom:1px solid #E2E8F0;">
+                <td style="padding:5px 7px;white-space:nowrap;">⊘ Close this off</td>
+                <td style="padding:5px 7px;">Tidies away a batch nothing was ever scanned into.</td>
+                <td style="padding:5px 7px;color:#1B7A3A;">No — there is nothing in it</td>
+                <td style="padding:5px 7px;"><strong>Empty</strong> batches not yet finished with</td>
+              </tr>
+              <tr>
+                <td style="padding:5px 7px;white-space:nowrap;">↺ Check for late scans</td>
+                <td style="padding:5px 7px;">Looks for a scan that arrived after the batch was reversed, and backs out only that one.</td>
+                <td style="padding:5px 7px;color:#9A6700;">Only if it finds one</td>
+                <td style="padding:5px 7px;"><strong>Voided</strong> batches that had scans</td>
+              </tr>
+            </tbody>
+          </table>
+          <div style="font-size:11.5px;color:#6B7280;margin-top:8px;">
+            Set the <strong>Status</strong> filter to <strong>Open</strong> to see the batches your staff are working in right now.
+            If the list is empty, nobody has a batch open — that is when <em>Close it for them</em> would appear.
+          </div>
+        </div>
+      </details>
       <div class="filter-bar">
         <div class="filter-field"><label>Status</label>
           <select id="sessions-status">
@@ -5333,6 +5400,105 @@ var SESSION_STATUS_LABEL = {
 // plus, for an empty batch, Close this off -- which resolves it and moves
 // nothing, because there is nothing to move.
 
+
+// ── v2.26: give the phones real names ────────────────────────────────
+// The app generates a random code per phone (dev-9eqf9skj) and stamps it on
+// every batch. That code is the real key and does not change. This lays a
+// readable name over it, so a row says "Packing bench 1" rather than a string
+// nobody can act on.
+// The preview RPC returns only the raw code, so the name is looked up from
+// the rows already on screen rather than asking the database again.
+function deviceNameFor(hint) {
+  if (!hint) return '';
+  for (var i = 0; i < sessionsLastRows.length; i++) {
+    if (sessionsLastRows[i].device_hint === hint && sessionsLastRows[i].device_name) {
+      return sessionsLastRows[i].device_name;
+    }
+  }
+  return '';
+}
+
+function deviceLabel(s) {
+  var nm = s && s.device_name ? String(s.device_name).trim() : '';
+  return nm || (s && s.device_hint) || '—';
+}
+
+function deviceCellHtml(s, idx) {
+  var hint = s.device_hint || '';
+  var nm = s.device_name ? String(s.device_name).trim() : '';
+  var h = '';
+  if (nm) {
+    h += '<div>' + esc(nm) + '</div>' +
+         '<div style="color:#6B7280;font-size:10px;font-family:monospace;">' + esc(hint) + '</div>';
+  } else {
+    h += '<div style="font-family:monospace;">' + esc(hint || '—') + '</div>';
+  }
+  if (hint && !isReadOnlyAdmin()) {
+    h += '<button class="btn btn-grey" style="padding:1px 6px;font-size:10px;margin-top:2px;" ' +
+         'title="Give this phone a name you will recognise" ' +
+         'onclick="openDeviceRename(\'' + hint + '\',' + idx + ')">✎ name</button>';
+  }
+  return h;
+}
+
+function openDeviceRename(hint, idx) {
+  var s = sessionsLastRows[idx];
+  if (!s) return;
+  var sid = s.session_id;
+  if (sessionPanelBlocked(sid)) return;
+  var resEl = openSessionPanelShell(sid, idx);
+  if (!resEl) return;
+  var cur = s.device_name ? String(s.device_name) : '';
+  var h = '<div style="border:1px solid #E2E8F0;border-radius:6px;padding:12px;background:#fff;text-align:left;">';
+  h += '<div style="font-weight:bold;color:#0A1628;font-size:13px;margin-bottom:6px;">Name this phone</div>';
+  h += '<div style="font-size:12px;margin-bottom:8px;">The phone reports itself as <span style="font-family:monospace;">' + esc(hint) + '</span>. ' +
+       'Give it a name you will recognise — for example <em>Packing bench 1</em> or <em>Store room phone</em>. ' +
+       'It will show that name everywhere this phone appears, on every batch it has ever scanned. ' +
+       'The code itself does not change, so nothing recorded against it is affected.</div>';
+  h += '<input type="text" id="dev-name-' + hint + '" maxlength="40" placeholder="e.g. Packing bench 1" autocomplete="off" value="' + esc(cur) + '" ' +
+       'style="padding:6px 8px;font-size:12px;border:1px solid #E2E8F0;border-radius:4px;width:240px;margin-right:6px;">';
+  h += '<button class="btn btn-primary" id="dev-go-' + hint + '" style="padding:6px 14px;font-size:12px;" onclick="saveDeviceName(\'' + hint + '\')">Save name</button> ';
+  if (cur) {
+    h += '<button class="btn btn-grey" style="padding:6px 12px;font-size:12px;" title="Go back to showing the code" onclick="clearDeviceName(\'' + hint + '\')">Clear</button> ';
+  }
+  h += '<button class="btn btn-grey" style="padding:6px 12px;font-size:12px;" onclick="cancelSessionReverse(\'' + sid + '\')">Cancel</button>';
+  h += '<div id="dev-msg-' + hint + '" style="margin-top:6px;font-size:12px;"></div></div>';
+  resEl.className = 'result-msg'; resEl.innerHTML = h;
+}
+
+function saveDeviceName(hint) { sendDeviceName(hint, (document.getElementById('dev-name-' + hint) || {}).value || ''); }
+function clearDeviceName(hint) { sendDeviceName(hint, ''); }
+
+function sendDeviceName(hint, name) {
+  var msgEl = document.getElementById('dev-msg-' + hint);
+  var goBtn = document.getElementById('dev-go-' + hint);
+  function say(t, err) { if (msgEl) { msgEl.style.color = err ? '#B3261E' : '#1B7A3A'; msgEl.textContent = t; } }
+  name = String(name || '').trim();
+  if (goBtn) { goBtn.disabled = true; goBtn.style.background = '#bbb'; }
+  say(name ? 'Saving…' : 'Clearing…', false);
+  withTimeout(db.rpc('oms_admin_set_device_name', {
+    p_device_hint: hint,
+    p_display_name: name,
+    p_admin_secret: getAdminSecret(),
+    p_employee_code: getAdminPanelEmployeeCode()
+  }), 12000, 'Name device').then(function (res) {
+    if (res.error) {
+      if (isBadSecretError(res.error)) { handleBadSecret('Scan Sessions'); return; }
+      if (goBtn) { goBtn.disabled = false; goBtn.style.background = ''; }
+      say(friendlyError(res.error), true); return;
+    }
+    if (res.data && res.data.ok === false) {
+      if (goBtn) { goBtn.disabled = false; goBtn.style.background = ''; }
+      say(res.data.message || 'Not saved.', true); return;
+    }
+    say(name ? 'Saved. Refreshing the list…' : 'Cleared. Refreshing the list…', false);
+    setTimeout(function () { loadScanSessions(); }, 900);
+  }).catch(function (err) {
+    if (goBtn) { goBtn.disabled = false; goBtn.style.background = ''; }
+    say(friendlyError(err), true);
+  });
+}
+
 function sessionIsEmpty(s)   { return (Number(s.scan_count) || 0) === 0; }
 // ABANDONED is deliberately NOT in this list: a batch left open too long
 // still needs somebody to decide about it, and the actions below treat it as
@@ -5434,7 +5600,7 @@ function scanSessionRowHtml(s, idx) {
     '<td><button class="btn btn-grey" style="padding:2px 8px;font-size:11px;" onclick="toggleScanSessionDetail(' + idx + ')" id="sess-toggle-' + idx + '">▾</button></td>' +
     '<td>' + openCell + '</td>' +
     '<td>' + esc(s.employee_code) + '</td>' +
-    '<td>' + esc(s.device_hint || '—') + '</td>' +
+    '<td>' + deviceCellHtml(s, idx) + '</td>' +
     '<td>' + sessionStatusLabel(s) + '</td>' +
     '<td>' + esc(s.default_bin_code || '—') + '</td>' +
     '<td>' + scansCell + '</td>' +
@@ -5968,7 +6134,7 @@ function sessionReversePanelHtml(sessionId, idx, p) {
   // A one-line statement of what state the session is in and what that means.
   var stateLine;
   if (p.status === 'OPEN') {
-    stateLine = 'This session is <strong>still open</strong> on ' + esc(p.device_hint || 'a phone') + '. Reversing it will close it first, so no further scans can be added to it, and then back out everything scanned so far.';
+    stateLine = 'This session is <strong>still open</strong> on ' + esc(deviceLabel({ device_hint: p.device_hint, device_name: deviceNameFor(p.device_hint) })) + '. Reversing it will close it first, so no further scans can be added to it, and then back out everything scanned so far.';
   } else if (p.status === 'COMMITTED') {
     stateLine = 'This session was already <strong>accepted</strong>. That is fine to reverse: accepting never moved any stock by itself — each scan had already changed stock the moment it was made.';
   } else if (p.status === 'VOIDED') {
