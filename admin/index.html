@@ -2611,7 +2611,7 @@ tbody tr:hover{background:#f9fbfd}
     </ul>
     <div class="sidebar-footer">
       <button class="logout-btn" onclick="adminLogout()">⎋ Logout</button>
-      <div class="ver-footer">ArtzFolio Admin Panel v2.27</div>
+      <div class="ver-footer">ArtzFolio Admin Panel v2.28</div>
     </div>
   </div>
 
@@ -6895,6 +6895,52 @@ var SYSCHECK = [
           if (r.error) throw r.error;
           var n = (r.data || []).length;
           return { ok: n > 0, detail: n + ' account(s) readable.' , fail: 'No accounts came back at all.' };
+        });
+    } },
+
+  { name: 'Someone can cover for you',
+    why:  'If only one account can run this panel, then unlocking a staff member, reversing a wrong batch or blocking a lost phone can only ever happen when that one person is available. This checks whether anybody else could step in.',
+    run:  function () {
+      return db.from('oms_employees').select('employee_code,display_name,role,active,archived')
+        .then(function (r) {
+          if (r.error) {
+            return { ok: false, warnOnly: true, detail: 'Could not check — the staff list did not load. Try again.' };
+          }
+          var rows = r.data || [];
+          var admins = rows.filter(function (e) { return e.active && !e.archived && e.role === 'ADMIN'; });
+          var readOnly = rows.filter(function (e) { return e.active && !e.archived && e.role === 'READ_ONLY_ADMIN'; });
+          if (admins.length >= 2) {
+            return { ok: true, detail: admins.length + ' people can run this panel, so work does not stop if one of you is away.' };
+          }
+          var who = admins.length === 1 ? (admins[0].display_name || admins[0].employee_code) : 'nobody';
+          return { ok: false, warnOnly: true,
+                   detail: 'Only ' + who + ' can run this panel' +
+                           (readOnly.length ? ' (' + readOnly.length + ' can look but not act)' : '') +
+                           '. If that person is travelling, ill or simply asleep, nobody can unlock a locked-out staff member, reverse a wrong batch, or block a lost phone until they are back. This is a business risk, not a fault — see the note below the checks.' };
+        });
+    } },
+
+  { name: 'Your way back in still works',
+    why:  'Every Admin signs in with a PIN and a phone code. Backup codes are the way in when the phone with the authenticator is lost or flat. This checks that an Admin has not quietly run out of them.',
+    run:  function () {
+      return db.from('oms_employees').select('employee_code,display_name,role,active,archived,totp_enabled,totp_required')
+        .then(function (r) {
+          if (r.error) {
+            return { ok: false, warnOnly: true, detail: 'Could not check — the staff list did not load. Try again.' };
+          }
+          var admins = (r.data || []).filter(function (e) {
+            return e.active && !e.archived && (e.role === 'ADMIN' || e.role === 'READ_ONLY_ADMIN');
+          });
+          if (!admins.length) return { ok: false, warnOnly: true, detail: 'No active Admin account found to check.' };
+          var withCode = admins.filter(function (a) { return a.totp_enabled; });
+          if (!withCode.length) {
+            return { ok: true, detail: 'No Admin uses a phone code, so there is nothing to be locked out of. Your PIN is the only thing you need.' };
+          }
+          // The count of remaining backup codes is deliberately not readable
+          // by the app -- that is the same protection that hides PINs. The
+          // honest thing is to say what to check rather than invent a number.
+          return { ok: true,
+                   detail: withCode.length + ' Admin account(s) use a phone code. How many backup codes are left is deliberately not readable from here, for the same reason PINs are not. Check it on the phone app under Settings, and issue a fresh set if it is running low.' };
         });
     } },
 
