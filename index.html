@@ -2729,7 +2729,7 @@ var qrcode = function() {
     </style>
 </head>
 <body>
-<div class="ver-corner" id="verCornerBadge" onclick="handleVerBadgeTap()">v90</div>
+<div class="ver-corner" id="verCornerBadge" onclick="handleVerBadgeTap()">v91</div>
 <!-- v63: Gap 2 — offline write-queue indicator. Hidden (display:none) unless
      something is actually queued or failed. Tapping it shows the queue detail
      panel (openOfflineQueuePanel()). -->
@@ -3486,6 +3486,7 @@ var qrcode = function() {
                             <option value="BILLING_OPERATOR">Billing Operator</option>
                             <option value="INVENTORY_LEAD">Inventory Lead</option>
                             <option value="PRODUCTION_LEAD">Production Lead</option>
+                            <option value="SUPERVISOR">Supervisor</option>
                             <option value="ADMIN">Admin</option>
                         </select>
                         <input type="tel" inputmode="numeric" maxlength="4" class="settings-input" id="admin-add-pin" placeholder="4-digit PIN" style="max-width:110px">
@@ -3546,7 +3547,7 @@ var qrcode = function() {
 
             <!-- Version -->
             <div class="ver-badge">
-                <div class="ver-name">&#128230; ArtzFolio Scan-Pick-Pack v90</div>
+                <div class="ver-name">&#128230; ArtzFolio Scan-Pick-Pack v91</div>
                 <div class="ver-sub">Full changelog available on request.</div>
             </div>
         </div>
@@ -4071,6 +4072,13 @@ var ROLE_PERMISSIONS = {
     INVENTORY_LEAD:   { pick:true,  move:true,  stock:true,  log:true, guide:true, settings:false, dash:false, sessions:false, logScope:'all' },
     PRODUCTION_LEAD:  { pick:false, move:false, stock:true,  log:true, guide:true, settings:false, dash:false, sessions:false, logScope:'all' },
     ADMIN:            { pick:true,  move:true,  stock:true,  log:true, guide:true, settings:true,  dash:true,  sessions:true,  logScope:'all' },
+    // v91 (2026-09-18) NEW ROLE - Supervisor. Someone who runs the day on the
+    // Founder's behalf. On this phone they get exactly what an Admin gets,
+    // because everything a Supervisor must NOT reach is gated separately:
+    // the Employee Management block below is shown only when the role is
+    // literally ADMIN, and the database refuses a Supervisor on accounts,
+    // roles and the Admin Password no matter which screen asks.
+    SUPERVISOR:       { pick:true,  move:true,  stock:true,  log:true, guide:true, settings:true,  dash:true,  sessions:true,  logScope:'all' },
     // v84 (2026-09-18) GAP FIX. Until now there was NO entry for CUSTOM here.
     // In the normal case that never mattered, because an employee on the
     // CUSTOM role carries an explicit per-employee permissions object from
@@ -4097,6 +4105,16 @@ var ROLE_PERMISSIONS = {
 // one whose access was never customized) falls back to ROLE_PERMISSIONS[role]
 // unchanged — same shape, so every existing call site keeps working via
 // this one helper instead of reading ROLE_PERMISSIONS directly.
+// v91 (2026-09-18) SECURITY FIX. Until now this app called four
+// administrative database functions - add an employee, switch one off, clear a
+// PIN lockout, reset a PIN - without ever saying WHO was asking. The database's
+// permission check treats a missing name as "no objection", so every one of
+// those four could be performed from this phone by an account the Admin Panel
+// correctly refuses. This helper supplies the signed-in person's own code on
+// all four, and the database now refuses an unnamed caller outright.
+function sessionEmployeeCode() {
+    return (state.session && state.session.employee_code) ? state.session.employee_code : '';
+}
 function effectivePermissions() {
     if (!state.session) return {};
     if (state.session.permissions) return state.session.permissions;
@@ -5092,7 +5110,7 @@ function adminToggleActive(code, currentActive) {
     var secret = prompt('Enter the admin secret to ' + (currentActive ? 'deactivate' : 'reactivate') + ' ' + code + ':');
     if (secret === null) return; // cancelled
     if (!secret) { alert('Admin secret is required.'); return; }
-    withTimeout(db.rpc('oms_admin_toggle_employee_active', { p_admin_secret: secret, p_employee_code: code, p_active: !currentActive }), 10000, 'Employee update').then(function(res) {
+    withTimeout(db.rpc('oms_admin_toggle_employee_active', { p_admin_secret: secret, p_employee_code: code, p_active: !currentActive, p_caller_employee_code: sessionEmployeeCode() }), 10000, 'Employee update').then(function(res) {
         if (res.error) {
             var msg = (res.error.code === '28000' || /invalid admin secret/i.test(res.error.message || ''))
                 ? 'Incorrect admin secret.' : ('Could not update: ' + res.error.message);
@@ -5117,7 +5135,7 @@ function adminUnlockEmployee(code) {
     if (secret === null) return; // cancelled
     if (!secret) { if (resEl) { resEl.className = 'move-result err'; resEl.textContent = 'Admin secret is required.'; } return; }
     if (resEl) { resEl.className = 'move-result'; resEl.textContent = 'Unlocking...'; }
-    withTimeout(db.rpc('oms_admin_unlock', { p_employee_code: code, p_admin_secret: secret }), 10000, 'Unlock employee').then(function(res) {
+    withTimeout(db.rpc('oms_admin_unlock', { p_employee_code: code, p_admin_secret: secret, p_caller_employee_code: sessionEmployeeCode() }), 10000, 'Unlock employee').then(function(res) {
         if (res.error) {
             var msg = (res.error.code === '28000' || /invalid admin secret/i.test(res.error.message || ''))
                 ? 'Incorrect admin secret.' : ('Error: ' + res.error.message);
@@ -5156,7 +5174,7 @@ function adminSubmitResetPin(code) {
     if (secret === null) return; // cancelled
     if (!secret) { resEl.className = 'move-result err'; resEl.textContent = 'Admin secret is required.'; return; }
     resEl.className = 'move-result'; resEl.textContent = 'Saving...';
-    withTimeout(db.rpc('oms_set_pin', { p_employee_code: code, p_new_pin: pin, p_admin_secret: secret }), 10000, 'PIN reset').then(function(res) {
+    withTimeout(db.rpc('oms_set_pin', { p_employee_code: code, p_new_pin: pin, p_admin_secret: secret, p_caller_employee_code: sessionEmployeeCode() }), 10000, 'PIN reset').then(function(res) {
         if (res.error) {
             var msg = (res.error.code === '28000' || /invalid admin secret/i.test(res.error.message || ''))
                 ? 'Incorrect admin secret.' : ('Error: ' + res.error.message);
@@ -5202,7 +5220,7 @@ function adminAddEmployee() {
     // The RPC writes its own EMPLOYEE_ADDED audit row internally, so the
     // separate writeAuditLog() call that used to live here is removed to
     // avoid a duplicate log entry.
-    withTimeout(db.rpc('oms_admin_add_employee', { p_admin_secret: secret, p_employee_code: code, p_display_name: name, p_role: role, p_initial_pin: pin }), 10000, 'Add employee').then(function(res) {
+    withTimeout(db.rpc('oms_admin_add_employee', { p_admin_secret: secret, p_employee_code: code, p_display_name: name, p_role: role, p_initial_pin: pin, p_caller_employee_code: sessionEmployeeCode() }), 10000, 'Add employee').then(function(res) {
         if (res.error) {
             resEl.className = 'move-result err';
             var msg = res.error.message || '';
@@ -8027,6 +8045,7 @@ function twofaBeginSetup() {
         p_pin: pin
     }), 15000, 'Two-factor setup').then(function (res) {
         if (res.error) { twofaSetMsg('twofa-result', (res.error.message || 'Could not start setup.')); return; }
+        if (twofaRefused(res, 'twofa-result')) return;
         var d = res.data;
         if (!d || !d.secret) { twofaSetMsg('twofa-result', 'Could not start setup.'); return; }
         twofaPendingSecret = pin;               // held only until Turn on / leaving the tab
@@ -8085,6 +8104,7 @@ function twofaConfirm() {
         p_code: code
     }), 15000, 'Two-factor confirm').then(function (res) {
         if (res.error) { twofaSetMsg('twofa-setup-result', (res.error.message || 'That code was not accepted.')); codeEl.value = ''; return; }
+        if (twofaRefused(res, 'twofa-setup-result')) { codeEl.value = ''; return; }
         var d = res.data || {};
         twofaPendingSecret = null;
         document.getElementById('twofa-setup').style.display = 'none';
@@ -8094,6 +8114,20 @@ function twofaConfirm() {
     }).catch(function () { twofaSetMsg('twofa-setup-result', 'Could not confirm - database unreachable.'); });
 }
 
+// v91 (2026-09-18) SECURITY FIX, app side. The five self-service two-factor
+// functions used to answer a wrong PIN by throwing an error. Throwing undid
+// their own failed-attempt counter, so the 5-strikes lockout never engaged and
+// anyone holding this app's public key could guess a PIN forever, silently,
+// against any account. They now answer with a plain refusal instead, which is
+// what lets the count stick - so every caller here has to read that refusal.
+function twofaRefused(res, elId) {
+    var d = res.data;
+    if (d && d.ok === false) {
+        twofaSetMsg(elId, d.message || 'That was not accepted.');
+        return true;
+    }
+    return false;
+}
 function twofaShowBackupCodes(codes, headline) {
     var box = document.getElementById('twofa-backup');
     if (!box) return;
@@ -8141,6 +8175,7 @@ function twofaRegenerate() {
         p_code: String(code).trim()
     }), 15000, 'New backup codes').then(function (res) {
         if (res.error) { twofaSetMsg('twofa-result', (res.error.message || 'Could not issue new codes.')); return; }
+        if (twofaRefused(res, 'twofa-result')) return;
         twofaSetMsg('twofa-result', '');
         twofaShowBackupCodes((res.data || {}).backup_codes || [], 'New backup codes issued.');
         writeAuditLog('TOTP_BACKUP_REGENERATED', { employeeCode: state.session.employee_code, employeeName: state.session.display_name });
@@ -8162,6 +8197,7 @@ function twofaDisable() {
         p_code: String(code).trim()
     }), 15000, 'Turn off two-factor').then(function (res) {
         if (res.error) { twofaSetMsg('twofa-result', (res.error.message || 'Could not turn it off.')); return; }
+        if (twofaRefused(res, 'twofa-result')) return;
         writeAuditLog('TOTP_DISABLED', { employeeCode: state.session.employee_code, employeeName: state.session.display_name });
         renderTwoFactorSection();
         setTimeout(function () { twofaSetMsg('twofa-result', 'Two-factor is now off for this account.', true); }, 600);
