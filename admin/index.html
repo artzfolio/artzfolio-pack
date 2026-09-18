@@ -2610,7 +2610,7 @@ tbody tr:hover{background:#f9fbfd}
     </ul>
     <div class="sidebar-footer">
       <button class="logout-btn" onclick="adminLogout()">⎋ Logout</button>
-      <div class="ver-footer">ArtzFolio Admin Panel v2.24</div>
+      <div class="ver-footer">ArtzFolio Admin Panel v2.25</div>
     </div>
   </div>
 
@@ -2835,15 +2835,15 @@ tbody tr:hover{background:#f9fbfd}
       <div class="page-header">
         <div>
           <div class="page-title">Scan Sessions</div>
-          <div class="page-sub">Every scan session, any employee, any device. Accept one, or reverse one out of stock — including a session already accepted, or one still open on a phone.</div>
+          <div class="page-sub">Every scan batch, any employee, any device. Look inside one safely, close one on an operator&rsquo;s behalf, accept it, reverse it out of stock, or tidy away an empty one. Every state has a way out.</div>
         </div>
       </div>
       <div class="filter-bar">
         <div class="filter-field"><label>Status</label>
           <select id="sessions-status">
-            <option value="">All</option>
+            <option value="" selected>All</option>
             <option value="OPEN">Open</option>
-            <option value="CLOSED_PENDING_REVIEW" selected>Closed — pending review</option>
+            <option value="CLOSED_PENDING_REVIEW">Closed — pending review</option>
             <option value="COMMITTED">Committed</option>
             <option value="VOIDED">Voided</option>
             <option value="ABANDONED">Abandoned</option>
@@ -5267,7 +5267,7 @@ var sessionsLoadedOnce = false;
 var sessionsLastRows = [];
 
 function resetSessionsFilters() {
-  document.getElementById('sessions-status').value = 'CLOSED_PENDING_REVIEW';
+  document.getElementById('sessions-status').value = '';
   document.getElementById('sessions-employee').value = '';
   loadScanSessions();
 }
@@ -5314,54 +5314,135 @@ var SESSION_STATUS_LABEL = {
   COMMITTED: '✓ Committed', VOIDED: '↺ Voided', ABANDONED: '⚠ Abandoned'
 };
 
+// ═══════ WHAT YOU CAN DO WITH A BATCH, AND WHEN (v2.25) ═══════
+// The rule this is built on, which the previous version broke:
+//
+//   EVERY state a batch can be in must have at least one way out that is
+//   always available -- and that way out must not depend on there being any
+//   stock to move.
+//
+// v2.24 offered only Reverse on an open or abandoned batch. Reverse moves
+// stock, so on an EMPTY batch it correctly refused and left nothing behind
+// it -- the batch could never be resolved and sat in the list forever.
+//
+// Four verbs now, and no dead ends:
+//   See the scans     -- read-only, any state, safe, also for Read-Only Admins
+//   Close it for them -- an Admin closes someone else's open batch for review
+//   Accept            -- approves it; moves no stock (the scans already did)
+//   Reverse           -- backs every scan out of stock
+// plus, for an empty batch, Close this off -- which resolves it and moves
+// nothing, because there is nothing to move.
+
+function sessionIsEmpty(s)   { return (Number(s.scan_count) || 0) === 0; }
+// ABANDONED is deliberately NOT in this list: a batch left open too long
+// still needs somebody to decide about it, and the actions below treat it as
+// outstanding work. Only these two are genuinely finished.
+function sessionIsResolved(s){ return s.status === 'COMMITTED' || s.status === 'VOIDED'; }
+
+// An empty batch that has been resolved should never be shown to anyone as
+// "Voided" -- nothing was reversed. It reads as what it is.
+function sessionStatusLabel(s) {
+  if (sessionIsEmpty(s) && sessionIsResolved(s)) return '⊘ Closed off — was empty';
+  return SESSION_STATUS_LABEL[s.status] || esc(s.status);
+}
+
+function sessionAgeText(s) {
+  if (!s.opened_at) return '';
+  var mins = Math.floor((Date.now() - new Date(s.opened_at).getTime()) / 60000);
+  if (mins < 60) return mins + ' min';
+  var hrs = Math.floor(mins / 60);
+  if (hrs < 48) return hrs + ' hr' + (hrs === 1 ? '' : 's');
+  return Math.floor(hrs / 24) + ' days';
+}
+
+// The single most useful thing an Admin can know before acting on an open
+// batch: is a phone still working in it right now?
+function lastScanText(s) {
+  if (!s.last_scan_at) return 'no scans yet';
+  var mins = Math.floor((Date.now() - new Date(s.last_scan_at).getTime()) / 60000);
+  if (mins < 1)  return 'last scan just now';
+  if (mins < 60) return 'last scan ' + mins + ' min ago';
+  var hrs = Math.floor(mins / 60);
+  if (hrs < 48)  return 'last scan ' + hrs + ' hr' + (hrs === 1 ? '' : 's') + ' ago';
+  return 'last scan ' + Math.floor(hrs / 24) + ' days ago';
+}
+
 function scanSessionRowHtml(s, idx) {
-  // applyReadOnlyModeToUI() only hides .write-only-control elements already
-  // present in the DOM at login time -- it never re-scans rows rendered
-  // later by loadScanSessions(), so a READ_ONLY_ADMIN checked directly here
-  // instead of relying on that class for these dynamic buttons. Real
-  // enforcement is server-side either way (oms_check_not_readonly_admin).
-  // v2.24: a session can now be reversed from here whatever state it is in --
-  // including one already marked Committed, and one still Open on a phone.
-  // Every button routes through the same place: openSessionReverse(), which
-  // shows exactly what would change BEFORE anything happens.
-  var btnRev = 'padding:4px 10px;font-size:11px;background:#a33;color:#fff;';
+  var B  = 'padding:4px 10px;font-size:11px;';
+  var BR = B + 'background:#a33;color:#fff;';          // reverses stock
+  var sid = s.session_id;
+  var empty = sessionIsEmpty(s);
+
+  // Always offered, in every state, to everyone including a Read-Only Admin.
+  // Before v2.25 the ONLY route to a batch's contents was a red destructive
+  // button, so nobody sensible ever looked inside one.
+  var seeBtn = '<button class="btn btn-grey" style="' + B + '" onclick="openSessionView(\'' + sid + '\',' + idx + ')">👁 See the scans</button>';
+
   var actions;
   if (isReadOnlyAdmin()) {
-    // A Read-Only Admin is told to ask someone only where there is actually
-    // something to do. On a finished session they keep seeing who resolved it,
-    // which is the whole reason they open this page.
-    actions = (s.status === 'CLOSED_PENDING_REVIEW' || s.status === 'OPEN')
-      ? '<span style="color:#999;font-size:11px;">Read-only — ask a full Admin</span>'
-      : '<span style="color:#999;font-size:11px;">' + (s.resolved_by ? 'by ' + esc(s.resolved_by) : '—') + '</span>';
-  } else if (s.status === 'CLOSED_PENDING_REVIEW') {
-    actions = '<button class="btn btn-primary" style="padding:4px 10px;font-size:11px;" onclick="adminCommitScanSession(\'' + s.session_id + '\',' + idx + ')">✓ Accept</button> ' +
-              '<button class="btn" style="' + btnRev + '" onclick="openSessionReverse(\'' + s.session_id + '\',' + idx + ')">↺ Reverse</button>';
-  } else if (s.status === 'COMMITTED') {
-    actions = '<button class="btn" style="' + btnRev + '" onclick="openSessionReverse(\'' + s.session_id + '\',' + idx + ')">↺ Reverse</button>' +
-              '<div style="color:#999;font-size:10.5px;margin-top:2px;">accepted' + (s.resolved_by ? ' by ' + esc(s.resolved_by) : '') + '</div>';
+    // Real enforcement is server-side (oms_check_not_readonly_admin); this is
+    // only about not showing buttons that would be refused.
+    var needsSomeone = (s.status === 'OPEN' || s.status === 'CLOSED_PENDING_REVIEW' || s.status === 'ABANDONED');
+    actions = seeBtn + '<div style="color:#999;font-size:10.5px;margin-top:2px;">' +
+              (s.resolved_by ? 'by ' + esc(s.resolved_by)
+                             : (needsSomeone ? 'read-only — ask a full Admin' : 'read-only')) + '</div>';
+
   } else if (s.status === 'OPEN') {
-    actions = '<button class="btn" style="' + btnRev + '" onclick="openSessionReverse(\'' + s.session_id + '\',' + idx + ')">⏹ Stop &amp; reverse</button>';
+    actions = seeBtn + ' ' + (empty
+      ? '<button class="btn" style="' + B + 'background:#9A6700;color:#fff;" title="Nothing was ever scanned into this batch. This tidies it away and changes no stock." onclick="resolveEmptySession(\'' + sid + '\',' + idx + ')">⊘ Close this off</button>'
+      : '<button class="btn btn-primary" style="' + B + '" title="Closes the batch on the operator&#39;s behalf so you can review it. Changes no stock." onclick="openSessionCloseForThem(\'' + sid + '\',' + idx + ')">⏹ Close it for them</button> ' +
+        '<button class="btn" style="' + BR + '" onclick="openSessionReverse(\'' + sid + '\',' + idx + ')">↺ Stop &amp; reverse</button>');
+
+  } else if (s.status === 'CLOSED_PENDING_REVIEW') {
+    actions = seeBtn + ' ' + (empty
+      ? '<button class="btn" style="' + B + 'background:#9A6700;color:#fff;" title="Nothing was scanned into this batch, so there is nothing to approve or put back." onclick="resolveEmptySession(\'' + sid + '\',' + idx + ')">⊘ Close this off</button>'
+      : '<button class="btn btn-primary" style="' + B + '" onclick="openSessionAccept(\'' + sid + '\',' + idx + ',false)">✓ Accept</button> ' +
+        '<button class="btn" style="' + BR + '" onclick="openSessionReverse(\'' + sid + '\',' + idx + ')">↺ Reverse</button>');
+
   } else if (s.status === 'ABANDONED') {
-    actions = '<button class="btn" style="' + btnRev + '" onclick="openSessionReverse(\'' + s.session_id + '\',' + idx + ')">↺ Reverse</button>';
+    actions = seeBtn + ' ' + (empty
+      ? '<button class="btn" style="' + B + 'background:#9A6700;color:#fff;" onclick="resolveEmptySession(\'' + sid + '\',' + idx + ')">⊘ Close this off</button>'
+      : '<button class="btn btn-primary" style="' + B + '" title="This batch was left open too long and got marked abandoned. If the scans are right, accept them." onclick="openSessionAccept(\'' + sid + '\',' + idx + ',true)">✓ Accept anyway</button> ' +
+        '<button class="btn" style="' + BR + '" onclick="openSessionReverse(\'' + sid + '\',' + idx + ')">↺ Reverse</button>');
+
+  } else if (s.status === 'COMMITTED') {
+    actions = seeBtn + (empty ? '' :
+      ' <button class="btn" style="' + BR + '" onclick="openSessionReverse(\'' + sid + '\',' + idx + ')">↺ Reverse</button>') +
+      '<div style="color:#999;font-size:10.5px;margin-top:2px;">accepted' + (s.resolved_by ? ' by ' + esc(s.resolved_by) : '') + '</div>';
+
   } else { // VOIDED
-    actions = '<button class="btn btn-grey" style="padding:4px 10px;font-size:11px;" title="Checks whether any late scan landed in this session after it was reversed, and backs out only that." onclick="openSessionReverse(\'' + s.session_id + '\',' + idx + ')">↺ Re-check</button>' +
-              '<div style="color:#999;font-size:10.5px;margin-top:2px;">' + (s.resolved_by ? 'by ' + esc(s.resolved_by) : '—') + '</div>';
+    actions = seeBtn +
+      (empty ? '' : ' <button class="btn btn-grey" style="' + B + '" title="Looks for any scan that landed after this batch was reversed, and backs out only that one." onclick="openSessionReverse(\'' + sid + '\',' + idx + ')">↺ Check for late scans</button>') +
+      '<div style="color:#999;font-size:10.5px;margin-top:2px;">' + (s.resolved_by ? 'by ' + esc(s.resolved_by) : '—') + '</div>';
   }
-  var row =
-    '<tr>' +
+
+  // The Scans column used to include the reversal's own balancing entries, so
+  // a reversed 36-scan batch read as "72". The database now reports the two
+  // separately and this shows both.
+  var rev = Number(s.reversed_count) || 0;
+  var scansCell = fmtNum(s.scan_count) +
+    (rev ? '<div style="color:#B3261E;font-size:10px;">' + fmtNum(rev) + ' reversed</div>' : '');
+  var qtyCell = fmtNum(s.total_qty) +
+    (rev ? '<div style="color:#6B7280;font-size:10px;">was ' + fmtNum(s.scanned_qty) + '</div>' : '');
+
+  var ageTxt = sessionAgeText(s);
+  var openCell = fmtDateTime(s.opened_at) +
+    '<div style="color:#6B7280;font-size:10px;">' + (ageTxt ? esc(ageTxt) + ' ago' : '') +
+    (s.status === 'OPEN' ? ' · ' + esc(lastScanText(s)) : '') + '</div>';
+
+  return '<tr>' +
     '<td><button class="btn btn-grey" style="padding:2px 8px;font-size:11px;" onclick="toggleScanSessionDetail(' + idx + ')" id="sess-toggle-' + idx + '">▾</button></td>' +
-    '<td>' + fmtDateTime(s.opened_at) + '</td>' +
+    '<td>' + openCell + '</td>' +
     '<td>' + esc(s.employee_code) + '</td>' +
     '<td>' + esc(s.device_hint || '—') + '</td>' +
-    '<td>' + (SESSION_STATUS_LABEL[s.status] || esc(s.status)) + '</td>' +
+    '<td>' + sessionStatusLabel(s) + '</td>' +
     '<td>' + esc(s.default_bin_code || '—') + '</td>' +
-    '<td>' + fmtNum(s.scan_count) + '</td>' +
-    '<td>' + fmtNum(s.total_qty) + '</td>' +
+    '<td>' + scansCell + '</td>' +
+    '<td>' + qtyCell + '</td>' +
     '<td>' + actions + '</td>' +
     '</tr>' +
     '<tr class="sess-detail-row" id="sess-detail-' + idx + '" style="display:none;"><td colspan="9">' +
     scanSessionDetailHtml(s) + '</td></tr>';
-  return row;
 }
 
 // Deliberately mirrors the App's own renderReconciliation() phrasing exactly
@@ -5370,7 +5451,13 @@ function scanSessionRowHtml(s, idx) {
 // identically whether reviewed on the phone that scanned it or here.
 function scanSessionDetailHtml(s) {
   var h = '<div style="padding:8px 4px;font-size:12.5px;">';
-  h += '<div><strong>' + fmtNum(s.scan_count) + '</strong> entries &middot; <strong>' + fmtNum(s.distinct_skus) + '</strong> different SKUs &middot; net qty <strong>' + fmtNum(s.total_qty) + '</strong></div>';
+  var revN = Number(s.reversed_count) || 0;
+  h += '<div><strong>' + fmtNum(s.scan_count) + '</strong> scan' + (Number(s.scan_count) === 1 ? '' : 's') +
+       ' &middot; <strong>' + fmtNum(s.distinct_skus) + '</strong> different SKUs' +
+       ' &middot; scanned qty <strong>' + fmtNum(s.scanned_qty) + '</strong>' +
+       ' &middot; net effect on stock now <strong>' + fmtNum(s.total_qty) + '</strong></div>';
+  if (revN) h += '<div style="color:#B3261E;font-size:11.5px;margin-top:2px;">' + fmtNum(revN) +
+       ' of those scans have been backed out of stock. The balancing entries are not counted as scans above.</div>';
 
   var d = s.duplicates || [];
   if (d.length) {
@@ -5419,28 +5506,385 @@ function toggleScanSessionDetail(idx) {
   if (btn) btn.textContent = show ? '▴' : '▾';
 }
 
-function adminCommitScanSession(sessionId, idx) {
-  var s = sessionsLastRows[idx];
-  if (!s) return;
-  if (!confirm('Commit this session (' + (s.scan_count || 0) + ' entries, employee ' + s.employee_code + ')? The entries are already live -- this just accepts them, nothing else changes.')) return;
-  var resEl = document.getElementById('sess-action-result-' + sessionId);
-  if (resEl) { resEl.className = 'result-msg'; resEl.textContent = 'Committing...'; }
-  withTimeout(db.rpc('oms_commit_scan_session', {
+
+// ═══════════ SEE THE SCANS — READ-ONLY, ANY STATE, ALWAYS SAFE ═══════════
+// Runs the same preview the Reverse flow runs, but shows only the contents
+// and no action buttons. This exists because before v2.25 the only route to
+// a batch's contents was a red "Reverse" button, which meant the richest
+// information on the page was effectively invisible to a careful person.
+
+function openSessionPanelShell(sessionId, idx) {
+  var detail = document.getElementById('sess-detail-' + idx);
+  var tbtn = document.getElementById('sess-toggle-' + idx);
+  if (detail && detail.style.display === 'none') {
+    detail.style.display = '';
+    if (tbtn) tbtn.textContent = '▴';
+  }
+  return document.getElementById('sess-action-result-' + sessionId);
+}
+
+function openSessionView(sessionId, idx) {
+  if (sessionPanelBlocked(sessionId)) return;
+  var resEl = openSessionPanelShell(sessionId, idx);
+  if (resEl) { resEl.className = 'result-msg'; resEl.innerHTML = 'Loading what is in this batch…'; }
+  withTimeout(db.rpc('oms_admin_preview_session_void', {
     p_session_id: sessionId,
-    p_employee_code: getAdminPanelEmployeeCode(),
-    p_admin_secret: getAdminSecret()
-  }), 10000, 'Commit session').then(function (res) {
+    p_admin_secret: getAdminSecret(),
+    p_caller_employee_code: getAdminPanelEmployeeCode()
+  }), 12000, 'Session contents').then(function (res) {
     if (res.error) {
       if (isBadSecretError(res.error)) { handleBadSecret('Scan Sessions'); return; }
       if (resEl) { resEl.className = 'result-msg err'; resEl.textContent = friendlyError(res.error); }
       return;
     }
-    // No client-side writeAuditLog() here — oms_commit_scan_session already
-    // writes a SCAN_SESSION_COMMITTED audit row server-side with the real
-    // acting employee_code; a second client-side row would just duplicate it.
-    loadScanSessions();
-  }).catch(function (err) { if (resEl) { resEl.className = 'result-msg err'; resEl.textContent = esc(friendlyError(err)); } });
+    var p = res.data;
+    if (!p || p.ok !== true) {
+      if (resEl) { resEl.className = 'result-msg err'; resEl.textContent = 'Could not read this batch.'; }
+      return;
+    }
+    if (resEl) { resEl.className = 'result-msg'; resEl.innerHTML = sessionViewHtml(sessionId, p); }
+  }).catch(function (err) {
+    if (resEl) { resEl.className = 'result-msg err'; resEl.textContent = friendlyError(err); }
+  });
 }
+
+function sessionViewHtml(sessionId, p) {
+  var lines = p.lines || [];
+  var h = '<div style="border:1px solid #E2E8F0;border-radius:6px;padding:12px;background:#fff;text-align:left;">';
+  h += '<div style="font-weight:bold;color:#0A1628;font-size:13px;margin-bottom:6px;">What is in this batch</div>';
+  h += '<div style="font-size:12px;color:#6B7280;margin-bottom:8px;">Nothing on this screen changes anything. It is only a look inside.</div>';
+  h += '<div style="font-size:12px;margin-bottom:8px;">Started by <strong>' + esc(p.session_owner || '—') + '</strong> on ' +
+       esc(p.device_hint || '—') + ' · opened ' + fmtDateTime(p.opened_at) + '</div>';
+
+  if (!lines.length) {
+    h += '<div style="background:#F8F9FB;border:1px solid #E2E8F0;padding:10px;font-size:12px;">' +
+         (p.already_reversed
+            ? 'Every one of this batch\'s ' + fmtNum(p.already_reversed) + ' scans has already been backed out of stock.'
+            : 'Nothing was ever scanned into this batch.') + '</div>';
+  } else {
+    h += '<div style="background:#EEF2F8;padding:8px 10px;border-radius:4px;font-size:12.5px;margin-bottom:8px;">' +
+         '<strong>' + fmtNum(p.scans_to_reverse) + '</strong> scan' + (p.scans_to_reverse === 1 ? '' : 's') +
+         ' still counted in stock, across <strong>' + fmtNum(p.distinct_skus) + '</strong> product' + (p.distinct_skus === 1 ? '' : 's') +
+         ', totalling <strong>' + fmtNum(p.net_qty_to_reverse) + '</strong> units.' +
+         (p.already_reversed ? ' ' + fmtNum(p.already_reversed) + ' further scan' + (p.already_reversed === 1 ? ' has' : 's have') + ' already been backed out.' : '') +
+         '</div>';
+    h += '<div style="max-height:260px;overflow:auto;border:1px solid #E2E8F0;">' +
+         '<table style="width:100%;border-collapse:collapse;font-size:11.5px;">' +
+         '<thead><tr style="background:#0A1628;color:#fff;">' +
+         '<th style="text-align:left;padding:5px 6px;">Product (SKU)</th>' +
+         '<th style="text-align:left;padding:5px 6px;">Bin</th>' +
+         '<th style="text-align:right;padding:5px 6px;">Scans</th>' +
+         '<th style="text-align:right;padding:5px 6px;">Quantity</th>' +
+         '<th style="text-align:right;padding:5px 6px;">Stock in that bin now</th></tr></thead><tbody>';
+    lines.forEach(function (l) {
+      h += '<tr style="border-bottom:1px solid #E2E8F0;">' +
+           '<td style="padding:4px 6px;font-family:monospace;">' + esc(l.sku_code) + '</td>' +
+           '<td style="padding:4px 6px;">' + esc(l.bin_code) + '</td>' +
+           '<td style="padding:4px 6px;text-align:right;">' + fmtNum(l.scans) + '</td>' +
+           '<td style="padding:4px 6px;text-align:right;">' + fmtNum(l.qty_to_reverse) + '</td>' +
+           '<td style="padding:4px 6px;text-align:right;">' + fmtNum(l.bin_stock_now) + '</td>' +
+           '</tr>';
+    });
+    h += '</tbody></table></div>';
+  }
+  h += '<div style="margin-top:10px;"><button class="btn btn-grey" style="padding:6px 12px;font-size:12px;" onclick="cancelSessionReverse(\'' + sessionId + '\')">Close this panel</button></div>';
+  h += '</div>';
+  return h;
+}
+
+// ═══════════ CLOSE SOMEONE ELSE'S OPEN BATCH, FOR REVIEW ═══════════
+// The case this exists for: an operator scans fifty items correctly and then
+// goes home without closing the batch. Before v2.25 the only button on that
+// row was "Stop & reverse", which would have destroyed fifty pieces of
+// correct work. This moves NO stock -- it only marks the batch ready to
+// review, and drops you straight into the review.
+
+function openSessionCloseForThem(sessionId, idx) {
+  if (sessionPanelBlocked(sessionId)) return;
+  var s = sessionsLastRows[idx];
+  var resEl = openSessionPanelShell(sessionId, idx);
+  if (!s || !resEl) return;
+  var h = '<div style="border:1px solid #E2E8F0;border-radius:6px;padding:12px;background:#fff;text-align:left;">';
+  h += '<div style="font-weight:bold;color:#0A1628;font-size:13px;margin-bottom:6px;">Close this batch on the operator\'s behalf</div>';
+  h += '<div style="font-size:12px;margin-bottom:6px;">This does <strong>not</strong> change any stock. The scans already counted when they were made. ' +
+       'It marks the batch as finished so you can look through it and then accept or reverse it.</div>';
+  h += '<div style="background:#FFF8E6;border:1px solid #d9a63a;padding:9px 10px;font-size:12px;margin-bottom:8px;">' +
+       'Check nobody is still working in it: <strong>' + esc(lastScanText(s)) + '</strong>, opened ' + esc(sessionAgeText(s)) + ' ago on ' + esc(s.device_hint || 'a phone') + '.<br>' +
+       'If you close it, the operator\'s phone will show the batch as finished the next time it checks.</div>';
+  h += '<input type="text" id="sess-close-note-' + sessionId + '" placeholder="Why are you closing it for them?" autocomplete="off" ' +
+       'style="padding:6px 8px;font-size:12px;border:1px solid #E2E8F0;border-radius:4px;width:300px;margin-right:6px;">';
+  h += '<button class="btn btn-primary" id="sess-closego-' + sessionId + '" style="padding:6px 14px;font-size:12px;" onclick="confirmSessionCloseForThem(\'' + sessionId + '\',' + idx + ')">Close it for review</button> ';
+  h += '<button class="btn btn-grey" style="padding:6px 12px;font-size:12px;" onclick="cancelSessionReverse(\'' + sessionId + '\')">Cancel</button>';
+  h += '<div id="sess-close-msg-' + sessionId + '" style="margin-top:6px;font-size:12px;"></div></div>';
+  resEl.className = 'result-msg'; resEl.innerHTML = h;
+}
+
+function confirmSessionCloseForThem(sessionId, idx) {
+  var msgEl = document.getElementById('sess-close-msg-' + sessionId);
+  var noteEl = document.getElementById('sess-close-note-' + sessionId);
+  var goBtn = document.getElementById('sess-closego-' + sessionId);
+  function say(t, err) { if (msgEl) { msgEl.style.color = err ? '#B3261E' : '#1B7A3A'; msgEl.textContent = t; } }
+  var note = noteEl && noteEl.value ? noteEl.value.trim() : '';
+  if (!note) { say('Please say why. It is recorded against the batch.', true); return; }
+  if (goBtn) { goBtn.disabled = true; goBtn.style.background = '#bbb'; }
+  if (noteEl) noteEl.disabled = true;
+  setSessionBusy(sessionId, true);
+  say('Closing…', false);
+
+  withTimeout(db.rpc('oms_admin_close_scan_session', {
+    p_session_id: sessionId,
+    p_employee_code: getAdminPanelEmployeeCode(),
+    p_admin_secret: getAdminSecret(),
+    p_note: note
+  }), 15000, 'Close batch for review').then(function (res) {
+    if (res.error) {
+      if (isBadSecretError(res.error)) { handleBadSecret('Scan Sessions'); return; }
+      setSessionBusy(sessionId, false);
+      if (goBtn) { goBtn.disabled = false; goBtn.style.background = ''; }
+      if (noteEl) noteEl.disabled = false;
+      say(friendlyError(res.error), true); return;
+    }
+    if (res.data && res.data.ok === false) {
+      setSessionBusy(sessionId, false);
+      if (goBtn) { goBtn.disabled = false; goBtn.style.background = ''; }
+      if (noteEl) noteEl.disabled = false;
+      say(res.data.message || 'Not closed.', true); return;
+    }
+    var d = res.data || {};
+    setSessionBusy(sessionId, false);
+    var resEl = document.getElementById('sess-action-result-' + sessionId);
+    if (resEl) {
+      resEl.innerHTML =
+        '<div style="border:1px solid #1B7A3A;border-radius:6px;padding:12px;background:#fff;text-align:left;">' +
+        '<div style="color:#1B7A3A;font-weight:bold;font-size:13px;">✓ Closed for review.</div>' +
+        '<div style="font-size:12px;margin-top:4px;">' + fmtNum(d.scan_count || 0) + ' scan' + ((d.scan_count === 1) ? '' : 's') +
+        ' across ' + fmtNum(d.distinct_skus || 0) + ' product' + ((d.distinct_skus === 1) ? '' : 's') +
+        '. No stock was changed. You can now look through it and accept or reverse it.</div>' +
+        '<div style="margin-top:8px;"><button class="btn btn-primary" style="padding:6px 12px;font-size:12px;" onclick="loadScanSessions()">Refresh the list</button></div></div>';
+    }
+  }).catch(function (err) {
+    var m = String((err && err.message) || err || '');
+    if (/timed out/i.test(m)) {
+      say('This is taking longer than expected. Do NOT press it again — it may still be going through. Refresh the list in a moment and check before doing anything else.', true);
+      return;
+    }
+    setSessionBusy(sessionId, false);
+    if (goBtn) { goBtn.disabled = false; goBtn.style.background = ''; }
+    if (noteEl) noteEl.disabled = false;
+    say(friendlyError(err), true);
+  });
+}
+
+// ═══════════ ACCEPT — with a reason, and an override for an abandoned batch ═══════════
+// Accepting moves no stock. It records that the batch was checked and is
+// right. v2.25 asks for a reason, because accepting is the decision that
+// ends the review, and adds the abandoned case, which previously could only
+// ever be reversed however correct its scans were.
+
+function openSessionAccept(sessionId, idx, isAbandoned) {
+  if (sessionPanelBlocked(sessionId)) return;
+  var s = sessionsLastRows[idx];
+  var resEl = openSessionPanelShell(sessionId, idx);
+  if (!s || !resEl) return;
+  var h = '<div style="border:1px solid #E2E8F0;border-radius:6px;padding:12px;background:#fff;text-align:left;">';
+  h += '<div style="font-weight:bold;color:#0A1628;font-size:13px;margin-bottom:6px;">Accept this batch</div>';
+  h += '<div style="font-size:12px;margin-bottom:6px;">Accepting changes <strong>no stock</strong>. Each scan already counted the moment it was made. ' +
+       'This records that you have checked the batch and it is right.</div>';
+  if (isAbandoned) {
+    h += '<div style="background:#FFF8E6;border:1px solid #d9a63a;padding:9px 10px;font-size:12px;margin-bottom:8px;">' +
+         'This batch was left open too long and was marked <strong>abandoned</strong>, which usually means nobody checked it at the time. ' +
+         'Press <strong>👁 See the scans</strong> first and satisfy yourself it is right before accepting it.</div>';
+  }
+  h += '<input type="text" id="sess-acc-note-' + sessionId + '" placeholder="What did you check?" autocomplete="off" ' +
+       'style="padding:6px 8px;font-size:12px;border:1px solid #E2E8F0;border-radius:4px;width:300px;margin-right:6px;">';
+  h += '<button class="btn btn-primary" id="sess-accgo-' + sessionId + '" style="padding:6px 14px;font-size:12px;" onclick="confirmSessionAccept(\'' + sessionId + '\',' + idx + ',' + (isAbandoned ? 'true' : 'false') + ')">✓ Accept ' + fmtNum(s.scan_count) + ' scan' + (Number(s.scan_count) === 1 ? '' : 's') + '</button> ';
+  h += '<button class="btn btn-grey" style="padding:6px 12px;font-size:12px;" onclick="cancelSessionReverse(\'' + sessionId + '\')">Cancel</button>';
+  h += '<div id="sess-acc-msg-' + sessionId + '" style="margin-top:6px;font-size:12px;"></div></div>';
+  resEl.className = 'result-msg'; resEl.innerHTML = h;
+}
+
+function confirmSessionAccept(sessionId, idx, isAbandoned) {
+  var msgEl = document.getElementById('sess-acc-msg-' + sessionId);
+  var noteEl = document.getElementById('sess-acc-note-' + sessionId);
+  var goBtn = document.getElementById('sess-accgo-' + sessionId);
+  function say(t, err) { if (msgEl) { msgEl.style.color = err ? '#B3261E' : '#1B7A3A'; msgEl.textContent = t; } }
+  var note = noteEl && noteEl.value ? noteEl.value.trim() : '';
+  if (!note) { say('Please say what you checked. It is recorded against the batch.', true); return; }
+  if (goBtn) { goBtn.disabled = true; goBtn.style.background = '#bbb'; }
+  if (noteEl) noteEl.disabled = true;
+  setSessionBusy(sessionId, true);
+  say('Accepting…', false);
+
+  withTimeout(db.rpc('oms_commit_scan_session', {
+    p_session_id: sessionId,
+    p_employee_code: getAdminPanelEmployeeCode(),
+    p_admin_secret: getAdminSecret(),
+    p_note: note,
+    p_force: !!isAbandoned
+  }), 15000, 'Accept batch').then(function (res) {
+    if (res.error) {
+      if (isBadSecretError(res.error)) { handleBadSecret('Scan Sessions'); return; }
+      setSessionBusy(sessionId, false);
+      if (goBtn) { goBtn.disabled = false; goBtn.style.background = ''; }
+      if (noteEl) noteEl.disabled = false;
+      say(friendlyError(res.error), true); return;
+    }
+    if (res.data && res.data.ok === false) {
+      setSessionBusy(sessionId, false);
+      if (goBtn) { goBtn.disabled = false; goBtn.style.background = ''; }
+      if (noteEl) noteEl.disabled = false;
+      say(res.data.message || 'Not accepted.', true); return;
+    }
+    var d = res.data || {};
+    setSessionBusy(sessionId, false);
+    var resEl = document.getElementById('sess-action-result-' + sessionId);
+    if (resEl) {
+      resEl.innerHTML =
+        '<div style="border:1px solid #1B7A3A;border-radius:6px;padding:12px;background:#fff;text-align:left;">' +
+        '<div style="color:#1B7A3A;font-weight:bold;font-size:13px;">✓ Accepted.</div>' +
+        '<div style="font-size:12px;margin-top:4px;">' +
+        (d.already_accepted ? 'This batch had already been accepted. Nothing changed.'
+           : fmtNum(d.entries || 0) + ' scan' + ((d.entries === 1) ? '' : 's') + ' approved. No stock was changed — they had already counted.') +
+        '</div><div style="margin-top:8px;"><button class="btn btn-primary" style="padding:6px 12px;font-size:12px;" onclick="loadScanSessions()">Refresh the list</button></div></div>';
+    }
+    // oms_commit_scan_session writes its own audit row server-side.
+  }).catch(function (err) {
+    var m = String((err && err.message) || err || '');
+    if (/timed out/i.test(m)) {
+      say('This is taking longer than expected. Do NOT press it again — it may still be going through. Refresh the list in a moment and check before doing anything else.', true);
+      return;
+    }
+    setSessionBusy(sessionId, false);
+    if (goBtn) { goBtn.disabled = false; goBtn.style.background = ''; }
+    if (noteEl) noteEl.disabled = false;
+    say(friendlyError(err), true);
+  });
+}
+
+// ═══════════ CLOSE OFF AN EMPTY BATCH ═══════════
+// THE BUG THIS FIXES. A batch with no scans in it had no resolving action at
+// all: its only button opened a panel saying nothing would change, whose
+// "Close" button merely dismissed the panel. The batch sat in the list
+// forever with no way out.
+//
+// There is nothing to reverse, so this moves no stock. It simply marks the
+// batch finished. The count is re-read from the database at the moment you
+// press it, never from the screen -- a batch can LOOK empty while a phone is
+// offline holding its scans, and those scans arrive later.
+
+function resolveEmptySession(sessionId, idx) {
+  if (sessionPanelBlocked(sessionId)) return;
+  var s = sessionsLastRows[idx];
+  var resEl = openSessionPanelShell(sessionId, idx);
+  if (!s || !resEl) return;
+  var h = '<div style="border:1px solid #E2E8F0;border-radius:6px;padding:12px;background:#fff;text-align:left;">';
+  h += '<div style="font-weight:bold;color:#0A1628;font-size:13px;margin-bottom:6px;">Close off this empty batch</div>';
+  h += '<div style="font-size:12px;margin-bottom:6px;">Nothing was ever scanned into it, so there is nothing to put back. ' +
+       'This just tidies it out of the list. <strong>No stock changes.</strong></div>';
+  h += '<div style="background:#FFF8E6;border:1px solid #d9a63a;padding:9px 10px;font-size:12px;margin-bottom:8px;">' +
+       'Opened ' + esc(sessionAgeText(s)) + ' ago on ' + esc(s.device_hint || 'a phone') + ' · ' + esc(lastScanText(s)) + '.<br>' +
+       'The batch is re-checked against the database the moment you press the button, and if any scan has arrived by then you will be told instead of it being closed off.<br>' +
+       'If that phone is still offline and sends scans <strong>later</strong>, those units will count into stock correctly but will no longer belong to this batch — they will appear in the ledger on their own.</div>';
+  h += '<input type="text" id="sess-empty-note-' + sessionId + '" placeholder="Reason (e.g. started by mistake)" autocomplete="off" ' +
+       'style="padding:6px 8px;font-size:12px;border:1px solid #E2E8F0;border-radius:4px;width:280px;margin-right:6px;">';
+  h += '<button class="btn" id="sess-emptygo-' + sessionId + '" style="padding:6px 14px;font-size:12px;background:#9A6700;color:#fff;" onclick="confirmResolveEmptySession(\'' + sessionId + '\',' + idx + ')">⊘ Close this off</button> ';
+  h += '<button class="btn btn-grey" style="padding:6px 12px;font-size:12px;" onclick="cancelSessionReverse(\'' + sessionId + '\')">Cancel</button>';
+  h += '<div id="sess-empty-msg-' + sessionId + '" style="margin-top:6px;font-size:12px;"></div></div>';
+  resEl.className = 'result-msg'; resEl.innerHTML = h;
+}
+
+function confirmResolveEmptySession(sessionId, idx) {
+  var msgEl = document.getElementById('sess-empty-msg-' + sessionId);
+  var noteEl = document.getElementById('sess-empty-note-' + sessionId);
+  var goBtn = document.getElementById('sess-emptygo-' + sessionId);
+  function say(t, err) { if (msgEl) { msgEl.style.color = err ? '#B3261E' : '#1B7A3A'; msgEl.textContent = t; } }
+  var note = noteEl && noteEl.value ? noteEl.value.trim() : '';
+  if (!note) { say('Please give a short reason. It is recorded against the batch.', true); return; }
+  if (goBtn) { goBtn.disabled = true; goBtn.style.background = '#bbb'; }
+  if (noteEl) noteEl.disabled = true;
+  setSessionBusy(sessionId, true);
+  say('Checking it really is empty…', false);
+
+  // Re-read from the database, not from the screen. This is the guard against
+  // an offline phone whose scans have not arrived yet.
+  withTimeout(db.rpc('oms_admin_preview_session_void', {
+    p_session_id: sessionId,
+    p_admin_secret: getAdminSecret(),
+    p_caller_employee_code: getAdminPanelEmployeeCode()
+  }), 12000, 'Empty check').then(function (res) {
+    if (res.error) {
+      if (isBadSecretError(res.error)) { handleBadSecret('Scan Sessions'); return; }
+      setSessionBusy(sessionId, false);
+      if (goBtn) { goBtn.disabled = false; goBtn.style.background = '#9A6700'; }
+      if (noteEl) noteEl.disabled = false;
+      say(friendlyError(res.error), true); return;
+    }
+    var p = res.data || {};
+    // The whole point of this call is to be certain. An answer that is not a
+    // definite "ok" is not certainty, so stop -- never fall through to a
+    // forced reversal on a batch we could not read.
+    if (p.ok !== true) {
+      setSessionBusy(sessionId, false);
+      if (goBtn) { goBtn.disabled = false; goBtn.style.background = '#9A6700'; }
+      if (noteEl) noteEl.disabled = false;
+      say((p && p.message) || 'Could not check whether this batch is really empty, so nothing has been changed. Try again.', true);
+      return;
+    }
+    if ((p.scans_in_session || 0) > 0) {
+      setSessionBusy(sessionId, false);
+      if (goBtn) { goBtn.disabled = false; goBtn.style.background = '#9A6700'; }
+      if (noteEl) noteEl.disabled = false;
+      say('This batch is not empty after all — ' + fmtNum(p.scans_in_session) + ' scan(s) have arrived since the list was loaded. Nothing has been changed. Refresh the list and review it properly.', true);
+      return;
+    }
+    say('Closing it off…', false);
+    return withTimeout(db.rpc('oms_void_scan_session', {
+      p_session_id: sessionId,
+      p_admin_secret: getAdminSecret(),
+      p_employee_code: getAdminPanelEmployeeCode(),
+      p_note: note,
+      p_force: true
+    }), 15000, 'Close off empty batch').then(function (r2) {
+      if (r2.error) {
+        if (isBadSecretError(r2.error)) { handleBadSecret('Scan Sessions'); return; }
+        if (goBtn) { goBtn.disabled = false; goBtn.style.background = '#9A6700'; }
+        if (noteEl) noteEl.disabled = false;
+        say(friendlyError(r2.error), true); return;
+      }
+      if (r2.data && r2.data.ok === false) {
+        if (goBtn) { goBtn.disabled = false; goBtn.style.background = '#9A6700'; }
+        if (noteEl) noteEl.disabled = false;
+        say(r2.data.message || 'Not closed off.', true); return;
+      }
+      setSessionBusy(sessionId, false);
+      var resEl = document.getElementById('sess-action-result-' + sessionId);
+      if (resEl) {
+        resEl.innerHTML =
+          '<div style="border:1px solid #1B7A3A;border-radius:6px;padding:12px;background:#fff;text-align:left;">' +
+          '<div style="color:#1B7A3A;font-weight:bold;font-size:13px;">✓ Closed off.</div>' +
+          '<div style="font-size:12px;margin-top:4px;">The batch was empty, so no stock changed. It will show as “Closed off — was empty”.</div>' +
+          '<div style="margin-top:8px;"><button class="btn btn-primary" style="padding:6px 12px;font-size:12px;" onclick="loadScanSessions()">Refresh the list</button></div></div>';
+      }
+    });
+  }).catch(function (err) {
+    var m = String((err && err.message) || err || '');
+    if (/timed out/i.test(m)) {
+      say('This is taking longer than expected. Do NOT press it again — it may still be going through. Refresh the list in a moment and check before doing anything else.', true);
+      return;
+    }
+    setSessionBusy(sessionId, false);
+    if (goBtn) { goBtn.disabled = false; goBtn.style.background = '#9A6700'; }
+    if (noteEl) noteEl.disabled = false;
+    say(friendlyError(err), true);
+  });
+}
+
+// adminCommitScanSession() was removed in v2.25. It was the old one-click
+// Accept: a browser confirm() box, and no reason recorded. Accepting now goes
+// through openSessionAccept(), which asks what was checked and stores it
+// against the batch. The old function was left with no callers, and a second
+// Accept route that quietly skipped the reason was worth deleting rather than
+// leaving for someone to find and re-use.
 
 // ═══════════ REVERSING A SCAN SESSION FROM THE ADMIN PANEL (v2.24) ═══════════
 // What this is, in plain words: an operator scanned a batch wrongly. This backs
@@ -5461,6 +5905,20 @@ function adminCommitScanSession(sessionId, idx) {
 // Accepted session can be reversed exactly like any other.
 
 var sessionPreviewCache = {}; // session_id -> preview payload
+var sessionBusy = {};         // session_id -> true while a write is in flight
+
+function sessionIsBusy(sessionId) { return sessionBusy[sessionId] === true; }
+function setSessionBusy(sessionId, on) {
+  if (on) { sessionBusy[sessionId] = true; } else { delete sessionBusy[sessionId]; }
+}
+// Any panel that would replace what is on screen has to respect this.
+function sessionPanelBlocked(sessionId) {
+  if (!sessionIsBusy(sessionId)) return false;
+  var resEl = document.getElementById('sess-reverse-msg-' + sessionId) ||
+              document.getElementById('sess-action-result-' + sessionId);
+  if (resEl) { alert('Something is still running on this batch. Wait for it to finish, or refresh the list, before opening another panel on it.'); }
+  return true;
+}
 
 function openSessionReverse(sessionId, idx) {
   var s = sessionsLastRows[idx];
@@ -5638,6 +6096,7 @@ function confirmSessionReverse(sessionId, idx) {
     if (cfmEl)  { cfmEl.disabled = on; }
   }
   setBusy(true);
+  setSessionBusy(sessionId, true);
   say('Reversing…', false);
 
   withTimeout(db.rpc('oms_void_scan_session', {
@@ -5648,15 +6107,16 @@ function confirmSessionReverse(sessionId, idx) {
     p_force: (p.needs_force === true)
   }), 20000, 'Reverse session').then(function (res) {
     if (res.error) {
-      setBusy(false);
+      setBusy(false); setSessionBusy(sessionId, false);
       if (isBadSecretError(res.error)) { handleBadSecret('Scan Sessions'); return; }
       say(friendlyError(res.error), true);
       return;
     }
     // The PIN path reports a refusal as a normal reply carrying ok:false, so
     // its failed-attempt count survives. Guard for that here too.
-    if (res.data && res.data.ok === false) { setBusy(false); say(res.data.message || 'Not reversed.', true); return; }
+    if (res.data && res.data.ok === false) { setBusy(false); setSessionBusy(sessionId, false); say(res.data.message || 'Not reversed.', true); return; }
     var d = res.data || {};
+    setSessionBusy(sessionId, false);
     delete sessionPreviewCache[sessionId];
     // The result stays on screen until it is read. Reloading the list straight
     // away would wipe it, and on the default filter the session itself would
@@ -5683,7 +6143,7 @@ function confirmSessionReverse(sessionId, idx) {
       say('This is taking longer than expected. Do NOT press Reverse again — it may still be going through. Refresh the list in a moment and check before doing anything else.', true);
       return;
     }
-    setBusy(false);
+    setBusy(false); setSessionBusy(sessionId, false);
     say(friendlyError(err), true);
   });
 }
