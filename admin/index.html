@@ -2602,6 +2602,7 @@ tbody tr:hover{background:#f9fbfd}
       <!-- v2.17 (Master Prompt v21, Part 4.2) -->
       <li class="nav-item" data-page="sessions" onclick="switchPage('sessions')"><span class="nav-icon">🔄</span><span class="nav-label">Scan Sessions</span></li>
       <li class="nav-item" data-page="employees" onclick="switchPage('employees')"><span class="nav-icon">👥</span><span class="nav-label">Employees</span></li>
+      <li class="nav-item" data-page="devices" onclick="switchPage('devices')"><span class="nav-icon">📱</span><span class="nav-label">Phones</span></li>
       <li class="nav-item" data-page="sku" onclick="switchPage('sku')"><span class="nav-icon">📦</span><span class="nav-label">SKU &amp; Stock</span></li>
       <li class="nav-item" data-page="bins" onclick="switchPage('bins')"><span class="nav-icon">🗂</span><span class="nav-label">Bin Management</span></li>
       <li class="nav-item" data-page="reports" onclick="switchPage('reports')"><span class="nav-icon">📈</span><span class="nav-label">Reports</span></li>
@@ -2610,7 +2611,7 @@ tbody tr:hover{background:#f9fbfd}
     </ul>
     <div class="sidebar-footer">
       <button class="logout-btn" onclick="adminLogout()">⎋ Logout</button>
-      <div class="ver-footer">ArtzFolio Admin Panel v2.26</div>
+      <div class="ver-footer">ArtzFolio Admin Panel v2.27</div>
     </div>
   </div>
 
@@ -2933,6 +2934,40 @@ tbody tr:hover{background:#f9fbfd}
     </div>
 
     <!-- ══════════════ EMPLOYEES ══════════════ -->
+
+    <!-- ══════════════ PHONES (v2.27) ══════════════ -->
+    <!-- (the EMPLOYEES page follows this block) -->
+    <div class="page" id="page-devices">
+      <div class="page-header">
+        <div>
+          <div class="page-title">Phones</div>
+          <div class="page-sub">Every phone that has ever signed in or scanned. Give each one a name you recognise, and block one the moment it should no longer be used.</div>
+        </div>
+        <button class="btn btn-primary" onclick="loadDevices()">↻ Refresh</button>
+      </div>
+
+      <div style="border:1px solid #d9a63a;background:#FFF8E6;border-radius:6px;padding:11px 13px;margin-bottom:12px;font-size:12.5px;">
+        <strong>What blocking a phone does, and what it does not.</strong><br>
+        A blocked phone cannot sign in, cannot start a scanning batch, and — if it is already signed in — is signed out
+        automatically the next time the app checks, which is within about a minute while it is in use, or the moment it is
+        picked up again. Use it when a phone is lost, handed back, or should simply not be used any more.
+        Anything it already scanned stays exactly as it is; blocking stops further work, it never undoes any.<br>
+        <span style="color:#9A6700;"><strong>It is not the main control for someone leaving.</strong></span>
+        Each phone invents its own code the first time the app runs, so clearing the app's data on that phone produces a new
+        code and a fresh start. <strong>When a person leaves, switch their staff account off on the Employees page</strong> —
+        that stops them signing in anywhere, on any phone. Blocking the handset is a useful extra, not a replacement.
+      </div>
+
+      <div class="table-wrap">
+        <table>
+          <thead><tr>
+            <th>Phone</th><th>Code</th><th>Status</th><th>Last used by</th>
+            <th>Batches</th><th>First seen</th><th>Last used</th><th>Actions</th>
+          </tr></thead>
+          <tbody id="devices-body"><tr class="empty-row"><td colspan="8">Loading…</td></tr></tbody>
+        </table>
+      </div>
+    </div>
     <div class="page" id="page-employees">
       <div class="page-header">
         <div>
@@ -4088,6 +4123,7 @@ var ADMIN_PTR_REFRESH_FNS = {
   audit:     function () { refreshAuditFromBanner(); },
   sessions:  function () { loadScanSessions(); },
   employees: function () { loadEmployees(); },
+  devices:   function () { loadDevices(); },
   sku:       function () { loadSkuStock(0); },
   bins:      function () { loadBins(); },
   reports:   function () { loadTransactions(0); },
@@ -4162,6 +4198,7 @@ function switchPage(name) {
   if (name === 'employees' && !empLoadedOnce) { loadEmployees(); }
   if (name === 'settings' && !settingsLoadedOnce) { loadSettingsPage(); }
   if (name === 'bins' && !binsLoadedOnce) { loadBins(); }
+  if (name === 'devices' && !devicesLoadedOnce) { loadDevices(); }
 }
 
 
@@ -6206,15 +6243,33 @@ function sessionReversePanelHtml(sessionId, idx, p) {
   }
   h += '<input type="text" id="sess-note-' + sessionId + '" placeholder="Why is this being reversed?" autocomplete="off" ' +
        'style="padding:6px 8px;font-size:12px;border:1px solid #E2E8F0;border-radius:4px;width:260px;margin-right:6px;">';
+  // v2.27: reversing stock is authorised by the person doing it, not by the
+  // shared password. The panel already knows who is signed in.
+  h += '<input type="password" id="sess-pin-' + sessionId + '" maxlength="12" placeholder="Your PIN" autocomplete="off" ' +
+       'style="padding:6px 8px;font-size:12px;border:1px solid #E2E8F0;border-radius:4px;width:96px;margin-right:6px;">';
   var blocked = (p.blockers || 0) > 0;
   h += '<button class="btn" id="sess-go-' + sessionId + '"' + (blocked ? ' disabled' : '') +
        ' style="padding:6px 14px;font-size:12px;background:' + (blocked ? '#bbb' : '#a33') + ';color:#fff;' + (blocked ? 'cursor:not-allowed;' : '') + '" ' +
        'onclick="confirmSessionReverse(\'' + sessionId + '\',' + idx + ')">' +
        (blocked ? 'Cannot reverse — fix the counts first' : ('Reverse ' + fmtNum(p.scans_to_reverse) + ' scan' + (p.scans_to_reverse === 1 ? '' : 's'))) + '</button> ';
   h += '<button class="btn btn-grey" style="padding:6px 12px;font-size:12px;" onclick="cancelSessionReverse(\'' + sessionId + '\')">Cancel</button>';
+  h += '<div style="font-size:11.5px;color:#6B7280;margin-top:6px;">Reversing stock is recorded against <strong>you</strong> (' + esc(getAdminPanelEmployeeCode() || 'this Admin') + '), so it asks for your own PIN rather than the shared Admin Password.' +
+       ' <label style="cursor:pointer;"><input type="checkbox" id="sess-usesecret-' + sessionId + '" onchange="toggleSecretFallback(\'' + sessionId + '\')" style="vertical-align:middle;"> use the Admin Password instead</label>' +
+       '<span id="sess-secretnote-' + sessionId + '" style="display:none;color:#9A6700;"> — the record will show it was authorised by the shared password, not by a named person.</span></div>';
   h += '<div id="sess-reverse-msg-' + sessionId + '" style="margin-top:6px;font-size:12px;"></div>';
   h += '</div></div>';
   return h;
+}
+
+
+// Ticking the fallback hides the PIN box, because only one of the two is sent.
+function toggleSecretFallback(sessionId) {
+  var cb = document.getElementById('sess-usesecret-' + sessionId);
+  var pin = document.getElementById('sess-pin-' + sessionId);
+  var note = document.getElementById('sess-secretnote-' + sessionId);
+  var on = !!(cb && cb.checked);
+  if (pin)  { pin.style.display = on ? 'none' : ''; if (on) pin.value = ''; }
+  if (note) { note.style.display = on ? '' : 'none'; }
 }
 
 function cancelSessionReverse(sessionId) {
@@ -6256,22 +6311,41 @@ function confirmSessionReverse(sessionId, idx) {
   // or a click after a timeout message -- sends a second reversal.
   var goBtn   = document.getElementById('sess-go-' + sessionId);
   var cfmEl   = document.getElementById('sess-confirm-' + sessionId);
+  var pinBusy = document.getElementById('sess-pin-' + sessionId);
   function setBusy(on) {
     if (goBtn)  { goBtn.disabled = on; goBtn.style.background = on ? '#bbb' : '#a33'; goBtn.style.cursor = on ? 'wait' : 'pointer'; }
     if (noteEl) { noteEl.disabled = on; }
     if (cfmEl)  { cfmEl.disabled = on; }
+    if (pinBusy){ pinBusy.disabled = on; }
   }
   setBusy(true);
   setSessionBusy(sessionId, true);
   say('Reversing…', false);
 
-  withTimeout(db.rpc('oms_void_scan_session', {
+  var useSecret = !!(document.getElementById('sess-usesecret-' + sessionId) || {}).checked;
+  var pinEl = document.getElementById('sess-pin-' + sessionId);
+  var adminPin = pinEl && pinEl.value ? pinEl.value.trim() : '';
+  if (!useSecret && !adminPin) {
+    setSessionBusy(sessionId, false);
+    setBusy(false);
+    say('Enter your own PIN to confirm — or tick "use the Admin Password instead". Nothing has been changed.', true);
+    return;
+  }
+  // Exactly one of the two is sent. The database takes the PIN route whenever
+  // a PIN is present, and the audit row records which was used.
+  var args = {
     p_session_id: sessionId,
-    p_admin_secret: getAdminSecret(),
     p_employee_code: getAdminPanelEmployeeCode(),
     p_note: note,
     p_force: (p.needs_force === true)
-  }), 20000, 'Reverse session').then(function (res) {
+  };
+  if (useSecret) {
+    args.p_admin_secret = getAdminSecret();
+  } else {
+    args.p_admin_pin = adminPin;
+    args.p_admin_employee_code = getAdminPanelEmployeeCode();
+  }
+  withTimeout(db.rpc('oms_void_scan_session', args), 20000, 'Reverse session').then(function (res) {
     if (res.error) {
       setBusy(false); setSessionBusy(sessionId, false);
       if (isBadSecretError(res.error)) { handleBadSecret('Scan Sessions'); return; }
@@ -6312,6 +6386,198 @@ function confirmSessionReverse(sessionId, idx) {
     setBusy(false); setSessionBusy(sessionId, false);
     say(friendlyError(err), true);
   });
+}
+
+
+// ═══════════════════════ PHONES (v2.27) ═══════════════════════
+// Every phone that has signed in or scanned, in one place. Before this the
+// only sight of a phone was a random code in a column on the Scan Sessions
+// page, one row per batch -- there was no list, no name, and no way to stop
+// one being used.
+//
+// Blocking is enforced server-side in two places: at sign-in (the important
+// one -- a blocked phone cannot get in at all) and when starting a batch.
+
+var devicesLastRows = [];
+var devicesLoadedOnce = false;
+
+function loadDevices() {
+  if (!db) { refreshOfflineBanner(); return; }
+  var body = document.getElementById('devices-body');
+  body.innerHTML = '<tr class="empty-row"><td colspan="8">Loading…</td></tr>';
+  devicesLoadedOnce = true;
+  var args = { p_caller_employee_code: getAdminPanelEmployeeCode() };
+  var sec = getAdminSecret();
+  if (sec) { args.p_admin_secret = sec; }   // a Read-Only Admin has none, and does not need one
+  withTimeout(db.rpc('oms_admin_list_devices', args), 12000, 'Phones').then(function (res) {
+    if (res.error) {
+      if (isBadSecretError(res.error)) { handleBadSecret('Phones'); return; }
+      body.innerHTML = '<tr class="empty-row"><td colspan="8">' + esc(friendlyError(res.error)) + '</td></tr>';
+      return;
+    }
+    var d = res.data || {};
+    if (d.ok !== true) {
+      // Never let a refusal render as "there are no phones" -- that reads as
+      // real data and is the most misleading thing this page could say.
+      body.innerHTML = '<tr class="empty-row"><td colspan="8">' +
+        esc(d.message || 'Could not read the phone list. Nothing is wrong with your phones — try Refresh.') + '</td></tr>';
+      return;
+    }
+    var rows = d.devices || [];
+    devicesLastRows = rows;
+    if (!rows.length) {
+      body.innerHTML = '<tr class="empty-row"><td colspan="8">No phone has signed in or scanned yet.</td></tr>';
+      return;
+    }
+    body.innerHTML = rows.map(function (r, i) { return deviceRowHtml(r, i); }).join('');
+  }).catch(function (err) {
+    body.innerHTML = '<tr class="empty-row"><td colspan="8">' + esc(friendlyError(err)) + '</td></tr>';
+  });
+}
+
+function deviceRowHtml(r, idx) {
+  var hint = r.device_hint || '';
+  var named = r.display_name && r.display_name !== hint;
+  var blocked = r.blocked === true;
+  var ro = isReadOnlyAdmin();
+
+  var statusCell = blocked
+    ? '<span class="badge badge-red">⛔ Blocked</span>' +
+      (r.blocked_by ? '<div style="color:#6B7280;font-size:10px;">by ' + esc(r.blocked_by) + '</div>' : '') +
+      (r.block_reason ? '<div style="color:#6B7280;font-size:10px;">' + esc(r.block_reason) + '</div>' : '')
+    : '<span class="badge badge-green">✓ Allowed</span>';
+
+  var actions = '';
+  if (!ro) {
+    actions += '<button class="btn btn-grey" style="padding:3px 9px;font-size:11px;" onclick="openDevNameRow(' + idx + ')">✎ ' + (named ? 'Rename' : 'Name it') + '</button> ';
+    actions += blocked
+      ? '<button class="btn" style="padding:3px 9px;font-size:11px;background:#1B7A3A;color:#fff;" onclick="openDevBlockRow(' + idx + ',false)">Allow again</button>'
+      : '<button class="btn" style="padding:3px 9px;font-size:11px;background:#a33;color:#fff;" onclick="openDevBlockRow(' + idx + ',true)">⛔ Block</button>';
+  } else {
+    actions = '<span style="color:#999;font-size:11px;">read-only</span>';
+  }
+
+  return '<tr' + (blocked ? ' style="background:#FDECEA;"' : '') + '>' +
+    '<td>' + (named ? '<strong>' + esc(r.display_name) + '</strong>' : '<span style="color:#9A6700;">Not named yet</span>') + '</td>' +
+    '<td class="mono" style="font-size:11px;">' + esc(hint) + '</td>' +
+    '<td>' + statusCell + '</td>' +
+    '<td>' + (r.last_employee ? esc(r.last_employee) + (r.last_employee_name ? ' <span style="color:#6B7280;">(' + esc(r.last_employee_name) + ')</span>' : '') : '—') + '</td>' +
+    '<td>' + fmtNum(r.batches || 0) + '</td>' +
+    '<td>' + (r.first_used ? fmtDateTime(r.first_used) : '—') + '</td>' +
+    '<td>' + (r.last_used ? fmtDateTime(r.last_used) : '—') + '</td>' +
+    '<td>' + actions + '<div class="result-msg" id="dev-row-msg-' + idx + '"></div></td>' +
+    '</tr>';
+}
+
+function devRowMsg(idx, text, isErr) {
+  var el = document.getElementById('dev-row-msg-' + idx);
+  if (el) { el.className = 'result-msg' + (isErr ? ' err' : ''); el.textContent = text; }
+}
+
+// ── Naming ──
+function openDevNameRow(idx) {
+  var r = devicesLastRows[idx]; if (!r) return;
+  var el = document.getElementById('dev-row-msg-' + idx); if (!el) return;
+  var cur = (r.display_name && r.display_name !== r.device_hint) ? r.display_name : '';
+  el.className = 'result-msg';
+  el.innerHTML =
+    '<div style="margin-top:6px;text-align:left;">' +
+    '<input type="text" id="dev-nm-' + idx + '" maxlength="40" placeholder="e.g. Packing bench 1" autocomplete="off" value="' + esc(cur) + '" ' +
+    'style="padding:5px 7px;font-size:12px;border:1px solid #E2E8F0;border-radius:4px;width:180px;margin-right:5px;">' +
+    '<button class="btn btn-primary" style="padding:5px 11px;font-size:11px;" id="dev-nmgo-' + idx + '" onclick="saveDevName(' + idx + ')">Save</button> ' +
+    (cur ? '<button class="btn btn-grey" style="padding:5px 9px;font-size:11px;" title="Go back to showing the code" onclick="clearDevName(' + idx + ')">Clear name</button> ' : '') +
+    '<button class="btn btn-grey" style="padding:5px 9px;font-size:11px;" onclick="devRowMsg(' + idx + ',\'\',false)">Cancel</button>' +
+    '</div>';
+}
+
+function saveDevName(idx) {
+  var v = (document.getElementById('dev-nm-' + idx) || {}).value || '';
+  if (!v.trim()) { devRowMsg(idx, 'Please type a name.', true); return; }
+  sendDevName(idx, v.trim());
+}
+
+// A blank name clears it, and the phone shows its code again.
+function clearDevName(idx) { sendDevName(idx, ''); }
+
+function sendDevName(idx, name) {
+  var r = devicesLastRows[idx]; if (!r) return;
+  var goBtn = document.getElementById('dev-nmgo-' + idx);
+  if (goBtn) { goBtn.disabled = true; goBtn.style.background = '#bbb'; }
+  devRowMsg(idx, name ? 'Saving…' : 'Clearing…', false);
+  withTimeout(db.rpc('oms_admin_set_device_name', {
+    p_device_hint: r.device_hint,
+    p_display_name: name,
+    p_admin_secret: getAdminSecret(),
+    p_employee_code: getAdminPanelEmployeeCode()
+  }), 12000, 'Name phone').then(function (res) {
+    if (res.error) {
+      if (isBadSecretError(res.error)) { handleBadSecret('Phones'); return; }
+      if (goBtn) { goBtn.disabled = false; goBtn.style.background = ''; }
+      devRowMsg(idx, friendlyError(res.error), true); return;
+    }
+    if (res.data && res.data.ok === false) {
+      if (goBtn) { goBtn.disabled = false; goBtn.style.background = ''; }
+      devRowMsg(idx, res.data.message || 'Not saved.', true); return;
+    }
+    devRowMsg(idx, name ? 'Saved.' : 'Name cleared.', false);
+    setTimeout(loadDevices, 700);
+  }).catch(function (e) {
+    if (goBtn) { goBtn.disabled = false; goBtn.style.background = ''; }
+    devRowMsg(idx, friendlyError(e), true);
+  });
+}
+
+// ── Blocking. Needs the acting Admin's OWN PIN, not the shared password:
+//    this takes someone's access away and the record should name a person.
+function openDevBlockRow(idx, blocking) {
+  var r = devicesLastRows[idx]; if (!r) return;
+  var el = document.getElementById('dev-row-msg-' + idx); if (!el) return;
+  var who = getAdminPanelEmployeeCode() || '';
+  var nm = (r.display_name && r.display_name !== r.device_hint) ? r.display_name : r.device_hint;
+  el.className = 'result-msg';
+  var h = '<div style="margin-top:6px;text-align:left;border:1px solid ' + (blocking ? '#B3261E' : '#1B7A3A') + ';border-radius:5px;padding:9px;background:#fff;">';
+  h += '<div style="font-size:12px;margin-bottom:6px;">' +
+       (blocking
+          ? '<strong>Block ' + esc(nm) + '?</strong> It will not be able to sign in or start a batch, and if it is signed in right now it will be signed out on its next check — within about a minute of use. Anything it already scanned stays exactly as it is.'
+          : '<strong>Allow ' + esc(nm) + ' again?</strong> It will be able to sign in as normal.') + '</div>';
+  if (blocking) {
+    h += '<input type="text" id="dev-rsn-' + idx + '" maxlength="200" placeholder="Why? e.g. handset returned" autocomplete="off" ' +
+         'style="padding:5px 7px;font-size:12px;border:1px solid #E2E8F0;border-radius:4px;width:210px;margin-right:5px;margin-bottom:5px;">';
+  }
+  h += '<div style="font-size:11.5px;color:#6B7280;margin-bottom:5px;">Confirm with your own PIN (' + esc(who) + ') — this is recorded against you, not against the shared password.</div>';
+  h += '<input type="password" id="dev-pin-' + idx + '" maxlength="12" placeholder="Your PIN" autocomplete="off" ' +
+       'style="padding:5px 7px;font-size:12px;border:1px solid #E2E8F0;border-radius:4px;width:100px;margin-right:5px;">';
+  h += '<button class="btn" id="dev-bgo-' + idx + '" style="padding:5px 11px;font-size:11px;background:' + (blocking ? '#a33' : '#1B7A3A') + ';color:#fff;" ' +
+       'onclick="saveDevBlock(' + idx + ',' + (blocking ? 'true' : 'false') + ')">' + (blocking ? 'Block it' : 'Allow it') + '</button> ';
+  h += '<button class="btn btn-grey" style="padding:5px 9px;font-size:11px;" onclick="devRowMsg(' + idx + ',\'\',false)">Cancel</button>';
+  h += '<div id="dev-bmsg-' + idx + '" style="margin-top:5px;font-size:11.5px;"></div></div>';
+  el.innerHTML = h;
+}
+
+function saveDevBlock(idx, blocking) {
+  var r = devicesLastRows[idx]; if (!r) return;
+  var msgEl = document.getElementById('dev-bmsg-' + idx);
+  function say(t, err) { if (msgEl) { msgEl.style.color = err ? '#B3261E' : '#1B7A3A'; msgEl.textContent = t; } }
+  var pin = (document.getElementById('dev-pin-' + idx) || {}).value || '';
+  var rsn = (document.getElementById('dev-rsn-' + idx) || {}).value || '';
+  if (!pin.trim()) { say('Enter your PIN.', true); return; }
+  if (blocking && !rsn.trim()) { say('Please say why. It is recorded against the phone.', true); return; }
+  var goBtn = document.getElementById('dev-bgo-' + idx);
+  if (goBtn) { goBtn.disabled = true; goBtn.style.background = '#bbb'; }
+  function release() { if (goBtn) { goBtn.disabled = false; goBtn.style.background = blocking ? '#a33' : '#1B7A3A'; } }
+  say('Working…', false);
+  withTimeout(db.rpc('oms_admin_set_device_blocked', {
+    p_device_hint: r.device_hint,
+    p_blocked: !!blocking,
+    p_admin_employee_code: getAdminPanelEmployeeCode(),
+    p_admin_pin: pin.trim(),
+    p_reason: rsn.trim() || null
+  }), 12000, 'Block phone').then(function (res) {
+    if (res.error) { release(); say(friendlyError(res.error), true); return; }
+    if (res.data && res.data.ok === false) { release(); say(res.data.message || 'Not changed.', true); return; }
+    say(blocking ? 'Blocked.' : 'Allowed again.', false);
+    setTimeout(loadDevices, 900);
+  }).catch(function (e) { release(); say(friendlyError(e), true); });
 }
 
 // ═══════════════════════ EMPLOYEES ═══════════════════════
@@ -6407,6 +6673,7 @@ function renderEmployees() {
            ? '<button class="btn btn-sm btn-grey" onclick="turnOffPhoneCode(\'' + code + '\')" title="Go back to PIN only for this person. Use this if they lose their phone.">Turn off phone code</button>'
            : '<button class="btn btn-sm btn-primary" onclick="openPhoneCodeChoice(\'' + code + '\')" title="Make this person enter a 6-digit code from a phone as well as their PIN">Turn on phone code</button>') +
         '<button class="btn btn-sm btn-primary" onclick="openEditAccessModal(\'' + code + '\')">Edit Access</button>' +
+        '<button class="btn btn-sm btn-grey" onclick="openEmployeeRename(\'' + code + '\')">✎ Rename</button>' +
         '<button class="btn btn-sm btn-grey" onclick="archiveEmployee(\'' + code + '\')">Archive &amp; Free Code</button>' +
         '</div>';
     return '<tr>' +
@@ -6428,6 +6695,61 @@ function renderEmployees() {
   if (selectAll) selectAll.checked = rows.length > 0 && rows.every(function (e) { return !!selectedEmployeeCodes[e.employee_code]; });
 }
 function empResultEl(code) { return document.getElementById('emp-result-' + code); }
+
+
+// ── v2.27: rename a staff account ────────────────────────────────────
+// The display name was printed and never editable, so two accounts both
+// called "Staff" read identically everywhere a name is shown.
+function openEmployeeRename(code) {
+  var el = empResultEl(code); if (!el) return;
+  var cur = '';
+  for (var i = 0; i < employeesCache.length; i++) {
+    if (employeesCache[i].employee_code === code) { cur = employeesCache[i].display_name || ''; break; }
+  }
+  el.className = 'result-msg';
+  el.innerHTML =
+    '<div style="margin-top:6px;text-align:left;">' +
+    '<input type="text" id="emp-nm-' + code + '" maxlength="60" placeholder="Full name" autocomplete="off" value="' + esc(cur) + '" ' +
+    'style="padding:5px 7px;font-size:12px;border:1px solid #E2E8F0;border-radius:4px;width:180px;margin-right:5px;">' +
+    '<button class="btn btn-primary btn-sm" onclick="saveEmployeeRename(\'' + code + '\')">Save</button> ' +
+    '<button class="btn btn-grey btn-sm" onclick="cancelEmployeeRename(\'' + code + '\')">Cancel</button>' +
+    '<div style="font-size:11px;color:#6B7280;margin-top:4px;">This changes the name shown everywhere — scan batches, the audit log and every list. The employee code stays the same.</div>' +
+    '</div>';
+}
+
+function cancelEmployeeRename(code) {
+  var el = empResultEl(code);
+  if (el) { el.className = 'result-msg'; el.innerHTML = ''; }
+}
+
+function saveEmployeeRename(code) {
+  var el = empResultEl(code); if (!el) return;
+  var v = (document.getElementById('emp-nm-' + code) || {}).value || '';
+  function say(t, err) { el.className = 'result-msg' + (err ? ' err' : ''); el.textContent = t; }
+  if (!v.trim()) { say('Please type a name.', true); return; }
+  say('Saving…', false);
+  withTimeout(db.rpc('oms_admin_rename_employee', {
+    p_employee_code: code,
+    p_display_name: v.trim(),
+    p_admin_secret: getAdminSecret(),
+    p_caller_employee_code: getAdminPanelEmployeeCode()
+  }), 12000, 'Rename staff account').then(function (res) {
+    if (res.error) {
+      if (isBadSecretError(res.error)) { handleBadSecret('Employees'); return; }
+      say(friendlyError(res.error), true); return;
+    }
+    if (res.data && res.data.ok === false) { say(res.data.message || 'Not saved.', true); return; }
+    say('Renamed.', false);
+    // loadEmployees() refreshes the dropdowns itself once its own fetch lands.
+    // The Scan Sessions list shows the name too, so mark it stale rather than
+    // leaving the old name sitting there until someone reloads the page.
+    setTimeout(function () {
+      loadEmployees();
+      sessionsLoadedOnce = false;
+      if (currentPage === 'sessions') { loadScanSessions(); }
+    }, 700);
+  }).catch(function (e) { say(friendlyError(e), true); });
+}
 
 // ── v2: BULK EMPLOYEE ACTIONS ────────────────────────────────────
 function toggleEmployeeSelected(code, checked) {
