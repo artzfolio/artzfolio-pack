@@ -2715,7 +2715,7 @@ var qrcode = function() {
     </style>
 </head>
 <body>
-<div class="ver-corner" id="verCornerBadge" onclick="handleVerBadgeTap()">v84</div>
+<div class="ver-corner" id="verCornerBadge" onclick="handleVerBadgeTap()">v85</div>
 <!-- v63: Gap 2 — offline write-queue indicator. Hidden (display:none) unless
      something is actually queued or failed. Tapping it shows the queue detail
      panel (openOfflineQueuePanel()). -->
@@ -3526,7 +3526,7 @@ var qrcode = function() {
 
             <!-- Version -->
             <div class="ver-badge">
-                <div class="ver-name">&#128230; ArtzFolio Scan-Pick-Pack v84</div>
+                <div class="ver-name">&#128230; ArtzFolio Scan-Pick-Pack v85</div>
                 <div class="ver-sub">Full changelog available on request.</div>
             </div>
         </div>
@@ -3535,6 +3535,28 @@ var qrcode = function() {
     <!-- v84: shown only when a signed-in account has no sections switched on
          at all. Empty and hidden in every normal case. -->
     <div id="no-access-notice" style="display:none;"></div>
+
+    <!-- v85: shown only when an Admin has made two-factor compulsory for this
+         account and it has not been set up yet. The real Two-Factor Security
+         panel is moved inside this box so there is only ever one copy of that
+         UI in the file. -->
+    <div id="force-2fa" style="display:none;">
+        <div style="max-width:460px;margin:24px auto;padding:18px;">
+            <div style="text-align:center;margin-bottom:14px;">
+                <div style="font-size:34px;">&#128274;</div>
+                <div style="font-weight:700;color:#0A1628;font-size:17px;margin-top:6px;">Two-factor setup is required</div>
+                <div style="color:#6B7280;font-size:13px;line-height:1.55;margin-top:8px;">
+                    An Admin has made the 6-digit authenticator code compulsory for this account.
+                    Finish the short setup below and the app will open. It takes about a minute
+                    and you only do it once.
+                </div>
+            </div>
+            <div class="f2fa-slot"></div>
+            <div style="text-align:center;margin-top:16px;">
+                <button class="settings-btn danger" onclick="logout()">&#128274; Logout instead</button>
+            </div>
+        </div>
+    </div>
 
     <!-- BOTTOM TAB BAR -->
     <div class="tab-nav">
@@ -4442,6 +4464,37 @@ function enterApp() {
         // broken app rather than as a permissions problem. Now it says so.
         if (!landed) showNoAccessNotice();
     }
+    checkTwoFactorRequired();
+}
+
+// v85: if an Admin has made two-factor compulsory for this account and it is
+// not set up yet, nothing else in the app opens until it is. Reads the two
+// flags directly - they are the only two 2FA columns the app's key can see.
+function checkTwoFactorRequired() {
+    if (!db || !state.session) return;
+    withTimeout(db.from('oms_employees')
+        .select('totp_enabled,totp_required')
+        .eq('employee_code', state.session.employee_code)
+        .limit(1), 10000, 'Two-factor requirement').then(function (res) {
+        var row = (res && res.data && res.data.length) ? res.data[0] : null;
+        if (!row || !row.totp_required || row.totp_enabled) return;
+        state.twofaForced = true;
+        var ov  = document.getElementById('force-2fa');
+        var sec = document.getElementById('twofa-section');
+        if (!ov || !sec) return;
+        var slot = ov.querySelector('.f2fa-slot');
+        if (slot && sec.parentNode !== slot) slot.appendChild(sec);
+        sec.style.display = '';
+        renderTwoFactorSection();
+        ov.style.display = '';
+        var nav = document.querySelector('.tab-nav');
+        if (nav) nav.style.display = 'none';
+        var tabs = ['pick','move','stock','log','guide','settings','dash'];
+        for (var i = 0; i < tabs.length; i++) {
+            var t = document.getElementById(tabs[i] + '-tab');
+            if (t) t.classList.remove('active');
+        }
+    }).catch(function () {});
 }
 
 // v84: the visible, explainable version of "this account has no access yet".
@@ -4704,19 +4757,46 @@ function voidScanSession(sid, n) {
     // towards the same 5-try lockout as login, and records in the audit log
     // which of the two routes was used. The shared secret still works as a
     // break-glass path, so a forgotten PIN can never make a reverse impossible.
-    var pin = prompt('Reversing changes live stock in bulk.\n\nEnter YOUR Admin PIN to authorise it (the same PIN you log in with).\n\nLeave this blank if you need to use the Admin Secret instead.');
+    // v85 (2026-09-18) BUG FIX. The phone in the warehouse is usually held by a
+    // staff member, and an Admin walks over and types their own PIN to authorise
+    // the reversal. Until now the PIN was checked against the account that was
+    // LOGGED IN - so a correct Admin PIN was compared against the staff member's
+    // record, which is not an Admin, and it could never pass. Worse, each attempt
+    // counted towards locking the STAFF member out.
+    // Now we ask which Admin is authorising, unless the person already signed in
+    // is an Admin, in which case nothing changes for them.
+    var isAdmin = String((state.session && state.session.role) || '').toUpperCase() === 'ADMIN';
+    var adminCode = state.session.employee_code;
+    if (!isAdmin) {
+        adminCode = prompt('Reversing changes live stock in bulk, so it needs an Admin.\n\nAdmin employee code (for example EMP01):');
+        if (adminCode === null) return;
+        adminCode = String(adminCode).trim().toUpperCase();
+        if (!adminCode) { if (out) { out.className = 'move-result err'; out.textContent = 'Not reversed: no Admin code entered.'; } return; }
+    }
+    var pin = prompt(isAdmin
+        ? 'Reversing changes live stock in bulk.\n\nEnter YOUR Admin PIN to authorise it (the same PIN you log in with).\n\nLeave this blank if you need to use the Admin Secret instead.'
+        : 'Now hand the phone to ' + adminCode + '.\n\n' + adminCode + ', enter YOUR Admin PIN to authorise this reversal.\n\nLeave this blank to use the Admin Secret instead.');
     if (pin === null) return;                       // Cancel
     var voidArgs = { p_session_id: sid, p_employee_code: state.session.employee_code, p_note: null };
     if (String(pin).trim()) {
         voidArgs.p_admin_pin = String(pin).trim();
+        voidArgs.p_admin_employee_code = adminCode;
     } else {
-        var secret = prompt('Admin Secret (break-glass - prefer your Admin PIN above):');
+        var secret = prompt('Admin Secret (break-glass - prefer an Admin PIN above):');
         if (!secret) return;
         voidArgs.p_admin_secret = secret;
     }
     withTimeout(db.rpc('oms_void_scan_session', voidArgs), 20000, 'Reverse session').then(function (res) {
         if (res.error) {
             if (out) { out.className = 'move-result err'; out.textContent = 'Not reversed: ' + res.error.message; }
+            return;
+        }
+        // v85: a rejected Admin PIN now comes back as a normal reply carrying
+        // ok:false rather than as an error, so that the failed-attempt count
+        // actually survives - see the note in the database function. It has to
+        // be read here or a refusal would look like a success.
+        if (res.data && res.data.ok === false) {
+            if (out) { out.className = 'move-result err'; out.textContent = 'Not reversed: ' + (res.data.message || 'authorisation refused.'); }
             return;
         }
         state.moveSession = null;
@@ -7673,7 +7753,7 @@ function renderTwoFactorSection() {
     st.textContent = 'Checking...';
     ac.innerHTML = '';
     withTimeout(db.from('oms_employees')
-        .select('employee_code,totp_enabled,totp_enrolled_at')
+        .select('employee_code,totp_enabled,totp_enrolled_at,totp_required')
         .eq('employee_code', state.session.employee_code)
         .limit(1), 10000, 'Two-factor status').then(function (res) {
         var row = (res && res.data && res.data.length) ? res.data[0] : null;
@@ -7681,16 +7761,29 @@ function renderTwoFactorSection() {
             st.innerHTML = '<span style="color:#B3261E;">Could not read two-factor status.</span>';
             return;
         }
-        var on = !!(row && row.totp_enabled);
+        var on       = !!(row && row.totp_enabled);
+        var required = !!(row && row.totp_required);
+        var isAdmin  = String((state.session && state.session.role) || '').toUpperCase() === 'ADMIN';
+        // v85: two-factor is now an Admin decision. A staff member who has not
+        // been asked to use it does not see this panel at all - there is no
+        // reason for them to be switching security settings on and off.
+        // Admins always see it, because somebody has to be able to set it up.
+        if (!isAdmin && !required && !on) { sec.style.display = 'none'; return; }
         if (on) {
             var when = row.totp_enrolled_at ? new Date(row.totp_enrolled_at).toLocaleDateString('en-IN') : '';
             st.innerHTML = '<span style="color:#1B7A3A;font-weight:700;">&#10003; ON</span> &mdash; this account asks for a 6-digit code from your authenticator app after the PIN.' +
-                (when ? ' <span style="color:#6B7280;">Switched on ' + when + '.</span>' : '');
+                (when ? ' <span style="color:#6B7280;">Switched on ' + when + '.</span>' : '') +
+                (required ? '<br><span style="color:#9A6700;font-weight:700;">Required by an Admin</span> &mdash; it cannot be switched off from here.' : '');
             ac.innerHTML =
                 '<div class="settings-row">' +
                 '<button class="settings-btn" style="flex:1" onclick="twofaRegenerate()">&#128273; New backup codes</button>' +
-                '<button class="settings-btn danger" style="flex:1" onclick="twofaDisable()">&#10006; Turn off</button>' +
-                '</div>';
+                (required ? '' : '<button class="settings-btn danger" style="flex:1" onclick="twofaDisable()">&#10006; Turn off</button>') +
+                '</div>' +
+                (state.twofaForced ? '<div class="settings-row" style="margin-top:8px;"><button class="settings-btn" style="flex:1" onclick="location.reload()">&#10003; Continue to the app</button></div>' : '');
+        } else if (required) {
+            st.innerHTML = '<span style="color:#B3261E;font-weight:700;">REQUIRED &mdash; not set up yet</span><br>' +
+                'An Admin has made the 6-digit authenticator code compulsory for this account. Set it up now; you only do this once.';
+            ac.innerHTML = '<div class="settings-row"><button class="settings-btn" style="flex:1" onclick="twofaBeginSetup()">&#128241; Set up two-factor now</button></div>';
         } else {
             st.innerHTML = '<span style="color:#9A6700;font-weight:700;">OFF</span> &mdash; this account signs in with the PIN alone. ' +
                 'Switching this on adds a 6-digit code from your phone, so a stolen PIN on its own is not enough to get in.';
@@ -7796,7 +7889,7 @@ function twofaShowBackupCodes(codes, headline) {
         '<div style="background:#fff;border:1px solid #E2E8F0;border-radius:6px;padding:10px;">' + list + '</div>' +
         '<div class="settings-row" style="margin-top:10px;">' +
         '<button class="settings-btn" style="flex:1" onclick="twofaCopyCodes()">&#128203; Copy all</button>' +
-        '<button class="settings-btn" style="flex:1" onclick="document.getElementById(\'twofa-backup\').style.display=\'none\';">&#10003; I have saved them</button>' +
+        '<button class="settings-btn" style="flex:1" onclick="' + (state.twofaForced ? 'location.reload()' : 'document.getElementById(\'twofa-backup\').style.display=\'none\';') + '">&#10003; I have saved them</button>' +
         '</div>';
     box.setAttribute('data-codes', codes.join('\n'));
     box.style.display = '';
