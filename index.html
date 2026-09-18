@@ -2729,7 +2729,7 @@ var qrcode = function() {
     </style>
 </head>
 <body>
-<div class="ver-corner" id="verCornerBadge" onclick="handleVerBadgeTap()">v89</div>
+<div class="ver-corner" id="verCornerBadge" onclick="handleVerBadgeTap()">v90</div>
 <!-- v63: Gap 2 — offline write-queue indicator. Hidden (display:none) unless
      something is actually queued or failed. Tapping it shows the queue detail
      panel (openOfflineQueuePanel()). -->
@@ -3546,7 +3546,7 @@ var qrcode = function() {
 
             <!-- Version -->
             <div class="ver-badge">
-                <div class="ver-name">&#128230; ArtzFolio Scan-Pick-Pack v89</div>
+                <div class="ver-name">&#128230; ArtzFolio Scan-Pick-Pack v90</div>
                 <div class="ver-sub">Full changelog available on request.</div>
             </div>
         </div>
@@ -4225,8 +4225,19 @@ function refreshSessionPermissions(force) {
     if (!force && (now - _permRefresh.lastAttempt) < 60000) return;
     _permRefresh.lastAttempt = now;
     _permRefresh.inFlight = true;
-    withTimeout(db.rpc('oms_get_employee_permissions', { p_employee_code: state.session.employee_code }),
-        10000, 'Permission refresh').then(function (res) {
+    // Has this phone been blocked since it signed in? Checked first, because
+    // if it has, nothing else about this session matters.
+    withTimeout(db.rpc('oms_device_is_blocked', { p_device_code: scanSessionDeviceHint() }),
+        8000, 'Device check').then(function (bres) {
+        if (bres && !bres.error && bres.data === true) {
+            _permRefresh.inFlight = false;
+            forceLogoutDeviceBlocked();
+            return null;
+        }
+        return withTimeout(db.rpc('oms_get_employee_permissions', { p_employee_code: state.session.employee_code }),
+            10000, 'Permission refresh');
+    }).then(function (res) {
+        if (!res) return;                      // already signed out above
         _permRefresh.inFlight = false;
         if (res.error || !res.data || !res.data.length) return;
         var row = res.data[0];
@@ -4255,6 +4266,29 @@ function refreshSessionPermissions(force) {
             refreshScanSessionState();
         }
     }).catch(function () { _permRefresh.inFlight = false; });
+}
+
+
+// ── v90: this phone has been blocked by an Admin ─────────────────────
+// Signs the phone out and says why, in plain words. Anything already scanned
+// stays exactly as it is -- this stops further work, it never undoes any.
+var _deviceBlockedHandled = false;
+function forceLogoutDeviceBlocked() {
+    if (_deviceBlockedHandled) return;
+    _deviceBlockedHandled = true;
+    try {
+        // Clear the remembered-device token too, or the next reload would walk
+        // straight back in without ever asking the server again.
+        try { localStorage.removeItem(OMS_REMEMBER_KEY); } catch (e) {}
+        try { clearSessionStorage(); } catch (e) {}
+    } catch (e) {}
+    try {
+        showSessionResolvedBanner(
+            'This phone has been blocked by an Admin, so it has been signed out.\n' +
+            'Everything you already scanned is saved and counted — nothing has been undone.\n' +
+            'Speak to your supervisor.', 'warn');
+    } catch (e) {}
+    setTimeout(function () { try { location.reload(); } catch (e) {} }, 6000);
 }
 
 function showLoginModal() {
@@ -4297,7 +4331,8 @@ function attemptLogin() {
     withTimeout(db.rpc('oms_verify_login', {
         p_employee_code: code,
         p_pin: pin,
-        p_device_hint: navigator.userAgent.slice(0, 120)
+        p_device_hint: navigator.userAgent.slice(0, 120),
+        p_device_code: scanSessionDeviceHint()
     }), 10000, 'Login').then(function(res) {
         if (res.error) {
             errEl.textContent = 'Cannot verify login — database unreachable. Check connection and retry.';
@@ -4385,7 +4420,8 @@ function submitTotpCode() {
         p_employee_code: pendingLogin.code,
         p_pin: pendingLogin.pin,
         p_device_hint: navigator.userAgent.slice(0, 120),
-        p_totp_code: entered
+        p_totp_code: entered,
+        p_device_code: scanSessionDeviceHint()
     }), 10000, 'Two-factor check').then(function(res) {
         if (res.error) { errEl.textContent = 'Cannot verify — database unreachable.'; return; }
         var row = (res.data && res.data.length) ? res.data[0] : null;
