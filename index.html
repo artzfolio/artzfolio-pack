@@ -2729,7 +2729,7 @@ var qrcode = function() {
     </style>
 </head>
 <body>
-<div class="ver-corner" id="verCornerBadge" onclick="handleVerBadgeTap()">v88</div>
+<div class="ver-corner" id="verCornerBadge" onclick="handleVerBadgeTap()">v89</div>
 <!-- v63: Gap 2 — offline write-queue indicator. Hidden (display:none) unless
      something is actually queued or failed. Tapping it shows the queue detail
      panel (openOfflineQueuePanel()). -->
@@ -3546,7 +3546,7 @@ var qrcode = function() {
 
             <!-- Version -->
             <div class="ver-badge">
-                <div class="ver-name">&#128230; ArtzFolio Scan-Pick-Pack v88</div>
+                <div class="ver-name">&#128230; ArtzFolio Scan-Pick-Pack v89</div>
                 <div class="ver-sub">Full changelog available on request.</div>
             </div>
         </div>
@@ -4579,6 +4579,91 @@ function scanSessionDeviceHint() {
     if (!h) { h = 'dev-' + Math.random().toString(36).slice(2, 10); lsSet('af_device_hint', h); }
     return h;
 }
+
+// ── v89: tell the operator what happened to their batch ──────────────
+// Called only when a batch this phone was working in has stopped being open.
+// It reads the batch's own record to find out which it was, and says so in
+// plain words. It never changes anything.
+function announceSessionResolved(sessionId) {
+    if (!db || !sessionId) return;
+    var rec = null;
+    withTimeout(db.from('oms_scan_sessions')
+        .select('status,resolved_by,resolved_at,closed_at,note')
+        .eq('session_id', sessionId).limit(1), 8000, 'Batch status')
+    .then(function (res) {
+        if (res && res.error) return null;
+        rec = res && res.data && res.data[0];
+        if (!rec) return null;
+        // How many real scans were in it. A batch closed off because it was
+        // EMPTY is recorded the same way as one that was genuinely reversed,
+        // so without this the operator would be told stock had been taken
+        // back out of a batch that never held anything.
+        return withTimeout(db.from('oms_inventory_transactions')
+            .select('txn_id', { count: 'exact', head: true })
+            .eq('session_id', sessionId), 8000, 'Batch scan count');
+    })
+    .then(function (c) {
+        var r = rec;
+        if (!r) return;
+        var n = (c && typeof c.count === 'number') ? c.count : null;
+        var who = r.resolved_by ? (' by ' + r.resolved_by) : '';
+        var msg, tone = 'info';
+        var tail = '\nAnything you scan from now on is NOT part of that batch — start a new one if you are still working.';
+
+        // Empty and closed off: nothing was scanned, so nothing was reversed.
+        if (n === 0 && (r.status === 'VOIDED' || r.status === 'ABANDONED' || r.status === 'COMMITTED')) {
+            msg = 'Your scanning batch was closed off' + who + ' because nothing had been scanned into it. ' +
+                  'No stock was changed.' + tail;
+            if (r.note) { msg += '\nReason given: ' + r.note; }
+            showSessionResolvedBanner(msg, 'info');
+            return;
+        }
+        if (r.status === 'CLOSED_PENDING_REVIEW') {
+            msg = 'Your scanning batch was closed for review' + who + '. Everything you scanned is saved and counted.' + tail;
+        } else if (r.status === 'COMMITTED') {
+            msg = 'Your scanning batch was checked and accepted' + who + '. Everything you scanned is saved and counted.' + tail;
+        } else if (r.status === 'VOIDED') {
+            msg = 'Your scanning batch was REVERSED' + who + '. Everything scanned in it has been taken back out of stock. ' +
+                  'Speak to whoever reversed it before scanning those items again.' + tail;
+            tone = 'warn';
+        } else if (r.status === 'ABANDONED') {
+            msg = 'Your scanning batch was closed because it had been left open a long time. ' +
+                  'Anything you scanned is still saved and counted.' + tail;
+        } else { return; }
+        if (r.note) { msg += '\nReason given: ' + r.note; }
+        showSessionResolvedBanner(msg, tone);
+    }).catch(function () { /* never block scanning over a message */ });
+}
+
+function showSessionResolvedBanner(msg, tone) {
+    try {
+        var id = 'session-resolved-banner';
+        var el = document.getElementById(id);
+        if (!el) {
+            el = document.createElement('div');
+            el.id = id;
+            el.style.cssText = 'position:fixed;left:8px;right:8px;bottom:70px;z-index:9999;' +
+                'border-radius:10px;padding:12px 14px;font-size:13px;line-height:1.45;' +
+                'box-shadow:0 4px 18px rgba(0,0,0,.25);white-space:pre-line;';
+            document.body.appendChild(el);
+        }
+        el.style.background = (tone === 'warn') ? '#FDECEA' : '#EAF4FF';
+        el.style.border     = (tone === 'warn') ? '1.5px solid #B3261E' : '1.5px solid #1B4F8A';
+        el.style.color      = (tone === 'warn') ? '#7A1B15' : '#123A63';
+        el.innerHTML = '';
+        var p = document.createElement('div');
+        p.textContent = msg;
+        var b = document.createElement('button');
+        b.textContent = 'Got it';
+        b.style.cssText = 'margin-top:10px;padding:7px 16px;border:none;border-radius:8px;' +
+            'background:#1B4F8A;color:#fff;font-size:12px;font-weight:700;cursor:pointer;';
+        b.onclick = function () { el.parentNode && el.parentNode.removeChild(el); };
+        el.appendChild(p); el.appendChild(b);
+        // Only buzz for something that needs the operator to stop and act.
+        if (tone === 'warn') { vibrate([120, 60, 120]); } else { vibrate([90]); }
+    } catch (e) { /* a message must never break the app */ }
+}
+
 function refreshScanSessionState() {
     if (!scanSessionsEnabled() || !db || !state.session) { renderSessionBar(); return; }
     // Re-attach to whatever is genuinely OPEN server-side for this device,
@@ -4589,8 +4674,20 @@ function refreshScanSessionState() {
         .eq('device_hint', scanSessionDeviceHint())
         .eq('status', 'OPEN').limit(1), 8000, 'Scan session lookup')
     .then(function (res) {
+        // A failed request is not the same as "there is no open batch". Leave
+        // the batch attached and try again on the next refresh.
+        if (res && res.error) { renderSessionBar(); return; }
         var row = res && res.data && res.data[0];
-        if (!row) { state.moveSession = null; renderSessionBar(); return; }
+        if (!row) {
+            // v89: the batch this phone was working in is no longer open. Find
+            // out what happened to it and say so, rather than letting it
+            // disappear from the screen without a word.
+            var had = state.moveSession && state.moveSession.session_id;
+            state.moveSession = null;
+            if (had) { announceSessionResolved(had); }
+            renderSessionBar();
+            return;
+        }
         return withTimeout(db.from('oms_inventory_transactions')
                 .select('txn_id', { count: 'exact', head: true })
                 .eq('session_id', row.session_id), 8000, 'Scan session count')
