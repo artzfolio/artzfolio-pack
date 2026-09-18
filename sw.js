@@ -31,7 +31,10 @@
 // v8 (2026-09-18): bumped for App v89. An offline phone must not keep
 // serving v88, which says nothing when an Admin closes or reverses the
 // batch the operator is working in.
-const CACHE_NAME = 'artzfolio-oms-shell-v8';
+// v9 (2026-09-18): bumped for App v90. An offline phone must not keep
+// serving v89, which does not send its device code at sign-in and so
+// would not be stopped by a block.
+const CACHE_NAME = 'artzfolio-oms-shell-v9';
 const SHELL_FILES = ['./index.html', './manifest.json', './icon.svg'];
 
 self.addEventListener('install', function (event) {
