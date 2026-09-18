@@ -2548,7 +2548,7 @@ tbody tr:hover{background:#f9fbfd}
     </div>
     <button class="login-btn" id="emp-login-submit-btn" onclick="attemptEmployeeLogin()">Continue</button>
     <div class="login-err" id="emp-login-err-msg"></div>
-    <div class="login-hint">Only Admin and Read-Only Admin accounts can access this panel.</div>
+    <div class="login-hint">Admin, Supervisor and Read-Only Admin accounts can use this panel.</div>
   </div>
 </div>
 
@@ -2611,7 +2611,7 @@ tbody tr:hover{background:#f9fbfd}
     </ul>
     <div class="sidebar-footer">
       <button class="logout-btn" onclick="adminLogout()">⎋ Logout</button>
-      <div class="ver-footer">ArtzFolio Admin Panel v2.28</div>
+      <div class="ver-footer">ArtzFolio Admin Panel v2.29</div>
     </div>
   </div>
 
@@ -2620,6 +2620,7 @@ tbody tr:hover{background:#f9fbfd}
     <!-- v2.11 (Gap 3): shown only for a READ_ONLY_ADMIN session. UI-layer
          convenience only -- the real enforcement is server-side in every
          write RPC, so this banner is never the only thing stopping a write. -->
+    <div class="db-offline-banner" id="supervisor-banner" style="background:#FFF8E6;border-color:#9A6700;color:#6b4e00;">&#128737; Supervisor access &mdash; you can run everything here on the Founder's behalf. Adding or switching off accounts, changing anyone's access level, and the two passwords are his alone.</div>
     <div class="db-offline-banner" id="readonly-admin-banner" style="background:#eaf2fb;border-color:#0A1628;color:#0A1628;">👁 Read-only access — you can view everything here, but cannot make changes. Ask a full Admin for write access.</div>
 
     <!-- ══════════════ DASHBOARD ══════════════ -->
@@ -3004,7 +3005,7 @@ tbody tr:hover{background:#f9fbfd}
         </table>
       </div>
 
-      <div class="card" style="margin-top:20px;">
+      <div class="card" id="add-emp-card" style="margin-top:20px;">
         <h3>➕ Add Employee</h3>
         <div class="form-row">
           <div class="form-field"><label>Employee Code</label><input type="text" id="add-emp-code" placeholder="e.g. EMP009" oninput="this.value=this.value.toUpperCase()"></div>
@@ -3315,6 +3316,33 @@ tbody tr:hover{background:#f9fbfd}
         </div>
         <button class="btn btn-primary" id="rotate-secret-btn" onclick="submitRotateSecret()">✓ Rotate Secret</button>
         <div class="result-msg" id="rotate-secret-result"></div>
+      </div>
+
+      <div class="card write-only-control">
+        <h3>🛡 Supervisor Password</h3>
+        <div class="hint-text">
+          A <strong>Supervisor</strong> is someone who runs this panel on your behalf when you are not around &mdash;
+          batches, phones, stock, bins, and rescuing a staff member who is locked out or has lost their phone.
+          They sign in with their own employee code and PIN, then unlock the panel with <strong>this</strong> password,
+          which must be different from your own Admin Password.
+          <br><br>
+          That difference is the whole point. Because they never hold your password, the database itself refuses them
+          on the things that are yours alone: <strong>adding or switching off an account</strong>,
+          <strong>changing anyone's access level</strong>, <strong>rotating the Admin Password</strong>, and
+          <strong>setting this password</strong>. Those refusals do not depend on this website behaving itself.
+          <br><br>
+          Two steps: set a password here, then open <strong>Employees → Edit Access</strong> on the person you are
+          promoting, tick <em>Can log into Admin Panel</em>, and choose <em>Supervisor</em>.
+          Leave the box blank and press Save to remove Supervisor access from everyone at once.
+        </div>
+        <div class="form-row">
+          <div class="form-field"><label>New Supervisor Password (min 8 characters)</label><input type="password" id="sup-pw-new" autocomplete="off"></div>
+          <div class="form-field"><label>Confirm</label><input type="password" id="sup-pw-confirm" autocomplete="off"></div>
+        </div>
+        <button class="btn btn-primary" onclick="submitSupervisorPassword()">✓ Save Supervisor Password</button>
+        <button class="btn btn-grey" onclick="clearSupervisorPassword()">Remove it</button>
+        <div class="result-msg" id="sup-pw-status" style="margin-top:8px;"></div>
+        <div class="result-msg" id="sup-pw-result"></div>
       </div>
 
       <div class="card">
@@ -3670,11 +3698,79 @@ function isReadOnlyAdmin() {
   var s = getAdminPanelSession();
   return !!s && s.role === 'READ_ONLY_ADMIN';
 }
+// v2.29 NEW ROLE - Supervisor. Someone who runs this panel on the Founder's
+// behalf. They sign in with their own employee code and PIN, and unlock the
+// panel with the SUPERVISOR PASSWORD, which is a different password from the
+// Founder's. That difference is what makes the boundary real rather than
+// advisory: the database refuses the Supervisor Password outright on adding
+// or switching off accounts, on changing anyone's access level, and on either
+// password itself - so nothing typed into this browser can talk its way past
+// it. What you see below only stops dead buttons being shown.
+function isSupervisor() {
+  var s = getAdminPanelSession();
+  return !!s && s.role === 'SUPERVISOR';
+}
+// Functions a Supervisor is never allowed to reach. Matched by the handler
+// name on the control itself, the same self-maintaining trick the read-only
+// sweep uses, so a button added later is covered without being tagged.
+var SUPERVISOR_BLOCKED_FNS = {
+  submitAddEmployee: 1, toggleEmployeeActive: 1, bulkToggleEmployees: 1,
+  openEditAccessModal: 1, submitUpdateEmployeePermissions: 1, archiveEmployee: 1,
+  submitRotateSecret: 1, submitSupervisorPassword: 1, clearSupervisorPassword: 1
+};
+// Runs on EVERY session, not only a Supervisor's, and puts every control back
+// when the session is not a Supervisor's. An earlier draft only ever switched
+// things OFF, which meant that after a Supervisor logged out on a shared
+// warehouse PC the Founder's own next session opened with Settings missing and
+// half the Employees page dead until he pressed F5.
+function applySupervisorModeToUI() {
+  var on = isSupervisor();
+  var navSettings = document.querySelector('.nav-item[data-page="settings"]');
+  if (navSettings) navSettings.style.display = on ? 'none' : '';
+  ['add-emp-card', 'emp-bulk-bar'].forEach(function (id) {
+    var el = document.getElementById(id);
+    if (el) el.style.display = on ? 'none' : '';
+  });
+  var blocked = 0;
+  document.querySelectorAll('[onclick]').forEach(function (el) {
+    var attr = el.getAttribute('onclick') || '';
+    var m = attr.match(/([A-Za-z_$][A-Za-z0-9_$]*)\s*\(/);
+    if (!m || !SUPERVISOR_BLOCKED_FNS[m[1]]) return;
+    if (on) {
+      el.disabled = true; el.style.opacity = '0.45'; el.style.cursor = 'not-allowed';
+      el.title = 'Only the Founder can do this.';
+      blocked++;
+    } else if (el.title === 'Only the Founder can do this.') {
+      el.disabled = false; el.style.opacity = ''; el.style.cursor = ''; el.title = '';
+    }
+  });
+  // A Supervisor may rescue ordinary staff, but never touch an Admin or
+  // another Supervisor. Those rows are tagged when the table is drawn.
+  document.querySelectorAll('[data-privileged-row="1"] button, [data-privileged-row="1"] input').forEach(function (el) {
+    if (on) {
+      el.disabled = true; el.style.opacity = '0.45'; el.style.cursor = 'not-allowed';
+      el.title = 'A Supervisor cannot change an Admin or another Supervisor account.';
+    }
+  });
+  var banner = document.getElementById('supervisor-banner');
+  if (banner) banner.classList[on ? 'add' : 'remove']('visible');
+  if (on) { try { console.log('[v2.29] supervisor mode: ' + blocked + ' control(s) blocked'); } catch (e) {} }
+}
+// v2.29 - a JavaScript-safe, HTML-attribute-safe literal for use inside an
+// onclick="fn('...')" attribute. esc() alone is NOT enough there: it turns an
+// apostrophe into &#39;, the browser turns that straight back into an
+// apostrophe BEFORE JavaScript reads the attribute, and the call breaks. This
+// escapes for JavaScript first, then for HTML, so both layers are satisfied.
+function jsq(v) {
+  return esc(String(v === null || v === undefined ? '' : v)
+             .replace(/\\/g, '\\\\').replace(/'/g, "\\'"));
+}
 // Hides/disables every write-capable control for a READ_ONLY_ADMIN session —
 // UI-layer convenience only; the real enforcement is server-side in every
 // write RPC via oms_check_not_readonly_admin(), so this can never be the
 // only thing standing between a read-only account and a write.
 function applyReadOnlyModeToUI() {
+  applySupervisorModeToUI();
   if (!isReadOnlyAdmin()) return;
   document.querySelectorAll('.write-only-control').forEach(function (el) {
     el.style.display = 'none';
@@ -3698,6 +3794,7 @@ function applyReadOnlyModeToUI() {
     try { srcText = Function.prototype.toString.call(fn); } catch (e) { return; }
     if (!/getAdminSecret\s*\(/.test(srcText)) return;
     if (m[1] === 'adminLogout') return;           // logout must stay available
+    if (el.disabled) return;                      // v2.29: already done on a previous pass
     el.disabled = true;
     el.style.opacity = '0.45';
     el.style.cursor = 'not-allowed';
@@ -3724,7 +3821,7 @@ function attemptEmployeeLogin() {
     if (res.error) { errEl.textContent = 'Could not verify login: ' + res.error.message; return; }
     var row = (res.data && res.data.length) ? res.data[0] : null;
     if (!row || !row.ok) { errEl.textContent = (row && row.message) ? row.message : 'Login failed.'; return; }
-    if (row.role !== 'ADMIN' && row.role !== 'READ_ONLY_ADMIN') {
+    if (row.role !== 'ADMIN' && row.role !== 'SUPERVISOR' && row.role !== 'READ_ONLY_ADMIN') {
       errEl.textContent = 'This account (' + row.role + ') does not have Admin Panel access.';
       return;
     }
@@ -3789,10 +3886,18 @@ var ADMIN_REMEMBER_DAYS_DEFAULT = 7;
 // v2.17 (Part 3): days is now Rajat's own choice, typed at login (default 7,
 // suggested by the prompt) rather than a fixed 30 -- clamped to a sane
 // 1..365 range regardless of what reaches this function.
+// v2.29 SECURITY FIX. "Keep me signed in" used to remember only the password,
+// with no note of WHOSE it was. On a shared warehouse PC that meant a
+// Supervisor could sign in with their own code and PIN and be handed the
+// FOUNDER's remembered Admin Password - which would have quietly undone the
+// whole point of the two separate passwords. A remembered password is now tied
+// to the employee code it was saved under, and ignored for anybody else.
 function saveRememberedSecret(val, days) {
   try {
     var d = Math.max(1, Math.min(365, parseInt(days, 10) || ADMIN_REMEMBER_DAYS_DEFAULT));
-    var payload = { value: val, expiresAt: Date.now() + d * 24 * 60 * 60 * 1000, days: d };
+    var sess = getAdminPanelSession();
+    var payload = { value: val, expiresAt: Date.now() + d * 24 * 60 * 60 * 1000, days: d,
+                    owner: sess ? sess.employee_code : null, ownerRole: sess ? sess.role : null };
     localStorage.setItem(ADMIN_REMEMBER_KEY, JSON.stringify(payload));
   } catch (e) {}
 }
@@ -3803,6 +3908,11 @@ function loadRememberedSecret() {
     var parsed = JSON.parse(raw);
     if (!parsed || !parsed.value || !parsed.expiresAt) return null;
     if (Date.now() > parsed.expiresAt) { localStorage.removeItem(ADMIN_REMEMBER_KEY); return null; }
+    var sess = getAdminPanelSession();
+    // Anything saved before v2.29 has no owner recorded. Treat it as somebody
+    // else's and make them type it once, rather than guess.
+    if (!parsed.owner) { localStorage.removeItem(ADMIN_REMEMBER_KEY); return null; }
+    if (sess && parsed.owner !== sess.employee_code) return null;
     return parsed.value;
   } catch (e) { return null; }
 }
@@ -3832,6 +3942,19 @@ function handleBadSecret(context) {
   // secret screen strands it with no way back. Layer 1 should already stop
   // this being reached, but if any path ever does reach it, say so in place
   // and leave the panel exactly where it is.
+  // v2.29: the same courtesy for a Supervisor. The whole design rests on the
+  // database refusing them on the Founder's own actions - and that refusal
+  // arrives as "invalid admin secret", which without this branch would wipe
+  // their password and strand them on the unlock screen in a loop.
+  if (isSupervisor()) {
+    var supBanner = document.getElementById('supervisor-banner');
+    if (supBanner) {
+      supBanner.classList.add('visible');
+      supBanner.innerHTML = '\uD83D\uDEE1 "' + esc(context) + '" is the Founder\'s alone, so it was not run. Nothing was changed, and everything else on this page still works normally.';
+      try { supBanner.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); } catch (e) {}
+    }
+    return;
+  }
   if (isReadOnlyAdmin()) {
     var roBanner = document.getElementById('readonly-admin-banner');
     if (roBanner) {
@@ -4001,6 +4124,11 @@ function adminLogout() {
   clearRememberedSecret();
   unsubscribeDashboardRealtime();
   unsubscribeAuditRealtime();
+  // v2.29: rebuild the page from scratch. Two different people can use this
+  // panel on one warehouse PC, and without this the next person inherits the
+  // previous person's already-loaded tables and whatever controls were
+  // switched off for them. A reload is the only way to be certain.
+  try { location.reload(); return; } catch (e) {}
   showEmployeeLoginScreen('');
 }
 
@@ -5128,8 +5256,8 @@ function loadBins() {
         '<td>' + statusHtml + '</td>' +
         '<td>' + fmtNum(b.sku_count) + '</td>' +
         '<td>' + fmtNum(b.total_qty) + '</td>' +
-        '<td><button class="btn btn-grey btn-sm" onclick="openRelocateBinModal(\'' + esc(b.bin_code) + '\')">Relocate</button> ' +
-            '<button class="btn btn-grey btn-sm" onclick="toggleBinActive(\'' + esc(b.bin_code) + '\', ' + (!b.active) + ')">' + toggleLabel + '</button></td>' +
+        '<td><button class="btn btn-grey btn-sm" onclick="openRelocateBinModal(\'' + jsq(b.bin_code) + '\')">Relocate</button> ' +
+            '<button class="btn btn-grey btn-sm" onclick="toggleBinActive(\'' + jsq(b.bin_code) + '\', ' + (!b.active) + ')">' + toggleLabel + '</button></td>' +
         '</tr>';
     }).join('');
   }).catch(function (err) {
@@ -5388,11 +5516,16 @@ function loadScanSessions() {
   var body = document.getElementById('sessions-body');
   body.innerHTML = '<tr class="empty-row"><td colspan="9">Loading...</td></tr>';
   var statusVal = document.getElementById('sessions-status').value || null;
+  // v2.29 FIX - the same defect already fixed in the Phones page. The local
+  // read-only choke point refuses any call that merely CARRIES the key
+  // p_admin_secret, so sending it as null locked a Read-Only Admin out of this
+  // page entirely. Attach it only when there is one to attach.
   var params = {
-    p_admin_secret: getAdminSecret(),
     p_status: statusVal,
     p_caller_employee_code: getAdminPanelEmployeeCode()
   };
+  var sessSecret = getAdminSecret();
+  if (sessSecret) { params.p_admin_secret = sessSecret; }
   withTimeout(db.rpc('oms_admin_list_scan_sessions', params), 10000, 'Scan Sessions').then(function (res) {
     if (res.error) {
       if (isBadSecretError(res.error)) { handleBadSecret('Scan Sessions'); return; }
@@ -5730,11 +5863,14 @@ function openSessionView(sessionId, idx) {
   if (sessionPanelBlocked(sessionId)) return;
   var resEl = openSessionPanelShell(sessionId, idx);
   if (resEl) { resEl.className = 'result-msg'; resEl.innerHTML = 'Loading what is in this batch…'; }
-  withTimeout(db.rpc('oms_admin_preview_session_void', {
-    p_session_id: sessionId,
-    p_admin_secret: getAdminSecret(),
-    p_caller_employee_code: getAdminPanelEmployeeCode()
-  }), 12000, 'Session contents').then(function (res) {
+  // v2.29 FIX - same shape as loadScanSessions/loadDevices. Sending the key
+  // with an empty value tripped this panel's own read-only guard, so the one
+  // button a Read-Only Admin is promised on this page failed with a message
+  // that explained nothing.
+  var prevArgs = { p_session_id: sessionId, p_caller_employee_code: getAdminPanelEmployeeCode() };
+  var prevSec = getAdminSecret();
+  if (prevSec) { prevArgs.p_admin_secret = prevSec; }
+  withTimeout(db.rpc('oms_admin_preview_session_void', prevArgs), 12000, 'Session contents').then(function (res) {
     if (res.error) {
       if (isBadSecretError(res.error)) { handleBadSecret('Scan Sessions'); return; }
       if (resEl) { resEl.className = 'result-msg err'; resEl.textContent = friendlyError(res.error); }
@@ -6662,22 +6798,25 @@ function renderEmployees() {
     var actionsHtml = e.archived
       ? '<span class="result-msg">Archived ' + (e.archived_at ? fmtDateTime(e.archived_at) : '') + '</span>'
       : '<div style="display:flex;gap:6px;flex-wrap:wrap;">' +
-        '<button class="btn btn-sm ' + (e.active ? 'btn-grey' : 'btn-green') + '" onclick="toggleEmployeeActive(\'' + code + '\', ' + !!e.active + ')">' + (e.active ? 'Deactivate' : 'Reactivate') + '</button>' +
-        '<button class="btn btn-sm btn-primary" onclick="resetEmployeePin(\'' + code + '\')">Reset PIN</button>' +
-        '<button class="btn btn-sm btn-gold" onclick="unlockEmployee(\'' + code + '\')">Unlock</button>' +
+        '<button class="btn btn-sm ' + (e.active ? 'btn-grey' : 'btn-green') + '" onclick="toggleEmployeeActive(\'' + jsq(e.employee_code) + '\', ' + !!e.active + ')">' + (e.active ? 'Deactivate' : 'Reactivate') + '</button>' +
+        '<button class="btn btn-sm btn-primary" onclick="resetEmployeePin(\'' + jsq(e.employee_code) + '\')">Reset PIN</button>' +
+        '<button class="btn btn-sm btn-gold" onclick="unlockEmployee(\'' + jsq(e.employee_code) + '\')">Unlock</button>' +
         // v2.22: ONE button, not three. Three buttons called "Set up 2FA",
         // "Require 2FA" and "Clear 2FA" were impossible to tell apart. Now it
         // is simply on or off, and the question of WHOSE phone is asked inside
         // the box where it actually matters.
         ((e.totp_enabled || e.totp_required)
-           ? '<button class="btn btn-sm btn-grey" onclick="turnOffPhoneCode(\'' + code + '\')" title="Go back to PIN only for this person. Use this if they lose their phone.">Turn off phone code</button>'
-           : '<button class="btn btn-sm btn-primary" onclick="openPhoneCodeChoice(\'' + code + '\')" title="Make this person enter a 6-digit code from a phone as well as their PIN">Turn on phone code</button>') +
-        '<button class="btn btn-sm btn-primary" onclick="openEditAccessModal(\'' + code + '\')">Edit Access</button>' +
-        '<button class="btn btn-sm btn-grey" onclick="openEmployeeRename(\'' + code + '\')">✎ Rename</button>' +
-        '<button class="btn btn-sm btn-grey" onclick="archiveEmployee(\'' + code + '\')">Archive &amp; Free Code</button>' +
+           ? '<button class="btn btn-sm btn-grey" onclick="turnOffPhoneCode(\'' + jsq(e.employee_code) + '\')" title="Go back to PIN only for this person. Use this if they lose their phone.">Turn off phone code</button>'
+           : '<button class="btn btn-sm btn-primary" onclick="openPhoneCodeChoice(\'' + jsq(e.employee_code) + '\')" title="Make this person enter a 6-digit code from a phone as well as their PIN">Turn on phone code</button>') +
+        '<button class="btn btn-sm btn-primary" onclick="openEditAccessModal(\'' + jsq(e.employee_code) + '\')">Edit Access</button>' +
+        '<button class="btn btn-sm btn-grey" onclick="openEmployeeRename(\'' + jsq(e.employee_code) + '\')">✎ Rename</button>' +
+        '<button class="btn btn-sm btn-grey" onclick="archiveEmployee(\'' + jsq(e.employee_code) + '\')">Archive &amp; Free Code</button>' +
         '</div>';
-    return '<tr>' +
-      '<td class="chk-col"><input type="checkbox" class="emp-row-chk" data-code="' + code + '"' + checked + (e.archived ? ' disabled' : '') + ' onchange="toggleEmployeeSelected(\'' + code + '\', this.checked)"></td>' +
+    // v2.29: rows a Supervisor must not act on are marked here, where the
+    // role is actually known, and disabled by applySupervisorModeToUI().
+    var privRow = (e.role === 'ADMIN' || e.role === 'SUPERVISOR') ? ' data-privileged-row="1"' : '';
+    return '<tr' + privRow + '>' +
+      '<td class="chk-col"><input type="checkbox" class="emp-row-chk" data-code="' + code + '"' + checked + (e.archived ? ' disabled' : '') + ' onchange="toggleEmployeeSelected(\'' + jsq(e.employee_code) + '\', this.checked)"></td>' +
       '<td class="mono">' + displayCode + '</td>' +
       '<td>' + esc(e.display_name) + '</td>' +
       '<td>' + esc(e.role) + (e.permission_preset && e.permission_preset !== e.role ? ' <span class="badge badge-grey" title="App section access">' + esc(e.permission_preset) + '</span>' : '') + '</td>' +
@@ -6687,14 +6826,22 @@ function renderEmployees() {
       '<td>' + fmtDateTime(e.last_login_at) + '</td>' +
       '<td>' +
         actionsHtml +
-        '<div class="result-msg" id="emp-result-' + code + '"></div>' +
+        '<div class="result-msg" id="emp-result-' + domSafe(e.employee_code) + '"></div>' +
       '</td>' +
       '</tr>';
   }).join('');
   var selectAll = document.getElementById('emp-select-all');
   if (selectAll) selectAll.checked = rows.length > 0 && rows.every(function (e) { return !!selectedEmployeeCodes[e.employee_code]; });
+  // The table was just rebuilt, so the buttons a Supervisor may not use have
+  // to be disabled again - otherwise a Refresh quietly hands them back.
+  applySupervisorModeToUI();
+  if (isReadOnlyAdmin()) applyReadOnlyModeToUI();
 }
-function empResultEl(code) { return document.getElementById('emp-result-' + code); }
+// v2.29: an element id must survive being written into HTML and then looked
+// up again from JavaScript. An employee code with a punctuation mark in it
+// would not, so both ends now agree on the same safe spelling.
+function domSafe(v) { return String(v === null || v === undefined ? '' : v).replace(/[^A-Za-z0-9_-]/g, '_'); }
+function empResultEl(code) { return document.getElementById('emp-result-' + domSafe(code)); }
 
 
 // ── v2.27: rename a staff account ────────────────────────────────────
@@ -6711,8 +6858,8 @@ function openEmployeeRename(code) {
     '<div style="margin-top:6px;text-align:left;">' +
     '<input type="text" id="emp-nm-' + code + '" maxlength="60" placeholder="Full name" autocomplete="off" value="' + esc(cur) + '" ' +
     'style="padding:5px 7px;font-size:12px;border:1px solid #E2E8F0;border-radius:4px;width:180px;margin-right:5px;">' +
-    '<button class="btn btn-primary btn-sm" onclick="saveEmployeeRename(\'' + code + '\')">Save</button> ' +
-    '<button class="btn btn-grey btn-sm" onclick="cancelEmployeeRename(\'' + code + '\')">Cancel</button>' +
+    '<button class="btn btn-primary btn-sm" onclick="saveEmployeeRename(\'' + jsq(code) + '\')">Save</button> ' +
+    '<button class="btn btn-grey btn-sm" onclick="cancelEmployeeRename(\'' + jsq(code) + '\')">Cancel</button>' +
     '<div style="font-size:11px;color:#6B7280;margin-top:4px;">This changes the name shown everywhere — scan batches, the audit log and every list. The employee code stays the same.</div>' +
     '</div>';
 }
@@ -6898,6 +7045,35 @@ var SYSCHECK = [
         });
     } },
 
+  { name: 'The Supervisor arrangement is consistent',
+    why:  'A Supervisor needs two things: the role on their account, and the Supervisor Password. Having one without the other looks like it works and does not. This checks both agree.',
+    run:  function () {
+      return db.from('oms_employees').select('employee_code,display_name,role,active,archived')
+        .then(function (r) {
+          if (r.error) return { ok: false, warnOnly: true, detail: 'Could not check — the staff list did not load.' };
+          var sups = (r.data || []).filter(function (e) { return e.active && !e.archived && e.role === 'SUPERVISOR'; });
+          var sec = getAdminSecret();
+          if (!sec) return { ok: true, detail: sups.length + ' Supervisor account(s). Password state not checked from a read-only session.' };
+          return withTimeout(db.rpc('oms_supervisor_password_status', { p_admin_secret: sec }), 10000, 'Supervisor password status')
+            .then(function (p) {
+              if (p.error) return { ok: false, warnOnly: true, detail: 'Could not read whether a Supervisor Password is set.' };
+              var isSet = !!(p.data && p.data.is_set);
+              if (!isSet && sups.length === 0) {
+                return { ok: true, detail: 'No Supervisor is set up. That is a valid choice — you are simply the only person who can run this panel.' };
+              }
+              if (isSet && sups.length > 0) {
+                return { ok: true, detail: sups.length + ' Supervisor account(s), and a Supervisor Password is set. They can sign in.' };
+              }
+              if (isSet && sups.length === 0) {
+                return { ok: false, warnOnly: true, detail: 'A Supervisor Password is set, but nobody is marked as a Supervisor, so it opens nothing. Either promote someone in Employees → Edit Access, or remove the password in Settings.' };
+              }
+              return { ok: false, warnOnly: true, detail: sups.length + ' account(s) are marked Supervisor, but no Supervisor Password is set — so they cannot actually get in. Set one in Settings.' };
+            }).catch(function () {
+              return { ok: false, warnOnly: true, detail: 'Could not check the Supervisor Password just now — the connection timed out. Try again.' };
+            });
+        });
+    } },
+
   { name: 'Someone can cover for you',
     why:  'If only one account can run this panel, then unlocking a staff member, reversing a wrong batch or blocking a lost phone can only ever happen when that one person is available. This checks whether anybody else could step in.',
     run:  function () {
@@ -6908,15 +7084,19 @@ var SYSCHECK = [
           }
           var rows = r.data || [];
           var admins = rows.filter(function (e) { return e.active && !e.archived && e.role === 'ADMIN'; });
+          var sups = rows.filter(function (e) { return e.active && !e.archived && e.role === 'SUPERVISOR'; });
           var readOnly = rows.filter(function (e) { return e.active && !e.archived && e.role === 'READ_ONLY_ADMIN'; });
-          if (admins.length >= 2) {
-            return { ok: true, detail: admins.length + ' people can run this panel, so work does not stop if one of you is away.' };
+          // v2.29: a Supervisor is exactly the cover this check was asking for.
+          if (admins.length + sups.length >= 2) {
+            return { ok: true, detail: admins.length + ' full Admin' + (admins.length === 1 ? '' : 's') +
+                     (sups.length ? ' and ' + sups.length + ' Supervisor' + (sups.length === 1 ? '' : 's') : '') +
+                     ' can run this panel, so the day does not stop if one of you is away.' };
           }
           var who = admins.length === 1 ? (admins[0].display_name || admins[0].employee_code) : 'nobody';
           return { ok: false, warnOnly: true,
                    detail: 'Only ' + who + ' can run this panel' +
                            (readOnly.length ? ' (' + readOnly.length + ' can look but not act)' : '') +
-                           '. If that person is travelling, ill or simply asleep, nobody can unlock a locked-out staff member, reverse a wrong batch, or block a lost phone until they are back. This is a business risk, not a fault — see the note below the checks.' };
+                           '. If that person is travelling, ill or simply asleep, nobody can unlock a locked-out staff member, reverse a wrong batch, or block a lost phone until they are back. Settings → Supervisor Password, then Employees → Edit Access, is how you fix this in two minutes.' };
         });
     } },
 
@@ -7480,7 +7660,11 @@ var ROLE_PERMISSION_PRESETS = {
   BILLING_OPERATOR: { pick: true,  move: false, stock: true,  log: true, logScope: 'own', guide: true, settings: false, dash: false, sessions: false },
   INVENTORY_LEAD:   { pick: true,  move: true,  stock: true,  log: true, logScope: 'all', guide: true, settings: false, dash: false, sessions: false },
   PRODUCTION_LEAD:  { pick: false, move: false, stock: true,  log: true, logScope: 'all', guide: true, settings: false, dash: false, sessions: false },
-  ADMIN:            { pick: true,  move: true,  stock: true,  log: true, logScope: 'all', guide: true, settings: true,  dash: true, sessions: true }
+  ADMIN:            { pick: true,  move: true,  stock: true,  log: true, logScope: 'all', guide: true, settings: true,  dash: true, sessions: true },
+  // v2.29: on the phone App a Supervisor gets the same sections as an Admin.
+  // Everything a Supervisor must not reach lives in the Admin Panel and in the
+  // database, not in these phone-App tick-boxes.
+  SUPERVISOR:       { pick: true,  move: true,  stock: true,  log: true, logScope: 'all', guide: true, settings: true,  dash: true, sessions: true }
 };
 // v2.17 (Master Prompt v21, Part 5): matches the App's own ROLE_PERMISSIONS.ADMIN
 // fix — the "off for everyone, including ADMIN" launch decision behind Scan
@@ -7530,6 +7714,7 @@ function buildPermissionUIHtml(prefix) {
         '<option value="INVENTORY_LEAD">Inventory Lead</option>' +
         '<option value="PRODUCTION_LEAD">Production Lead</option>' +
         '<option value="ADMIN">Admin</option>' +
+        '<option value="SUPERVISOR">Supervisor</option>' +
         '<option value="CUSTOM">Custom</option>' +
       '</select>' +
     '</div>' +
@@ -7538,8 +7723,9 @@ function buildPermissionUIHtml(prefix) {
       '<label><input type="checkbox" id="' + prefix + '-admin-access" onchange="toggleAdminAccessSub(\'' + prefix + '\')"> Can log into Admin Panel</label>' +
       '<div class="hint-text" style="margin:4px 0 0 21px;">Kept separate from the App-section boxes above — this is the higher-security, secret-phrase-gated Admin Panel, not the phone App.</div>' +
       '<div id="' + prefix + '-admin-level-row" style="display:none;margin:8px 0 0 21px;">' +
-        '<label style="margin-right:14px;"><input type="radio" name="' + prefix + '-admin-level" value="ADMIN" checked> Full Admin (can make changes)</label>' +
-        '<label><input type="radio" name="' + prefix + '-admin-level" value="READ_ONLY_ADMIN"> Read-Only (view everything, change nothing)</label>' +
+        '<label style="margin-right:14px;display:block;margin-bottom:4px;"><input type="radio" name="' + prefix + '-admin-level" value="ADMIN" checked> <strong>Full Admin</strong> &mdash; can change anything, including accounts and both passwords</label>' +
+        '<label style="margin-right:14px;display:block;margin-bottom:4px;"><input type="radio" name="' + prefix + '-admin-level" value="SUPERVISOR"> <strong>Supervisor</strong> &mdash; runs the panel on your behalf: batches, phones, stock, bins, and rescuing staff. Cannot add or switch off accounts, cannot change anyone\'s access level, and cannot touch either password. Signs in with the separate <em>Supervisor Password</em> you set in Settings.</label>' +
+        '<label style="display:block;"><input type="radio" name="' + prefix + '-admin-level" value="READ_ONLY_ADMIN"> <strong>Read-Only</strong> &mdash; view everything, change nothing</label>' +
       '</div>' +
     '</div>' +
     '<details class="perm-info-panel"><summary>What does each section do?</summary>' +
@@ -7584,10 +7770,10 @@ function applyPermissionPreset(prefix, preset) {
     var scopeEl = document.querySelector('input[name="' + prefix + '-log-scope"][value="' + (p.logScope || 'own') + '"]');
     if (scopeEl) scopeEl.checked = true;
   }
-  if (preset === 'ADMIN') {
+  if (preset === 'ADMIN' || preset === 'SUPERVISOR') {
     var accessEl = document.getElementById(prefix + '-admin-access');
     if (accessEl) accessEl.checked = true;
-    var fullEl = document.querySelector('input[name="' + prefix + '-admin-level"][value="ADMIN"]');
+    var fullEl = document.querySelector('input[name="' + prefix + '-admin-level"][value="' + preset + '"]');
     if (fullEl) fullEl.checked = true;
     toggleAdminAccessSub(prefix);
   }
@@ -7615,7 +7801,7 @@ function computeEffectiveRole(prefix) {
     return lvl ? lvl.value : 'ADMIN';
   }
   var preset = document.getElementById(prefix + '-preset').value;
-  return preset === 'ADMIN' ? 'CUSTOM' : preset;
+  return (preset === 'ADMIN' || preset === 'SUPERVISOR') ? 'CUSTOM' : preset;
 }
 function prefillPermissionUI(prefix, e) {
   var perm = e.permissions || ROLE_PERMISSION_PRESETS[e.role] || ROLE_PERMISSION_PRESETS.WAREHOUSE_STAFF;
@@ -7627,7 +7813,7 @@ function prefillPermissionUI(prefix, e) {
   if (scopeEl) scopeEl.checked = true;
   var presetEl = document.getElementById(prefix + '-preset');
   if (presetEl) presetEl.value = e.permission_preset || (ROLE_PERMISSION_PRESETS[e.role] ? e.role : 'CUSTOM');
-  var isAdminRole = e.role === 'ADMIN' || e.role === 'READ_ONLY_ADMIN';
+  var isAdminRole = e.role === 'ADMIN' || e.role === 'SUPERVISOR' || e.role === 'READ_ONLY_ADMIN';
   var accessEl = document.getElementById(prefix + '-admin-access');
   if (accessEl) accessEl.checked = isAdminRole;
   if (isAdminRole) {
@@ -7911,7 +8097,7 @@ function loadSkuStock(page) {
             '<td>' + fmtMoney(s.cost_price) + '</td>' +
             '<td>' + fmtMoney(s.mrp) + '</td>' +
             '<td>' + (s.active ? '<span class="badge badge-green">ACTIVE</span>' : '<span class="badge badge-grey">INACTIVE</span>') + '</td>' +
-            '<td><button class="btn btn-sm btn-primary" onclick="openAdjustStockModal(\'' + esc(s.sku_code).replace(/'/g, "\\'") + '\', ' + (s.qty_on_hand === null ? 'null' : s.qty_on_hand) + ')">Adjust Stock</button></td>' +
+            '<td><button class="btn btn-sm btn-primary" onclick="openAdjustStockModal(\'' + jsq(s.sku_code) + '\', ' + (s.qty_on_hand === null ? 'null' : s.qty_on_hand) + ')">Adjust Stock</button></td>' +
             '</tr>';
         }).join('');
       }
@@ -8449,9 +8635,72 @@ function exportTxnFullCSV() {
 var settingsLoadedOnce = false;
 
 function loadSettingsPage() {
+  loadSupervisorPasswordStatus();
   settingsLoadedOnce = true;
   loadCompanyInfo();
   loadSystemInfo();
+}
+
+// ── v2.29: the Supervisor Password ───────────────────────────────────
+// Never shown, never stored in this browser, and never returned by the
+// database - only "is one set, and when was it last changed".
+function loadSupervisorPasswordStatus() {
+  var el = document.getElementById('sup-pw-status');
+  if (!el || !db) return;
+  var sec = getAdminSecret();
+  if (!sec) { el.textContent = ''; return; }
+  el.className = 'result-msg'; el.textContent = 'Checking...';
+  withTimeout(db.rpc('oms_supervisor_password_status', { p_admin_secret: sec }), 10000, 'Supervisor password status')
+    .then(function (res) {
+      if (res.error) { el.className = 'result-msg'; el.textContent = ''; return; }
+      var d = res.data || {};
+      if (d.is_set) {
+        el.className = 'result-msg ok';
+        el.textContent = '\u2713 A Supervisor Password is set' + (d.updated_at ? ' (last changed ' + fmtDateTime(d.updated_at) + ')' : '') + '.';
+      } else {
+        el.className = 'result-msg';
+        el.textContent = 'No Supervisor Password is set yet, so nobody can sign in as a Supervisor.';
+      }
+    }).catch(function () { el.textContent = ''; });
+}
+function saveSupervisorPassword(newPw, resEl) {
+  var sec = getAdminSecret();
+  if (!sec) { resEl.className = 'result-msg err'; resEl.textContent = 'Your Admin Password is needed for this.'; return; }
+  resEl.className = 'result-msg'; resEl.textContent = 'Saving...';
+  withTimeout(db.rpc('oms_admin_set_supervisor_password', {
+    p_admin_secret: sec, p_new_password: newPw, p_caller_employee_code: getAdminPanelEmployeeCode()
+  }), 12000, 'Supervisor password').then(function (res) {
+    if (res.error) {
+      if (isBadSecretError(res.error)) { handleBadSecret('the Supervisor Password'); return; }
+      resEl.className = 'result-msg err'; resEl.textContent = friendlyError(res.error); return;
+    }
+    var d = res.data || {};
+    if (d.ok !== true) {
+      resEl.className = 'result-msg err';
+      resEl.textContent = d.message || 'That could not be saved.';
+      return;
+    }
+    resEl.className = 'result-msg ok'; resEl.textContent = '\u2713 ' + (d.message || 'Saved.');
+    var a = document.getElementById('sup-pw-new'); if (a) a.value = '';
+    var b = document.getElementById('sup-pw-confirm'); if (b) b.value = '';
+    loadSupervisorPasswordStatus();
+  }).catch(function (err) { resEl.className = 'result-msg err'; resEl.textContent = friendlyError(err); });
+}
+function submitSupervisorPassword() {
+  if (!db) return;
+  var resEl = document.getElementById('sup-pw-result');
+  var a = (document.getElementById('sup-pw-new').value || '');
+  var b = (document.getElementById('sup-pw-confirm').value || '');
+  if (!a) { resEl.className = 'result-msg err'; resEl.textContent = 'Type a password, or press "Remove it" to take Supervisor access away.'; return; }
+  if (a !== b) { resEl.className = 'result-msg err'; resEl.textContent = 'The two boxes do not match.'; return; }
+  if (a.length < 8) { resEl.className = 'result-msg err'; resEl.textContent = 'It must be at least 8 characters.'; return; }
+  saveSupervisorPassword(a, resEl);
+}
+function clearSupervisorPassword() {
+  if (!db) return;
+  var resEl = document.getElementById('sup-pw-result');
+  if (!confirm('Remove the Supervisor Password?\n\nAnyone holding it will be locked out of this panel immediately. Their employee account and everything they have done stays exactly as it is.')) return;
+  saveSupervisorPassword('', resEl);
 }
 
 function submitRotateSecret() {
