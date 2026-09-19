@@ -2729,7 +2729,7 @@ var qrcode = function() {
     </style>
 </head>
 <body>
-<div class="ver-corner" id="verCornerBadge" onclick="handleVerBadgeTap()">v91</div>
+<div class="ver-corner" id="verCornerBadge" onclick="handleVerBadgeTap()">v92</div>
 <!-- v63: Gap 2 — offline write-queue indicator. Hidden (display:none) unless
      something is actually queued or failed. Tapping it shows the queue detail
      panel (openOfflineQueuePanel()). -->
@@ -2921,6 +2921,16 @@ var qrcode = function() {
                      dispatch directly, no QR package needed. Same txn_type the
                      PICK tab writes, so both feed the same reports. -->
                 <div class="pill-btn" id="move-pill-SCAN_OUT_ORDER" onclick="setMoveMode('SCAN_OUT_ORDER')">&#128228; Dispatch Out</div>
+                <!-- v92 (2026-09-19): 9th MOVE mode — Transfer. Unlike every other
+                     pill, this writes TWO ledger rows (BIN_TRANSFER_OUT then
+                     BIN_TRANSFER_IN) instead of one, and needs a second bin field
+                     ("To Bin", below) that only this mode shows. Total stock for the
+                     SKU is unchanged — see submitMoveTransaction()'s isTransfer
+                     branch. This is the same TRANSFER action the bulk-upload CSV
+                     path has always supported (ACTION_TXN_MAP.TRANSFER,
+                     continueBulkRow) — this pill is a single-item front end onto
+                     the identical pair of writes, nothing new on the database side. -->
+                <div class="pill-btn" id="move-pill-BIN_TRANSFER" onclick="setMoveMode('BIN_TRANSFER')">&#8646; Transfer</div>
             </div>
             <div class="settings-section">
                 <h3 id="move-mode-title">&#128230; New Stock In</h3>
@@ -2972,7 +2982,15 @@ var qrcode = function() {
                      ledger row that reverses the sellable-stock effect, so a bad return
                      is honestly recorded as having arrived without ever counting as
                      available-to-sell stock — see submitMoveTransaction(). -->
-                <div class="settings-row" id="move-return-grade-row" style="display:none;">
+                <!-- v92: Transfer-only second bin field. Reuses the same live bin
+     datalist and camera-scan pattern as the "From" bin field above it. -->
+<div class="settings-row" id="move-transfer-tobin-row" style="display:none;">
+    <input type="text" class="settings-input" id="move-transfer-tobin-input" placeholder="To Bin — moving stock INTO (required)" list="move-bin-list" autocomplete="off" autocorrect="off" autocapitalize="characters" style="text-transform:uppercase" oninput="this.value=this.value.toUpperCase();">
+    <button class="scan-cam-btn" onclick="openScannerFor('move-transfer-tobin-input')" title="Scan bin barcode/QR">
+        <svg viewBox="0 0 24 24"><path d="M12 9a4 4 0 1 0 4 4 4 4 0 0 0-4-4zm0 6a2 2 0 1 1 2-2 2 2 0 0 1-2 2z"/><path d="M20 4h-2.76l-1.63-2H8.39L6.76 4H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2zm0 15H4V6h3.56L9.19 4h5.62l1.63 2H20z"/></svg>
+    </button>
+</div>
+<div class="settings-row" id="move-return-grade-row" style="display:none;">
                     <select class="settings-input" id="move-return-grade">
                         <option value="GOOD">&#9989; Good — sellable, add back to stock</option>
                         <option value="DAMAGED">&#9888; Damaged — hold for QC, not sellable</option>
@@ -3374,26 +3392,27 @@ var qrcode = function() {
                 <div class="glossary-term"><strong>Set Size</strong> &mdash; Pieces inside one sellable unit (e.g. Set of 10 = 10 pieces packed together)</div>
             </div>
             <div class="guide-section">
-                <h3>&#128260; MOVE / STOCK / Bulk Upload &mdash; Bin-Level Stock</h3>
+                <h3>&#128260; ACTIONS / STOCK / Bulk Upload &mdash; Bin-Level Stock</h3>
                 <ul>
-                    <li><strong>MOVE tab</strong> &mdash; records one stock movement at a time (New Stock In / Returns In / Found / Remove-Lost / QC Hold / QC Release / Set True Count). A <strong>Bin is now required on every movement except Set True Count</strong> &mdash; the app auto-fills the SKU's usual bin, but you can always overwrite it (e.g. new stock landing in RECEIVING instead of the SKU's normal shelf).</li>
+                    <li><strong>Actions tab</strong> &mdash; records one stock movement at a time (New Stock In / Returns In / Found / Remove-Lost / QC Hold / QC Release / Set True Count / Transfer). A <strong>Bin is now required on every movement except Set True Count</strong> &mdash; the app auto-fills the SKU's usual bin, but you can always overwrite it (e.g. new stock landing in RECEIVING instead of the SKU's normal shelf).</li>
                     <!-- v52: Set True Count — new 7th pill, for physical stock counts only -->
-                    <li><strong>Set True Count</strong> &mdash; 7th pill on the MOVE tab, for a physical stock count only (not daily use). <strong>v80: this now counts ONE BIN at a time.</strong> Type the bin you physically counted and the number you found <em>in that bin</em>; the app compares it against what that same bin currently shows and saves only the difference. Any other bin holding the same SKU is listed in the confirmation box and is never changed. A note is recommended but not required. Bin is required here too, like every other action.
+                    <li><strong>Set True Count</strong> &mdash; a pill on the Actions tab, for a physical stock count only (not daily use). <strong>v80: this now counts ONE BIN at a time.</strong> Type the bin you physically counted and the number you found <em>in that bin</em>; the app compares it against what that same bin currently shows and saves only the difference. Any other bin holding the same SKU is listed in the confirmation box and is never changed. A note is recommended but not required. Bin is required here too, like every other action.
                         <br><em>Why this changed:</em> before v80 the app compared your one-bin count against the SKU's total across every bin, so counting a SKU that lived in two bins silently pushed one bin negative &mdash; and the next action on that bin then failed with a confusing error. If a SKU sits in several bins, count each bin separately.</li>
                     <li><strong>&#128190; Bulk DISPATCH</strong> &mdash; <strong>v82.</strong> The Bulk Upload (CSV) list now also accepts <strong>DISPATCH</strong>, for booking out many orders at once. Put the <strong>order number in the ToBin column</strong>. This is the same action, same wording and same column as the Excel sheet's DISPATCH, so one filled-in sheet works in either place.</li>
                     <li><strong>&#128228; Dispatch / Order Out</strong> &mdash; <strong>new 8th pill (v81).</strong> Use it whenever stock physically leaves for a customer order. Scan the SKU, confirm the bin it came from, enter how many, and add the order number and channel.
                         <br><em>Why this matters:</em> until now the system recorded 2,702 stock-<em>in</em> entries and <strong>not one</strong> stock-<em>out</em>. That is why low-stock alerts never fired and every SKU showed as ABC tier &ldquo;C&rdquo; &mdash; the reports had no sales to work from. Booking dispatches here (or completing a pick on the PICK tab) is what switches all of that on.</li>
                     <!-- v80: Quick Add New Listing -->
-                    <li><strong>&#10133; Quick Add New Listing</strong> &mdash; new section on the MOVE tab, for a product that is <strong>not in the system yet</strong>. Fill in product title, SKU, ASIN (leave blank if it is not on Amazon), product type, bin number and opening stock, then tap <strong>Add Listing &amp; Stock</strong>. It registers the listing and puts its opening stock into that bin in one step.
+                    <li><strong>&#10133; Quick Add New Listing</strong> &mdash; new section on the Actions tab, for a product that is <strong>not in the system yet</strong>. Fill in product title, SKU, ASIN (leave blank if it is not on Amazon), product type, bin number and opening stock, then tap <strong>Add Listing &amp; Stock</strong>. It registers the listing and puts its opening stock into that bin in one step.
                         <br><em>What happens if you just scan an unknown code instead:</em> nothing is ever placed in a random bin. On <strong>New Stock</strong> or <strong>Returns</strong> an amber &ldquo;Register New SKU&rdquo; panel opens so you can add it and carry straight on. On <strong>Remove/Lost, QC Hold, QC Release or Set True Count</strong> the app refuses outright &mdash; counting or removing something that was never received is a mistake, not a new product.</li>
                     <!-- v50: QC Release used to be CSV/Bulk-only; note the new single-row screen -->
-                    <li><strong>QC Release</strong> &mdash; new 6th pill on the MOVE tab, previously only reachable via Bulk Upload (CSV). Releases stock that was QC-Held back into sellable count, using the same SKU/Bin/Qty/Note form as the rest of this tab.</li>
+                    <li><strong>QC Release</strong> &mdash; a pill on the Actions tab, previously only reachable via Bulk Upload (CSV). Releases stock that was QC-Held back into sellable count, using the same SKU/Bin/Qty/Note form as the rest of this tab.</li>
+                    <li><strong>Transfer</strong> &mdash; new pill on the Actions tab (v92, 2026-09-19). Moves existing stock from one bin to another &mdash; the SKU's total is unchanged. Enter the bin it's moving FROM (the usual Bin field), the bin it's moving INTO, and the quantity. Writes as two linked rows (stock out of the old bin, into the new one) &mdash; the same way a bulk-upload TRANSFER row already worked, just as a single-item action here. To move an entire scanned session's contents to a different bin in one go, use the Admin Panel's Scan Sessions page instead.</li>
                     <!-- v75: GENERATED from 03_SOPs/action_taxonomy_v1.json by
                          03_Scripts/2026.09.03_OMS_generate_action_taxonomy_outputs_v1.py
                          Do NOT hand-edit this list -- edit the master file and re-run the
                          generator, which also regenerates the Excel template and the Word SOP
                          section so all three can never drift apart again. -->
-                    <li><strong>Bulk Upload (CSV)</strong> &mdash; on the MOVE tab: download the template, fill it, upload.
+                    <li><strong>Bulk Upload (CSV)</strong> &mdash; on the Actions tab: download the template, fill it, upload.
                         There are exactly <strong>8</strong> allowed Action values, and the Excel template now blocks anything else:
                         <ul>
                             <li><strong>INBOUND</strong> &mdash; New stock arriving into the warehouse for the first time — a fresh purchase or production batch being put away. <em>(adds to stock; needs SKU, Bin, Qty)</em></li>
@@ -3411,7 +3430,7 @@ var qrcode = function() {
                         the Action itself decides the direction. Same per-row OK/FAILED result as before.</li>
                     <li><strong>Bin-mismatch note</strong> &mdash; if the bin you use is different from that SKU's usual bin, the result still says OK (this is never blocked) but adds a short note so you can catch a typo, e.g. "OK (note: this SKU's usual bin is A12, this entry used B04)".</li>
                     <li><strong>STOCK tab</strong> &mdash; live, read-only view of current quantities. Search by SKU, ASIN, or Bin to find where something is right now.</li>
-                    <li>MOVE / STOCK / Bulk Upload all write to the SAME live database as this Excel file and the Admin Panel &mdash; there is no separate copy anywhere, and every write is tagged with which tool made it (visible to an admin as "entry_source").</li>
+                    <li>Actions / STOCK / Bulk Upload all write to the SAME live database as this Excel file and the Admin Panel &mdash; there is no separate copy anywhere, and every write is tagged with which tool made it (visible to an admin as "entry_source").</li>
                 </ul>
             </div>
             <div class="guide-section">
@@ -3582,7 +3601,7 @@ var qrcode = function() {
     <!-- BOTTOM TAB BAR -->
     <div class="tab-nav">
         <button class="tab-btn active" id="tab-pick"     onclick="switchTab('pick')">&#128230; PICK</button>
-        <button class="tab-btn"        id="tab-move"     onclick="switchTab('move')">&#128260; MOVE</button>
+        <button class="tab-btn"        id="tab-move"     onclick="switchTab('move')">&#128260; ACTIONS</button>
         <button class="tab-btn"        id="tab-stock"    onclick="switchTab('stock')">&#128202; STOCK</button>
         <button class="tab-btn"        id="tab-log"      onclick="switchTab('log')">&#128220; LOG</button>
         <button class="tab-btn"        id="tab-guide"    onclick="switchTab('guide')">&#10067; GUIDE</button>
@@ -5805,6 +5824,12 @@ var MOVE_MODES = {
     // constraint and is exactly what the PICK tab writes — so this needs no
     // special-casing at all, only sign: -1.
     SCAN_OUT_ORDER:        { title: '&#128228; Dispatch / Order Out', desc: 'Stock physically leaving for a customer order. Scan or type the SKU/ASIN, confirm the bin it is picked from, enter how many, and add the order number. This is what makes sales velocity, ABC tiers and reorder alerts work — without it the system only ever sees stock coming in.', sign: -1 },
+    // v92 (2026-09-19): 9th MOVE mode — Transfer. isTransfer (not sign) is
+    // what submitMoveTransaction() branches on — it writes BIN_TRANSFER_OUT
+    // from the Bin field and BIN_TRANSFER_IN into the new To-Bin field, so
+    // there is no single txn_type or sign for this mode the way every other
+    // pill has one.
+    BIN_TRANSFER:          { title: '&#8646; Transfer', desc: 'Move existing stock from one bin to another — the total stays the same. Scan or type the SKU, confirm the bin it is moving FROM, enter the bin it is moving INTO, then the quantity.', isTransfer: true },
     // v52: Set True Count — for a physical stock count only, NOT daily use.
     // Unlike every other MOVE mode, the number typed here is not a delta to
     // add or subtract — it's the TRUE total quantity just counted, across all
@@ -6090,6 +6115,11 @@ function setMoveMode(mode) {
     var chEl = document.getElementById('move-channel-input');
     if (chEl) chEl.value = '';
     if (mode === 'SCAN_OUT_ORDER') { showDispatchHealthNote(); }
+    // v92: Transfer-only To-Bin row, mirrors the gradeRow/dispRow pattern above.
+    var transferRow = document.getElementById('move-transfer-tobin-row');
+    if (transferRow) transferRow.style.display = (mode === 'BIN_TRANSFER') ? '' : 'none';
+    var transferToBinEl = document.getElementById('move-transfer-tobin-input');
+    if (transferToBinEl) transferToBinEl.value = '';
     loadBinList();
     armScanInputNoKeyboard('move-sku-input');
 }
@@ -6258,6 +6288,45 @@ function submitMoveTransaction() {
                     resetMoveBinField();
                     document.getElementById('move-qty-input').value = '0';
                     document.getElementById('move-note-input').value = '';
+                    if (document.getElementById('move-live-bin-hint')) document.getElementById('move-live-bin-hint').textContent = '';
+                    armScanInputNoKeyboard('move-sku-input');
+                });
+            });
+        }
+
+        // v92: Transfer. Two linked writes (OUT of the Bin field, IN to the
+        // To-Bin field) instead of one — exactly what the bulk-upload CSV path
+        // has always done for a TRANSFER row (continueBulkRow()). Handled here,
+        // before proceedMoveWithSku(), because it needs a second bin value that
+        // no other mode collects.
+        if (cfg.isTransfer) {
+            var transferToBin = (document.getElementById('move-transfer-tobin-input').value || '').trim().toUpperCase();
+            if (!transferToBin) { resEl.className = 'move-result err'; resEl.textContent = 'Enter the bin this is moving INTO.'; return null; }
+            if (transferToBin === binVal) { resEl.className = 'move-result err'; resEl.textContent = 'From Bin and To Bin cannot be the same.'; return null; }
+            resEl.textContent = 'Saving transfer...';
+            return writeLedgerTxn({
+                sessionEligible: true, skuCode: sku.sku_code, asin: sku.asin,
+                qtyDelta: -qtyVal, txnType: 'BIN_TRANSFER_OUT', binCode: binVal, note: note || null
+            }).then(function (result1) {
+                if (!result1.ok) { resEl.className = 'move-result err'; resEl.textContent = '❌ Could not save: ' + result1.reason; return; }
+                return writeLedgerTxn({
+                    sessionEligible: true, skuCode: sku.sku_code, asin: sku.asin,
+                    qtyDelta: qtyVal, txnType: 'BIN_TRANSFER_IN', binCode: transferToBin, note: note || null
+                }).then(function (result2) {
+                    if (!result2.ok) {
+                        resEl.className = 'move-result err';
+                        resEl.textContent = '⚠️ ' + qtyVal + ' unit(s) removed from ' + binVal + ' but could NOT be added to ' + transferToBin + ' (' + result2.reason + '). Ask an admin to check — an Adjust Stock entry may be needed to put it back.';
+                        return;
+                    }
+                    resEl.className = 'move-result ok';
+                    resEl.textContent = '✓ Saved — moved ' + qtyVal + ' unit(s) of ' + sku.sku_code + ' (' + (sku.product_name || '') + ') from ' + binVal + ' to ' + transferToBin + '.';
+                    logEvent(sku.sku_code, 'Transfer: ' + qtyVal + ' units, ' + binVal + ' \u2192 ' + transferToBin + (note ? ' — ' + note : ''));
+                    writeAuditLog('BIN_TRANSFER', { skuCode: sku.sku_code, details: { qty: qtyVal, from_bin: binVal, to_bin: transferToBin, note: note || null, product_name: sku.product_name || null } });
+                    document.getElementById('move-sku-input').value = '';
+                    resetMoveBinField();
+                    document.getElementById('move-qty-input').value = '1';
+                    document.getElementById('move-note-input').value = '';
+                    if (document.getElementById('move-transfer-tobin-input')) document.getElementById('move-transfer-tobin-input').value = '';
                     if (document.getElementById('move-live-bin-hint')) document.getElementById('move-live-bin-hint').textContent = '';
                     armScanInputNoKeyboard('move-sku-input');
                 });
