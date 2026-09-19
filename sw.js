@@ -41,7 +41,10 @@
 // v11 (2026-09-19): bumped for App v92. An offline phone must not keep
 // serving v91, which has no Transfer action and still calls its own MOVE
 // tab "MOVE" rather than "Actions".
-const CACHE_NAME = 'artzfolio-oms-shell-v11';
+// v12 (2026-09-19): bumped for App v93. An offline phone must not keep
+// serving v92, whose Transfer From-Bin field offered every warehouse bin
+// instead of only the ones the scanned SKU actually has stock in.
+const CACHE_NAME = 'artzfolio-oms-shell-v12';
 const SHELL_FILES = ['./index.html', './manifest.json', './icon.svg'];
 
 self.addEventListener('install', function (event) {
