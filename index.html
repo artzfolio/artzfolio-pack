@@ -2729,7 +2729,7 @@ var qrcode = function() {
     </style>
 </head>
 <body>
-<div class="ver-corner" id="verCornerBadge" onclick="handleVerBadgeTap()">v92</div>
+<div class="ver-corner" id="verCornerBadge" onclick="handleVerBadgeTap()">v93</div>
 <!-- v63: Gap 2 — offline write-queue indicator. Hidden (display:none) unless
      something is actually queued or failed. Tapping it shows the queue detail
      panel (openOfflineQueuePanel()). -->
@@ -2930,6 +2930,14 @@ var qrcode = function() {
                      path has always supported (ACTION_TXN_MAP.TRANSFER,
                      continueBulkRow) — this pill is a single-item front end onto
                      the identical pair of writes, nothing new on the database side. -->
+                <!-- v93 (2026-09-19): the From-Bin field above now suggests only bins
+                     where the scanned SKU actually has live stock, in Transfer mode only
+                     (see prefillMoveBin() and setMoveMode()). Fixes a real founder-reported
+                     issue: staff were shown every warehouse bin as a From-Bin option, most
+                     of which hold none of the scanned SKU. To-Bin is untouched - it still
+                     shows every bin, plus free text for a brand-new bin, exactly as before;
+                     a brand-new destination bin was already accepted and auto-registered
+                     by the database (oms_auto_register_bin), proven live on 2026-09-19. -->
                 <div class="pill-btn" id="move-pill-BIN_TRANSFER" onclick="setMoveMode('BIN_TRANSFER')">&#8646; Transfer</div>
             </div>
             <div class="settings-section">
@@ -2965,6 +2973,11 @@ var qrcode = function() {
                          rather than submitting, since Qty/Note may still need adjusting. -->
                     <input type="text" class="settings-input" id="move-bin-input" placeholder="Bin location (required)" list="move-bin-list" autocomplete="off" autocorrect="off" autocapitalize="characters" style="text-transform:uppercase" data-src="" oninput="markMoveBinTouched()" onkeydown="if(event.key==='Enter'){document.getElementById('move-qty-input').focus();}">
                     <datalist id="move-bin-list"></datalist>
+                    <!-- v93: Transfer-only suggestion source for the From-Bin field above —
+                         populated in prefillMoveBin() with only the bins where the scanned
+                         SKU actually has live stock. Swapped in and out of the From-Bin
+                         list= attribute by setMoveMode(). -->
+                    <datalist id="move-bin-list-live"></datalist>
                     <!-- v49: camera scan-to-fill for the bin label/QR sticker on the shelf -->
                     <button class="scan-cam-btn" onclick="openScannerFor('move-bin-input')" title="Scan bin barcode/QR">
                         <svg viewBox="0 0 24 24"><path d="M12 9a4 4 0 1 0 4 4 4 4 0 0 0-4-4zm0 6a2 2 0 1 1 2-2 2 2 0 0 1-2 2z"/><path d="M20 4h-2.76l-1.63-2H8.39L6.76 4H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2zm0 15H4V6h3.56L9.19 4h5.62l1.63 2H20z"/></svg>
@@ -5924,6 +5937,26 @@ function prefillMoveBin() {
             return;
         }
         var liveBins = (sku.live_bins || []).filter(function(b) { return b.bin_code; });
+        // v93: Transfer mode only — restrict the From-Bin suggestions to bins
+        // where this SKU actually has live stock, so staff are never offered a
+        // bin to transfer FROM that holds none of it. The backend's own
+        // non-negative-stock trigger already refuses that at the database
+        // level (tested directly against the live database on 2026-09-19);
+        // this just stops the dead end from being offered in the first place.
+        // To-Bin is untouched — it keeps the full bin list, and free text for
+        // a brand-new bin, exactly as before.
+        if (moveMode === 'BIN_TRANSFER') {
+            var liveBinListEl = document.getElementById('move-bin-list-live');
+            if (liveBinListEl) {
+                liveBinListEl.innerHTML = '';
+                liveBins.forEach(function(b) {
+                    var liveOpt = document.createElement('option');
+                    liveOpt.value = b.bin_code;
+                    liveOpt.label = b.bin_code + ' (' + b.qty_on_hand + ' on hand)';
+                    liveBinListEl.appendChild(liveOpt);
+                });
+            }
+        }
         // v56: LIVE bin data wins over the (sometimes stale) registered
         // default_bin — see binMismatchNote() comment for why. Auto-fill only
         // when there's exactly one live bin (unambiguous); when stock is
@@ -6088,6 +6121,14 @@ function setMoveMode(mode) {
     // input's min/placeholder/default change for that mode only.
     var qtyInput = document.getElementById('move-qty-input');
     var binInput = document.getElementById('move-bin-input');
+    // v93: From-Bin's suggestion source depends on the mode. Transfer shows
+    // only bins where the scanned SKU actually has live stock (filled in by
+    // prefillMoveBin()); every other mode shows the full warehouse bin list,
+    // exactly as before. Cleared here on every switch because the SKU field
+    // is always cleared on a mode switch too (a few lines above).
+    binInput.setAttribute('list', mode === 'BIN_TRANSFER' ? 'move-bin-list-live' : 'move-bin-list');
+    var liveBinListReset = document.getElementById('move-bin-list-live');
+    if (liveBinListReset) liveBinListReset.innerHTML = '';
     if (cfg.isCorrection) {
         qtyInput.min = '0';
         qtyInput.placeholder = 'Count in THIS bin (0+)';
