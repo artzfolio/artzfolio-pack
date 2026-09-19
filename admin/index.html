@@ -2261,6 +2261,213 @@ var qrcode = function() {
   return qrcode;
 }();
 
+// ═══════════════════════ TRANSFERRING A WHOLE SCAN SESSION TO ANOTHER BIN (v2.33) ═══════════════════════
+// What this is, in plain words: a session was scanned into one bin (or a mix
+// of bins), and everything it holds needs to move to a different bin -- for
+// example the trolley it was scanned onto was later wheeled to a different
+// shelf. This writes a fresh BIN_TRANSFER_OUT/BIN_TRANSFER_IN pair per
+// product (grouped by SKU + the bin it is currently in) -- it never edits or
+// deletes a past transaction, and the total quantity on hand is unchanged.
+//
+// Only offered on a COMMITTED or CLOSED_PENDING_REVIEW session -- never an
+// OPEN one, whose phone could still be adding scans. A session can only be
+// transferred once; the database refuses a second attempt outright (checked
+// against the audit log, not the ledger, because a ledger row tagged to a
+// session that is no longer OPEN has its session_id stripped by the
+// late-scan guard the moment it is written -- proven with disposable test
+// data on 2026-09-19, see _RECORDS\07_AUDIT).
+//
+// This is an "ordinary operation" like Relocate/Merge Bins above, not a
+// per-person action like Reverse -- it uses the same already-unlocked
+// getAdminSecret() as Relocate/Merge, rather than a personal PIN.
+
+var sessionTransferPreviewCache = {}; // session_id -> preview payload
+
+function openSessionTransfer(sessionId, idx) {
+  if (sessionPanelBlocked(sessionId)) return;
+  var s = sessionsLastRows[idx];
+  if (!s) return;
+  var detail = document.getElementById('sess-detail-' + idx);
+  var tbtn = document.getElementById('sess-toggle-' + idx);
+  if (detail && detail.style.display === 'none') {
+    detail.style.display = '';
+    if (tbtn) tbtn.textContent = '▴';
+  }
+  var resEl = document.getElementById('sess-action-result-' + sessionId);
+  if (resEl) { resEl.className = 'result-msg'; resEl.innerHTML = 'Checking what this session would move…'; }
+
+  withTimeout(db.rpc('oms_admin_preview_session_transfer', {
+    p_session_id: sessionId,
+    p_new_bin: ''
+  }), 12000, 'Transfer preview').then(function (res) {
+    if (res.error) {
+      if (resEl) { resEl.className = 'result-msg err'; resEl.textContent = friendlyError(res.error); }
+      return;
+    }
+    var p = res.data;
+    if (!p || p.ok !== true) {
+      if (resEl) { resEl.className = 'result-msg err'; resEl.textContent = 'Could not read this session. Nothing has been touched.'; }
+      return;
+    }
+    p._takenAt = Date.now();
+    sessionTransferPreviewCache[sessionId] = p;
+    if (resEl) { resEl.className = 'result-msg'; resEl.innerHTML = sessionTransferPanelHtml(sessionId, idx, p); }
+    populateActiveEmployeeSelect('sess-transfer-emp-' + sessionId);
+  }).catch(function (err) {
+    if (resEl) { resEl.className = 'result-msg err'; resEl.textContent = friendlyError(err); }
+  });
+}
+
+function sessionTransferPanelHtml(sessionId, idx, p) {
+  var h = '<div style="border:1px solid #E2E8F0;border-radius:6px;padding:12px;background:#fff;text-align:left;">';
+  h += '<div style="font-weight:bold;color:#0A1628;font-size:13px;margin-bottom:6px;">Transfer this scan session to another bin — check this first</div>';
+
+  if (p.already_transferred) {
+    h += '<div style="background:#F8F9FB;border:1px solid #E2E8F0;padding:10px;font-size:12px;">' +
+         'This session has already been transferred once. See the Audit Log (action SESSION_BIN_TRANSFER) for where it went. Transferring it again is refused — use Adjust Stock by hand if that is genuinely what is needed.</div>' +
+         '<div style="margin-top:10px;"><button class="btn btn-grey" style="padding:6px 12px;font-size:12px;" onclick="cancelSessionTransfer(\'' + sessionId + '\')">Close</button></div></div>';
+    return h;
+  }
+  if (p.eligible_status !== true) {
+    h += '<div style="background:#FDECEA;border:1px solid #B3261E;padding:10px;font-size:12px;color:#B3261E;">' +
+         'This session is ' + esc(SESSION_STATUS_LABEL[p.status] || p.status) + '. Only a Committed or Closed-Pending-Review session can be transferred.</div>' +
+         '<div style="margin-top:10px;"><button class="btn btn-grey" style="padding:6px 12px;font-size:12px;" onclick="cancelSessionTransfer(\'' + sessionId + '\')">Close</button></div></div>';
+    return h;
+  }
+
+  var lines = (p.lines || []).filter(function (l) { return l.will_move; });
+  var skipped = (p.lines || []).filter(function (l) { return !l.will_move; });
+
+  h += '<div style="font-size:12px;margin-bottom:8px;">Scanned by <strong>' + esc(p.session_owner || '—') + '</strong>' +
+       ' on ' + esc(p.device_hint || '—') + '</div>';
+
+  if (!lines.length) {
+    h += '<div style="background:#F8F9FB;border:1px solid #E2E8F0;padding:10px;font-size:12px;">' +
+         'Nothing in this session has anything positive left to move — ' +
+         (skipped.length ? 'every product either nets to zero here or is already in the bin you would move it to.' : 'it has no lines at all.') +
+         ' Nothing will be changed.</div>' +
+         '<div style="margin-top:10px;"><button class="btn btn-grey" style="padding:6px 12px;font-size:12px;" onclick="cancelSessionTransfer(\'' + sessionId + '\')">Close</button></div></div>';
+    return h;
+  }
+
+  h += '<div style="background:#EEF2F8;padding:8px 10px;border-radius:4px;font-size:12.5px;margin-bottom:8px;">' +
+       'This will move <strong>' + fmtNum(lines.length) + '</strong> product' + (lines.length === 1 ? '' : 's') +
+       ' out of the bin' + (lines.length === 1 ? '' : 's') + ' shown below, into the new bin you choose.</div>';
+
+  h += '<div style="max-height:220px;overflow:auto;border:1px solid #E2E8F0;">';
+  h += '<table style="width:100%;border-collapse:collapse;font-size:11.5px;">';
+  h += '<thead><tr style="background:#0A1628;color:#fff;">' +
+       '<th style="text-align:left;padding:5px 6px;">Product (SKU)</th>' +
+       '<th style="text-align:left;padding:5px 6px;">From bin</th>' +
+       '<th style="text-align:right;padding:5px 6px;">Qty to move</th></tr></thead><tbody>';
+  lines.forEach(function (l) {
+    h += '<tr style="border-bottom:1px solid #E2E8F0;">' +
+         '<td style="padding:4px 6px;font-family:monospace;">' + esc(l.sku_code) + '</td>' +
+         '<td style="padding:4px 6px;">' + esc(l.from_bin) + '</td>' +
+         '<td style="padding:4px 6px;text-align:right;">' + fmtNum(l.net_qty) + '</td>' +
+         '</tr>';
+  });
+  h += '</tbody></table></div>';
+
+  if (skipped.length) {
+    h += '<div style="margin-top:6px;font-size:11px;color:#6B7280;">' + fmtNum(skipped.length) + ' other line' + (skipped.length === 1 ? '' : 's') +
+         ' in this session will be left alone — hover for why: ' +
+         skipped.map(function (l) { return '<span title="' + esc(l.skip_reason || '') + '" style="text-decoration:underline dotted;cursor:help;">' + esc(l.sku_code) + '</span>'; }).join(', ') + '.</div>';
+  }
+
+  h += '<div style="margin-top:10px;">';
+  h += '<div style="font-size:12px;margin-bottom:5px;">Move it into: <input type="text" id="sess-transfer-newbin-' + sessionId + '" list="bin-suggestions-list" placeholder="e.g. B-12 (required)" autocomplete="off" ' +
+       'style="padding:6px 8px;font-size:12px;border:1px solid #E2E8F0;border-radius:4px;width:140px;text-transform:uppercase;" oninput="this.value=this.value.toUpperCase();"></div>';
+  h += '<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;">';
+  h += '<select id="sess-transfer-emp-' + sessionId + '" style="padding:6px 8px;font-size:12px;border:1px solid #E2E8F0;border-radius:4px;"></select>';
+  h += '<input type="text" id="sess-transfer-note-' + sessionId + '" placeholder="Note (optional)" autocomplete="off" ' +
+       'style="padding:6px 8px;font-size:12px;border:1px solid #E2E8F0;border-radius:4px;width:200px;">';
+  h += '</div>';
+  h += '<div style="margin-top:8px;">';
+  h += '<button class="btn" id="sess-transfer-go-' + sessionId + '" style="padding:6px 14px;font-size:12px;background:#1B3F6B;color:#fff;" ' +
+       'onclick="confirmSessionTransfer(\'' + sessionId + '\',' + idx + ')">⇄ Transfer ' + fmtNum(lines.length) + ' product' + (lines.length === 1 ? '' : 's') + '</button> ';
+  h += '<button class="btn btn-grey" style="padding:6px 12px;font-size:12px;" onclick="cancelSessionTransfer(\'' + sessionId + '\')">Cancel</button>';
+  h += '</div>';
+  h += '<div id="sess-transfer-msg-' + sessionId + '" style="margin-top:6px;font-size:12px;"></div>';
+  h += '</div></div>';
+  return h;
+}
+
+function cancelSessionTransfer(sessionId) {
+  var resEl = document.getElementById('sess-action-result-' + sessionId);
+  if (resEl) { resEl.className = 'result-msg'; resEl.innerHTML = ''; }
+}
+
+function confirmSessionTransfer(sessionId, idx) {
+  var p = sessionTransferPreviewCache[sessionId];
+  var msgEl = document.getElementById('sess-transfer-msg-' + sessionId);
+  function say(text, isErr) {
+    if (msgEl) { msgEl.style.color = isErr ? '#B3261E' : '#1B7A3A'; msgEl.textContent = text; }
+  }
+  if (!p) { say('Please press Transfer again to re-check this session first.', true); return; }
+
+  var newBin = (document.getElementById('sess-transfer-newbin-' + sessionId).value || '').trim().toUpperCase();
+  var emp = (document.getElementById('sess-transfer-emp-' + sessionId).value || '').trim().toUpperCase();
+  var note = (document.getElementById('sess-transfer-note-' + sessionId).value || '').trim();
+
+  if (!newBin) { say('Enter the bin this session is moving INTO.', true); return; }
+  if (!emp) { say('Choose which employee this is being done by.', true); return; }
+
+  // Preview figures go stale the same way the Reverse preview does.
+  var ageMs = Date.now() - (p._takenAt || 0);
+  if (ageMs > 90000) {
+    delete sessionTransferPreviewCache[sessionId];
+    say('These figures were checked more than a minute ago and stock may have moved since. Nothing has been changed — press Transfer again to re-check.', true);
+    setTimeout(function () { openSessionTransfer(sessionId, idx); }, 1400);
+    return;
+  }
+
+  var goBtn = document.getElementById('sess-transfer-go-' + sessionId);
+  function setBusy(on) { if (goBtn) { goBtn.disabled = on; goBtn.style.background = on ? '#bbb' : '#1B3F6B'; goBtn.style.cursor = on ? 'wait' : 'pointer'; } }
+  setBusy(true);
+  setSessionBusy(sessionId, true);
+  say('Transferring…', false);
+
+  withTimeout(db.rpc('oms_admin_transfer_session_to_bin', {
+    p_session_id: sessionId,
+    p_new_bin: newBin,
+    p_admin_secret: getAdminSecret(),
+    p_employee_code: emp,
+    p_note: note || null
+  }), 20000, 'Transfer session').then(function (res) {
+    if (res.error) {
+      setBusy(false); setSessionBusy(sessionId, false);
+      if (isBadSecretError(res.error)) { handleBadSecret('a session transfer'); return; }
+      say(friendlyError(res.error), true);
+      return;
+    }
+    var d = res.data || {};
+    if (d.ok !== true) { setBusy(false); setSessionBusy(sessionId, false); say('Not transferred.', true); return; }
+    setSessionBusy(sessionId, false);
+    delete sessionTransferPreviewCache[sessionId];
+    var resEl = document.getElementById('sess-action-result-' + sessionId);
+    if (resEl) {
+      resEl.className = 'result-msg';
+      resEl.innerHTML =
+        '<div style="border:1px solid #1B7A3A;border-radius:6px;padding:12px;background:#fff;text-align:left;">' +
+        '<div style="color:#1B7A3A;font-weight:bold;font-size:13px;">✓ Transferred.</div>' +
+        '<div style="font-size:12px;margin-top:4px;"><strong>' + fmtNum(d.lines_moved || 0) + '</strong> product' + ((d.lines_moved === 1) ? '' : 's') +
+        ' (' + fmtNum(d.total_qty_moved || 0) + ' unit' + ((d.total_qty_moved === 1) ? '' : 's') + ') moved into <strong>' + esc(d.new_bin || newBin) + '</strong>.' +
+        ((d.skipped && d.skipped.length) ? ' ' + fmtNum(d.skipped.length) + ' other line' + (d.skipped.length === 1 ? '' : 's') + ' were left alone.' : '') + '</div>' +
+        '<div style="margin-top:8px;"><button class="btn btn-primary" style="padding:6px 12px;font-size:12px;" onclick="loadScanSessions()">Refresh the list</button></div>' +
+        '</div>';
+    }
+  }).catch(function (err) {
+    var m = String((err && err.message) || err || '');
+    if (/timed out/i.test(m)) {
+      say('This is taking longer than expected. Do NOT press Transfer again — it may still be going through. Refresh the list in a moment and check before doing anything else.', true);
+      return;
+    }
+    setBusy(false); setSessionBusy(sessionId, false);
+    say(friendlyError(err), true);
+  });
+}
+
 // multibyte support
 !function() {
 
@@ -2640,7 +2847,7 @@ tbody tr:hover{background:#f9fbfd}
     </ul>
     <div class="sidebar-footer">
       <button class="logout-btn" onclick="adminLogout()">⎋ Logout</button>
-      <div class="ver-footer">ArtzFolio Admin Panel v2.32</div>
+      <div class="ver-footer">ArtzFolio Admin Panel v2.33</div>
     </div>
   </div>
 
@@ -5832,6 +6039,7 @@ function lastScanText(s) {
 function scanSessionRowHtml(s, idx) {
   var B  = 'padding:4px 10px;font-size:11px;';
   var BR = B + 'background:#a33;color:#fff;';          // reverses stock
+  var BT = B + 'background:#1B3F6B;color:#fff;';       // v2.33: moves a session to a different bin
   var sid = s.session_id;
   var empty = sessionIsEmpty(s);
 
@@ -5859,6 +6067,7 @@ function scanSessionRowHtml(s, idx) {
     actions = seeBtn + ' ' + (empty
       ? '<button class="btn" style="' + B + 'background:#9A6700;color:#fff;" title="Nothing was scanned into this batch, so there is nothing to approve or put back." onclick="resolveEmptySession(\'' + sid + '\',' + idx + ')">⊘ Close this off</button>'
       : '<button class="btn btn-primary" style="' + B + '" onclick="openSessionAccept(\'' + sid + '\',' + idx + ',false)">✓ Accept</button> ' +
+        '<button class="btn" style="' + BT + '" title="Move everything this session added to a different bin." onclick="openSessionTransfer(\'' + sid + '\',' + idx + ')">⇄ Transfer</button> ' +
         '<button class="btn" style="' + BR + '" onclick="openSessionReverse(\'' + sid + '\',' + idx + ')">↺ Reverse</button>');
 
   } else if (s.status === 'ABANDONED') {
@@ -5869,6 +6078,7 @@ function scanSessionRowHtml(s, idx) {
 
   } else if (s.status === 'COMMITTED') {
     actions = seeBtn + (empty ? '' :
+      ' <button class="btn" style="' + BT + '" title="Move everything this session added to a different bin." onclick="openSessionTransfer(\'' + sid + '\',' + idx + ')">⇄ Transfer</button>' +
       ' <button class="btn" style="' + BR + '" onclick="openSessionReverse(\'' + sid + '\',' + idx + ')">↺ Reverse</button>') +
       '<div style="color:#999;font-size:10.5px;margin-top:2px;">accepted' + (s.resolved_by ? ' by ' + esc(s.resolved_by) : '') + '</div>';
 
