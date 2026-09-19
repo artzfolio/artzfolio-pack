@@ -2552,6 +2552,35 @@ tbody tr:hover{background:#f9fbfd}
   </div>
 </div>
 
+<!-- ═══════════════════════ EMPLOYEE LOGIN: TWO-FACTOR STEP (v2.32) ═══════════════════════
+     Shown only when oms_verify_login comes back with totp_required=true and
+     ok=false (PIN was right, the account also has an authenticator). The
+     App (v84, 2026-09-18) already has this second step for the same RPC;
+     this panel never got it, so an Admin/Supervisor who turns two-factor on
+     for their own account (from the App's own Settings, self-service) was
+     shown the server's message here with no field to answer it, and was
+     locked out of the panel. This mirrors the App's totp-view exactly. -->
+<div class="login-wrap" id="employee-totp-screen" style="display:none;">
+  <div class="login-card">
+    <div class="login-brand">
+      <div class="login-brand-sub">ArtzFolio &middot; Vishnu Image Folio Pvt. Ltd.</div>
+      <div class="login-brand-title">🔐 6-Digit Code</div>
+    </div>
+    <p id="emp-totp-who" style="font-size:13px;color:#555;text-align:center;margin:0 0 16px;">Enter the 6-digit code from the phone that was set up for this account.</p>
+    <div class="login-field">
+      <label for="emp-totp-code-input">6-Digit Code</label>
+      <input type="tel" inputmode="numeric" maxlength="11" id="emp-totp-code-input" placeholder="&bull;&bull;&bull;&bull;&bull;&bull;" autocomplete="one-time-code"
+             onkeydown="if(event.key==='Enter'){submitEmployeeTotpCode();}">
+    </div>
+    <div class="login-hint" style="margin-top:4px;">The code changes every 30 seconds — if it has just changed, use the new one. If every code is refused, set the phone's clock to automatic. A backup code can also be typed here instead.</div>
+    <button class="login-btn" id="emp-totp-submit-btn" onclick="submitEmployeeTotpCode()">Verify</button>
+    <div class="login-err" id="emp-totp-err-msg"></div>
+    <div style="text-align:center;margin-top:14px;">
+      <span style="color:#1B4F8A;font-size:12.5px;cursor:pointer;text-decoration:underline;" onclick="cancelEmployeeTotpStep()">&larr; Back to login</span>
+    </div>
+  </div>
+</div>
+
 <!-- ═══════════════════════ ADMIN SECRET SCREEN ═══════════════════════ -->
 <div class="login-wrap" id="login-screen" style="display:none;">
   <div class="login-card">
@@ -2611,7 +2640,7 @@ tbody tr:hover{background:#f9fbfd}
     </ul>
     <div class="sidebar-footer">
       <button class="logout-btn" onclick="adminLogout()">⎋ Logout</button>
-      <div class="ver-footer">ArtzFolio Admin Panel v2.31</div>
+      <div class="ver-footer">ArtzFolio Admin Panel v2.32</div>
     </div>
   </div>
 
@@ -3809,6 +3838,18 @@ function applyReadOnlyModeToUI() {
   try { console.log('[v2.18] read-only mode: ' + disabled + ' write control(s) disabled'); } catch (e) {}
 }
 
+// ══ v2.32 (2026-09-19) — EMPLOYEE LOGIN: TWO-FACTOR CHALLENGE STEP ═══════
+// The App (v84) already asks for the 6-digit code when oms_verify_login
+// comes back with totp_required=true. This panel's employee login screen
+// never got the same second step, so an Admin/Supervisor who switches
+// two-factor on for their own account (self-service, from the App) was
+// shown the server's message with nowhere on screen to answer it, and was
+// locked out of the panel entirely. Fixed by mirroring the App's own
+// pattern: the PIN is held in memory only for the length of the two-step
+// sign-in (pendingEmployeeLogin), never written to storage, and is cleared
+// by a successful login or by "Back to login".
+var pendingEmployeeLogin = null;
+
 function attemptEmployeeLogin() {
   var codeInput = document.getElementById('emp-login-code-input');
   var pinInput = document.getElementById('emp-login-pin-input');
@@ -3823,42 +3864,121 @@ function attemptEmployeeLogin() {
     if (btn) btn.disabled = false;
     if (res.error) { errEl.textContent = 'Could not verify login: ' + res.error.message; return; }
     var row = (res.data && res.data.length) ? res.data[0] : null;
-    if (!row || !row.ok) { errEl.textContent = (row && row.message) ? row.message : 'Login failed.'; return; }
-    if (row.role !== 'ADMIN' && row.role !== 'SUPERVISOR' && row.role !== 'READ_ONLY_ADMIN') {
-      errEl.textContent = 'This account (' + row.role + ') does not have Admin Panel access.';
+    // v2.32: the PIN was right but this account also needs its authenticator
+    // code. Nothing sensitive comes back on this leg — the server sends no
+    // role and no permissions until the second factor is satisfied.
+    if (row && !row.ok && row.totp_required) {
+      pendingEmployeeLogin = { code: code, pin: pin };
+      errEl.textContent = '';
+      pinInput.value = '';
+      showEmployeeTotpStep(row);
       return;
     }
-    setAdminPanelSession({ employee_code: row.employee_code, display_name: row.display_name, role: row.role });
-    if (row.role === 'READ_ONLY_ADMIN') {
-      // No admin secret to unlock — nothing for a read-only account to write.
-      showAppShell();
-      applyReadOnlyModeToUI();
-    } else {
-      document.getElementById('employee-login-screen').style.display = 'none';
-      // v2.14 (Master Prompt v17, Part A): this is the real re-entry point
-      // after a closed tab — employee identity (sessionStorage) is always
-      // re-established fresh here first, exactly as before, then a
-      // remembered admin secret (localStorage, survives the closed tab) is
-      // tried and re-verified server-side before skipping the secret
-      // screen. Falls back to the secret screen unchanged if nothing is
-      // remembered or the remembered value no longer verifies.
-      var remembered = loadRememberedSecret();
-      if (remembered) {
-        showLoginScreen('Verifying remembered device...');
-        verifyAdminSecret(remembered, function () {
-          lastActivityAt = Date.now();
-          setAdminSecret(remembered);
-          showAppShell();
-        }, function () {
-          clearRememberedSecret();
-          showLoginScreen('');
-        });
-      } else {
-        showLoginScreen('');
-      }
-    }
+    if (!row || !row.ok) { errEl.textContent = (row && row.message) ? row.message : 'Login failed.'; return; }
+    proceedPastEmployeeLogin(row);
   }).catch(function (err) { if (btn) btn.disabled = false; errEl.textContent = friendlyError(err); });
 }
+
+// v2.32: the role check, session set-up and admin-secret hand-off used to
+// live inline inside attemptEmployeeLogin(). Pulled out unchanged so the
+// two-factor step below (submitEmployeeTotpCode) reaches the exact same
+// path on success instead of duplicating it.
+function proceedPastEmployeeLogin(row) {
+  var errEl = document.getElementById('emp-login-err-msg');
+  if (row.role !== 'ADMIN' && row.role !== 'SUPERVISOR' && row.role !== 'READ_ONLY_ADMIN') {
+    if (errEl) errEl.textContent = 'This account (' + row.role + ') does not have Admin Panel access.';
+    return;
+  }
+  setAdminPanelSession({ employee_code: row.employee_code, display_name: row.display_name, role: row.role });
+  if (row.role === 'READ_ONLY_ADMIN') {
+    // No admin secret to unlock — nothing for a read-only account to write.
+    showAppShell();
+    applyReadOnlyModeToUI();
+  } else {
+    document.getElementById('employee-login-screen').style.display = 'none';
+    var totpScreenEl = document.getElementById('employee-totp-screen');
+    if (totpScreenEl) totpScreenEl.style.display = 'none';
+    // v2.14 (Master Prompt v17, Part A): this is the real re-entry point
+    // after a closed tab — employee identity (sessionStorage) is always
+    // re-established fresh here first, exactly as before, then a
+    // remembered admin secret (localStorage, survives the closed tab) is
+    // tried and re-verified server-side before skipping the secret
+    // screen. Falls back to the secret screen unchanged if nothing is
+    // remembered or the remembered value no longer verifies.
+    var remembered = loadRememberedSecret();
+    if (remembered) {
+      showLoginScreen('Verifying remembered device...');
+      verifyAdminSecret(remembered, function () {
+        lastActivityAt = Date.now();
+        setAdminSecret(remembered);
+        showAppShell();
+      }, function () {
+        clearRememberedSecret();
+        showLoginScreen('');
+      });
+    } else {
+      showLoginScreen('');
+    }
+  }
+}
+
+// v2.32: shows the second sign-in step. Mirrors the App's showTotpStep().
+function showEmployeeTotpStep(row) {
+  document.getElementById('employee-login-screen').style.display = 'none';
+  var v = document.getElementById('employee-totp-screen');
+  v.style.display = '';
+  var who = document.getElementById('emp-totp-who');
+  if (who) {
+    who.textContent = 'Signing in as ' + ((row && row.display_name) || (pendingEmployeeLogin && pendingEmployeeLogin.code) || '') +
+      '. Enter the 6-digit code from the phone that was set up for this account.';
+  }
+  var e = document.getElementById('emp-totp-err-msg'); if (e) e.textContent = '';
+  var i = document.getElementById('emp-totp-code-input');
+  if (i) { i.value = ''; setTimeout(function () { try { i.focus(); } catch (x) {} }, 120); }
+}
+
+// v2.32: "Back to login" — clears the held PIN and returns to the first step.
+function cancelEmployeeTotpStep() {
+  pendingEmployeeLogin = null;
+  document.getElementById('employee-totp-screen').style.display = 'none';
+  document.getElementById('employee-login-screen').style.display = '';
+  var e = document.getElementById('emp-login-err-msg'); if (e) e.textContent = '';
+}
+
+// v2.32: re-verifies the same PIN together with the 6-digit code (or a
+// backup code — oms_verify_login accepts either in the same p_totp_code
+// argument). Mirrors the App's submitTotpCode().
+function submitEmployeeTotpCode() {
+  var errEl = document.getElementById('emp-totp-err-msg');
+  var codeEl = document.getElementById('emp-totp-code-input');
+  var entered = (codeEl.value || '').trim();
+  errEl.textContent = '';
+  if (!pendingEmployeeLogin) { cancelEmployeeTotpStep(); return; }
+  if (!entered) { errEl.textContent = 'Enter the code from your app, or a backup code.'; return; }
+  errEl.textContent = 'Verifying...';
+  withTimeout(db.rpc('oms_verify_login', {
+    p_employee_code: pendingEmployeeLogin.code,
+    p_pin: pendingEmployeeLogin.pin,
+    p_device_hint: (navigator.userAgent || '').slice(0, 120),
+    p_totp_code: entered
+  }), 10000, 'Two-factor check').then(function (res) {
+    if (res.error) { errEl.textContent = 'Could not verify login: ' + res.error.message; return; }
+    var row = (res.data && res.data.length) ? res.data[0] : null;
+    if (!row || !row.ok) {
+      errEl.textContent = (row && row.message) ? row.message : 'That code was not accepted.';
+      codeEl.value = '';
+      return;
+    }
+    pendingEmployeeLogin = null;
+    codeEl.value = '';
+    errEl.textContent = '';
+    if (row.backup_codes_left !== null && row.backup_codes_left !== undefined && row.backup_codes_left <= 2 && String(row.message || '').indexOf('Backup code used') >= 0) {
+      setTimeout(function () { alert('Only ' + row.backup_codes_left + ' backup codes left.\n\nAsk an Admin to issue you a fresh set from User Management.'); }, 400);
+    }
+    proceedPastEmployeeLogin(row);
+  }).catch(function (err) { errEl.textContent = friendlyError(err); });
+}
+
 document.addEventListener('DOMContentLoaded', function () {
   var pinInput = document.getElementById('emp-login-pin-input');
   if (pinInput) pinInput.addEventListener('keydown', function (e) { if (e.key === 'Enter') attemptEmployeeLogin(); });
