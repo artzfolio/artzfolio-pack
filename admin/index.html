@@ -2847,7 +2847,7 @@ tbody tr:hover{background:#f9fbfd}
     </ul>
     <div class="sidebar-footer">
       <button class="logout-btn" onclick="adminLogout()">⎋ Logout</button>
-      <div class="ver-footer">ArtzFolio Admin Panel v2.33</div>
+      <div class="ver-footer">ArtzFolio Admin Panel v2.34</div>
     </div>
   </div>
 
@@ -6040,6 +6040,7 @@ function scanSessionRowHtml(s, idx) {
   var B  = 'padding:4px 10px;font-size:11px;';
   var BR = B + 'background:#a33;color:#fff;';          // reverses stock
   var BT = B + 'background:#1B3F6B;color:#fff;';       // v2.33: moves a session to a different bin
+  // v2.34: Settings > System Info now links the Bulk Upload Excel template for download.
   var sid = s.session_id;
   var empty = sessionIsEmpty(s);
 
@@ -9148,7 +9149,8 @@ function loadSystemInfo() {
       '<div class="info-item"><div class="info-item-label">Total SKUs</div><div class="info-item-val">' + (skuRes.error ? '—' : fmtNum(skuRes.count)) + '</div></div>' +
       '<div class="info-item"><div class="info-item-label">Total Employees</div><div class="info-item-val">' + (empRes.error ? '—' : fmtNum(empRes.count)) + '</div></div>' +
       '<div class="info-item"><div class="info-item-label">Total Transactions Logged</div><div class="info-item-val">' + (txnRes.error ? '—' : fmtNum(txnRes.count)) + '</div></div>' +
-      '<div class="info-item"><div class="info-item-label">Database Connection</div><div class="info-item-val ' + (connected ? 'conn-ok' : 'conn-bad') + '">' + (connected ? 'Connected' : 'Unreachable') + '</div></div>';
+      '<div class="info-item"><div class="info-item-label">Database Connection</div><div class="info-item-val ' + (connected ? 'conn-ok' : 'conn-bad') + '">' + (connected ? 'Connected' : 'Unreachable') + '</div></div>' +
+      '<div class="info-item"><div class="info-item-label">Bulk Upload Template</div><div class="info-item-val"><a href="https://oms.artzfolio.com/ArtzFolio_OMS_Bulk_Upload_Template_v1.1_2026-09.xlsx" download style="color:#1B3F6B;font-weight:600;">&#11015; Download (.xlsx)</a></div></div>';
   }).catch(function (err) {
     el.innerHTML = '<div class="info-item"><div class="info-item-label">Error</div><div class="info-item-val">' + esc(String(err && err.message || err)) + '</div></div>';
   });
