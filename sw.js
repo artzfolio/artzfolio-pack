@@ -38,7 +38,10 @@
 // v9 (2026-09-18): bumped for App v90. An offline phone must not keep
 // serving v89, which does not send its device code at sign-in and so
 // would not be stopped by a block.
-const CACHE_NAME = 'artzfolio-oms-shell-v10';
+// v11 (2026-09-19): bumped for App v92. An offline phone must not keep
+// serving v91, which has no Transfer action and still calls its own MOVE
+// tab "MOVE" rather than "Actions".
+const CACHE_NAME = 'artzfolio-oms-shell-v11';
 const SHELL_FILES = ['./index.html', './manifest.json', './icon.svg'];
 
 self.addEventListener('install', function (event) {
