@@ -2847,7 +2847,7 @@ tbody tr:hover{background:#f9fbfd}
     </ul>
     <div class="sidebar-footer">
       <button class="logout-btn" onclick="adminLogout()">⎋ Logout</button>
-      <div class="ver-footer">ArtzFolio Admin Panel v2.34</div>
+      <div class="ver-footer">ArtzFolio Admin Panel v2.35</div>
     </div>
   </div>
 
@@ -2999,12 +2999,14 @@ tbody tr:hover{background:#f9fbfd}
               <option value="QC_HOLD">Put on QC hold</option>
               <option value="MANUAL_CORRECTION">Manual correction</option>
               <option value="BIN_RELOCATE">Bin relocated</option>
+              <option value="BIN_TRANSFER">Stock moved between bins (Transfer)</option>
             </optgroup>
             <optgroup label="Scan sessions">
               <option value="SCAN_SESSION_OPENED">Scan session started</option>
               <option value="SCAN_SESSION_CLOSED">Scan session closed for review</option>
               <option value="SCAN_SESSION_COMMITTED">Scan session accepted</option>
               <option value="SCAN_SESSION_VOIDED">Scan session reversed</option>
+              <option value="SESSION_BIN_TRANSFER">Whole scan session moved to another bin</option>
             </optgroup>
             <optgroup label="Staff accounts">
               <option value="EMPLOYEE_ADDED">Staff account created</option>
@@ -3014,6 +3016,7 @@ tbody tr:hover{background:#f9fbfd}
               <option value="PIN_SET_BOOTSTRAP">First PIN set up</option>
               <option value="PIN_RESET_ADMIN">PIN reset by an Admin</option>
               <option value="ADMIN_UNLOCK">Account unlocked by an Admin</option>
+              <option value="EMPLOYEE_RENAMED">Staff account renamed</option>
             </optgroup>
             <optgroup label="Phone codes (two-step sign-in)">
               <option value="TOTP_ENABLED">Phone code turned on</option>
@@ -3022,6 +3025,9 @@ tbody tr:hover{background:#f9fbfd}
               <option value="ADMIN_TOTP_REQUIRED_ON">Phone code made compulsory</option>
               <option value="ADMIN_TOTP_REQUIRED_OFF">Phone code no longer compulsory</option>
               <option value="TOTP_BACKUP_REGENERATED">New backup codes issued</option>
+              <option value="TOTP_RESET_BY_ADMIN">Phone code cleared by an Admin</option>
+              <option value="TOTP_REQUIRED_ON">Phone code made compulsory</option>
+              <option value="TOTP_REQUIRED_OFF">Phone code no longer compulsory</option>
             </optgroup>
             <optgroup label="Picking">
               <option value="PICK_CONFIRMED">Pick confirmed</option>
@@ -3031,6 +3037,12 @@ tbody tr:hover{background:#f9fbfd}
               <option value="ADMIN_BULK_SKU_UPDATE">Bulk SKU update</option>
               <option value="ADMIN_SECRET_ROTATED">Admin Password changed</option>
               <option value="ADMIN_STOCK_ADJUSTMENT">Stock quantity overridden by an Admin</option>
+              <option value="ADMIN_ZERO_ALL_INVENTORY">All stock reset to zero</option>
+              <option value="SUPERVISOR_PASSWORD_SET">Supervisor Password changed</option>
+              <option value="SUPERVISOR_PASSWORD_CLEARED">Supervisor Password removed</option>
+            </optgroup>
+            <optgroup label="Devices">
+              <option value="DEVICE_RENAMED">Phone/device given a name</option>
             </optgroup>
             <!-- v2.3: quick filter for the two highest-risk action families -
                  direct stock quantity overrides and bin relocations. This is
@@ -3236,7 +3248,7 @@ tbody tr:hover{background:#f9fbfd}
       </div>
       <div class="table-wrap">
         <table>
-          <thead><tr><th class="chk-col"><input type="checkbox" id="emp-select-all" onchange="toggleSelectAllEmployees(this)"></th><th>Code</th><th>Name</th><th>Role</th><th>Status</th><th>Locked</th><th>Phone code</th><th>Last Login</th><th>Actions</th></tr></thead>
+          <thead><tr><th class="chk-col"><input type="checkbox" id="emp-select-all" onchange="toggleSelectAllEmployees(this)"></th><th>Code</th><th>Name</th><th title="What this person can do in the app and this panel.">Role</th><th title="Whether this account can currently sign in at all.">Status</th><th title="Shows if this account is temporarily locked out after too many wrong PIN attempts. Clears itself after the lockout period, or use Unlock to clear it now.">Locked</th><th title="Whether this person also needs a 6-digit code from a phone, in addition to their PIN, to sign in.">Phone code</th><th>Last Login</th><th>Actions</th></tr></thead>
           <tbody id="emp-body"><tr class="empty-row"><td colspan="9">Loading...</td></tr></tbody>
         </table>
       </div>
@@ -3315,6 +3327,29 @@ tbody tr:hover{background:#f9fbfd}
           <button class="btn btn-gold" onclick="exportSkuFullCSV()">⬇ Export Full CSV (filtered)</button>
           <span class="export-progress" id="sku-export-progress"></span>
         </div>
+      </div>
+      <!-- v2.35: NEW - exposes oms_admin_zero_all_inventory, which already existed
+           live in the database (Admin Password only) but was never wired into any
+           screen anywhere in the system. Deliberately OFFSET mode only: PURGE
+           (which deletes ledger history outright) is never offered here. -->
+      <div class="card write-only-control" id="zero-stock-card" style="margin-bottom:14px;border:1px solid #B3261E;">
+        <h3 style="color:#B3261E;">⚠ Reset ALL Stock to Zero</h3>
+        <div class="hint-text">
+          Use this only when scanning has gone wrong badly enough that starting over is safer than fixing it SKU by SKU —
+          for example, a batch of scans went against the wrong SKUs or into the wrong bins, and it is faster to zero
+          everything and rescan than to trace each one by hand. This sets <strong>every SKU's quantity to zero, everywhere</strong>,
+          in one step.
+          <br><br>
+          <strong>Nothing is deleted.</strong> Every affected SKU gets one new correction entry that brings it down to zero —
+          the full history before it stays exactly as it is, visible in Transactions and the Audit Log, and can be read
+          back at any time. This does not touch employee accounts, bins, SKU names or prices, or scan session records —
+          only quantities.
+          <br><br>
+          Always press <strong>Preview</strong> first — it shows exactly what would change, and changes nothing by itself.
+          Nothing is touched until you also type the confirmation phrase and press the second button.
+        </div>
+        <button class="btn btn-primary" id="zero-stock-preview-btn" onclick="previewZeroAllInventory()">Preview what this would do</button>
+        <div id="zero-stock-preview" style="margin-top:12px;"></div>
       </div>
       <div class="filter-bar">
         <div class="filter-field" style="min-width:240px"><label>Search (SKU / ASIN / Product Name)</label><input type="text" id="sku-search" placeholder="Type to search..."></div>
@@ -3407,7 +3442,7 @@ tbody tr:hover{background:#f9fbfd}
           <div class="page-sub">Every bin currently on file, with live SKU count and quantity. Rename/merge moves stock via new transfer transactions - it never edits history.</div>
         </div>
         <div>
-          <button class="btn btn-primary" onclick="openRelocateBinModal('')">⇄ Relocate / Merge Bins</button>
+          <button class="btn btn-primary" onclick="openRelocateBinModal('')" title="Move everything sitting in one bin into another bin - use this to fix a typo in a bin code, or to merge two bins into one.">⇄ Relocate / Merge Bins</button>
           <button class="btn btn-gold" onclick="loadBins()">↻ Refresh</button>
         </div>
       </div>
@@ -3646,7 +3681,7 @@ tbody tr:hover{background:#f9fbfd}
 <div class="modal-bg" id="details-modal-bg">
   <div class="modal">
     <h3>Audit Entry Details</h3>
-    <pre id="details-modal-content">{}</pre>
+    <div id="details-modal-content" style="max-height:60vh;overflow:auto;">{}</div>
     <div class="modal-close"><button class="btn btn-grey" onclick="closeDetailsModal()">Close</button></div>
   </div>
 </div>
@@ -4791,7 +4826,17 @@ var ACTION_LABEL = {
   ADMIN_TOTP_RESET:             'Phone code cleared by an Admin',
   ADMIN_TOTP_REQUIRED_ON:       'Phone code made compulsory',
   ADMIN_TOTP_REQUIRED_OFF:      'Phone code no longer compulsory',
-  TOTP_BACKUP_REGENERATED:      'New backup codes issued'
+  TOTP_BACKUP_REGENERATED:      'New backup codes issued',
+  BIN_TRANSFER:                 'Stock moved between bins (Transfer)',
+  SESSION_BIN_TRANSFER:         'Whole scan session moved to another bin',
+  SUPERVISOR_PASSWORD_SET:      'Supervisor Password changed',
+  SUPERVISOR_PASSWORD_CLEARED:  'Supervisor Password removed',
+  ADMIN_ZERO_ALL_INVENTORY:     'All stock reset to zero',
+  EMPLOYEE_RENAMED:             'Staff account renamed',
+  DEVICE_RENAMED:               'Phone/device given a name',
+  TOTP_RESET_BY_ADMIN:          'Phone code cleared by an Admin',
+  TOTP_REQUIRED_ON:             'Phone code made compulsory',
+  TOTP_REQUIRED_OFF:            'Phone code no longer compulsory'
 };
 // Falls back to a tidied-up version of the code itself, so an action added to
 // the database later still reads sensibly here instead of showing raw.
@@ -5288,6 +5333,20 @@ function renderDashStaffChart(rows) {
 }
 
 // ═══════════════════════ AUDIT LOG ═══════════════════════
+// v2.35: three founder-reported problems fixed here and in auditRowHtml()/
+// showDetailsModal() below. (1) The Employee column was showing the generic
+// word stored on the row at scan time (often just "Staff") instead of the
+// person's real name from User Management - fixed by preferring the live
+// directory name, falling back to the stored value only if the employee no
+// longer exists there. (2) The Details column and its "view" popup showed
+// raw JSON - describeAuditDetails() below turns it into a plain sentence for
+// every action type that carries meaningful detail, with a readable generic
+// fallback (never raw code) for anything not hand-covered. The original JSON
+// is kept, folded under "Technical detail", not removed. (3) Several action
+// types added since v2.29 (BIN_TRANSFER, SESSION_BIN_TRANSFER, the Supervisor
+// Password events, the new stock-reset event, staff/device renames) were
+// missing from ACTION_LABEL and the filter dropdown, so they showed as raw
+// codes and could not be filtered on - both are now complete.
 var auditPage = 0;
 var auditPageSize = 50;
 var auditLoadedOnce = false;
@@ -5341,9 +5400,17 @@ function buildAuditFilterParams() {
 // v2.3: pulled out of loadAuditLog so loadAuditLogHighRisk() can render the
 // same row markup for its merged result set without duplicating it.
 function auditRowHtml(r, idx) {
-  var empName = r.employee_name || (employeeDirectory[r.employee_code] ? employeeDirectory[r.employee_code].display_name : '');
-  var detailsStr = r.details ? JSON.stringify(r.details) : '';
-  var shortDetails = detailsStr.length > 40 ? detailsStr.slice(0, 40) + '…' : detailsStr;
+  // v2.35: a staff member's CURRENT name (from User Management) is shown
+  // first - it is always accurate for anyone still active. The name stored
+  // on the row at the time is kept only as a fallback for someone since
+  // archived. Before this fix the stored value always won, and since that
+  // stored value was almost always the generic word "Staff" (see the App-
+  // side writeAuditLog fix, same date), real names never showed even though
+  // this exact fallback already existed in the code.
+  var liveName = employeeDirectory[r.employee_code] ? employeeDirectory[r.employee_code].display_name : '';
+  var empName = liveName || r.employee_name || '';
+  var plainDetails = describeAuditDetails(r.action_type, r.details);
+  var shortDetails = plainDetails.length > 70 ? plainDetails.slice(0, 70) + '…' : plainDetails;
   return '<tr>' +
     '<td class="mono">' + esc(fmtDateTime(r.created_at)) + '</td>' +
     '<td>' + esc(r.employee_code || '—') + (empName ? '<br><span class="mono" style="color:#888">' + esc(empName) + '</span>' : '') + '</td>' +
@@ -5351,8 +5418,69 @@ function auditRowHtml(r, idx) {
     '<td>' + esc(r.order_id || '—') + '</td>' +
     '<td class="mono">' + esc(r.sku_code || '—') + '</td>' +
     '<td>' + esc(r.channel || '—') + '</td>' +
-    '<td>' + (detailsStr ? ('<span class="mono" title="' + esc(detailsStr) + '">' + esc(shortDetails) + '</span> <button class="link-btn" onclick="showDetailsModal(' + idx + ')">view</button>') : '—') + '</td>' +
+    '<td>' + (plainDetails ? (esc(shortDetails) + (r.details ? ' <button class="link-btn" onclick="showDetailsModal(' + idx + ')">view</button>' : '')) : '—') + '</td>' +
     '</tr>';
+}
+
+// v2.35: turns a raw `details` JSON blob into a plain English sentence for
+// the action types that actually carry meaningful detail. Anything not
+// hand-covered below still gets a readable "Label: value, Label: value"
+// line instead of compact JSON - never blank, never raw code.
+function describeAuditDetails(actionType, details) {
+  if (!details || typeof details !== 'object') return '';
+  var d = details;
+  try {
+    switch (actionType) {
+      case 'BIN_TRANSFER':
+        return 'Moved ' + fmtNum(d.qty) + ' unit(s) of ' + (d.product_name || d.sku_code || 'this SKU') +
+               ' from Bin ' + (d.from_bin || '—') + ' to Bin ' + (d.to_bin || '—') + '.' +
+               (d.note ? ' Note: ' + d.note : '');
+      case 'SESSION_BIN_TRANSFER':
+        return 'Moved this whole scan session\'s stock to Bin ' + (d.new_bin || '—') + ' — ' +
+               fmtNum(d.lines_moved) + ' SKU line(s), ' + fmtNum(d.total_qty_moved) + ' unit(s) total.' +
+               (d.note ? ' Note: ' + d.note : '');
+      case 'BIN_RELOCATE':
+        return 'Relocated Bin ' + (d.old_bin || '—') + ' to Bin ' + (d.new_bin || '—') + ' — ' +
+               fmtNum(d.skus_moved) + ' SKU(s), ' + fmtNum(d.total_qty_moved) + ' unit(s) moved.' +
+               (d.note ? ' Note: ' + d.note : '');
+      case 'ADMIN_ZERO_ALL_INVENTORY':
+        return (d.mode === 'PURGE'
+          ? 'Reset ALL stock to zero (PURGE mode) — ' + fmtNum(d.ledger_rows_deleted) + ' history row(s) permanently deleted.'
+          : 'Reset ALL stock to zero — ' + fmtNum(d.bin_rows_zeroed) + ' bin row(s) zeroed, ' + fmtNum(d.units_removed) + ' unit(s) removed. Full history kept.');
+      case 'ADMIN_STOCK_ADJUSTMENT':
+        return (Number(d.qty_delta) > 0 ? 'Added ' : 'Removed ') + fmtNum(Math.abs(Number(d.qty_delta))) + ' unit(s)' +
+               (d.bin_code ? ' in Bin ' + d.bin_code : '') + ', reason: ' + txnLabel(d.txn_type) + '.' +
+               (d.note ? ' Note: ' + d.note : '');
+      case 'NEW_STOCK_IN': case 'RETURN_IN': case 'ADJUSTMENT_FOUND': case 'ADJUSTMENT_LOST_THEFT':
+      case 'ADJUSTMENT_REJECTED': case 'QC_HOLD': case 'ADJUSTMENT_QC_RELEASE': case 'MANUAL_CORRECTION':
+        return (Number(d.qty_delta) > 0 ? 'Added ' : 'Removed ') + fmtNum(Math.abs(Number(d.qty_delta))) + ' unit(s) of ' +
+               (d.product_name || '(unnamed SKU)') + (d.bin_code ? ' in Bin ' + d.bin_code : '') + '.' +
+               (d.note ? ' Note: ' + d.note : '');
+      case 'SCAN_SESSION_CLOSED':
+        return 'Closed for review — ' + fmtNum(d.scan_count) + ' scan(s) in this batch.';
+      case 'SCAN_SESSION_COMMITTED':
+        return 'Accepted ' + fmtNum(d.entries) + ' scan(s)' + (d.session_owner ? ' from ' + d.session_owner : '') +
+               (d.forced ? ' (force-accepted while abandoned)' : '') + '.' + (d.note ? ' Note: ' + d.note : '');
+      case 'SCAN_SESSION_VOIDED':
+        return 'Reversed this batch' + (d.entries ? ' — ' + fmtNum(d.entries) + ' scan(s) undone' : '') + '.' +
+               (d.note ? ' Reason: ' + d.note : '');
+      case 'EMPLOYEE_RENAMED':
+        return 'Renamed ' + (d.employee_code || 'a staff account') + ' from "' + (d.from || '—') + '" to "' + (d.to || '—') + '".';
+      case 'DEVICE_RENAMED':
+        return d.cleared ? 'Cleared the name on device ' + (d.device_hint || '') + '.'
+                          : 'Named a phone "' + (d.display_name || '') + '".';
+      default:
+        var parts = [];
+        Object.keys(d).forEach(function (k) {
+          var v = d[k];
+          if (v === null || v === undefined || v === '' || (Array.isArray(v) && v.length === 0)) return;
+          var label = k.replace(/_/g, ' ').replace(/^./, function (c) { return c.toUpperCase(); });
+          var val = (typeof v === 'object') ? JSON.stringify(v) : String(v);
+          parts.push(label + ': ' + val);
+        });
+        return parts.join(', ');
+    }
+  } catch (e) { return details ? JSON.stringify(details) : ''; }
 }
 
 function loadAuditLog(page) {
@@ -5436,7 +5564,14 @@ function loadAuditLogHighRisk() {
 function showDetailsModal(idx) {
   var row = auditLastRows[idx];
   if (!row) return;
-  document.getElementById('details-modal-content').textContent = JSON.stringify(row.details, null, 2);
+  // v2.35: plain language first (what was actually asked for), the original
+  // raw JSON kept underneath a fold for anyone who does want it - never
+  // removed, just no longer the first and only thing shown.
+  var plain = describeAuditDetails(row.action_type, row.details) || '(No further detail recorded for this entry.)';
+  document.getElementById('details-modal-content').innerHTML =
+    '<div style="font-size:13.5px;line-height:1.6;color:#1A1A1A;">' + esc(plain) + '</div>' +
+    '<details style="margin-top:14px;"><summary style="cursor:pointer;color:#6B7280;font-size:11.5px;">Technical detail (for reference only)</summary>' +
+    '<pre style="margin-top:8px;white-space:pre-wrap;word-break:break-all;font-size:11px;color:#6B7280;">' + esc(JSON.stringify(row.details, null, 2)) + '</pre></details>';
   document.getElementById('details-modal-bg').classList.add('active');
 }
 function closeDetailsModal() { document.getElementById('details-modal-bg').classList.remove('active'); }
@@ -5589,8 +5724,8 @@ function loadBins() {
         '<td>' + statusHtml + '</td>' +
         '<td>' + fmtNum(b.sku_count) + '</td>' +
         '<td>' + fmtNum(b.total_qty) + '</td>' +
-        '<td><button class="btn btn-grey btn-sm" onclick="openRelocateBinModal(\'' + jsq(b.bin_code) + '\')">Relocate</button> ' +
-            '<button class="btn btn-grey btn-sm" onclick="toggleBinActive(\'' + jsq(b.bin_code) + '\', ' + (!b.active) + ')">' + toggleLabel + '</button></td>' +
+        '<td><button class="btn btn-grey btn-sm" onclick="openRelocateBinModal(\'' + jsq(b.bin_code) + '\')" title="Move all stock currently in this bin into a different bin.">Relocate</button> ' +
+            '<button class="btn btn-grey btn-sm" onclick="toggleBinActive(\'' + jsq(b.bin_code) + '\', ' + (!b.active) + ')" title="' + (b.active ? 'Stop this bin from being offered as a destination. Stock already in it is not affected.' : 'Make this bin available again as a destination.') + '">' + toggleLabel + '</button></td>' +
         '</tr>';
     }).join('');
   }).catch(function (err) {
@@ -6062,25 +6197,25 @@ function scanSessionRowHtml(s, idx) {
     actions = seeBtn + ' ' + (empty
       ? '<button class="btn" style="' + B + 'background:#9A6700;color:#fff;" title="Nothing was ever scanned into this batch. This tidies it away and changes no stock." onclick="resolveEmptySession(\'' + sid + '\',' + idx + ')">⊘ Close this off</button>'
       : '<button class="btn btn-primary" style="' + B + '" title="Closes the batch on the operator&#39;s behalf so you can review it. Changes no stock." onclick="openSessionCloseForThem(\'' + sid + '\',' + idx + ')">⏹ Close it for them</button> ' +
-        '<button class="btn" style="' + BR + '" onclick="openSessionReverse(\'' + sid + '\',' + idx + ')">↺ Stop &amp; reverse</button>');
+        '<button class="btn" style="' + BR + '" title="Closes this batch and undoes every stock change it made, as if it had never been scanned. Nothing is deleted — a balancing entry is added for each scan." onclick="openSessionReverse(\'' + sid + '\',' + idx + ')">↺ Stop &amp; reverse</button>');
 
   } else if (s.status === 'CLOSED_PENDING_REVIEW') {
     actions = seeBtn + ' ' + (empty
       ? '<button class="btn" style="' + B + 'background:#9A6700;color:#fff;" title="Nothing was scanned into this batch, so there is nothing to approve or put back." onclick="resolveEmptySession(\'' + sid + '\',' + idx + ')">⊘ Close this off</button>'
-      : '<button class="btn btn-primary" style="' + B + '" onclick="openSessionAccept(\'' + sid + '\',' + idx + ',false)">✓ Accept</button> ' +
+      : '<button class="btn btn-primary" style="' + B + '" title="Marks this batch as checked and approved. Stock was already updated the moment each item was scanned — Accept does not move anything more." onclick="openSessionAccept(\'' + sid + '\',' + idx + ',false)">✓ Accept</button> ' +
         '<button class="btn" style="' + BT + '" title="Move everything this session added to a different bin." onclick="openSessionTransfer(\'' + sid + '\',' + idx + ')">⇄ Transfer</button> ' +
-        '<button class="btn" style="' + BR + '" onclick="openSessionReverse(\'' + sid + '\',' + idx + ')">↺ Reverse</button>');
+        '<button class="btn" style="' + BR + '" title="Undoes every stock change this batch made, as if it had never been scanned. Safe even after Accept — nothing is deleted, a balancing entry is added for each scan." onclick="openSessionReverse(\'' + sid + '\',' + idx + ')">↺ Reverse</button>');
 
   } else if (s.status === 'ABANDONED') {
     actions = seeBtn + ' ' + (empty
       ? '<button class="btn" style="' + B + 'background:#9A6700;color:#fff;" onclick="resolveEmptySession(\'' + sid + '\',' + idx + ')">⊘ Close this off</button>'
       : '<button class="btn btn-primary" style="' + B + '" title="This batch was left open too long and got marked abandoned. If the scans are right, accept them." onclick="openSessionAccept(\'' + sid + '\',' + idx + ',true)">✓ Accept anyway</button> ' +
-        '<button class="btn" style="' + BR + '" onclick="openSessionReverse(\'' + sid + '\',' + idx + ')">↺ Reverse</button>');
+        '<button class="btn" style="' + BR + '" title="Undoes every stock change this batch made, as if it had never been scanned. Safe even after Accept — nothing is deleted, a balancing entry is added for each scan." onclick="openSessionReverse(\'' + sid + '\',' + idx + ')">↺ Reverse</button>');
 
   } else if (s.status === 'COMMITTED') {
     actions = seeBtn + (empty ? '' :
       ' <button class="btn" style="' + BT + '" title="Move everything this session added to a different bin." onclick="openSessionTransfer(\'' + sid + '\',' + idx + ')">⇄ Transfer</button>' +
-      ' <button class="btn" style="' + BR + '" onclick="openSessionReverse(\'' + sid + '\',' + idx + ')">↺ Reverse</button>') +
+      ' <button class="btn" style="' + BR + '" title="Undoes every stock change this batch made, as if it had never been scanned. Safe even after Accept — nothing is deleted, a balancing entry is added for each scan." onclick="openSessionReverse(\'' + sid + '\',' + idx + ')">↺ Reverse</button>') +
       '<div style="color:#999;font-size:10.5px;margin-top:2px;">accepted' + (s.resolved_by ? ' by ' + esc(s.resolved_by) : '') + '</div>';
 
   } else { // VOIDED
@@ -6104,9 +6239,12 @@ function scanSessionRowHtml(s, idx) {
     (s.status === 'OPEN' ? ' · ' + esc(lastScanText(s)) : '') + '</div>';
 
   return '<tr>' +
-    '<td><button class="btn btn-grey" style="padding:2px 8px;font-size:11px;" onclick="toggleScanSessionDetail(' + idx + ')" id="sess-toggle-' + idx + '">▾</button></td>' +
+    '<td><button class="btn btn-grey" style="padding:2px 8px;font-size:11px;" title="Show or hide this batch&#39;s line-by-line scan detail." onclick="toggleScanSessionDetail(' + idx + ')" id="sess-toggle-' + idx + '">▾</button></td>' +
     '<td>' + openCell + '</td>' +
-    '<td>' + esc(s.employee_code) + '</td>' +
+    // v2.35: same "code with no name" gap as the Audit Log and Transactions
+    // tabs, fixed the same way - the operator's code plus their current
+    // name from User Management underneath it.
+    '<td>' + esc(s.employee_code) + (employeeDirectory[s.employee_code] ? '<br><span class="mono" style="color:#888">' + esc(employeeDirectory[s.employee_code].display_name) + '</span>' : '') + '</td>' +
     '<td>' + deviceCellHtml(s, idx) + '</td>' +
     '<td>' + sessionStatusLabel(s) + '</td>' +
     '<td>' + esc(s.default_bin_code || '—') + '</td>' +
@@ -6922,10 +7060,10 @@ function deviceRowHtml(r, idx) {
 
   var actions = '';
   if (!ro) {
-    actions += '<button class="btn btn-grey" style="padding:3px 9px;font-size:11px;" onclick="openDevNameRow(' + idx + ')">✎ ' + (named ? 'Rename' : 'Name it') + '</button> ';
+    actions += '<button class="btn btn-grey" style="padding:3px 9px;font-size:11px;" title="Give this phone a friendly name (e.g. the warehouse floor tablet) so it is easy to recognise here instead of a long device code." onclick="openDevNameRow(' + idx + ')">✎ ' + (named ? 'Rename' : 'Name it') + '</button> ';
     actions += blocked
-      ? '<button class="btn" style="padding:3px 9px;font-size:11px;background:#1B7A3A;color:#fff;" onclick="openDevBlockRow(' + idx + ',false)">Allow again</button>'
-      : '<button class="btn" style="padding:3px 9px;font-size:11px;background:#a33;color:#fff;" onclick="openDevBlockRow(' + idx + ',true)">⛔ Block</button>';
+      ? '<button class="btn" style="padding:3px 9px;font-size:11px;background:#1B7A3A;color:#fff;" title="Let this phone sign in again." onclick="openDevBlockRow(' + idx + ',false)">Allow again</button>'
+      : '<button class="btn" style="padding:3px 9px;font-size:11px;background:#a33;color:#fff;" title="Stop this phone from being able to sign in at all, even with a correct PIN. Use this for a lost or stolen device." onclick="openDevBlockRow(' + idx + ',true)">⛔ Block</button>';
   } else {
     actions = '<span style="color:#999;font-size:11px;">read-only</span>';
   }
@@ -7135,9 +7273,9 @@ function renderEmployees() {
     var actionsHtml = e.archived
       ? '<span class="result-msg">Archived ' + (e.archived_at ? fmtDateTime(e.archived_at) : '') + '</span>'
       : '<div style="display:flex;gap:6px;flex-wrap:wrap;">' +
-        '<button class="btn btn-sm ' + (e.active ? 'btn-grey' : 'btn-green') + '" onclick="toggleEmployeeActive(\'' + jsq(e.employee_code) + '\', ' + !!e.active + ')">' + (e.active ? 'Deactivate' : 'Reactivate') + '</button>' +
-        '<button class="btn btn-sm btn-primary" onclick="resetEmployeePin(\'' + jsq(e.employee_code) + '\')">Reset PIN</button>' +
-        '<button class="btn btn-sm btn-gold" onclick="unlockEmployee(\'' + jsq(e.employee_code) + '\')">Unlock</button>' +
+        '<button class="btn btn-sm ' + (e.active ? 'btn-grey' : 'btn-green') + '" onclick="toggleEmployeeActive(\'' + jsq(e.employee_code) + '\', ' + !!e.active + ')" title="' + (e.active ? 'Stop this account from being able to sign in. Their history and access settings are kept exactly as they are, and switching them back on undoes this completely.' : 'Let this account sign in again, with the same access it had before.') + '">' + (e.active ? 'Deactivate' : 'Reactivate') + '</button>' +
+        '<button class="btn btn-sm btn-primary" onclick="resetEmployeePin(\'' + jsq(e.employee_code) + '\')" title="Set a new 4-digit PIN for this person. Use this if they forgot theirs or it needs to change for any reason.">Reset PIN</button>' +
+        '<button class="btn btn-sm btn-gold" onclick="unlockEmployee(\'' + jsq(e.employee_code) + '\')" title="Clears an automatic lockout caused by too many wrong PIN attempts, so they can try again immediately instead of waiting it out.">Unlock</button>' +
         // v2.22: ONE button, not three. Three buttons called "Set up 2FA",
         // "Require 2FA" and "Clear 2FA" were impossible to tell apart. Now it
         // is simply on or off, and the question of WHOSE phone is asked inside
@@ -7145,9 +7283,9 @@ function renderEmployees() {
         ((e.totp_enabled || e.totp_required)
            ? '<button class="btn btn-sm btn-grey" onclick="turnOffPhoneCode(\'' + jsq(e.employee_code) + '\')" title="Go back to PIN only for this person. Use this if they lose their phone.">Turn off phone code</button>'
            : '<button class="btn btn-sm btn-primary" onclick="openPhoneCodeChoice(\'' + jsq(e.employee_code) + '\')" title="Make this person enter a 6-digit code from a phone as well as their PIN">Turn on phone code</button>') +
-        '<button class="btn btn-sm btn-primary" onclick="openEditAccessModal(\'' + jsq(e.employee_code) + '\')">Edit Access</button>' +
-        '<button class="btn btn-sm btn-grey" onclick="openEmployeeRename(\'' + jsq(e.employee_code) + '\')">✎ Rename</button>' +
-        '<button class="btn btn-sm btn-grey" onclick="archiveEmployee(\'' + jsq(e.employee_code) + '\')">Archive &amp; Free Code</button>' +
+        '<button class="btn btn-sm btn-primary" onclick="openEditAccessModal(\'' + jsq(e.employee_code) + '\')" title="Change this person&#39;s role and exactly which sections of the app they can use.">Edit Access</button>' +
+        '<button class="btn btn-sm btn-grey" onclick="openEmployeeRename(\'' + jsq(e.employee_code) + '\')" title="Change the full name shown for this person everywhere in the panel, including the Audit Log. Their employee code and history do not change.">✎ Rename</button>' +
+        '<button class="btn btn-sm btn-grey" onclick="archiveEmployee(\'' + jsq(e.employee_code) + '\')" title="Retire this account for good and free up its employee code for reuse. Everything they ever did stays in the Audit Log and Transactions exactly as it is - this cannot be undone from here.">Archive &amp; Free Code</button>' +
         '</div>';
     // v2.29: rows a Supervisor must not act on are marked here, where the
     // role is actually known, and disabled by applySupervisorModeToUI().
@@ -8499,6 +8637,99 @@ function toggleAllSkuCheckboxes(checked) {
   document.querySelectorAll('.sku-row-checkbox').forEach(function (cb) { cb.checked = checked; });
   onSkuCheckboxChange();
 }
+// ═══════════════════════ RESET ALL STOCK TO ZERO (v2.35) ═══════════════════════
+// Two-step, same shape as every other dangerous action in this panel: a
+// dry-run Preview that changes nothing, then a typed confirmation phrase
+// plus a browser confirm() before the real call. OFFSET mode only - the
+// function itself also supports PURGE (deletes the ledger outright) but
+// that is never sent from here.
+var zeroStockPreviewResult = null;
+
+function previewZeroAllInventory() {
+  if (!db) return;
+  var secret = getAdminSecret();
+  var btn = document.getElementById('zero-stock-preview-btn');
+  var out = document.getElementById('zero-stock-preview');
+  btn.disabled = true;
+  out.innerHTML = '<div class="result-msg">Checking current stock…</div>';
+  withTimeout(db.rpc('oms_admin_zero_all_inventory', {
+    p_admin_secret: secret, p_mode: 'OFFSET', p_dry_run: true,
+    p_employee_code: getAdminPanelEmployeeCode()
+  }), 15000, 'Reset stock preview').then(function (res) {
+    btn.disabled = false;
+    if (res.error) {
+      if (isBadSecretError(res.error)) { handleBadSecret('zero-stock'); return; }
+      out.innerHTML = '<div class="result-msg err">' + esc(friendlyError(res.error)) + '</div>';
+      return;
+    }
+    var row = (res.data && res.data[0]) || {};
+    zeroStockPreviewResult = row;
+    if (!row.bin_rows_affected) {
+      out.innerHTML = '<div class="result-msg" style="color:#1B7A3A;">Nothing to reset right now — every SKU is already at zero. Nothing has been changed.</div>';
+      return;
+    }
+    out.innerHTML =
+      '<div class="hint-text" style="border-left:3px solid #9A6700;padding-left:10px;">' +
+      'This would zero <strong>' + fmtNum(row.bin_rows_affected) + '</strong> bin-stock row(s), removing a total of <strong>' + fmtNum(row.units_removed) + '</strong> unit(s). ' +
+      'Nothing has been changed yet.</div>' +
+      '<div style="margin-top:12px;">' +
+      '<div class="form-field"><label>Type exactly: ZERO ALL INVENTORY</label>' +
+      '<input type="text" id="zero-stock-confirm-phrase" autocomplete="off" style="max-width:260px;"></div>' +
+      '<button class="btn btn-primary" id="zero-stock-execute-btn" style="margin-top:8px;background:#B3261E;" onclick="executeZeroAllInventory()">⚠ Reset ' + fmtNum(row.units_removed) + ' unit(s) to zero, now</button>' +
+      '</div>' +
+      '<div class="result-msg" id="zero-stock-result"></div>';
+  }).catch(function (err) {
+    btn.disabled = false;
+    out.innerHTML = '<div class="result-msg err">Error: ' + esc(String(err && err.message || err)) + '</div>';
+  });
+}
+
+function executeZeroAllInventory() {
+  if (!db || !zeroStockPreviewResult) return;
+  var phraseEl = document.getElementById('zero-stock-confirm-phrase');
+  var phrase = ((phraseEl && phraseEl.value) || '').trim();
+  var resEl = document.getElementById('zero-stock-result');
+  if (phrase !== 'ZERO ALL INVENTORY') {
+    resEl.className = 'result-msg err';
+    resEl.textContent = 'Type the phrase exactly as shown: ZERO ALL INVENTORY';
+    return;
+  }
+  if (!confirm('This will zero ' + fmtNum(zeroStockPreviewResult.units_removed) + ' unit(s) across ' + fmtNum(zeroStockPreviewResult.bin_rows_affected) + ' bin-stock row(s), right now.\n\nNothing is deleted — a correction entry is added for each one and the full history stays exactly as it is.\n\nProceed?')) return;
+
+  var secret = getAdminSecret();
+  var code = getAdminPanelEmployeeCode();
+  var myName = (code && employeeDirectory[code]) ? employeeDirectory[code].display_name : null;
+  var btn = document.getElementById('zero-stock-execute-btn');
+  btn.disabled = true;
+  resEl.className = 'result-msg';
+  resEl.textContent = 'Resetting stock…';
+
+  withTimeout(db.rpc('oms_admin_zero_all_inventory', {
+    p_admin_secret: secret, p_mode: 'OFFSET', p_dry_run: false,
+    p_confirm_phrase: 'ZERO ALL INVENTORY',
+    p_employee_code: code, p_employee_name: myName
+  }), 20000, 'Reset stock').then(function (res) {
+    btn.disabled = false;
+    if (res.error) {
+      if (isBadSecretError(res.error)) { handleBadSecret('zero-stock'); return; }
+      resEl.className = 'result-msg err';
+      resEl.textContent = friendlyError(res.error);
+      return;
+    }
+    var row = (res.data && res.data[0]) || {};
+    resEl.className = 'result-msg';
+    resEl.style.color = '#1B7A3A';
+    resEl.innerHTML = '<strong>Done.</strong> ' + esc(row.outcome || '') + ' You can tell your team to start scanning again.';
+    var pEl = document.getElementById('zero-stock-confirm-phrase');
+    if (pEl) pEl.disabled = true;
+    if (typeof loadSkuStock === 'function') loadSkuStock(0);
+  }).catch(function (err) {
+    btn.disabled = false;
+    resEl.className = 'result-msg err';
+    resEl.textContent = 'Error: ' + String(err && err.message || err);
+  });
+}
+
 function getSelectedSkuCodes() {
   return Array.prototype.slice.call(document.querySelectorAll('.sku-row-checkbox:checked')).map(function (cb) { return cb.value; });
 }
@@ -8860,7 +9091,13 @@ function loadTransactions(page) {
           '<td>' + esc(t.channel || '—') + '</td>' +
           '<td>' + esc(t.order_id || '—') + '</td>' +
           '<td class="mono">' + esc(t.bin_code || '—') + '</td>' +
-          '<td class="mono">' + esc(t.employee_code || '—') + '</td>' +
+          // v2.35: same fix as the Audit Log - a raw employee_code with no
+          // name at all was the same "codes, not names" problem the founder
+          // flagged there, just in a different tab. This table has no stored
+          // employee_name at all (oms_inventory_transactions never had that
+          // column), so the live directory is the only source - shown as a
+          // grey sub-line under the code, same as everywhere else.
+          '<td class="mono">' + esc(t.employee_code || '—') + (employeeDirectory[t.employee_code] ? '<br><span class="mono" style="color:#888">' + esc(employeeDirectory[t.employee_code].display_name) + '</span>' : '') + '</td>' +
           '<td>' + esc(t.note || '—') + '</td>' +
           '</tr>';
       }).join('');
