@@ -44,6 +44,37 @@
          on a small close/curved object (a real optics limit, not a decoder or
          crop bug — v67/v68 both independently reconfirmed correct on the same
          device). Debug readout now also reports live tap-focus/zoom support. -->
+    <!-- v94 (2026-09-24): three founder-reported fixes.
+         1. RESUME: Android discards a backgrounded page (worst when the camera
+            stream is still held after a scan). On reload the app used to land on
+            PICK with every half-typed field gone, and - if sessionStorage was
+            wiped too - on the login screen. Now: (a) the camera is fully
+            released the moment the app goes to the background, so Android is
+            far less likely to kill it; (b) the screen you were on (tab, Actions
+            mode, typed fields, Quick Add, Live Stock search + filters, scroll)
+            is saved and put back on reload for the same person; (c) a short
+            resume window (RESUME_MINUTES) keeps you signed in across an
+            app-switch that ended in a reload. Logout clears all of it.
+         2. The Live Stock search box now types in CAPITALS, same as Bin Lookup.
+         3. SKU GATE: a SKU can only be scanned if it is in the product database
+            AND switched on for stock (oms_sku_master.active). Unknown -> clear
+            message + "Add as new listing" (opens Quick Add, pre-filled).
+            Switched off -> clear message + "Switch on & continue". The database
+            enforces the same rule (trigger trg_oms_require_tracked_sku), so
+            nothing can slip past from any surface. -->
+    <!-- v95 (2026-09-24): LISTINGS ARE MANAGED BY AN ADMIN OR SUPERVISOR, FROM
+         THE PHONE. v94's SKU gate stays; what changes is WHO may open it:
+         - New section Actions > Manage Listings (visible to Admin/Supervisor
+           only): find any of the ~11,000 listings, see ON/OFF and live stock,
+           switch it ON or OFF, or add a brand-new listing (+ opening stock).
+         - Every one of those needs the signed-in Admin/Supervisor's OWN PIN,
+           checked by the database (oms_admin_set_sku_active /
+           oms_admin_create_listing, 5-strikes lockout), and lands in the Audit
+           Log. The PIN is remembered in memory for PIN_REMEMBER_MINUTES only,
+           and forgotten the moment the app goes to the background.
+         - Staff who scan an unknown or switched-off SKU are told plainly to ask
+           an Admin or Supervisor; there is no button for them.
+         - Excel picks up every change on its next open or SYNC NOW (v129). -->
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#1B4F8A">
     <link rel="icon" href="icon.svg" type="image/svg+xml">
@@ -2729,7 +2760,7 @@ var qrcode = function() {
     </style>
 </head>
 <body>
-<div class="ver-corner" id="verCornerBadge" onclick="handleVerBadgeTap()">v93</div>
+<div class="ver-corner" id="verCornerBadge" onclick="handleVerBadgeTap()">v95</div>
 <!-- v63: Gap 2 — offline write-queue indicator. Hidden (display:none) unless
      something is actually queued or failed. Tapping it shows the queue detail
      panel (openOfflineQueuePanel()). -->
@@ -3073,10 +3104,24 @@ var qrcode = function() {
                    2. puts its opening stock into a bin (writeLedgerTxn, NEW_STOCK_IN)
                  It is not a new code path - it calls the exact same RPC and the
                  exact same single ledger-writing function everything else uses. -->
-            <div class="settings-section" style="margin-top:10px;border:1px solid #1B4F8A;">
-                <h3 style="margin-top:0;cursor:pointer;" onclick="toggleQuickAdd()">&#10133; Quick Add New Listing <span id="quick-add-toggle-icon">&#9660;</span></h3>
+            <!-- v95: MANAGE LISTINGS (Admin / Supervisor only). Keeps the v80 Quick
+                 Add ids (quick-add-body, qa-*) so nothing that points at them breaks. -->
+            <div class="settings-section" id="manage-listings-section" style="margin-top:10px;border:1px solid #1B4F8A;display:none;">
+                <h3 style="margin-top:0;cursor:pointer;" onclick="toggleQuickAdd()">&#128450; Manage Listings <span style="font-size:11px;font-weight:600;color:#6B7280;">(Admin / Supervisor)</span> <span id="quick-add-toggle-icon">&#9660;</span></h3>
                 <div id="quick-add-body" style="display:none;">
-                    <div class="settings-info">For a product that is <strong>not in the system yet</strong>. Fills in the listing and its opening stock in one go. Already-known products go through the normal MOVE pills above.</div>
+                    <div class="settings-info">Switch a listing <strong>ON</strong> (staff can then scan it) or <strong>OFF</strong>, or add a brand-new listing. Each change asks for <strong>your own PIN</strong> and is recorded in the Audit Log. Excel adds it to tabs 6 and 12 by itself on its next open or <strong>SYNC NOW</strong>.</div>
+                    <div style="font-weight:800;color:#0A1628;font-size:13px;margin:10px 0 6px;">&#128269; Find a listing</div>
+                    <div class="settings-row">
+                        <input type="text" class="settings-input" id="ml-search-input" placeholder="SKU, ASIN or product name..." autocomplete="off" autocorrect="off" autocapitalize="characters" spellcheck="false" style="text-transform:uppercase" oninput="forceUpperInput(this, event)" onkeydown="if(event.key==='Enter')runListingSearch();">
+                        <button class="scan-cam-btn" onclick="openScannerFor('ml-search-input')" title="Scan a SKU or ASIN barcode">
+                            <svg viewBox="0 0 24 24"><path d="M12 9a4 4 0 1 0 4 4 4 4 0 0 0-4-4zm0 6a2 2 0 1 1 2-2 2 2 0 0 1-2 2z"/><path d="M20 4h-2.76l-1.63-2H8.39L6.76 4H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2zm0 15H4V6h3.56L9.19 4h5.62l1.63 2H20z"/></svg>
+                        </button>
+                        <button class="settings-btn" style="max-width:90px;" onclick="runListingSearch()">Search</button>
+                    </div>
+                    <div class="move-result" id="ml-result"></div>
+                    <div id="ml-results"></div>
+                    <div style="font-weight:800;color:#0A1628;font-size:13px;margin:14px 0 6px;" id="ml-add-heading">&#10133; Add a new listing</div>
+                    <div class="settings-info">Only for a product that is <strong>not in the list at all</strong>. It is created switched ON, with its opening stock in one go.</div>
                     <div class="settings-row">
                         <input type="text" class="settings-input" id="qa-title-input" placeholder="Product title (required)">
                     </div>
@@ -3105,12 +3150,13 @@ var qrcode = function() {
                     <div class="settings-row">
                         <input type="number" class="settings-input" id="qa-qty-input" placeholder="Opening stock" min="0" value="0" style="max-width:130px">
                         <input type="number" class="settings-input" id="qa-mrp-input" placeholder="MRP (optional)" min="0" style="max-width:130px">
+                        <input type="number" class="settings-input" id="qa-setsize-input" placeholder="Set size (1)" min="1" style="max-width:110px">
                     </div>
                     <div class="settings-row">
                         <input type="text" class="settings-input" id="qa-note-input" placeholder="Note (optional - e.g. PO number)">
                     </div>
                     <div class="settings-row">
-                        <button class="settings-btn" style="flex:1" id="qa-submit-btn" onclick="submitQuickAdd()">&#10003; Add Listing &amp; Stock</button>
+                        <button class="settings-btn" style="flex:1" id="qa-submit-btn" onclick="submitQuickAdd()">&#10003; Add New Listing &amp; Stock</button>
                         <button class="settings-btn" style="flex:0 0 auto;background:#888" onclick="clearQuickAdd()">Clear</button>
                     </div>
                     <div class="move-result" id="qa-result"></div>
@@ -3154,7 +3200,7 @@ var qrcode = function() {
                 <h3 style="margin-bottom:6px;">&#128230; Bin Lookup</h3>
                 <div class="settings-info" style="margin-bottom:6px;">Type a SKU or ASIN to see every bin holding it, or a bin code to see everything in that bin. Bins are created automatically the first time you use them — there is no fixed list to be limited to.</div>
                 <div class="settings-row">
-                    <input type="text" class="settings-input" id="bin-lookup-input" placeholder="SKU, ASIN, or bin code..." autocomplete="off" autocorrect="off" autocapitalize="characters" onkeydown="if(event.key==='Enter')runBinLookup();">
+                    <input type="text" class="settings-input" id="bin-lookup-input" placeholder="SKU, ASIN, or bin code..." autocomplete="off" autocorrect="off" autocapitalize="characters" spellcheck="false" style="text-transform:uppercase" oninput="forceUpperInput(this, event)" onkeydown="if(event.key==='Enter')runBinLookup();">
                     <!-- v49: camera scan-to-fill for quick lookup by SKU/ASIN/bin barcode -->
                     <button class="scan-cam-btn" onclick="openScannerFor('bin-lookup-input')" title="Scan SKU/ASIN/bin barcode">
                         <svg viewBox="0 0 24 24"><path d="M12 9a4 4 0 1 0 4 4 4 4 0 0 0-4-4zm0 6a2 2 0 1 1 2-2 2 2 0 0 1-2 2z"/><path d="M20 4h-2.76l-1.63-2H8.39L6.76 4H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2zm0 15H4V6h3.56L9.19 4h5.62l1.63 2H20z"/></svg>
@@ -3186,7 +3232,7 @@ var qrcode = function() {
             </div>
             <div id="full-export-progress" style="text-align:right;font-size:10px;color:#888;margin-bottom:4px;"></div>
             <div class="stock-toolbar">
-                <input type="text" class="stock-search" id="stock-search-input" placeholder="Filter by SKU, ASIN, or product name..." oninput="onStockSearchInput()">
+                <input type="text" class="stock-search" id="stock-search-input" placeholder="Filter by SKU, ASIN, or product name..." autocomplete="off" autocorrect="off" autocapitalize="characters" spellcheck="false" style="text-transform:uppercase" oninput="forceUpperInput(this, event);onStockSearchInput()">
                 <!-- v88: camera scan-to-filter, same as Bin Lookup. Scanning a
                      product's barcode fills this box and runs the filter in one
                      go -- the scanner fires the box's own 'input' event. -->
@@ -3415,7 +3461,7 @@ var qrcode = function() {
                     <li><strong>&#128228; Dispatch / Order Out</strong> &mdash; <strong>new 8th pill (v81).</strong> Use it whenever stock physically leaves for a customer order. Scan the SKU, confirm the bin it came from, enter how many, and add the order number and channel.
                         <br><em>Why this matters:</em> until now the system recorded 2,702 stock-<em>in</em> entries and <strong>not one</strong> stock-<em>out</em>. That is why low-stock alerts never fired and every SKU showed as ABC tier &ldquo;C&rdquo; &mdash; the reports had no sales to work from. Booking dispatches here (or completing a pick on the PICK tab) is what switches all of that on.</li>
                     <!-- v80: Quick Add New Listing -->
-                    <li><strong>&#10133; Quick Add New Listing</strong> &mdash; new section on the Actions tab, for a product that is <strong>not in the system yet</strong>. Fill in product title, SKU, ASIN (leave blank if it is not on Amazon), product type, bin number and opening stock, then tap <strong>Add Listing &amp; Stock</strong>. It registers the listing and puts its opening stock into that bin in one step.
+                    <li><strong>&#128450; Manage Listings</strong> (Admin / Supervisor, v95) &mdash; on the Actions tab: find any listing and switch it ON or OFF for stock, or add a brand-new one, each confirmed with your own PIN. <strong>Add a new listing</strong> is for a product that is <strong>not in the system yet</strong>. Fill in product title, SKU, ASIN (leave blank if it is not on Amazon), product type, bin number and opening stock, then tap <strong>Add Listing &amp; Stock</strong>. It registers the listing and puts its opening stock into that bin in one step.
                         <br><em>What happens if you just scan an unknown code instead:</em> nothing is ever placed in a random bin. On <strong>New Stock</strong> or <strong>Returns</strong> an amber &ldquo;Register New SKU&rdquo; panel opens so you can add it and carry straight on. On <strong>Remove/Lost, QC Hold, QC Release or Set True Count</strong> the app refuses outright &mdash; counting or removing something that was never received is a mistake, not a new product.</li>
                     <!-- v50: QC Release used to be CSV/Bulk-only; note the new single-row screen -->
                     <li><strong>QC Release</strong> &mdash; a pill on the Actions tab, previously only reachable via Bulk Upload (CSV). Releases stock that was QC-Held back into sellable count, using the same SKU/Bin/Qty/Note form as the rest of this tab.</li>
@@ -4257,6 +4303,157 @@ function clearRememberSession() {
     try { localStorage.removeItem(OMS_REMEMBER_KEY); } catch (e) {}
 }
 
+// ── v94: RESUME WHERE YOU LEFT OFF ────────────────────────────────────
+// Android kills a backgrounded page to free memory. When the person comes back
+// the page reloads from scratch. Two small stores make that invisible:
+//   oms_ui_state      - which screen, mode and typed fields were showing.
+//                       Only ever put back for the SAME employee, and only if
+//                       it is younger than UI_STATE_MAX_MINUTES.
+//   oms_resume_session- the signed-in session, written ONLY when the app goes
+//                       to the background (not on a plain reload; closing a
+//                       tab does hide it first, so that also leaves a token),
+//                       deleted the moment the app is back on screen, used at
+//                       most once, and valid for RESUME_MINUTES. Logout and a
+//                       device block delete it and stop it being re-written.
+//                       NOTE for shared phones: swiping the app away is NOT a
+//                       logout (Android cannot tell that apart from killing it
+//                       in the background) - staff must tap Logout.
+var OMS_UI_STATE_KEY   = 'oms_ui_state';
+var OMS_RESUME_KEY     = 'oms_resume_session';
+var RESUME_MINUTES     = 10;   // set to 0 to switch the resume window off entirely
+var UI_STATE_MAX_MINUTES = 120;
+var UI_STATE_FIELDS_EARLY = ['bin-lookup-input', 'stock-search-input', 'stock-filter-status',
+    'stock-filter-category', 'stock-filter-abc', 'stock-sort-by'];
+var UI_STATE_FIELDS_LATE = ['move-sku-input', 'move-bin-input', 'move-qty-input', 'move-note-input',
+    'move-transfer-tobin-input', 'move-order-input', 'move-channel-input', 'move-return-grade',
+    'qa-title-input', 'qa-sku-input', 'qa-asin-input', 'qa-type-input', 'qa-bin-input',
+    'qa-qty-input', 'qa-mrp-input', 'qa-note-input', 'qa-setsize-input', 'ml-search-input'];
+var _uiStateRestored = false;
+var _signingOut = false;   // set by logout / device block: never save anything after it
+var _uiSaveTimer = null;
+function saveUiState() {
+    try {
+        if (_signingOut || !state.session || !state.session.employee_code) return;
+        var fields = {};
+        UI_STATE_FIELDS_EARLY.concat(UI_STATE_FIELDS_LATE).forEach(function (id) {
+            var el = document.getElementById(id);
+            if (el && el.value !== undefined) fields[id] = el.value;
+        });
+        var binEl = document.getElementById('move-bin-input');
+        var qaBody = document.getElementById('quick-add-body');
+        var content = document.querySelector('.content');
+        var snap = {
+            v: 1,
+            emp: state.session.employee_code,
+            at: Date.now(),
+            tab: state.tab,
+            moveMode: moveMode,
+            fields: fields,
+            binSrc: binEl ? (binEl.getAttribute('data-src') || '') : '',
+            quickAddOpen: !!(qaBody && qaBody.style.display !== 'none'),
+            scrollTop: content ? content.scrollTop : 0
+        };
+        var json = JSON.stringify(snap);
+        try { sessionStorage.setItem(OMS_UI_STATE_KEY, json); } catch (e) {}
+        try { localStorage.setItem(OMS_UI_STATE_KEY, json); } catch (e) {}
+    } catch (e) {}
+}
+function scheduleUiStateSave() {
+    if (_uiSaveTimer) clearTimeout(_uiSaveTimer);
+    _uiSaveTimer = setTimeout(saveUiState, 400);
+}
+function loadUiState() {
+    var raw = null;
+    try { raw = sessionStorage.getItem(OMS_UI_STATE_KEY); } catch (e) {}
+    if (!raw) { try { raw = localStorage.getItem(OMS_UI_STATE_KEY); } catch (e) {} }
+    if (!raw) return null;
+    try {
+        var snap = JSON.parse(raw);
+        if (!snap || snap.v !== 1 || !snap.emp) return null;
+        if (!state.session || snap.emp !== state.session.employee_code) return null;
+        if (!snap.at || (Date.now() - snap.at) > UI_STATE_MAX_MINUTES * 60000) return null;
+        return snap;
+    } catch (e) { return null; }
+}
+function clearUiState() {
+    try { sessionStorage.removeItem(OMS_UI_STATE_KEY); } catch (e) {}
+    try { localStorage.removeItem(OMS_UI_STATE_KEY); } catch (e) {}
+}
+function _setFieldValue(id, val) {
+    var el = document.getElementById(id);
+    if (!el || val === undefined || val === null) return;
+    if (el.tagName === 'SELECT' && val !== '') {
+        var has = false;
+        for (var i = 0; i < el.options.length; i++) { if (el.options[i].value === val) { has = true; break; } }
+        if (!has) { var o = document.createElement('option'); o.value = val; o.textContent = val; el.appendChild(o); }
+    }
+    el.value = val;
+}
+// Phase A - before the tab is drawn (the Stock tab reads these as it loads).
+function restoreUiStateEarly() {
+    if (_uiStateRestored) return null;
+    var snap = loadUiState();
+    if (!snap) return null;
+    if (snap.tab) state.tab = snap.tab;
+    if (snap.moveMode && MOVE_MODES[snap.moveMode]) moveMode = snap.moveMode;
+    UI_STATE_FIELDS_EARLY.forEach(function (id) { _setFieldValue(id, (snap.fields || {})[id]); });
+    return snap;
+}
+// Phase B - after the tab is drawn (switching to Actions clears its fields,
+// so they can only be put back afterwards).
+function restoreUiStateLate(snap) {
+    if (_uiStateRestored || !snap) return;
+    _uiStateRestored = true;
+    var f = snap.fields || {};
+    UI_STATE_FIELDS_LATE.forEach(function (id) { _setFieldValue(id, f[id]); });
+    var binEl = document.getElementById('move-bin-input');
+    if (binEl && snap.binSrc) binEl.setAttribute('data-src', snap.binSrc);
+    if (snap.quickAddOpen) {
+        var body = document.getElementById('quick-add-body');
+        if (body && body.style.display === 'none') { try { toggleQuickAdd(); } catch (e) {} }
+    }
+    if (state.tab === 'move' && (f['move-sku-input'] || '').trim()) {
+        try { prefillMoveBin(); } catch (e) {}
+    }
+    if (state.tab === 'stock' && (f['bin-lookup-input'] || '').trim()) {
+        try { runBinLookup(); } catch (e) {}
+    }
+    var content = document.querySelector('.content');
+    if (content && snap.scrollTop) {
+        setTimeout(function () { try { content.scrollTop = snap.scrollTop; } catch (e) {} }, 700);
+    }
+}
+function saveResumeSession() {
+    try {
+        if (_signingOut || RESUME_MINUTES <= 0 || !state.session || !state.session.employee_code) return;
+        localStorage.setItem(OMS_RESUME_KEY, JSON.stringify({ session: state.session, hiddenAt: Date.now() }));
+    } catch (e) {}
+}
+function loadResumeSession() {
+    try {
+        var raw = localStorage.getItem(OMS_RESUME_KEY);
+        if (!raw) return null;
+        var p = JSON.parse(raw);
+        localStorage.removeItem(OMS_RESUME_KEY);           // single use
+        if (!p || !p.session || !p.hiddenAt) return null;
+        if (RESUME_MINUTES <= 0 || (Date.now() - p.hiddenAt) > RESUME_MINUTES * 60000) return null;
+        if (!p.session.employee_code || !p.session.role) return null;
+        return p.session;
+    } catch (e) { return null; }
+}
+function clearResumeSession() {
+    try { localStorage.removeItem(OMS_RESUME_KEY); } catch (e) {}
+}
+// Called when the app goes to the background.
+function onAppHidden() {
+    try { forgetManagerPin(); mgrPinCancel(); } catch (e) {}   // v95
+    saveUiState();
+    saveResumeSession();
+    // Give the camera back to the phone. Holding a live camera stream in the
+    // background is the single biggest reason Android kills this page.
+    try { releaseCamera(); } catch (e) {}
+}
+
 // v79 (Master Prompt v21, Part 4.3): PIN-less permission self-heal. Confirmed
 // root cause of "sessions:true in the DB but the App still won't show it" —
 // permissions are only ever read at login and cached forever (state.session,
@@ -4291,8 +4488,14 @@ function refreshSessionPermissions(force) {
         _permRefresh.inFlight = false;
         if (res.error || !res.data || !res.data.length) return;
         var row = res.data[0];
-        if (row.active === false) return; // don't silently deactivate a live session client-side
-        var changed = JSON.stringify(row.permissions || null) !== JSON.stringify(state.session.permissions || null);
+        if (row.active === false) {
+            // v94: a session brought back by the short resume window is NOT a
+            // live session - a deactivated account must not come back that way.
+            if (state.resumedFromBackground) { try { logout(); } catch (e) {} }
+            return; // don't silently deactivate a live session client-side
+        }
+        var changed = JSON.stringify(row.permissions || null) !== JSON.stringify(state.session.permissions || null) ||
+                      (row.role && row.role !== state.session.role);   // v95
         state.session.permissions = row.permissions || null;
         if (row.role) state.session.role = row.role;
         saveSessionToStorage(state.session);
@@ -4331,7 +4534,12 @@ function forceLogoutDeviceBlocked() {
         // straight back in without ever asking the server again.
         try { localStorage.removeItem(OMS_REMEMBER_KEY); } catch (e) {}
         try { clearSessionStorage(); } catch (e) {}
+        _signingOut = true;             // v94: nothing may be re-saved during the reload
+        try { clearResumeSession(); clearUiState(); } catch (e) {}
     } catch (e) {}
+    try { forgetManagerPin(); mgrPinCancel(); } catch (e) {}   // v95
+    state.session = null;               // v94: or pagehide could resurrect it
+    try { showLoginModal(); } catch (e) {}   // v94: no tab is usable while the banner shows
     try {
         showSessionResolvedBanner(
             'This phone has been blocked by an Admin, so it has been signed out.\n' +
@@ -4555,6 +4763,7 @@ function enterApp() {
     if (bg) bg.classList.remove('active');
     applyRolePermissions();
     updateSettingsEmployeeDisplay();
+    var _resumeSnap = restoreUiStateEarly();   // v94
     var perm = effectivePermissions();
     if (perm[state.tab]) {
         switchTab(state.tab);
@@ -4570,6 +4779,7 @@ function enterApp() {
         // broken app rather than as a permissions problem. Now it says so.
         if (!landed) showNoAccessNotice();
     }
+    try { restoreUiStateLate(_resumeSnap); } catch (e) {}   // v94
     checkTwoFactorRequired();
 }
 
@@ -4632,6 +4842,10 @@ function logout() {
     // control the v11 prompt asks for, folded into the existing Logout
     // buttons (header + Settings) rather than adding a separate one.
     clearRememberSession();
+    try { forgetManagerPin(); } catch (e) {}   // v95
+    _signingOut = true;     // v94
+    clearResumeSession();   // v94
+    clearUiState();         // v94
     state.session = null;
     location.reload();
 }
@@ -5067,6 +5281,7 @@ function applyRolePermissions() {
         if (perm[key]) btn.classList.remove('tab-hidden');
         else btn.classList.add('tab-hidden');
     }
+    applyListingManagerVisibility();   // v95
     renderAdminPanel();
 }
 
@@ -5556,6 +5771,9 @@ function flushOfflineQueue() {
                             if (res.error.code === '23505' && /client_queue_id/i.test(res.error.message || '')) {
                                 return removeOfflineQueueItem(row.id).then(function () { return false; });
                             }
+                            if (res.error.code === 'OMS01' || res.error.code === 'OMS02') {
+                                return markOfflineQueueItemFailed(row.id, res.error.message).then(function () { return false; });
+                            }
                             return markOfflineQueueItemFailed(row.id, res.error.message).then(function () { return true; });
                         }
                         return removeOfflineQueueItem(row.id).then(function () { return false; });
@@ -5581,20 +5799,30 @@ window.addEventListener('online', function () { if (db) flushOfflineQueue(); });
 var skuCacheSyncedThisSession = false;
 function syncSkuCacheForOffline() {
     if (skuCacheSyncedThisSession || !db) return;
+    // v94: SKU gate. The cache must hold exactly today's switched-on SKUs, so a
+    // SKU switched off since the last sync can no longer be scanned offline.
+    // Every page is fetched into memory first; only when ALL pages arrived is
+    // the old cache replaced, in one transaction. Offline, or on any failed
+    // page, the old cache is left exactly as it was (never wiped).
+    if (typeof navigator !== 'undefined' && navigator.onLine === false) return;
     skuCacheSyncedThisSession = true;
-    var pageSize = 1000, offset = 0;
+    var pageSize = 1000, offset = 0, all = [];
     function loadPage() {
         return withTimeout(db.from('oms_sku_master').select('sku_code,asin,product_name,default_bin').eq('active', true)
             .range(offset, offset + pageSize - 1), 15000, 'Offline SKU cache sync')
             .then(function (res) {
-                if (res.error || !res.data) return;
-                return idbTx('sku_cache', 'readwrite').then(function (store) {
-                    res.data.forEach(function (r) { store.put(r); });
-                    if (res.data.length === pageSize) { offset += pageSize; return loadPage(); }
-                });
-            }).catch(function () {});
+                if (res.error || !res.data) throw new Error('page failed');
+                all = all.concat(res.data);
+                if (res.data.length === pageSize) { offset += pageSize; return loadPage(); }
+            });
     }
-    loadPage();
+    loadPage().then(function () {
+        if (!all.length) throw new Error('empty');
+        return idbTx('sku_cache', 'readwrite').then(function (store) {
+            store.clear();
+            all.forEach(function (r) { store.put(r); });
+        });
+    }).catch(function () { skuCacheSyncedThisSession = false; });
 }
 function openOfflineQueuePanel() {
     document.getElementById('offline-queue-modal-bg').classList.add('active');
@@ -5751,7 +5979,9 @@ function writeLedgerTxn(opts) {
     var row = buildLedgerTxnRow(opts, emp);
     return withTimeout(db.from('oms_inventory_transactions').insert(row).select(), 10000, 'Stock transaction').then(function(res) {
         if (res.error) {
-            setDbOffline(res.error.message);
+            // v94: a SKU-gate refusal (OMS01 / OMS02) means the database is
+            // up and answered - never show the "not reachable" banner for it.
+            if (res.error.code !== 'OMS01' && res.error.code !== 'OMS02') setDbOffline(res.error.message);
             // v62: Phase 3, Feature 5 — a write REJECTED by the DB-level
             // non-negative-stock trigger (errcode P0001) is logged here, as a
             // fresh independent insert, NOT inside the failed transaction (it
@@ -5931,9 +6161,14 @@ function prefillMoveBin() {
             // v70 (Part C, v14 prompt): this used to return silently — a scan
             // that worked but didn't match anything looked identical to a
             // scan that didn't work at all. Save still has the authoritative
-            // "not found" / register-new-SKU handling; this is just the
-            // earliest possible signal, right at scan time.
-            if (hintEl) hintEl.textContent = 'No matching SKU/ASIN on file for "' + skuVal + '" — the scan worked, this code just isn\'t in the system yet. Tap Save to see next steps.';
+            // "not found" handling; this is just the earliest possible signal.
+            // v94: wording aligned with the SKU gate.
+            if (hintEl) hintEl.textContent = '\u26D4 "' + skuVal + '" is not in the product database. It must be added as a new listing before it can be scanned. Tap Save for the Add button.';
+            return;
+        }
+        if (sku.active === false) {
+            // v94: in the product list, but switched off for stock.
+            if (hintEl) hintEl.textContent = '\u26D4 "' + sku.sku_code + '" is in the product list but is NOT switched on for stock. Tap Save to switch it on and continue.';
             return;
         }
         var liveBins = (sku.live_bins || []).filter(function(b) { return b.bin_code; });
@@ -6104,6 +6339,7 @@ function setMoveMode(mode) {
     // v61: switching pills mid-registration invalidates the pending context —
     // just cancel it, same as every other field this function already resets.
     cancelSkuRegistration();
+    pendingSkuGate = null;   // v94
     var cfg = MOVE_MODES[mode];
     for (var key in MOVE_MODES) {
         var pill = document.getElementById('move-pill-' + key);
@@ -6212,14 +6448,17 @@ function submitMoveTransaction() {
             // Release, Set True Count) stays exactly the hard block it always
             // was, since scanning out/adjusting/counting something that was
             // never received is an error signal, not a new-SKU event.
-            if (moveMode === 'NEW_STOCK_IN' || moveMode === 'RETURN_IN') {
-                showSkuRegistrationPanel(skuVal, binVal, qtyVal, note);
-                resEl.className = 'move-result';
-                resEl.textContent = '"' + skuVal + '" was not found in the SKU database — register it below to continue.';
-                return null;
-            }
-            resEl.className = 'move-result err';
-            resEl.textContent = '❌ "' + skuVal + '" not found in the SKU database. Check the code and try again.';
+            // v94: SKU GATE. Nothing is ever scanned for a SKU that is not in
+            // the product database - not even New Stock In. The old amber
+            // "register and continue" panel is retired in favour of one clear
+            // stop and ONE way to add a listing (Quick Add, pre-filled).
+            if (submitBtn) submitBtn.disabled = false;
+            showSkuGateBlock('UNKNOWN', skuVal, null, binVal, qtyVal, note);
+            return null;
+        }
+        if (sku.active === false) {
+            if (submitBtn) submitBtn.disabled = false;
+            showSkuGateBlock('SWITCHED_OFF', skuVal, sku, binVal, qtyVal, note);
             return null;
         }
 
@@ -6421,6 +6660,248 @@ function showDispatchHealthNote() {
             el.appendChild(note);
         }).catch(function() {});
 }
+// ── v95: ADMIN / SUPERVISOR LISTING CONTROL ──────────────────────────────
+// Who may add a listing or switch one on/off. The database enforces this with
+// the person's own PIN; this only decides what the screen offers.
+function isListingManager() {
+    var r = String((state.session && state.session.role) || '').toUpperCase();
+    return r === 'ADMIN' || r === 'SUPERVISOR';
+}
+function applyListingManagerVisibility() {
+    var sec = document.getElementById('manage-listings-section');
+    if (sec) sec.style.display = isListingManager() ? '' : 'none';
+}
+// The PIN is kept in memory only, for a few minutes, so switching several
+// listings in a row does not ask every time. Forgotten on background/logout.
+var PIN_REMEMBER_MINUTES = 5;
+var _mgrPin = { pin: null, at: 0 };
+var _mgrPinEpoch = 0;          // bumped every time the PIN is forgotten
+var _mgrPinResolve = null;
+function forgetManagerPin() { _mgrPin.pin = null; _mgrPin.at = 0; _mgrPinEpoch++; }
+function askManagerPin(reason) {
+    if (_mgrPin.pin && (Date.now() - _mgrPin.at) >= PIN_REMEMBER_MINUTES * 60000) { _mgrPin.pin = null; _mgrPin.at = 0; }
+    if (_mgrPin.pin && (Date.now() - _mgrPin.at) < PIN_REMEMBER_MINUTES * 60000) {
+        return Promise.resolve(_mgrPin.pin);
+    }
+    return new Promise(function (resolve) {
+        if (_mgrPinResolve) { try { _mgrPinResolve(null); } catch (e) {} }
+        _mgrPinResolve = resolve;
+        var bg = document.getElementById('mgr-pin-bg');
+        var r = document.getElementById('mgr-pin-reason');
+        var inp = document.getElementById('mgr-pin-input');
+        if (r) r.textContent = reason || 'Confirm this change with your own PIN.';
+        if (inp) inp.value = '';
+        if (bg) bg.classList.add('active');
+        setTimeout(function () { try { inp.focus(); } catch (e) {} }, 60);
+    });
+}
+function mgrPinOk() {
+    var inp = document.getElementById('mgr-pin-input');
+    var pin = String((inp && inp.value) || '').trim();
+    if (!/^[0-9]{4}$/.test(pin)) { if (inp) { inp.value = ''; inp.placeholder = '4 digits'; } return; }
+    document.getElementById('mgr-pin-bg').classList.remove('active');
+    if (inp) inp.value = '';
+    var res = _mgrPinResolve; _mgrPinResolve = null;
+    if (res) res(pin);
+}
+function mgrPinCancel() {
+    document.getElementById('mgr-pin-bg').classList.remove('active');
+    var inp = document.getElementById('mgr-pin-input'); if (inp) inp.value = '';
+    var res = _mgrPinResolve; _mgrPinResolve = null;
+    if (res) res(null);
+}
+// Calls one of the two PIN-checked listing functions. Resolves to the
+// database's answer object, or { ok:false, cancelled:true } if Cancel was tapped.
+function callManagerRpc(fnName, args, reason) {
+    if (!db) return Promise.resolve({ ok: false, message: 'Database not reachable right now - try again when back online.' });
+    if (!isListingManager()) return Promise.resolve({ ok: false, message: 'Only an Admin or Supervisor can do this.' });
+    var epoch = _mgrPinEpoch;
+    return askManagerPin(reason).then(function (pin) {
+        if (!pin) return { ok: false, cancelled: true, message: 'Cancelled - nothing was changed.' };
+        var payload = { p_admin_employee_code: sessionEmployeeCode(), p_admin_pin: pin };
+        for (var k in args) { if (Object.prototype.hasOwnProperty.call(args, k)) payload[k] = args[k]; }
+        return withTimeout(db.rpc(fnName, payload), 12000, 'Listing change').then(function (res) {
+            if (res.error) return { ok: false, message: res.error.message };
+            var d = res.data || {};
+            var pinRefused = (d.error === 'ADMIN_PIN_REJECTED' || d.error === 'ADMIN_LOCKED');
+            var pinWasChecked = d.ok || (d.error && !pinRefused && d.error !== 'NO_SKU' && d.error !== 'NO_STATE' &&
+                                d.error !== 'BAD_SKU' && d.error !== 'NO_NAME' && d.error !== 'NO_TYPE');
+            if (pinRefused) forgetManagerPin();
+            else if (pinWasChecked && epoch === _mgrPinEpoch && _mgrPin.pin !== pin) {
+                _mgrPin.pin = pin; _mgrPin.at = Date.now();   // clock starts once, never extended
+            }
+            return d;
+        });
+    }).catch(function (err) { return { ok: false, message: String(err && err.message ? err.message : err) }; });
+}
+
+// ── v94/v95: SKU GATE UI ───────────────────────────────────────────────
+var pendingSkuGate = null;
+function showSkuGateBlock(kind, skuVal, sku, binVal, qtyVal, note) {
+    var resEl = document.getElementById('move-result');
+    pendingSkuGate = { kind: kind, skuVal: skuVal, sku: sku, binVal: binVal, qtyVal: qtyVal, note: note, mode: moveMode };
+    resEl.className = 'move-result err';
+    var code = esc59(kind === 'UNKNOWN' ? skuVal : sku.sku_code);
+    var mgr = isListingManager();
+    if (kind === 'UNKNOWN') {
+        resEl.innerHTML = '&#9940; <strong>"' + code + '" is not in the product database.</strong><br>' +
+            'Nothing was scanned and no stock changed.' +
+            (mgr ? '<div style="margin-top:8px;"><button class="settings-btn" style="width:100%" onclick="skuGateAddListing()">&#10133; Add as new listing</button></div>'
+                 : '<br>Ask an <strong>Admin or Supervisor</strong> to add it (Actions &rarr; Manage Listings), then scan again.');
+    } else {
+        resEl.innerHTML = '&#9940; <strong>"' + code + '" is switched OFF for stock.</strong><br>' +
+            esc59(sku.product_name || '') + '<br>It is in the product list but not tracked, so nothing was scanned and no stock changed.' +
+            (mgr ? '<div style="margin-top:8px;"><button class="settings-btn" style="width:100%" id="sku-gate-activate-btn" onclick="skuGateActivateAndContinue()">&#9989; Switch ON &amp; continue (your PIN)</button></div>'
+                 : '<br>Ask an <strong>Admin or Supervisor</strong> to switch it ON (Actions &rarr; Manage Listings), then scan again.');
+    }
+    try { vibrate([80, 60, 80]); } catch (e) {}
+}
+// Opens Manage Listings > Add a new listing, pre-filled with what was scanned.
+function skuGateAddListing() {
+    var g = pendingSkuGate;
+    if (!g || !isListingManager()) return;
+    var body = document.getElementById('quick-add-body');
+    if (body && body.style.display === 'none') toggleQuickAdd();
+    var looksLikeAsin = /^B0[A-Z0-9]{8}$/.test(String(g.skuVal || '').toUpperCase());
+    var skuEl = document.getElementById('qa-sku-input');
+    var asinEl = document.getElementById('qa-asin-input');
+    if (looksLikeAsin) { if (asinEl) asinEl.value = String(g.skuVal).toUpperCase(); }
+    else if (skuEl) { skuEl.value = String(g.skuVal || '').toUpperCase(); }
+    var binEl = document.getElementById('qa-bin-input'); if (binEl && g.binVal) binEl.value = g.binVal;
+    var qtyEl = document.getElementById('qa-qty-input');
+    if (qtyEl && g.mode === 'NEW_STOCK_IN' && g.qtyVal > 0) qtyEl.value = String(g.qtyVal);
+    var r = document.getElementById('qa-result');
+    if (r) { r.className = 'move-result'; r.textContent = 'Fill in the title and product type, then tap Add New Listing & Stock.'; }
+    try { document.getElementById('qa-title-input').focus(); } catch (e) {}
+    try { document.getElementById('ml-add-heading').scrollIntoView({ behavior: 'smooth', block: 'start' }); } catch (e) {}
+    scheduleUiStateSave();
+}
+// Switches a listed-but-untracked SKU ON (own PIN), then runs the normal Save
+// again so whatever is in the fields AT THIS MOMENT is what gets saved.
+function skuGateActivateAndContinue() {
+    var g = pendingSkuGate;
+    if (!g || !g.sku || !isListingManager()) return;
+    var btn = document.getElementById('sku-gate-activate-btn');
+    var submitBtn = document.getElementById('move-submit-btn');
+    if (btn && btn.disabled) return;
+    var resEl = document.getElementById('move-result');
+    var nowSku = (document.getElementById('move-sku-input').value || '').trim().toUpperCase();
+    if (g.mode !== moveMode || nowSku !== String(g.skuVal || '').trim().toUpperCase()) {
+        pendingSkuGate = null;
+        resEl.className = 'move-result err';
+        resEl.textContent = 'The item or action was changed since this message appeared - tap Save again.';
+        return;
+    }
+    if (btn) btn.disabled = true;
+    if (submitBtn) submitBtn.disabled = true;
+    callManagerRpc('oms_admin_set_sku_active',
+        { p_sku_code: g.sku.sku_code, p_active: true, p_reason: 'Switched on from a scan (' + moveMode + ')' },
+        'Switch "' + g.sku.sku_code + '" ON for stock?').then(function (d) {
+        if (submitBtn) submitBtn.disabled = false;
+        if (!d || !d.ok) {
+            if (btn) btn.disabled = false;
+            resEl.className = 'move-result err';
+            resEl.textContent = (d && d.cancelled) ? 'Cancelled - nothing was changed.' : ('Not switched on: ' + ((d && d.message) || 'unknown reason'));
+            return;
+        }
+        logEvent(g.sku.sku_code, 'Switched ON for stock');
+        pendingSkuGate = null;
+        submitMoveTransaction();          // the normal Save, with today's field values
+    });
+}
+
+// ── v95: MANAGE LISTINGS - find, switch ON/OFF ───────────────────────────
+var _mlRows = [];
+var _mlSeq = 0;
+var _mlBusy = {};
+function runListingSearch() {
+    var mySeq = ++_mlSeq;
+    var inp = document.getElementById('ml-search-input');
+    var out = document.getElementById('ml-results');
+    var msg = document.getElementById('ml-result');
+    var v = String((inp && inp.value) || '').trim().toUpperCase().replace(/[,%()*"\\]/g, '_');
+    if (msg) { msg.className = 'move-result'; msg.textContent = ''; }
+    if (!v) { if (out) out.innerHTML = ''; return; }
+    if (!db) { if (msg) { msg.className = 'move-result err'; msg.textContent = 'Database not reachable right now.'; } return; }
+    if (out) out.innerHTML = '<div style="color:#6B7280;font-size:12px;padding:6px 0;">Searching...</div>';
+    withTimeout(db.from('oms_sku_master').select('sku_code,product_name,product_type,asin,active')
+        .or('sku_code.ilike.%' + v + '%,asin.ilike.%' + v + '%,product_name.ilike.%' + v + '%')
+        .order('active', { ascending: false }).order('sku_code').limit(30), 10000, 'Listing search').then(function (res) {
+        if (mySeq !== _mlSeq) return;          // a newer search has started
+        if (res.error) throw new Error(res.error.message);
+        var rows = res.data || [];
+        if (!rows.length) { _mlRows = []; out.innerHTML = '<div style="color:#6B7280;font-size:12px;padding:6px 0;">No listing matches "' + esc59(v) + '". Use Add a new listing below if it is genuinely new.</div>'; return; }
+        var codes = rows.map(function (r) { return r.sku_code; });
+        return withTimeout(db.from('oms_current_stock').select('sku_code,qty_on_hand').in('sku_code', codes), 10000, 'Listing stock').then(function (sres) {
+            if (mySeq !== _mlSeq) return;
+            var stock = {};
+            ((sres && sres.data) || []).forEach(function (r) { stock[r.sku_code] = r.qty_on_hand; });
+            rows.forEach(function (r) { r._stock = Number(stock[r.sku_code] || 0); });
+            _mlRows = rows;
+            renderListingRows();
+        });
+    }).catch(function (err) {
+        if (mySeq !== _mlSeq) return;
+        if (out) out.innerHTML = '';
+        if (msg) { msg.className = 'move-result err'; msg.textContent = 'Could not search: ' + (err && err.message ? err.message : err); }
+    });
+}
+function renderListingRows() {
+    var out = document.getElementById('ml-results');
+    if (!out) return;
+    var html = '';
+    for (var i = 0; i < _mlRows.length; i++) {
+        var r = _mlRows[i];
+        var on = r.active === true;
+        html += '<div style="border:1px solid #E2E8F0;border-radius:10px;padding:8px 10px;margin-bottom:6px;background:#fff;">' +
+            '<div style="display:flex;justify-content:space-between;gap:8px;align-items:center;">' +
+              '<div style="font-weight:800;font-size:12px;color:#0A1628;word-break:break-all;">' + esc59(r.sku_code) + '</div>' +
+              '<span style="flex:0 0 auto;font-size:11px;font-weight:800;padding:2px 9px;border-radius:10px;' +
+                (on ? 'background:#E8F5EC;color:#1B7A3A;">ON' : 'background:#F1F2F4;color:#6B7280;">OFF') + '</span>' +
+            '</div>' +
+            '<div style="font-size:11px;color:#1A1A1A;margin:3px 0;">' + esc59(r.product_name || '(no name)') + '</div>' +
+            '<div style="font-size:11px;color:#6B7280;">' + esc59(r.product_type || '') + (r.asin ? ' &bull; ' + esc59(r.asin) : '') +
+              ' &bull; Live stock: <strong>' + r._stock + '</strong></div>' +
+            '<div style="margin-top:6px;"><button class="settings-btn" style="width:100%;' + (on ? 'background:#6B7280;' : '') + '" data-sku="' + esc59(r.sku_code) + '" onclick="setListingActiveBtn(this,' + (on ? 'false' : 'true') + ')">' +
+              (on ? '&#9208; Switch OFF' : '&#9989; Switch ON') + '</button></div>' +
+            '</div>';
+    }
+    out.innerHTML = html;
+}
+function setListingActiveBtn(btn, makeOn) {
+    var sku = btn ? btn.getAttribute('data-sku') : '';
+    var r = null;
+    for (var i = 0; i < _mlRows.length; i++) { if (_mlRows[i].sku_code === sku) { r = _mlRows[i]; break; } }
+    setListingActiveRow(r, makeOn);
+}
+function setListingActiveIdx(i, makeOn) { setListingActiveRow(_mlRows[i], makeOn); }
+function setListingActiveRow(r, makeOn) {
+    var msg = document.getElementById('ml-result');
+    if (!r) return;
+    if (_mlBusy[r.sku_code]) return;           // one change per listing at a time
+    if (!makeOn && r._stock !== 0) {
+        msg.className = 'move-result err';
+        msg.textContent = r.sku_code + ' still has ' + r._stock + ' unit(s) in stock. Dispatch, move or count them out first, then switch it off.';
+        return;
+    }
+    _mlBusy[r.sku_code] = true;
+    callManagerRpc('oms_admin_set_sku_active', { p_sku_code: r.sku_code, p_active: !!makeOn, p_reason: 'Manage Listings' },
+        'Switch "' + r.sku_code + '" ' + (makeOn ? 'ON' : 'OFF') + ' for stock?').then(function (d) {
+        delete _mlBusy[r.sku_code];
+        if (!d || !d.ok) {
+            msg.className = 'move-result err';
+            msg.textContent = (d && d.cancelled) ? 'Cancelled - nothing was changed.' : ('Not changed: ' + ((d && d.message) || 'unknown reason'));
+            return;
+        }
+        r.active = !!makeOn;
+        renderListingRows();
+        msg.className = 'move-result ok';
+        msg.textContent = '\u2713 ' + r.sku_code + ' is now switched ' + (makeOn ? 'ON - staff can scan it.' : 'OFF - it can no longer be scanned.') +
+            ' Excel picks this up on its next open or SYNC NOW.';
+        logEvent(r.sku_code, 'Switched ' + (makeOn ? 'ON' : 'OFF') + ' (Manage Listings)');
+    });
+}
+
 function proceedMoveWithSku(sku, binVal, qtyVal, note, resEl) {
     var cfg = MOVE_MODES[moveMode];
     var returnGrade = (moveMode === 'RETURN_IN') ? ((document.getElementById('move-return-grade') || {}).value || 'GOOD') : 'GOOD';
@@ -6643,11 +7124,11 @@ function toggleQuickAdd() {
     if (icon) icon.innerHTML = opening ? '&#9650;' : '&#9660;';
     if (opening) { loadBinList(); loadQuickAddTypeOptions(); }
 }
-function clearQuickAdd() {
-    ['qa-title-input','qa-sku-input','qa-asin-input','qa-type-input','qa-bin-input','qa-mrp-input','qa-note-input']
+function clearQuickAdd(keepResult) {
+    ['qa-title-input','qa-sku-input','qa-asin-input','qa-type-input','qa-bin-input','qa-mrp-input','qa-note-input','qa-setsize-input']
         .forEach(function(id) { var el = document.getElementById(id); if (el) el.value = ''; });
     var q = document.getElementById('qa-qty-input'); if (q) q.value = '0';
-    var r = document.getElementById('qa-result'); if (r) { r.className = 'move-result'; r.textContent = ''; }
+    var r = document.getElementById('qa-result'); if (r && !keepResult) { r.className = 'move-result'; r.textContent = ''; }
 }
 // v80: separate datalist from the amber panel's, and deliberately NOT cached
 // behind a never-cleared flag - see the registerTypeOptionsLoaded bug this
@@ -6669,9 +7150,14 @@ function loadQuickAddTypeOptions() {
     }).catch(function() {});
 }
 function submitQuickAdd() {
+    // v95: an Admin/Supervisor action, confirmed by their own PIN in the
+    // database (oms_admin_create_listing). The listing is created switched ON.
+    // Opening stock still goes through writeLedgerTxn(), the one ledger writer.
     var btn = document.getElementById('qa-submit-btn');
     if (btn && btn.disabled) return;
     var resEl = document.getElementById('qa-result');
+    function fail(msg) { resEl.className = 'move-result err'; resEl.textContent = msg; if (btn) btn.disabled = false; }
+    if (!isListingManager()) { fail('Only an Admin or Supervisor can add a listing.'); return; }
     var title = (document.getElementById('qa-title-input').value || '').trim();
     var sku   = (document.getElementById('qa-sku-input').value   || '').trim().toUpperCase();
     var asin  = (document.getElementById('qa-asin-input').value  || '').trim().toUpperCase();
@@ -6681,90 +7167,76 @@ function submitQuickAdd() {
     var qty   = parseInt(document.getElementById('qa-qty-input').value, 10);
     var mrpRaw = document.getElementById('qa-mrp-input').value;
     var mrp = (mrpRaw !== '' && !isNaN(parseFloat(mrpRaw))) ? parseFloat(mrpRaw) : null;
-
-    function fail(msg) { resEl.className = 'move-result err'; resEl.textContent = msg; }
+    var ssEl = document.getElementById('qa-setsize-input');
+    var setSize = ssEl && ssEl.value !== '' ? parseInt(ssEl.value, 10) : 1;
 
     if (!title) { fail('Product title is required.'); return; }
     if (!sku)   { fail('SKU code is required.'); return; }
     if (!type)  { fail('Product type is required.'); return; }
-    if (!bin)   { fail('Bin number is required - every listing must live in a real bin.'); return; }
     if (isNaN(qty) || qty < 0) { fail('Opening stock must be 0 or more.'); return; }
-    var emp = loadEmployee();
-    if (!emp || !emp.code) { fail('Set your employee code first (Settings tab).'); return; }
+    if (qty > 0 && !bin) { fail('Bin number is required when adding opening stock.'); return; }
+    if (isNaN(setSize) || setSize < 1) { fail('Set size must be 1 or more.'); return; }
     if (!db) { fail('Database not reachable right now - try again when back online.'); return; }
 
     if (btn) btn.disabled = true;
-    resEl.className = 'move-result'; resEl.textContent = 'Checking whether this SKU already exists...';
-
-    resolveSkuOrAsin(sku).then(function(existing) {
-        var alreadyThere = !!existing;
-        if (alreadyThere) {
-            if (!confirm('"' + sku + '" is ALREADY in the system as:\n  ' + (existing.product_name || '(no name)') +
-                         '\n\nIts listing details will NOT be changed.\n' +
-                         (qty > 0 ? 'Only the opening stock of ' + qty + ' will be added to bin ' + bin + '.' : 'Nothing will be added, because opening stock is 0.') +
-                         '\n\nContinue?')) {
-                if (btn) btn.disabled = false;
-                resEl.className = 'move-result'; resEl.textContent = 'Cancelled - nothing was saved.';
-                return null;
-            }
-            return { status: 'ALREADY_REGISTERED' };
-        }
-        resEl.textContent = 'Registering the new listing...';
-        return withTimeout(db.rpc('oms_employee_register_sku', {
-            p_sku_code: sku,
-            p_product_name: title,
-            p_employee_code: emp.code,
-            p_employee_name: emp.name || null,
-            p_asin: asin || null,
-            p_product_type: type,
-            p_default_bin: bin,
-            p_mrp: mrp
-        }), 10000, 'Quick Add registration').then(function(res) {
-            if (res.error) throw new Error(res.error.message);
-            var st = res.data && res.data.status;
-            if (st !== 'CREATED' && st !== 'ALREADY_REGISTERED') throw new Error('Unexpected response from the SKU registration.');
-            // v80: a genuinely new product_type is now in the database, so both
-            // type datalists must be allowed to reload. This also fixes the
-            // long-standing registerTypeOptionsLoaded staleness bug.
+    resEl.className = 'move-result'; resEl.textContent = 'Adding the listing...';
+    callManagerRpc('oms_admin_create_listing', {
+        p_sku_code: sku, p_product_name: title, p_product_type: type,
+        p_asin: asin || null, p_mrp: mrp, p_set_size: setSize
+    }, 'Add new listing "' + sku + '"?').then(function (d) {
+        if (d && d.ok) {
             registerTypeOptionsLoaded = false;
             loadQuickAddTypeOptions();
-            return { status: st };
-        });
-    }).then(function(outcome) {
+            return { created: true };
+        }
+        if (d && d.cancelled) { fail('Cancelled - nothing was saved.'); return null; }
+        if (d && d.error === 'EXISTS') {
+            if (d.active === false) {
+                if (!confirm(d.message + '\n\nSwitch it ON' + (qty > 0 ? ' and add ' + qty + ' unit(s) to bin ' + bin : '') + '?\nIts listing details will NOT be changed.')) {
+                    fail('Cancelled - nothing was saved.'); return null;
+                }
+                return callManagerRpc('oms_admin_set_sku_active', { p_sku_code: sku, p_active: true, p_reason: 'Quick Add' },
+                    'Switch "' + sku + '" ON?').then(function (d2) {
+                    if (!d2 || !d2.ok) { fail((d2 && d2.cancelled) ? 'Cancelled - nothing was saved.' : ('Not switched on: ' + ((d2 && d2.message) || ''))); return null; }
+                    return { created: false };
+                });
+            }
+            if (qty === 0) { fail(d.message + ' Nothing to do.'); return null; }
+            if (!confirm(d.message + '\n\nIts listing details will NOT be changed.\nAdd ' + qty + ' unit(s) to bin ' + bin + '?')) {
+                fail('Cancelled - nothing was saved.'); return null;
+            }
+            return { created: false, wasOn: true };
+        }
+        fail('Not added: ' + ((d && d.message) || 'unknown reason'));
+        return null;
+    }).then(function (outcome) {
         if (!outcome) return null;
+        var tail = ' Excel adds it to tabs 6 and 12 on its next open or SYNC NOW.';
         if (qty === 0) {
             if (btn) btn.disabled = false;
             resEl.className = 'move-result ok';
-            resEl.textContent = '✓ Listing saved for ' + sku + ' (home bin ' + bin + '). No opening stock added, because the quantity was 0.';
-            logEvent(sku, 'Quick Add: listing created, no opening stock');
-            writeAuditLog('QUICK_ADD_LISTING', { skuCode: sku, details: { product_name: title, asin: asin || null, product_type: type, default_bin: bin, opening_qty: 0 } });
-            clearQuickAdd();
+            resEl.textContent = '\u2713 ' + (outcome.created ? 'New listing ' + sku + ' added and switched ON.' : sku + ' is switched ON.') + ' No opening stock added.' + tail;
+            logEvent(sku, 'Manage Listings: ' + (outcome.created ? 'new listing' : 'switched on') + ', no opening stock');
+            clearQuickAdd(true);   // keep the result message
             return null;
         }
         resEl.textContent = 'Adding opening stock...';
-        return resolveSkuOrAsin(sku).then(function(fresh) {
+        return resolveSkuOrAsin(sku).then(function (fresh) {
             if (!fresh) throw new Error('Listing saved, but it could not be read back. Add the stock from the New Stock pill above.');
             return writeLedgerTxn({
-                sessionEligible: true,
-                skuCode: fresh.sku_code,
-                asin: fresh.asin,
-                qtyDelta: qty,
-                txnType: 'NEW_STOCK_IN',
-                binCode: bin,
-                note: note || 'Quick Add opening stock'
-            }).then(function(w) {
+                sessionEligible: true, skuCode: fresh.sku_code, asin: fresh.asin, qtyDelta: qty,
+                txnType: 'NEW_STOCK_IN', binCode: bin, note: note || 'Opening stock (Manage Listings)'
+            }).then(function (w) {
                 if (btn) btn.disabled = false;
-                if (!w.ok) { fail('Listing WAS saved, but the opening stock failed: ' + w.reason + ' - add it from the New Stock pill above.'); return; }
+                if (!w.ok) { fail('Listing IS saved, but the opening stock failed: ' + w.reason + ' - add it from the New Stock pill above.'); return; }
                 resEl.className = 'move-result ok';
-                resEl.textContent = '✓ Done - ' + (outcome.status === 'CREATED' ? 'listing created' : 'listing already existed') +
-                                    ', ' + qty + ' unit(s) added to bin ' + bin + '.';
-                logEvent(sku, 'Quick Add: ' + (outcome.status === 'CREATED' ? 'new listing' : 'existing listing') + ' + ' + qty + ' opening stock @ ' + bin);
-                writeAuditLog('QUICK_ADD_LISTING', { skuCode: sku, details: { product_name: title, asin: asin || null, product_type: type, default_bin: bin, opening_qty: qty, was_new: outcome.status === 'CREATED', note: note || null } });
-                clearQuickAdd();
+                resEl.textContent = '\u2713 Done - ' + (outcome.created ? 'new listing created' : (outcome.wasOn ? 'listing already existed (details unchanged)' : 'listing switched on')) + ', ' + qty + ' unit(s) added to bin ' + bin + '.' + tail;
+                logEvent(sku, 'Manage Listings: ' + (outcome.created ? 'new listing' : 'switched on') + ' + ' + qty + ' opening stock @ ' + bin);
+                writeAuditLog('QUICK_ADD_LISTING', { skuCode: sku, details: { product_name: title, asin: asin || null, product_type: type, default_bin: bin, opening_qty: qty, was_new: !!outcome.created, note: note || null } });
+                clearQuickAdd(true);   // keep the result message
             });
         });
-    }).catch(function(err) {
-        if (btn) btn.disabled = false;
+    }).catch(function (err) {
         fail('Could not complete: ' + (err && err.message ? err.message : err));
     });
 }
@@ -6807,6 +7279,17 @@ var stockSearchDebounceTimer = null;
 // Fetched via the same {count:'exact', head:true} pattern already used for
 // the Dashboard's cycle-count/negative-stock/employee-count tiles.
 var stockTotalCount = null;
+// v94: turns whatever is typed into CAPITALS without making the cursor jump
+// to the end (a plain value=value.toUpperCase() does that on Android).
+function forceUpperInput(el, ev) {
+    if (!el || (ev && ev.isComposing)) return;
+    var v = el.value || '';
+    var up = v.toUpperCase();
+    if (v === up) return;
+    var a = el.selectionStart, b = el.selectionEnd;
+    el.value = up;
+    try { if (a !== null && b !== null) el.setSelectionRange(a, b); } catch (e) {}
+}
 function onStockSearchInput() {
     if (stockSearchDebounceTimer) clearTimeout(stockSearchDebounceTimer);
     stockSearchDebounceTimer = setTimeout(function() {
@@ -6850,6 +7333,8 @@ function loadStockCategoryOptions() {
         var sel = document.getElementById('stock-filter-category');
         if (!sel) return;
         cats.forEach(function(c) {
+            // v94: a resumed screen may already have put this one back.
+            for (var k = 0; k < sel.options.length; k++) { if (sel.options[k].value === c) return; }
             var opt = document.createElement('option');
             opt.value = c;
             opt.textContent = c;
@@ -7417,7 +7902,16 @@ function processBulkRowsSequentially(rows, idx, empCode, results, resultEl) {
 
     resolveSkuOrAsin(sku).then(function(skuRow) {
         if (!skuRow) {
-            if (!INBOUND_BULK_ACTIONS[action]) { finish('FAILED - SKU not found: ' + sku); return; }
+            // v95: listings are added only by an Admin/Supervisor (Actions >
+            // Manage Listings). The CSV never creates one any more.
+            finish('FAILED - "' + sku + '" is not in the product database. An Admin or Supervisor must add it first (Actions > Manage Listings).');
+            return;
+        }
+        if (skuRow.active === false) {
+            finish('FAILED - "' + skuRow.sku_code + '" is switched OFF for stock. An Admin or Supervisor must switch it ON first (Actions > Manage Listings).');
+            return;
+        }
+        if (false) {
             if (!productName) { finish('FAILED - SKU not found and no ProductName given to register it: ' + sku); return; }
             withTimeout(db.rpc('oms_employee_register_sku', {
                 p_sku_code: sku,
@@ -10817,6 +11311,14 @@ document.addEventListener('DOMContentLoaded', function() {
     // check when no remember token is present/valid — unchanged default
     // behavior for shared devices where the box was never checked.
     var existingSession = loadRememberSession() || loadSessionFromStorage();
+    // v94: a page Android discarded in the background comes back signed in,
+    // for RESUME_MINUTES after it was hidden. Read (and consumed) every boot.
+    var resumeSession = loadResumeSession();
+    if (!existingSession && resumeSession) {
+        existingSession = resumeSession;
+        saveSessionToStorage(resumeSession);
+        state.resumedFromBackground = true;   // v94: see refreshSessionPermissions()
+    }
     if (existingSession) {
         state.session = existingSession;
         enterApp();
@@ -10837,7 +11339,18 @@ document.addEventListener('DOMContentLoaded', function() {
         if (document.visibilityState === 'visible' && state.session) {
             refreshSessionPermissions(true);
         }
+        // v94: the resume token only exists while the app is in the background.
+        if (document.visibilityState === 'visible') { clearResumeSession(); }
+        if (document.visibilityState === 'hidden') { onAppHidden(); }   // v94
     });
+    // v94: pagehide is the last event Android reliably delivers before it
+    // freezes or discards the page; save the SCREEN there too (not the sign-in:
+    // pagehide also fires on an ordinary reload or tab close).
+    window.addEventListener('pagehide', function () { saveUiState(); });   // screen only, never the sign-in
+    // v94: keep the saved screen current while typing, so even a sudden kill
+    // loses at most the last fraction of a second.
+    document.addEventListener('input', scheduleUiStateSave, true);
+    document.addEventListener('change', scheduleUiStateSave, true);
 
     window.addEventListener('beforeunload', releaseCamera);
     // v49: hardware/gesture Back button while the camera scanner is open must
@@ -10856,5 +11369,19 @@ document.addEventListener('DOMContentLoaded', function() {
     }, 100);
 });
 </script>
+<!-- v95: Admin / Supervisor PIN box for listing changes (masked, not window.prompt). -->
+<div class="emp-modal-bg" id="mgr-pin-bg">
+    <div class="emp-modal">
+        <h2>&#128274; Your PIN</h2>
+        <p id="mgr-pin-reason">Confirm this change with your own PIN.</p>
+        <input type="password" inputmode="numeric" maxlength="4" id="mgr-pin-input" placeholder="&bull;&bull;&bull;&bull;" autocomplete="off"
+               style="width:100%;font-size:22px;letter-spacing:10px;text-align:center;padding:10px;border:1px solid #E2E8F0;border-radius:10px;"
+               onkeydown="if(event.key==='Enter')mgrPinOk();">
+        <div style="display:flex;gap:8px;margin-top:14px;">
+            <button class="settings-btn" style="flex:1" onclick="mgrPinOk()">Confirm</button>
+            <button class="settings-btn" style="flex:1;background:#888" onclick="mgrPinCancel()">Cancel</button>
+        </div>
+    </div>
+</div>
 </body>
 </html>
