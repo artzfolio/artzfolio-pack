@@ -44,7 +44,14 @@
 // v12 (2026-09-19): bumped for App v93. An offline phone must not keep
 // serving v92, whose Transfer From-Bin field offered every warehouse bin
 // instead of only the ones the scanned SKU actually has stock in.
-const CACHE_NAME = 'artzfolio-oms-shell-v12';
+// v13 (2026-09-24): bumped for App v94. An offline phone must not keep
+// serving v93, which lets switched-off SKUs be scanned in, forgets the screen
+// when Android kills the app in the background, and types the Live Stock
+// search in lower case.
+// v14 (2026-09-24): bumped for App v95 (Manage Listings for Admin/Supervisor,
+// PIN-checked listing on/off and add; staff told to ask an Admin). v13 / App v94
+// were built and tested but never deployed - v95 supersedes them.
+const CACHE_NAME = 'artzfolio-oms-shell-v14';
 const SHELL_FILES = ['./index.html', './manifest.json', './icon.svg'];
 
 self.addEventListener('install', function (event) {
