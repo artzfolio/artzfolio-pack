@@ -62,6 +62,24 @@
             Switched off -> clear message + "Switch on & continue". The database
             enforces the same rule (trigger trg_oms_require_tracked_sku), so
             nothing can slip past from any surface. -->
+    <!-- v96 (2026-09-26): THE DATABASE TAB + A PRODUCT CARD ON EVERY SCAN.
+         - New DATABASE tab (Admin / Supervisor only): search every listing, open one
+           and edit every field that Excel tab 6 has (grouped, PIN-checked, logged,
+           optimistic lock so two people cannot overwrite each other). Cost / price /
+           margin fields come only through the PIN-checked function - the public key
+           cannot read them. Manage Listings moved here and is now "Quick Add Listing";
+           bin and opening stock are optional; product types come from the full list.
+         - Actions tab, all 9 buttons: the moment a SKU or ASIN is scanned or typed, a
+           card shows SKU, ASIN, product title, type, set size, ON/OFF, live stock per
+           bin (least first) and the Amazon link https://amazon.in/dp/<ASIN>.
+         - Every bin field has a list button: pick from the list or type. Transfer shows
+           clear FROM / TO labels; FROM lists only bins holding the SKU; TO lists every
+           bin; a bin that does not exist yet is created only after you confirm it.
+         - The bin list is re-read every time Actions opens (an old bin such as the
+           mistyped "22" can no longer linger on a phone that stayed open).
+         - A write that fails because the network dropped is now queued, not lost.
+         - supabase-js pinned to 2.117.2 so a library update can never change behaviour
+           silently. -->
     <!-- v95 (2026-09-24): LISTINGS ARE MANAGED BY AN ADMIN OR SUPERVISOR, FROM
          THE PHONE. v94's SKU gate stays; what changes is WHO may open it:
          - New section Actions > Manage Listings (visible to Admin/Supervisor
@@ -86,7 +104,7 @@
     <!-- Supabase JS client — the live inventory database. Loaded async; app still works for
          pick/pack scanning (against the QR data) if this fails to load, but stock will not
          update live and the MOVE/STOCK tabs will show an offline notice. -->
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2"></script>
     <!-- v84 (2026-09-18): QR generator, inlined rather than loaded from a CDN so that
          two-factor setup still works on a warehouse phone with no outside internet.
          qrcode-generator 2.0.4, MIT licence, (c) 2009 Kazuhiko Arase. Verified in
@@ -2757,10 +2775,40 @@ var qrcode = function() {
         /* STOCK ROW — print-label button (v40) */
         .print-label-btn{background:#fff;border:1.5px solid #c5d0de;border-radius:7px;font-size:14px;padding:5px 9px;margin-left:8px;cursor:pointer;touch-action:manipulation;flex-shrink:0}
         .print-label-btn:active{background:#eef2f8}
+        /* v96: labels, product card, list buttons, bottom sheet, database editor */
+        .field-label{font-size:10px;font-weight:800;color:#1B3F6B;letter-spacing:.3px;text-transform:uppercase;margin:6px 2px 3px}
+        .bin-pick-btn{font-size:15px;font-weight:800;color:#fff}
+        .sku-card{border:1px solid #E2E8F0;border-left:4px solid #1B4F8A;border-radius:10px;padding:8px 10px;margin:-2px 0 8px;background:#F8F9FB;font-size:12px;color:#1A1A1A}
+        .sku-card.bad{border-left-color:#B3261E;background:#fff5f5}
+        .sku-card.off{border-left-color:#9A6700;background:#fffaf0}
+        .sku-card .sc-row{display:flex;gap:6px;align-items:baseline;margin:2px 0;word-break:break-all}
+        .sku-card .sc-k{flex:0 0 52px;font-size:10px;font-weight:800;color:#6B7280;text-transform:uppercase}
+        .sku-card .sc-v{flex:1;font-weight:700}
+        .sku-card .sc-title{font-weight:600;margin:4px 0;line-height:1.35}
+        .sku-card a{color:#1B4F8A;font-weight:800}
+        .sku-card .badge{display:inline-block;font-size:10px;font-weight:800;padding:1px 8px;border-radius:10px}
+        .sheet-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:240;align-items:flex-end;justify-content:center}
+        .sheet-bg.active{display:flex}
+        .sheet{background:#fff;width:100%;max-width:520px;max-height:78vh;border-radius:16px 16px 0 0;padding:12px 14px 18px;display:flex;flex-direction:column}
+        .sheet h3{margin:0 0 6px;font-size:14px;color:#0A1628}
+        .sheet-list{overflow-y:auto;flex:1;margin-top:6px}
+        .sheet-item{display:flex;justify-content:space-between;align-items:center;padding:11px 8px;border-bottom:1px solid #f0f2f5;font-size:14px;cursor:pointer}
+        .sheet-item:active{background:#eef2f8}
+        .sheet-item .si-sub{font-size:11px;color:#6B7280}
+        .sheet-sep{font-size:10px;font-weight:800;color:#6B7280;text-transform:uppercase;padding:8px 8px 4px;background:#F8F9FB}
+        .dbd-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:230;align-items:stretch;justify-content:center}
+        .dbd-bg.active{display:flex}
+        .dbd{background:#fff;width:100%;max-width:520px;overflow-y:auto;padding:12px 14px 90px}
+        .dbd-grp{font-size:11px;font-weight:800;color:#fff;background:#0A1628;padding:6px 10px;border-radius:6px;margin:14px 0 6px}
+        .dbd-f{margin:0 0 8px}
+        .dbd-f label{display:block;font-size:10px;font-weight:700;color:#6B7280;margin:0 0 2px}
+        .dbd-f input{width:100%;padding:8px 9px;border:1px solid #E2E8F0;border-radius:8px;font-size:13px;box-sizing:border-box}
+        .dbd-f input.changed{border-color:#1B4F8A;background:#EBF5FB}
+        .dbd-ro{padding:7px 9px;border:1px dashed #E2E8F0;border-radius:8px;font-size:13px;color:#1A1A1A;background:#F8F9FB;min-height:18px;word-break:break-word}
     </style>
 </head>
 <body>
-<div class="ver-corner" id="verCornerBadge" onclick="handleVerBadgeTap()">v95</div>
+<div class="ver-corner" id="verCornerBadge" onclick="handleVerBadgeTap()">v96</div>
 <!-- v63: Gap 2 — offline write-queue indicator. Hidden (display:none) unless
      something is actually queued or failed. Tapping it shows the queue detail
      panel (openOfflineQueuePanel()). -->
@@ -2890,6 +2938,36 @@ var qrcode = function() {
                 <button class="btn btn-issue" onclick="reportIssue()">&#9888; ISSUE</button>
                 <button class="btn btn-reset" onclick="resetPick()">&#8635; RESET</button>
             </div>
+            <!-- v96: shown only when a line could not be saved - nothing moves on until it is. -->
+            <div class="actions" id="pick-retry-wrap" style="display:none;">
+                <button class="btn btn-confirm" onclick="retryPickSave()">&#8635; Retry save</button>
+                <button class="btn btn-reset" onclick="if(confirm('Abandon this line? It is NOT taken out of stock. Lines already saved stay saved.'))resetPick()">&#10005; Reset</button>
+            </div>
+            <!-- v96: BULK PICK SHEET (Admin / Supervisor) -->
+            <div class="settings-section" id="bulkpick-section" style="margin-top:16px;display:none;">
+                <h3 style="margin-top:0;cursor:pointer;" onclick="toggleBulkPick()">&#128424; Bulk pick sheet <span style="font-size:11px;font-weight:600;color:#6B7280;">(Admin / Supervisor)</span> <span id="bulkpick-toggle">&#9660;</span></h3>
+                <div id="bulkpick-body" style="display:none;">
+                    <div class="settings-info">For a bulk order: paste or upload a list, one product per line &mdash; <strong>SKU or ASIN, quantity</strong> (e.g. <code>AZPER200565FRA_NM_01-S1_NB, 12</code>). The app takes each product from the bin with the <strong>least stock first</strong>, reserves those units so no other order gets them, and prints a sheet with one QR per bin. Anything not in stock is listed as <strong>not available</strong>. Save an Excel list as CSV to upload it.</div>
+                    <div class="settings-row">
+                        <input type="text" class="settings-input" id="bulk-ref" placeholder="Order reference" autocomplete="off" style="text-transform:uppercase" oninput="forceUpperInput(this, event)">
+                        <select class="settings-input" id="bulk-channel" style="max-width:130px">
+                            <option value="OFFLINE">Offline / B2B</option>
+                            <option value="AMAZON">Amazon</option>
+                            <option value="SHOPIFY">Shopify</option>
+                            <option value="MYNTRA">Myntra</option>
+                            <option value="OTHER">Other</option>
+                        </select>
+                    </div>
+                    <div class="settings-row"><textarea class="settings-input" id="bulk-text" rows="6" placeholder="SKU or ASIN, quantity&#10;AZPER200565FRA_NM_01-S1_NB, 12&#10;B0FXS2XJ45, 3" style="font-family:monospace;font-size:12px;"></textarea></div>
+                    <div class="settings-row">
+                        <input type="file" id="bulk-file" accept=".csv,.txt,text/csv,text/plain" onchange="onBulkFile(this)" style="font-size:12px;flex:1;">
+                    </div>
+                    <div class="settings-row">
+                        <button class="settings-btn" style="flex:1" onclick="bulkPreview(false)">&#128269; Check stock</button>
+                    </div>
+                    <div class="move-result" id="bulk-result"></div>
+                </div>
+            </div>
         </div>
 
         <!-- MOVE TAB — New Stock In / Returns In / Adjustment. Writes directly to the live
@@ -2974,6 +3052,7 @@ var qrcode = function() {
             <div class="settings-section">
                 <h3 id="move-mode-title">&#128230; New Stock In</h3>
                 <div class="settings-info" id="move-mode-desc">Scan or type the SKU or ASIN barcode of the product being brought into stock, enter the quantity, then submit. This adds to live stock immediately.</div>
+                <div class="field-label" id="move-sku-label">Product &mdash; scan or type the SKU or ASIN</div>
                 <div class="settings-row">
                     <!-- v50: Enter-key support for Bluetooth scanner guns — a gun types the
                          code then sends Enter, so this now behaves like tabbing to the bin
@@ -2987,12 +3066,15 @@ var qrcode = function() {
                          what that gun support depends on. onpointerdown ->
                          allowSoftKeyboard() drops inputmode on a DELIBERATE tap, which is
                          what raises the keyboard for manual typing. -->
-                    <input type="text" class="settings-input" id="move-sku-input" inputmode="none" placeholder="Scan or type SKU / ASIN" autocomplete="off" autocorrect="off" autocapitalize="off" onpointerdown="allowSoftKeyboard(this)" onblur="prefillMoveBin()" onkeydown="if(event.key==='Enter'){prefillMoveBin();document.getElementById('move-bin-input').focus();}">
+                    <input type="text" class="settings-input" id="move-sku-input" inputmode="none" placeholder="Scan or type SKU / ASIN" autocomplete="off" autocorrect="off" autocapitalize="off" onpointerdown="allowSoftKeyboard(this)" onblur="prefillMoveBin()" oninput="onMoveSkuTyping()" onkeydown="if(event.key==='Enter'){prefillMoveBin();document.getElementById('move-bin-input').focus();}">
                     <!-- v49: camera scan-to-fill, shared by New Stock/Returns/Found/Lost-Theft/QC Hold since they all reuse this one field -->
                     <button class="scan-cam-btn" onclick="openScannerFor('move-sku-input')" title="Scan SKU/ASIN barcode">
                         <svg viewBox="0 0 24 24"><path d="M12 9a4 4 0 1 0 4 4 4 4 0 0 0-4-4zm0 6a2 2 0 1 1 2-2 2 2 0 0 1-2 2z"/><path d="M20 4h-2.76l-1.63-2H8.39L6.76 4H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2zm0 15H4V6h3.56L9.19 4h5.62l1.63 2H20z"/></svg>
                     </button>
                 </div>
+                <!-- v96: product card - SKU, ASIN, title, stock per bin, Amazon link. -->
+                <div id="move-sku-card"></div>
+                <div class="field-label" id="move-bin-label">Bin</div>
                 <!-- v44: Bin is now mandatory on every MOVE action. Auto-fills from the
                      SKU's home bin (oms_sku_master.default_bin) when the SKU field loses
                      focus, but staff can always overwrite it (e.g. New Stock arriving into
@@ -3009,6 +3091,7 @@ var qrcode = function() {
                          SKU actually has live stock. Swapped in and out of the From-Bin
                          list= attribute by setMoveMode(). -->
                     <datalist id="move-bin-list-live"></datalist>
+                    <button class="scan-cam-btn bin-pick-btn" onclick="openBinPicker('move-bin-input')" title="Choose from the list">&#9660;</button>
                     <!-- v49: camera scan-to-fill for the bin label/QR sticker on the shelf -->
                     <button class="scan-cam-btn" onclick="openScannerFor('move-bin-input')" title="Scan bin barcode/QR">
                         <svg viewBox="0 0 24 24"><path d="M12 9a4 4 0 1 0 4 4 4 4 0 0 0-4-4zm0 6a2 2 0 1 1 2-2 2 2 0 0 1-2 2z"/><path d="M20 4h-2.76l-1.63-2H8.39L6.76 4H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2zm0 15H4V6h3.56L9.19 4h5.62l1.63 2H20z"/></svg>
@@ -3028,8 +3111,10 @@ var qrcode = function() {
                      available-to-sell stock — see submitMoveTransaction(). -->
                 <!-- v92: Transfer-only second bin field. Reuses the same live bin
      datalist and camera-scan pattern as the "From" bin field above it. -->
+<div class="field-label" id="move-tobin-label" style="display:none;">To bin &mdash; where the stock is going</div>
 <div class="settings-row" id="move-transfer-tobin-row" style="display:none;">
-    <input type="text" class="settings-input" id="move-transfer-tobin-input" placeholder="To Bin — moving stock INTO (required)" list="move-bin-list" autocomplete="off" autocorrect="off" autocapitalize="characters" style="text-transform:uppercase" oninput="this.value=this.value.toUpperCase();">
+    <input type="text" class="settings-input" id="move-transfer-tobin-input" placeholder="Pick from the list or type a bin" autocomplete="off" autocorrect="off" autocapitalize="characters" style="text-transform:uppercase" oninput="forceUpperInput(this, event)">
+    <button class="scan-cam-btn bin-pick-btn" onclick="openBinPicker('move-transfer-tobin-input')" title="Choose from the list">&#9660;</button>
     <button class="scan-cam-btn" onclick="openScannerFor('move-transfer-tobin-input')" title="Scan bin barcode/QR">
         <svg viewBox="0 0 24 24"><path d="M12 9a4 4 0 1 0 4 4 4 4 0 0 0-4-4zm0 6a2 2 0 1 1 2-2 2 2 0 0 1-2 2z"/><path d="M20 4h-2.76l-1.63-2H8.39L6.76 4H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2zm0 15H4V6h3.56L9.19 4h5.62l1.63 2H20z"/></svg>
     </button>
@@ -3104,64 +3189,7 @@ var qrcode = function() {
                    2. puts its opening stock into a bin (writeLedgerTxn, NEW_STOCK_IN)
                  It is not a new code path - it calls the exact same RPC and the
                  exact same single ledger-writing function everything else uses. -->
-            <!-- v95: MANAGE LISTINGS (Admin / Supervisor only). Keeps the v80 Quick
-                 Add ids (quick-add-body, qa-*) so nothing that points at them breaks. -->
-            <div class="settings-section" id="manage-listings-section" style="margin-top:10px;border:1px solid #1B4F8A;display:none;">
-                <h3 style="margin-top:0;cursor:pointer;" onclick="toggleQuickAdd()">&#128450; Manage Listings <span style="font-size:11px;font-weight:600;color:#6B7280;">(Admin / Supervisor)</span> <span id="quick-add-toggle-icon">&#9660;</span></h3>
-                <div id="quick-add-body" style="display:none;">
-                    <div class="settings-info">Switch a listing <strong>ON</strong> (staff can then scan it) or <strong>OFF</strong>, or add a brand-new listing. Each change asks for <strong>your own PIN</strong> and is recorded in the Audit Log. Excel adds it to tabs 6 and 12 by itself on its next open or <strong>SYNC NOW</strong>.</div>
-                    <div style="font-weight:800;color:#0A1628;font-size:13px;margin:10px 0 6px;">&#128269; Find a listing</div>
-                    <div class="settings-row">
-                        <input type="text" class="settings-input" id="ml-search-input" placeholder="SKU, ASIN or product name..." autocomplete="off" autocorrect="off" autocapitalize="characters" spellcheck="false" style="text-transform:uppercase" oninput="forceUpperInput(this, event)" onkeydown="if(event.key==='Enter')runListingSearch();">
-                        <button class="scan-cam-btn" onclick="openScannerFor('ml-search-input')" title="Scan a SKU or ASIN barcode">
-                            <svg viewBox="0 0 24 24"><path d="M12 9a4 4 0 1 0 4 4 4 4 0 0 0-4-4zm0 6a2 2 0 1 1 2-2 2 2 0 0 1-2 2z"/><path d="M20 4h-2.76l-1.63-2H8.39L6.76 4H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2zm0 15H4V6h3.56L9.19 4h5.62l1.63 2H20z"/></svg>
-                        </button>
-                        <button class="settings-btn" style="max-width:90px;" onclick="runListingSearch()">Search</button>
-                    </div>
-                    <div class="move-result" id="ml-result"></div>
-                    <div id="ml-results"></div>
-                    <div style="font-weight:800;color:#0A1628;font-size:13px;margin:14px 0 6px;" id="ml-add-heading">&#10133; Add a new listing</div>
-                    <div class="settings-info">Only for a product that is <strong>not in the list at all</strong>. It is created switched ON, with its opening stock in one go.</div>
-                    <div class="settings-row">
-                        <input type="text" class="settings-input" id="qa-title-input" placeholder="Product title (required)">
-                    </div>
-                    <div class="settings-row">
-                        <input type="text" class="settings-input" id="qa-sku-input" placeholder="SKU code (required)" autocomplete="off" autocorrect="off" autocapitalize="characters" style="text-transform:uppercase">
-                        <button class="scan-cam-btn" onclick="openScannerFor('qa-sku-input')" title="Scan SKU barcode">
-                            <svg viewBox="0 0 24 24"><path d="M12 9a4 4 0 1 0 4 4 4 4 0 0 0-4-4zm0 6a2 2 0 1 1 2-2 2 2 0 0 1-2 2z"/><path d="M20 4h-2.76l-1.63-2H8.39L6.76 4H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2zm0 15H4V6h3.56L9.19 4h5.62l1.63 2H20z"/></svg>
-                        </button>
-                    </div>
-                    <div class="settings-row">
-                        <input type="text" class="settings-input" id="qa-asin-input" placeholder="ASIN (leave blank if not on Amazon)" autocomplete="off" autocorrect="off" autocapitalize="characters" style="text-transform:uppercase">
-                        <button class="scan-cam-btn" onclick="openScannerFor('qa-asin-input')" title="Scan ASIN barcode">
-                            <svg viewBox="0 0 24 24"><path d="M12 9a4 4 0 1 0 4 4 4 4 0 0 0-4-4zm0 6a2 2 0 1 1 2-2 2 2 0 0 1-2 2z"/><path d="M20 4h-2.76l-1.63-2H8.39L6.76 4H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2zm0 15H4V6h3.56L9.19 4h5.62l1.63 2H20z"/></svg>
-                        </button>
-                    </div>
-                    <div class="settings-row">
-                        <input type="text" class="settings-input" id="qa-type-input" placeholder="Product type (required)" list="qa-type-list">
-                        <datalist id="qa-type-list"></datalist>
-                    </div>
-                    <div class="settings-row">
-                        <input type="text" class="settings-input" id="qa-bin-input" placeholder="Bin number (required)" list="move-bin-list" autocomplete="off" autocorrect="off" autocapitalize="characters" style="text-transform:uppercase">
-                        <button class="scan-cam-btn" onclick="openScannerFor('qa-bin-input')" title="Scan bin barcode/QR">
-                            <svg viewBox="0 0 24 24"><path d="M12 9a4 4 0 1 0 4 4 4 4 0 0 0-4-4zm0 6a2 2 0 1 1 2-2 2 2 0 0 1-2 2z"/><path d="M20 4h-2.76l-1.63-2H8.39L6.76 4H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2zm0 15H4V6h3.56L9.19 4h5.62l1.63 2H20z"/></svg>
-                        </button>
-                    </div>
-                    <div class="settings-row">
-                        <input type="number" class="settings-input" id="qa-qty-input" placeholder="Opening stock" min="0" value="0" style="max-width:130px">
-                        <input type="number" class="settings-input" id="qa-mrp-input" placeholder="MRP (optional)" min="0" style="max-width:130px">
-                        <input type="number" class="settings-input" id="qa-setsize-input" placeholder="Set size (1)" min="1" style="max-width:110px">
-                    </div>
-                    <div class="settings-row">
-                        <input type="text" class="settings-input" id="qa-note-input" placeholder="Note (optional - e.g. PO number)">
-                    </div>
-                    <div class="settings-row">
-                        <button class="settings-btn" style="flex:1" id="qa-submit-btn" onclick="submitQuickAdd()">&#10003; Add New Listing &amp; Stock</button>
-                        <button class="settings-btn" style="flex:0 0 auto;background:#888" onclick="clearQuickAdd()">Clear</button>
-                    </div>
-                    <div class="move-result" id="qa-result"></div>
-                </div>
-            </div>
+            <!-- v96: Manage Listings moved to the DATABASE tab (Quick Add Listing). -->
             <!-- v46: Bulk Upload (CSV) — for many rows at once, directly from the phone/
                  desktop browser, no Excel needed. Same live table as everything else on
                  this tab (oms_inventory_transactions) — this is not a separate import
@@ -3323,6 +3351,82 @@ var qrcode = function() {
              every other role via ROLE_PERMISSIONS + applyRolePermissions(),
              same tab-hiding pattern as the other role-gated tabs, and
              switchTab() itself refuses entry for non-ADMIN roles too. -->
+        <!-- v96 (2026-09-26): DATABASE tab - Admin / Supervisor only. The live database
+             is the master copy of every listing; Excel tab 6 mirrors it. -->
+        <div id="db-tab" class="tab-content">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+                <div style="font-weight:800;color:#0A1628;font-size:15px;">&#128451; Database</div>
+                <button class="csv-btn" onclick="refreshDbTab()">&#8635; Refresh</button>
+            </div>
+            <div class="settings-info" style="margin-bottom:8px;">Every product listing, with every field from Excel tab 6. Only an Admin or Supervisor sees this tab. Changes ask for <strong>your own PIN</strong>, are written to the Audit Log, and reach Excel tab 6 on its next open or <strong>SYNC NOW</strong>. Cost and price fields are shown only after your PIN.</div>
+            <!-- v95: MANAGE LISTINGS (Admin / Supervisor only). Keeps the v80 Quick
+                 Add ids (quick-add-body, qa-*) so nothing that points at them breaks. -->
+            <div class="settings-section" id="manage-listings-section" style="margin-top:10px;border:1px solid #1B4F8A;display:none;">
+                <h3 style="margin-top:0;">&#128269; Find a listing <span id="quick-add-toggle-icon" style="display:none;"></span></h3>
+                <div id="quick-add-body" style="">
+                    <div class="settings-info">Search by SKU, ASIN or name. <strong>Open</strong> shows and edits every field; <strong>Switch ON / OFF</strong> decides whether staff can scan it. Each change asks for <strong>your own PIN</strong> and is recorded in the Audit Log. Excel picks it up on its next open or <strong>SYNC NOW</strong>.</div>
+                    <div class="settings-row">
+                        <input type="text" class="settings-input" id="ml-search-input" placeholder="SKU, ASIN or product name..." autocomplete="off" autocorrect="off" autocapitalize="characters" spellcheck="false" style="text-transform:uppercase" oninput="forceUpperInput(this, event)" onkeydown="if(event.key==='Enter')runListingSearch();">
+                        <button class="scan-cam-btn" onclick="openScannerFor('ml-search-input')" title="Scan a SKU or ASIN barcode">
+                            <svg viewBox="0 0 24 24"><path d="M12 9a4 4 0 1 0 4 4 4 4 0 0 0-4-4zm0 6a2 2 0 1 1 2-2 2 2 0 0 1-2 2z"/><path d="M20 4h-2.76l-1.63-2H8.39L6.76 4H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2zm0 15H4V6h3.56L9.19 4h5.62l1.63 2H20z"/></svg>
+                        </button>
+                        <button class="settings-btn" style="max-width:90px;" onclick="runListingSearch()">Search</button>
+                    </div>
+                    <div class="move-result" id="ml-result"></div>
+                    <div id="ml-results"></div>
+                    <div style="font-weight:800;color:#0A1628;font-size:13px;margin:16px 0 6px;border-top:1px solid #E2E8F0;padding-top:12px;" id="ml-add-heading">&#10133; Quick Add Listing</div>
+                    <div class="settings-info">Only for a product that is <strong>not in the list at all</strong>. It is created switched ON. <strong>Bin and opening stock are optional</strong> &mdash; leave them blank and inbound the stock later from Actions &rsaquo; New Stock. All other fields can be filled in afterwards with <strong>Open</strong>.</div>
+                    <div class="settings-row">
+                        <input type="text" class="settings-input" id="qa-title-input" placeholder="Product title (required)">
+                    </div>
+                    <div class="settings-row">
+                        <input type="text" class="settings-input" id="qa-sku-input" placeholder="SKU code (required)" autocomplete="off" autocorrect="off" autocapitalize="characters" style="text-transform:uppercase">
+                        <button class="scan-cam-btn" onclick="openScannerFor('qa-sku-input')" title="Scan SKU barcode">
+                            <svg viewBox="0 0 24 24"><path d="M12 9a4 4 0 1 0 4 4 4 4 0 0 0-4-4zm0 6a2 2 0 1 1 2-2 2 2 0 0 1-2 2z"/><path d="M20 4h-2.76l-1.63-2H8.39L6.76 4H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2zm0 15H4V6h3.56L9.19 4h5.62l1.63 2H20z"/></svg>
+                        </button>
+                    </div>
+                    <div class="settings-row">
+                        <input type="text" class="settings-input" id="qa-asin-input" placeholder="ASIN (leave blank if not on Amazon)" autocomplete="off" autocorrect="off" autocapitalize="characters" style="text-transform:uppercase">
+                        <button class="scan-cam-btn" onclick="openScannerFor('qa-asin-input')" title="Scan ASIN barcode">
+                            <svg viewBox="0 0 24 24"><path d="M12 9a4 4 0 1 0 4 4 4 4 0 0 0-4-4zm0 6a2 2 0 1 1 2-2 2 2 0 0 1-2 2z"/><path d="M20 4h-2.76l-1.63-2H8.39L6.76 4H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2zm0 15H4V6h3.56L9.19 4h5.62l1.63 2H20z"/></svg>
+                        </button>
+                    </div>
+                    <div class="settings-row">
+                        <input type="text" class="settings-input" id="qa-type-input" placeholder="Product type (required) - tap &#9660; for the list" autocomplete="off">
+                        <datalist id="qa-type-list"></datalist>
+                        <button class="scan-cam-btn bin-pick-btn" onclick="openTypePicker('qa-type-input')" title="Choose from the list">&#9660;</button>
+                    </div>
+                    <div class="settings-row">
+                        <input type="text" class="settings-input" id="qa-bin-input" placeholder="Bin (only if adding opening stock now)" autocomplete="off" autocorrect="off" autocapitalize="characters" style="text-transform:uppercase" oninput="forceUpperInput(this, event)">
+                        <button class="scan-cam-btn bin-pick-btn" onclick="openBinPicker('qa-bin-input')" title="Choose from the list">&#9660;</button>
+                        <button class="scan-cam-btn" onclick="openScannerFor('qa-bin-input')" title="Scan bin barcode/QR">
+                            <svg viewBox="0 0 24 24"><path d="M12 9a4 4 0 1 0 4 4 4 4 0 0 0-4-4zm0 6a2 2 0 1 1 2-2 2 2 0 0 1-2 2z"/><path d="M20 4h-2.76l-1.63-2H8.39L6.76 4H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2zm0 15H4V6h3.56L9.19 4h5.62l1.63 2H20z"/></svg>
+                        </button>
+                    </div>
+                    <div class="settings-row">
+                        <input type="number" class="settings-input" id="qa-qty-input" placeholder="Opening stock (0)" min="0" value="0" style="max-width:130px">
+                        <input type="number" class="settings-input" id="qa-mrp-input" placeholder="MRP (optional)" min="0" style="max-width:130px">
+                        <input type="number" class="settings-input" id="qa-setsize-input" placeholder="Set size (1)" min="1" style="max-width:110px">
+                    </div>
+                    <div class="settings-row">
+                        <input type="text" class="settings-input" id="qa-note-input" placeholder="Note (optional - e.g. PO number)">
+                    </div>
+                    <div class="settings-row">
+                        <button class="settings-btn" style="flex:1" id="qa-submit-btn" onclick="submitQuickAdd()">&#10003; Add Listing</button>
+                        <button class="settings-btn" style="flex:0 0 auto;background:#888" onclick="clearQuickAdd()">Clear</button>
+                    </div>
+                    <div class="move-result" id="qa-result"></div>
+                </div>
+            </div>
+            <div class="settings-section" id="db-bins-section" style="margin-top:10px;">
+                <h3 style="margin-top:0;cursor:pointer;" onclick="toggleDbBins()">&#128452; Bins <span id="db-bins-badge" style="font-size:11px;color:#6B7280;"></span> <span id="db-bins-toggle">&#9660;</span></h3>
+                <div id="db-bins-body" style="display:none;">
+                    <div class="settings-info">Every bin in the warehouse and what it holds. A bin is created automatically the first time stock is put into it, so a typing mistake makes a stray bin (that is how "22" appeared on 25-Sep). <strong>Delete</strong> removes an empty bin for good; <strong>Off</strong> hides it from the lists but keeps it; <strong>Not for picking</strong> keeps the stock out of order picking (e.g. QC-HOLD). A bin that still holds stock cannot be deleted &mdash; transfer or count it out first.</div>
+                    <div class="move-result" id="db-bins-result"></div>
+                    <div id="db-bins-list"></div>
+                </div>
+            </div>
+        </div>
         <div id="dash-tab" class="tab-content">
             <div class="db-offline-banner" id="dash-offline-banner">&#9888; Live database not reachable right now. Dashboard data cannot be loaded until this reconnects.</div>
             <div class="cam-error-banner" id="dash-low-stock-banner" style="margin-bottom:10px;"><strong id="dash-low-stock-text">&#9888; 0 SKUs at or below reorder point</strong></div>
@@ -3461,7 +3565,7 @@ var qrcode = function() {
                     <li><strong>&#128228; Dispatch / Order Out</strong> &mdash; <strong>new 8th pill (v81).</strong> Use it whenever stock physically leaves for a customer order. Scan the SKU, confirm the bin it came from, enter how many, and add the order number and channel.
                         <br><em>Why this matters:</em> until now the system recorded 2,702 stock-<em>in</em> entries and <strong>not one</strong> stock-<em>out</em>. That is why low-stock alerts never fired and every SKU showed as ABC tier &ldquo;C&rdquo; &mdash; the reports had no sales to work from. Booking dispatches here (or completing a pick on the PICK tab) is what switches all of that on.</li>
                     <!-- v80: Quick Add New Listing -->
-                    <li><strong>&#128450; Manage Listings</strong> (Admin / Supervisor, v95) &mdash; on the Actions tab: find any listing and switch it ON or OFF for stock, or add a brand-new one, each confirmed with your own PIN. <strong>Add a new listing</strong> is for a product that is <strong>not in the system yet</strong>. Fill in product title, SKU, ASIN (leave blank if it is not on Amazon), product type, bin number and opening stock, then tap <strong>Add Listing &amp; Stock</strong>. It registers the listing and puts its opening stock into that bin in one step.
+                    <li><strong>&#128451; DATABASE tab</strong> (Admin / Supervisor, v96) &mdash; find any listing, <strong>Open</strong> it to see and edit every field from Excel tab 6, switch it ON or OFF for stock, or use <strong>Quick Add Listing</strong> for a product that is <strong>not in the system yet</strong> (title, SKU, ASIN, product type; bin and opening stock optional). Every change is confirmed with your own PIN and recorded in the Audit Log. The <strong>Bins</strong> section lists every bin and lets you delete an empty one.
                         <br><em>What happens if you just scan an unknown code instead:</em> nothing is ever placed in a random bin. On <strong>New Stock</strong> or <strong>Returns</strong> an amber &ldquo;Register New SKU&rdquo; panel opens so you can add it and carry straight on. On <strong>Remove/Lost, QC Hold, QC Release or Set True Count</strong> the app refuses outright &mdash; counting or removing something that was never received is a mistake, not a new product.</li>
                     <!-- v50: QC Release used to be CSV/Bulk-only; note the new single-row screen -->
                     <li><strong>QC Release</strong> &mdash; a pill on the Actions tab, previously only reachable via Bulk Upload (CSV). Releases stock that was QC-Held back into sellable count, using the same SKU/Bin/Qty/Note form as the rest of this tab.</li>
@@ -3662,6 +3766,7 @@ var qrcode = function() {
         <button class="tab-btn active" id="tab-pick"     onclick="switchTab('pick')">&#128230; PICK</button>
         <button class="tab-btn"        id="tab-move"     onclick="switchTab('move')">&#128260; ACTIONS</button>
         <button class="tab-btn"        id="tab-stock"    onclick="switchTab('stock')">&#128202; STOCK</button>
+        <button class="tab-btn tab-hidden" id="tab-db"   onclick="switchTab('db')">&#128451; DATABASE</button>
         <button class="tab-btn"        id="tab-log"      onclick="switchTab('log')">&#128220; LOG</button>
         <button class="tab-btn"        id="tab-guide"    onclick="switchTab('guide')">&#10067; GUIDE</button>
         <button class="tab-btn"        id="tab-settings" onclick="switchTab('settings')">&#9881; SET</button>
@@ -4447,6 +4552,7 @@ function clearResumeSession() {
 // Called when the app goes to the background.
 function onAppHidden() {
     try { forgetManagerPin(); mgrPinCancel(); } catch (e) {}   // v95
+    try { closeListingDetail(true); closePickSheet(); } catch (e) {}   // v96
     saveUiState();
     saveResumeSession();
     // Give the camera back to the phone. Holding a live camera stream in the
@@ -4843,6 +4949,7 @@ function logout() {
     // buttons (header + Settings) rather than adding a separate one.
     clearRememberSession();
     try { forgetManagerPin(); } catch (e) {}   // v95
+    try { lsRemove(LS_SESSION); } catch (e) {} // v96: a half-done pick is not left for the next person
     _signingOut = true;     // v94
     clearResumeSession();   // v94
     clearUiState();         // v94
@@ -5282,6 +5389,14 @@ function applyRolePermissions() {
         else btn.classList.add('tab-hidden');
     }
     applyListingManagerVisibility();   // v95
+    try { applyBulkPickVisibility(); } catch (e) {}          // v96
+    // v96: a half-done pick restored at start-up belongs to whoever started it
+    if (state._pickOwner && state.session && state._pickOwner !== state.session.employee_code) {
+        state._pickOwner = ''; try { lsRemove(LS_SESSION); resetPick(); } catch (e) {}
+    }
+    var dbBtn = document.getElementById('tab-db');          // v96
+    if (dbBtn) { if (isListingManager()) dbBtn.classList.remove('tab-hidden'); else dbBtn.classList.add('tab-hidden'); }
+    if (state.tab === 'db' && !isListingManager()) { try { switchTab('move'); } catch (e) {} }
     renderAdminPanel();
 }
 
@@ -5566,7 +5681,12 @@ function loadServerActivity() {
 
 // ── SESSION SAVE / RESTORE ───────────────────────────────────
 function saveSession() {
+    var who = (state.session && state.session.employee_code) || ((loadEmployee() || {}).code) || '';
     var snap = {
+        v96:          true,
+        emp:          who,
+        at:           Date.now(),
+        groupLinesDone: state.groupLinesDone || [],
         pickState:    state.pickState,
         order:        state.order,
         bin:          state.bin,
@@ -5580,6 +5700,16 @@ function saveSession() {
 function restoreSession() {
     var snap = lsGetJSON(LS_SESSION);
     if (!snap || snap.pickState === 'IDLE' || snap.pickState === 'READY') return false;
+    // v96: a half-done pick belongs to the person who started it and expires.
+    var who = (state.session && state.session.employee_code) || ((loadEmployee() || {}).code) || '';
+    if (!snap.v96 || !snap.at || (Date.now() - snap.at) > PICK_SAVE_MAX_HOURS * 3600000 || (who && snap.emp && who !== snap.emp)) {
+        lsRemove(LS_SESSION); return false;
+    }
+    state.groupLinesDone = snap.groupLinesDone || [];
+    state._pickOwner = snap.emp || '';     // checked again once the sign-in is known (applyRolePermissions)
+    if (snap.pickState === 'CHECKING') snap.pickState = (state.groupLinesDone.length ? 'NEXT_LINE' : 'IDLE');
+    if (snap.pickState === 'SAVING') snap.pickState = 'SAVE_FAILED';      // unknown if it landed - Retry is safe
+    if (snap.pickState === 'IDLE') return false;
     state.pickState    = snap.pickState    || 'IDLE';
     state.order        = snap.order        || null;
     state.bin          = snap.bin          || null;
@@ -5587,6 +5717,7 @@ function restoreSession() {
     state.groupOrderID = snap.groupOrderID || null;
     state.groupTotal   = snap.groupTotal   || 1;
     state.groupDone    = snap.groupDone    || 0;
+    if (state.pickState === 'SAVE_FAILED') setTimeout(function () { showPickRetry(true); }, 50);
     return true;
 }
 function clearSession() {
@@ -5684,7 +5815,7 @@ function queueOfflineWrite(opts) {
     // insert a genuine duplicate and double-count real stock. client_queue_id
     // is generated once, here, and carried through every retry of this same
     // item — see flushOfflineQueue()'s 23505 handling for the other half.
-    opts = Object.assign({}, opts, { client_queue_id: makeQueueId() });
+    opts = Object.assign({}, opts, { client_queue_id: (opts && opts.client_queue_id) || makeQueueId() });   // v96: keep a key given on the first attempt
     return idbTx('write_queue', 'readwrite').then(function (store) {
         return new Promise(function (resolve, reject) {
             var row = { opts: opts, status: 'QUEUED', createdAt: new Date().toISOString(), error: null };
@@ -5904,7 +6035,7 @@ function resolveSkuOrAsin(value) {
     // falls straight back to whatever was cached from the last time we
     // were online, instead of a hard null. See syncSkuCacheForOffline().
     if (!db) return resolveSkuFromOfflineCache(v);
-    return withTimeout(db.from('oms_sku_master').select('sku_code,asin,product_name,active,default_bin')
+    return withTimeout(db.from('oms_sku_master').select('sku_code,asin,product_name,active,default_bin,product_type,set_size,mrp')
         .or('sku_code.eq.' + v + ',asin.eq.' + v)
         .limit(1), 10000, 'SKU lookup')
         .then(function(res) {
@@ -5920,7 +6051,7 @@ function resolveSkuOrAsin(value) {
             // has no default_bin, so the old mismatch check never fired when a
             // removal was logged against a bin the SKU didn't actually hold any
             // stock in (its real stock was 100% in RECEIVING).
-            return withTimeout(db.from('oms_bin_stock').select('bin_code,qty_on_hand').eq('sku_code', sku.sku_code).gt('qty_on_hand', 0).order('qty_on_hand', { ascending: false }), 8000, 'Live bin lookup')
+            return withTimeout(db.from('oms_bin_stock').select('bin_code,qty_on_hand').eq('sku_code', sku.sku_code).gt('qty_on_hand', 0).order('qty_on_hand', { ascending: true }).order('bin_code', { ascending: true }), 8000, 'Live bin lookup')
                 .then(function(binRes) {
                     sku.live_bins = (binRes && binRes.data) || [];
                     return sku;
@@ -5977,7 +6108,15 @@ function writeLedgerTxn(opts) {
         return queueOfflineWrite(buildLedgerTxnRow(opts, emp)).then(function () { return { ok: true, queued: true }; });
     }
     var row = buildLedgerTxnRow(opts, emp);
+    if (!row.client_queue_id) row.client_queue_id = makeQueueId();   // v96: same key if this very write is later replayed from the queue
     return withTimeout(db.from('oms_inventory_transactions').insert(row).select(), 10000, 'Stock transaction').then(function(res) {
+        // v96: supabase-js reports a dropped connection as a returned error with
+        // no database error code (status 0), not as a thrown exception. That is a
+        // connectivity failure, so it is queued exactly like the .catch() below.
+        if (res.error && isNetworkError(res)) {
+            setDbOffline(res.error.message);
+            return queueOfflineWrite(row).then(function () { return { ok: true, queued: true }; });
+        }
         if (res.error) {
             // v94: a SKU-gate refusal (OMS01 / OMS02) means the database is
             // up and answered - never show the "not reachable" banner for it.
@@ -6105,12 +6244,28 @@ var registerTypeOptionsLoaded = false;
 // was removed 2026-08-20), so a missing bin fails loudly at the DB level
 // too, not just in this UI.
 var BIN_LIST = null;
-function loadBinList() {
-    if (!db || BIN_LIST !== null) return; // already loaded, or offline (retried next tab open)
-    withTimeout(db.from('oms_bins').select('bin_code').eq('active', true).order('bin_code'), 10000, 'Bin list')
+var BIN_INFO = {};          // v96: bin_code -> { units, skus, reserved, pickable } when known
+var _binListAt = 0;
+function loadBinList(force) {
+    // v96: re-read at most every 20 s (was: once per session, which is how a
+    // deleted bin such as "22" stayed on a phone's list).
+    if (!db) return Promise.resolve(BIN_LIST);
+    if (!force && BIN_LIST !== null && (Date.now() - _binListAt) < 20000) return Promise.resolve(BIN_LIST);
+    _binListAt = Date.now();
+    return withTimeout(db.from('oms_bins').select('bin_code').eq('active', true).order('bin_code'), 10000, 'Bin list')
         .then(function(res) {
-            if (res.error || !res.data) return;
+            if (res.error || !res.data) return BIN_LIST;
             BIN_LIST = res.data.map(function(r) { return r.bin_code; });
+            // units and products per bin, for the pick lists (existing view)
+            withTimeout(db.from('oms_bin_summary').select('bin_code,sku_count,total_qty,active'), 8000, 'Bin summary')
+                .then(function (sr) {
+                    if (!sr || sr.error || !sr.data) return;
+                    var m = {}; sr.data.forEach(function (r) { m[r.bin_code] = { units: Number(r.total_qty) || 0, skus: Number(r.sku_count) || 0 }; });
+                    BIN_INFO = m;
+                    return withTimeout(db.from('oms_bins').select('bin_code,pickable'), 8000, 'Bin picking flag').then(function (pr) {
+                        if (pr && !pr.error && pr.data) pr.data.forEach(function (r) { if (BIN_INFO[r.bin_code]) BIN_INFO[r.bin_code].pickable = r.pickable; });
+                    });
+                }).catch(function () {});
             var dl = document.getElementById('move-bin-list');
             if (dl) {
                 dl.innerHTML = '';
@@ -6120,8 +6275,9 @@ function loadBinList() {
                     dl.appendChild(opt);
                 });
             }
+            return BIN_LIST;
         })
-        .catch(function() {});
+        .catch(function() { return BIN_LIST; });
 }
 // v78: manual refresh for the MOVE tab (the owner flagged that only STOCK
 // and DASH had a way to pull fresh data without switching tabs and back).
@@ -6130,8 +6286,7 @@ function loadBinList() {
 // genuinely re-fetches), this device's scan session state, and Today's
 // Cycle Count. Does NOT touch anything mid-entry in the form itself.
 function refreshMoveTab() {
-    BIN_LIST = null;
-    loadBinList();
+    loadBinList(true);
     refreshScanSessionState();
     refreshTodaysCountList();
 }
@@ -6151,12 +6306,17 @@ function prefillMoveBin() {
     var hintEl = document.getElementById('move-live-bin-hint');
     var skuVal = (document.getElementById('move-sku-input').value || '').trim();
     if (hintEl) hintEl.textContent = '';
+    var _cardSeq = ++_moveCardSeq;
+    _moveLookupFor = String(skuVal || '').toUpperCase();
+    if (!skuVal) renderMoveSkuCard(null, '');
     // v77 (Part 9.2): session default bin wins over the per-SKU live-bin
     // guessing below -- checked first, so if it fills the (blank) field, the
     // per-SKU logic's own "only fill when blank" guards naturally no-op.
     applySessionDefaultBin();
     if (!skuVal) return;
     resolveSkuOrAsin(skuVal).then(function(sku) {
+        if (_cardSeq === _moveCardSeq) renderMoveSkuCard(sku, skuVal);   // v96
+        _moveCardSku = sku;
         if (!sku) {
             // v70 (Part C, v14 prompt): this used to return silently — a scan
             // that worked but didn't match anything looked identical to a
@@ -6349,6 +6509,14 @@ function setMoveMode(mode) {
     document.getElementById('move-mode-desc').textContent = cfg.desc.replace(/&#\d+;/g, '');
     document.getElementById('move-result').textContent = '';
     document.getElementById('move-sku-input').value = '';
+    renderMoveSkuCard(null, '');   // v96
+    _moveCardSku = null;
+    var _bl = document.getElementById('move-bin-label');
+    if (_bl) _bl.innerHTML = (mode === 'BIN_TRANSFER') ? 'From bin &mdash; where the stock is now'
+        : (mode === 'NEW_STOCK_IN' || mode === 'RETURN_IN' || mode === 'ADJUSTMENT_FOUND' || mode === 'ADJUSTMENT_QC_RELEASE') ? 'Bin &mdash; where it is going'
+        : (mode === 'MANUAL_CORRECTION') ? 'Bin you counted' : 'Bin &mdash; where it is taken from';
+    var _tl = document.getElementById('move-tobin-label');
+    if (_tl) _tl.style.display = (mode === 'BIN_TRANSFER') ? '' : 'none';
     resetMoveBinField();
     var liveBinHintEl = document.getElementById('move-live-bin-hint');
     if (liveBinHintEl) liveBinHintEl.textContent = '';
@@ -6375,7 +6543,7 @@ function setMoveMode(mode) {
         qtyInput.value = '1';
     }
     // v57: bin is required in every mode now, including Set True Count.
-    binInput.placeholder = 'Bin location (required)';
+    binInput.placeholder = 'Pick from the list (\u25BC) or type a bin';
     document.getElementById('move-note-input').value = '';
     // v60: returns grading row only shows in Returns mode, and always resets
     // to Good (today's exact default behaviour) on every mode switch.
@@ -6437,6 +6605,15 @@ function submitMoveTransaction() {
     // non-negative check (see writeLedgerTxn), not a forced explanation.
     var emp = loadEmployee();
     if (!emp || !emp.code) { resEl.className = 'move-result err'; resEl.textContent = 'Set your employee code first (Settings tab).'; return; }
+    // v96: a bin nobody has used before is created by the database the moment
+    // stock is put into it - so a typing slip ("22" instead of "A22") would
+    // quietly make a new bin. Ask first.
+    if (!confirmNewBins(cfg.isTransfer
+            ? [binVal, (document.getElementById('move-transfer-tobin-input').value || '').trim().toUpperCase()]
+            : [binVal])) {
+        resEl.className = 'move-result'; resEl.textContent = 'Cancelled - pick the bin from the list (\u25BC) or correct it.';
+        return;
+    }
 
     if (submitBtn) submitBtn.disabled = true;
     resEl.className = 'move-result'; resEl.textContent = 'Checking database...';
@@ -6568,7 +6745,7 @@ function submitMoveTransaction() {
                     resetMoveBinField();
                     document.getElementById('move-qty-input').value = '0';
                     document.getElementById('move-note-input').value = '';
-                    if (document.getElementById('move-live-bin-hint')) document.getElementById('move-live-bin-hint').textContent = '';
+                    if (document.getElementById('move-live-bin-hint')) document.getElementById('move-live-bin-hint').textContent = ''; renderMoveSkuCard(null, '');
                     armScanInputNoKeyboard('move-sku-input');
                 });
             });
@@ -6607,7 +6784,7 @@ function submitMoveTransaction() {
                     document.getElementById('move-qty-input').value = '1';
                     document.getElementById('move-note-input').value = '';
                     if (document.getElementById('move-transfer-tobin-input')) document.getElementById('move-transfer-tobin-input').value = '';
-                    if (document.getElementById('move-live-bin-hint')) document.getElementById('move-live-bin-hint').textContent = '';
+                    if (document.getElementById('move-live-bin-hint')) document.getElementById('move-live-bin-hint').textContent = ''; renderMoveSkuCard(null, '');
                     armScanInputNoKeyboard('move-sku-input');
                 });
             });
@@ -6725,7 +6902,8 @@ function callManagerRpc(fnName, args, reason) {
             var d = res.data || {};
             var pinRefused = (d.error === 'ADMIN_PIN_REJECTED' || d.error === 'ADMIN_LOCKED');
             var pinWasChecked = d.ok || (d.error && !pinRefused && d.error !== 'NO_SKU' && d.error !== 'NO_STATE' &&
-                                d.error !== 'BAD_SKU' && d.error !== 'NO_NAME' && d.error !== 'NO_TYPE');
+                                d.error !== 'BAD_SKU' && d.error !== 'NO_NAME' && d.error !== 'NO_TYPE' &&
+                                d.error !== 'NO_CHANGES' && d.error !== 'BAD_ACTION');
             if (pinRefused) forgetManagerPin();
             else if (pinWasChecked && epoch === _mgrPinEpoch && _mgrPin.pin !== pin) {
                 _mgrPin.pin = pin; _mgrPin.at = Date.now();   // clock starts once, never extended
@@ -6747,12 +6925,12 @@ function showSkuGateBlock(kind, skuVal, sku, binVal, qtyVal, note) {
         resEl.innerHTML = '&#9940; <strong>"' + code + '" is not in the product database.</strong><br>' +
             'Nothing was scanned and no stock changed.' +
             (mgr ? '<div style="margin-top:8px;"><button class="settings-btn" style="width:100%" onclick="skuGateAddListing()">&#10133; Add as new listing</button></div>'
-                 : '<br>Ask an <strong>Admin or Supervisor</strong> to add it (Actions &rarr; Manage Listings), then scan again.');
+                 : '<br>Ask an <strong>Admin or Supervisor</strong> to add it (DATABASE tab &rarr; Quick Add Listing), then scan again.');
     } else {
         resEl.innerHTML = '&#9940; <strong>"' + code + '" is switched OFF for stock.</strong><br>' +
             esc59(sku.product_name || '') + '<br>It is in the product list but not tracked, so nothing was scanned and no stock changed.' +
             (mgr ? '<div style="margin-top:8px;"><button class="settings-btn" style="width:100%" id="sku-gate-activate-btn" onclick="skuGateActivateAndContinue()">&#9989; Switch ON &amp; continue (your PIN)</button></div>'
-                 : '<br>Ask an <strong>Admin or Supervisor</strong> to switch it ON (Actions &rarr; Manage Listings), then scan again.');
+                 : '<br>Ask an <strong>Admin or Supervisor</strong> to switch it ON (DATABASE tab), then scan again.');
     }
     try { vibrate([80, 60, 80]); } catch (e) {}
 }
@@ -6760,6 +6938,7 @@ function showSkuGateBlock(kind, skuVal, sku, binVal, qtyVal, note) {
 function skuGateAddListing() {
     var g = pendingSkuGate;
     if (!g || !isListingManager()) return;
+    switchTab('db');   // v96: Quick Add lives on the DATABASE tab now
     var body = document.getElementById('quick-add-body');
     if (body && body.style.display === 'none') toggleQuickAdd();
     var looksLikeAsin = /^B0[A-Z0-9]{8}$/.test(String(g.skuVal || '').toUpperCase());
@@ -6771,7 +6950,7 @@ function skuGateAddListing() {
     var qtyEl = document.getElementById('qa-qty-input');
     if (qtyEl && g.mode === 'NEW_STOCK_IN' && g.qtyVal > 0) qtyEl.value = String(g.qtyVal);
     var r = document.getElementById('qa-result');
-    if (r) { r.className = 'move-result'; r.textContent = 'Fill in the title and product type, then tap Add New Listing & Stock.'; }
+    if (r) { r.className = 'move-result'; r.textContent = 'Fill in the title and product type, then tap Add Listing.'; }
     try { document.getElementById('qa-title-input').focus(); } catch (e) {}
     try { document.getElementById('ml-add-heading').scrollIntoView({ behavior: 'smooth', block: 'start' }); } catch (e) {}
     scheduleUiStateSave();
@@ -6825,7 +7004,7 @@ function runListingSearch() {
     if (!db) { if (msg) { msg.className = 'move-result err'; msg.textContent = 'Database not reachable right now.'; } return; }
     if (out) out.innerHTML = '<div style="color:#6B7280;font-size:12px;padding:6px 0;">Searching...</div>';
     withTimeout(db.from('oms_sku_master').select('sku_code,product_name,product_type,asin,active')
-        .or('sku_code.ilike.%' + v + '%,asin.ilike.%' + v + '%,product_name.ilike.%' + v + '%')
+        .or('sku_code.ilike.%' + v + '%,asin.ilike.%' + v + '%,product_name.ilike.%' + v + '%,product_type.ilike.%' + v + '%')
         .order('active', { ascending: false }).order('sku_code').limit(30), 10000, 'Listing search').then(function (res) {
         if (mySeq !== _mlSeq) return;          // a newer search has started
         if (res.error) throw new Error(res.error.message);
@@ -6860,9 +7039,11 @@ function renderListingRows() {
                 (on ? 'background:#E8F5EC;color:#1B7A3A;">ON' : 'background:#F1F2F4;color:#6B7280;">OFF') + '</span>' +
             '</div>' +
             '<div style="font-size:11px;color:#1A1A1A;margin:3px 0;">' + esc59(r.product_name || '(no name)') + '</div>' +
-            '<div style="font-size:11px;color:#6B7280;">' + esc59(r.product_type || '') + (r.asin ? ' &bull; ' + esc59(r.asin) : '') +
+            '<div style="font-size:11px;color:#6B7280;">' + esc59(r.product_type || '') + (r.asin ? ' &bull; <a href="' + amazonUrl(r.asin) + '" target="_blank" rel="noopener" style="color:#1B4F8A;font-weight:800;">' + esc59(r.asin) + ' &#8599;</a>' : '') +
               ' &bull; Live stock: <strong>' + r._stock + '</strong></div>' +
-            '<div style="margin-top:6px;"><button class="settings-btn" style="width:100%;' + (on ? 'background:#6B7280;' : '') + '" data-sku="' + esc59(r.sku_code) + '" onclick="setListingActiveBtn(this,' + (on ? 'false' : 'true') + ')">' +
+            '<div style="margin-top:6px;display:flex;gap:6px;">' +
+              '<button class="settings-btn" style="flex:1;" data-sku="' + esc59(r.sku_code) + '" onclick="openListingDetail(this.getAttribute(\'data-sku\'))">&#9998; Open</button>' +
+              '<button class="settings-btn" style="flex:1;' + (on ? 'background:#6B7280;' : '') + '" data-sku="' + esc59(r.sku_code) + '" onclick="setListingActiveBtn(this,' + (on ? 'false' : 'true') + ')">' +
               (on ? '&#9208; Switch OFF' : '&#9989; Switch ON') + '</button></div>' +
             '</div>';
     }
@@ -6938,7 +7119,7 @@ function proceedMoveWithSku(sku, binVal, qtyVal, note, resEl) {
                 resetMoveBinField();
                 document.getElementById('move-qty-input').value = '1';
                 document.getElementById('move-note-input').value = '';
-                if (document.getElementById('move-live-bin-hint')) document.getElementById('move-live-bin-hint').textContent = '';
+                if (document.getElementById('move-live-bin-hint')) document.getElementById('move-live-bin-hint').textContent = ''; renderMoveSkuCard(null, '');
                 armScanInputNoKeyboard('move-sku-input');
             });
         });
@@ -6989,7 +7170,7 @@ function proceedMoveWithSku(sku, binVal, qtyVal, note, resEl) {
         document.getElementById('move-qty-input').value = '1';
         document.getElementById('move-note-input').value = '';
         if (document.getElementById('move-order-input')) document.getElementById('move-order-input').value = '';
-        if (document.getElementById('move-live-bin-hint')) document.getElementById('move-live-bin-hint').textContent = '';
+        if (document.getElementById('move-live-bin-hint')) document.getElementById('move-live-bin-hint').textContent = ''; renderMoveSkuCard(null, '');
         armScanInputNoKeyboard('move-sku-input');
     });
 }
@@ -7119,6 +7300,7 @@ function toggleQuickAdd() {
     var body = document.getElementById('quick-add-body');
     var icon = document.getElementById('quick-add-toggle-icon');
     if (!body) return;
+    if (body.style.display !== 'none') { loadBinList(); loadQuickAddTypeOptions(); return; }   // v96: always open on the DATABASE tab
     var opening = body.style.display === 'none';
     body.style.display = opening ? '' : 'none';
     if (icon) icon.innerHTML = opening ? '&#9650;' : '&#9660;';
@@ -7133,21 +7315,21 @@ function clearQuickAdd(keepResult) {
 // v80: separate datalist from the amber panel's, and deliberately NOT cached
 // behind a never-cleared flag - see the registerTypeOptionsLoaded bug this
 // version also fixes. Cheap enough to reload each time the section is opened.
+var TYPE_LIST = [];   // v96: [{product_type, listings, active_listings}]
 function loadQuickAddTypeOptions() {
-    if (!db) return;
-    withTimeout(db.from('oms_sku_master').select('product_type'), 10000, 'Product types (Quick Add)').then(function(res) {
-        if (res.error || !res.data) return;
-        var seen = {}, cats = [];
-        res.data.forEach(function(r) {
-            var v = (r.product_type || '').trim();
-            if (v && !seen[v]) { seen[v] = true; cats.push(v); }
-        });
-        cats.sort();
+    if (!db) return Promise.resolve(TYPE_LIST);
+    // v96: the old query read oms_sku_master directly and the database hands back
+    // at most 1,000 rows per read, so only 17 of the 44 product types ever showed.
+    return withTimeout(db.rpc('oms_list_product_types'), 10000, 'Product types (Quick Add)').then(function(res) {
+        if (res.error || !res.data) return TYPE_LIST;
+        TYPE_LIST = res.data;
+        var cats = res.data.map(function (r) { return r.product_type; });
         var dl = document.getElementById('qa-type-list');
         if (!dl) return;
         dl.innerHTML = '';
         cats.forEach(function(c) { var o = document.createElement('option'); o.value = c; dl.appendChild(o); });
-    }).catch(function() {});
+        return TYPE_LIST;
+    }).catch(function() { return TYPE_LIST; });
 }
 function submitQuickAdd() {
     // v95: an Admin/Supervisor action, confirmed by their own PIN in the
@@ -7174,7 +7356,8 @@ function submitQuickAdd() {
     if (!sku)   { fail('SKU code is required.'); return; }
     if (!type)  { fail('Product type is required.'); return; }
     if (isNaN(qty) || qty < 0) { fail('Opening stock must be 0 or more.'); return; }
-    if (qty > 0 && !bin) { fail('Bin number is required when adding opening stock.'); return; }
+    if (qty > 0 && !bin) { fail('You entered opening stock - also say which bin it goes into (or set opening stock to 0 and inbound it later).'); return; }
+    if (qty > 0 && bin && !confirmNewBins([bin])) { fail('Cancelled - pick the bin from the list or correct it.'); return; }
     if (isNaN(setSize) || setSize < 1) { fail('Set size must be 1 or more.'); return; }
     if (!db) { fail('Database not reachable right now - try again when back online.'); return; }
 
@@ -7240,6 +7423,602 @@ function submitQuickAdd() {
         fail('Could not complete: ' + (err && err.message ? err.message : err));
     });
 }
+// ══ v96 (2026-09-26): PRODUCT CARD, BIN / TYPE PICKERS, DATABASE TAB ═══════
+// Plain helpers first, then the Actions-tab product card, then the two pickers,
+// then the DATABASE tab (listing editor + bins).
+
+function amazonUrl(asin) {
+    return 'https://amazon.in/dp/' + encodeURIComponent(String(asin || '').trim().toUpperCase());
+}
+// A dropped connection comes back from supabase-js as an error object with no
+// database error code (HTTP status 0). A real refusal always carries a code.
+function isNetworkError(res) {
+    if (!res || !res.error) return false;
+    if (res.status === 0) return true;
+    if (res.error.code) return false;
+    return /failed to fetch|networkerror|network request failed|load failed|fetch failed|timed out/i.test(String(res.error.message || ''));
+}
+
+// ── Product card on the Actions tab (all 9 buttons) ─────────────────────────
+var _moveCardSeq = 0;      // a newer lookup always wins over an older, slower one
+var _moveCardSku = null;   // the product the card currently shows (used by the bin picker)
+var _moveTypingTimer = null;
+var _moveLookupFor = '';   // the value the last lookup was started for
+function onMoveSkuTyping() {
+    if (_moveTypingTimer) clearTimeout(_moveTypingTimer);
+    var v = (document.getElementById('move-sku-input').value || '').trim();
+    if (!v) { renderMoveSkuCard(null, ''); _moveCardSku = null; return; }
+    _moveTypingTimer = setTimeout(function () {
+        var now = (document.getElementById('move-sku-input').value || '').trim();
+        if (now.length < 4) return;
+        if (now.toUpperCase() === _moveLookupFor) return;   // already looked up (e.g. by Enter or a scan)
+        prefillMoveBin();
+    }, 900);
+}
+function renderMoveSkuCard(sku, typed) {
+    var el = document.getElementById('move-sku-card');
+    if (!el) return;
+    typed = String(typed || '').trim();
+    if (!sku && !typed) { el.innerHTML = ''; return; }
+    if (!sku) {
+        el.innerHTML = '<div class="sku-card bad"><div class="sc-row"><span class="sc-k">Scanned</span><span class="sc-v">' + esc59(typed.toUpperCase()) +
+            '</span></div><div style="color:#B3261E;font-weight:700;">&#9940; Not in the product database.</div></div>';
+        return;
+    }
+    var on = sku.active !== false;
+    var typedU = typed.toUpperCase();
+    var scannedWhat = (sku.asin && typedU === String(sku.asin).toUpperCase() && typedU !== String(sku.sku_code).toUpperCase()) ? 'ASIN' : 'SKU';
+    var bins = (sku.live_bins || []).filter(function (b) { return b.bin_code && Number(b.qty_on_hand) > 0; });
+    bins.sort(function (a, b) { return (Number(a.qty_on_hand) - Number(b.qty_on_hand)) || String(a.bin_code).localeCompare(String(b.bin_code)); });
+    var total = bins.reduce(function (t, b) { return t + Number(b.qty_on_hand || 0); }, 0);
+    var html = '<div class="sku-card' + (on ? '' : ' off') + '">' +
+        '<div class="sc-row"><span class="sc-k">SKU</span><span class="sc-v">' + esc59(sku.sku_code) + (scannedWhat === 'SKU' ? ' <span class="badge" style="background:#E8F0FB;color:#1B4F8A;">scanned</span>' : '') + '</span></div>' +
+        '<div class="sc-row"><span class="sc-k">ASIN</span><span class="sc-v">' +
+            (sku.asin ? esc59(sku.asin) + (scannedWhat === 'ASIN' ? ' <span class="badge" style="background:#E8F0FB;color:#1B4F8A;">scanned</span>' : '') : '<span style="color:#6B7280;font-weight:600;">none on record</span>') + '</span></div>' +
+        '<div class="sc-title">' + esc59(sku.product_name || '(no product name)') + '</div>' +
+        '<div class="sc-row" style="font-size:11px;color:#6B7280;">' +
+            (sku.product_type ? esc59(sku.product_type) + ' &bull; ' : '') + 'Set size ' + esc59(sku.set_size || 1) + ' &bull; ' +
+            (on ? '<span class="badge" style="background:#E8F5EC;color:#1B7A3A;">ON</span>' : '<span class="badge" style="background:#FFF4E0;color:#9A6700;">OFF - cannot be scanned</span>') + '</div>' +
+        '<div class="sc-row"><span class="sc-k">Stock</span><span class="sc-v">' +
+            (bins.length ? total + ' &mdash; ' + bins.map(function (b) { return esc59(b.bin_code) + ': ' + b.qty_on_hand; }).join(' &bull; ') + (bins.length > 1 ? ' <span style="color:#6B7280;font-weight:600;">(least first)</span>' : '')
+                         : '<span style="color:#6B7280;font-weight:600;">none in any bin</span>') + '</span></div>' +
+        (sku.asin ? '<div class="sc-row"><span class="sc-k">Amazon</span><span class="sc-v"><a href="' + amazonUrl(sku.asin) + '" target="_blank" rel="noopener">amazon.in/dp/' + esc59(String(sku.asin).toUpperCase()) + ' &#8599;</a></span></div>' : '') +
+        '</div>';
+    el.innerHTML = html;
+}
+
+// ── Asking before a brand-new bin is created by a typo ─────────────────────
+function confirmNewBins(list) {
+    if (!BIN_LIST) return true;                 // list not loaded (offline) - cannot check
+    var known = {};
+    BIN_LIST.forEach(function (b) { known[String(b).toUpperCase()] = true; });
+    for (var i = 0; i < list.length; i++) {
+        var b = String(list[i] || '').trim().toUpperCase();
+        if (!b || known[b]) continue;
+        if (!confirm('Bin "' + b + '" is not in the active bin list (it is new, or it was switched off).\n\nUse it anyway? A new bin is created automatically.\n\nIf you meant another bin, tap Cancel and pick it from the list (▼).')) return false;
+    }
+    return true;
+}
+
+// ── Bottom sheet: pick a bin or a product type (or type your own) ──────────
+var _pickSheet = { target: null, items: [], empty: '' };
+function openPickSheet(title, target, items, emptyMsg) {
+    _pickSheet = { target: target, items: items || [], empty: emptyMsg || 'Nothing to show.' };
+    document.getElementById('pick-sheet-title').textContent = title;
+    var f = document.getElementById('pick-sheet-filter'); if (f) f.value = '';
+    renderPickSheet();
+    document.getElementById('pick-sheet-bg').classList.add('active');
+}
+function closePickSheet() {
+    var bg = document.getElementById('pick-sheet-bg'); if (bg) bg.classList.remove('active');
+    _pickSheet.target = null;
+}
+function renderPickSheet() {
+    var list = document.getElementById('pick-sheet-list');
+    if (!list) return;
+    var q = String((document.getElementById('pick-sheet-filter') || {}).value || '').trim().toUpperCase();
+    var html = '', shown = 0;
+    _pickSheet.items.forEach(function (it, i) {
+        if (it.sep) { html += '<div class="sheet-sep">' + esc59(it.sep) + '</div>'; return; }
+        if (q && String(it.value).toUpperCase().indexOf(q) === -1 && String(it.sub || '').toUpperCase().indexOf(q) === -1) return;
+        shown++;
+        html += '<div class="sheet-item" onclick="choosePickSheet(' + i + ')"><div><div style="font-weight:800;">' + esc59(it.label || it.value) + '</div>' +
+            (it.sub ? '<div class="si-sub">' + esc59(it.sub) + '</div>' : '') + '</div>' +
+            (it.right ? '<div style="font-size:12px;font-weight:800;color:#1B4F8A;">' + esc59(it.right) + '</div>' : '') + '</div>';
+    });
+    if (!shown) html += '<div style="padding:12px 8px;color:#6B7280;font-size:13px;">' + esc59(q ? 'Nothing matches "' + q + '". Close this and type it in the box if it is new.' : _pickSheet.empty) + '</div>';
+    list.innerHTML = html;
+}
+function choosePickSheet(i) {
+    var it = _pickSheet.items[i]; var el = document.getElementById(_pickSheet.target);
+    if (!it || !el) { closePickSheet(); return; }
+    el.value = it.value;
+    if (_pickSheet.target === 'move-bin-input') { try { markMoveBinTouched(); } catch (e) {} }
+    try { el.dispatchEvent(new Event('input', { bubbles: true })); } catch (e) {}
+    closePickSheet();
+    try { scheduleUiStateSave(); } catch (e) {}
+}
+function _binItem(code, sub, right) { return { value: code, label: code, sub: sub, right: right }; }
+function _allBinItems(exclude) {
+    var out = [];
+    (BIN_LIST || []).forEach(function (b) {
+        if (exclude && String(b).toUpperCase() === String(exclude).toUpperCase()) return;
+        var inf = BIN_INFO[b];
+        var sub = inf ? (inf.units ? inf.units + ' unit(s) of ' + inf.skus + ' product(s)' : 'empty') + (inf.pickable === false ? ' • not for picking' : '') : '';
+        out.push(_binItem(b, sub, ''));
+    });
+    return out;
+}
+function openBinPicker(inputId) {
+    loadBinList().then(function () {
+        var items = [], title = 'Choose a bin', empty = 'No bins yet - type a new one in the box.';
+        var skuBins = [];
+        if (_moveCardSku && inputId === 'move-bin-input') {
+            skuBins = (_moveCardSku.live_bins || []).filter(function (b) { return b.bin_code && Number(b.qty_on_hand) > 0; })
+                .sort(function (a, b) { return (Number(a.qty_on_hand) - Number(b.qty_on_hand)) || String(a.bin_code).localeCompare(String(b.bin_code)); });
+        }
+        if (inputId === 'move-bin-input' && moveMode === 'BIN_TRANSFER') {
+            title = 'FROM bin - where ' + (_moveCardSku ? _moveCardSku.sku_code : 'the product') + ' is now';
+            if (!_moveCardSku) { openPickSheet(title, inputId, [], 'Scan or type the product first - then this list shows only the bins that hold it.'); return; }
+            skuBins.forEach(function (b) { items.push(_binItem(b.bin_code, 'holds ' + b.qty_on_hand + ' of this product', b.qty_on_hand + ' pcs')); });
+            empty = 'This product has no stock in any bin, so there is nothing to transfer.';
+        } else if (inputId === 'move-transfer-tobin-input') {
+            var from = (document.getElementById('move-bin-input').value || '').trim();
+            title = 'TO bin - where the stock is going';
+            items = _allBinItems(from);
+        } else if (inputId === 'move-bin-input') {
+            if (skuBins.length) {
+                items.push({ sep: 'Bins holding ' + _moveCardSku.sku_code + ' (least first)' });
+                skuBins.forEach(function (b) { items.push(_binItem(b.bin_code, 'holds ' + b.qty_on_hand + ' of this product', b.qty_on_hand + ' pcs')); });
+                items.push({ sep: 'All bins' });
+            }
+            items = items.concat(_allBinItems(null));
+        } else {
+            items = _allBinItems(null);
+        }
+        openPickSheet(title, inputId, items, empty);
+    });
+}
+function openTypePicker(inputId) {
+    loadQuickAddTypeOptions().then(function () {
+        var act = [], rest = [];
+        (TYPE_LIST || []).forEach(function (t) {
+            var it = { value: t.product_type, label: t.product_type, sub: t.listings + ' listing(s), ' + t.active_listings + ' switched ON' };
+            if (t.active_listings > 0) act.push(it); else rest.push(it);
+        });
+        var items = [];
+        if (act.length) { items.push({ sep: 'In use (' + act.length + ')' }); items = items.concat(act); }
+        if (rest.length) { items.push({ sep: 'Other types (' + rest.length + ')' }); items = items.concat(rest); }
+        openPickSheet('Product type (' + (TYPE_LIST || []).length + ')', inputId, items, 'Could not load the product types - check the connection.');
+    });
+}
+
+// ── DATABASE tab ─────────────────────────────────────────────────────────
+function enterDbTab() {
+    applyListingManagerVisibility();
+    loadBinList();
+    loadQuickAddTypeOptions();
+    var body = document.getElementById('db-bins-body');
+    if (body && body.style.display !== 'none') loadDbBins();
+}
+function refreshDbTab() {
+    loadBinList(true);
+    loadQuickAddTypeOptions();
+    if ((document.getElementById('ml-search-input').value || '').trim()) runListingSearch();
+    var body = document.getElementById('db-bins-body');
+    if (body && body.style.display !== 'none') loadDbBins();
+}
+
+// Listing editor --------------------------------------------------------------
+var FIELD_CATALOG = null;
+var _dbd = null;   // { sku, master, commercial, updated_at }
+function loadFieldCatalog() {
+    if (FIELD_CATALOG) return Promise.resolve(FIELD_CATALOG);
+    return withTimeout(db.from('oms_sku_field_catalog').select('*').order('sort_order'), 10000, 'Field list').then(function (res) {
+        if (res.error || !res.data || !res.data.length) throw new Error(res.error ? res.error.message : 'field list is empty');
+        FIELD_CATALOG = res.data; return FIELD_CATALOG;
+    });
+}
+function closeListingDetail(silent) {
+    var bg = document.getElementById('dbd-bg'); if (bg) bg.classList.remove('active');
+    var box = document.getElementById('dbd'); if (box) box.innerHTML = '';   // removes cost figures from the screen
+    _dbd = null;
+}
+function openListingDetail(skuCode) {
+    if (!isListingManager()) return;
+    if (!db) { alert('Database not reachable right now.'); return; }
+    var bg = document.getElementById('dbd-bg'), box = document.getElementById('dbd');
+    box.innerHTML = '<div style="padding:20px 4px;color:#6B7280;">Opening ' + esc59(skuCode) + '...</div>';
+    bg.classList.add('active');
+    loadFieldCatalog().then(function () {
+        return callManagerRpc('oms_admin_get_listing', { p_sku_code: skuCode }, 'Open "' + skuCode + '"? This shows cost and price fields.');
+    }).then(function (d) {
+        if (!d || !d.ok) {
+            if (d && d.cancelled) { closeListingDetail(true); return; }
+            box.innerHTML = '<div class="move-result err" style="margin-top:14px;">' + esc59((d && d.message) || 'Could not open this listing.') + '</div>' +
+                '<button class="settings-btn" style="margin-top:10px;background:#888;width:100%;" onclick="closeListingDetail()">Close</button>';
+            return;
+        }
+        _dbd = { sku: skuCode, master: d.master || {}, commercial: d.commercial || {}, updated_at: (d.master || {}).updated_at };
+        return withTimeout(db.from('oms_bin_stock').select('bin_code,qty_on_hand').eq('sku_code', skuCode).gt('qty_on_hand', 0)
+            .order('qty_on_hand', { ascending: true }), 8000, 'Listing stock').then(function (br) {
+            if (_dbd) _dbd.bins = (br && br.data) || [];
+        }).catch(function () {}).then(renderListingDetail);
+    }).catch(function (err) {
+        box.innerHTML = '<div class="move-result err" style="margin-top:14px;">Could not open: ' + esc59(err && err.message ? err.message : err) + '</div>' +
+            '<button class="settings-btn" style="margin-top:10px;background:#888;width:100%;" onclick="closeListingDetail()">Close</button>';
+    });
+}
+function _fmtVal(v) {
+    if (v === null || v === undefined) return '';
+    return String(v);
+}
+function renderListingDetail(msgHtml) {
+    if (!_dbd) return;
+    var m = _dbd.master, c = _dbd.commercial;
+    var on = m.active === true;
+    var total = (_dbd.bins || []).reduce(function (t, b) { return t + Number(b.qty_on_hand || 0); }, 0);
+    var html = '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;position:sticky;top:-12px;background:#fff;padding:8px 0;z-index:2;border-bottom:1px solid #E2E8F0;">' +
+        '<div><div style="font-size:15px;font-weight:800;color:#0A1628;word-break:break-all;">' + esc59(m.sku_code) + '</div>' +
+        '<div style="font-size:11px;color:#6B7280;">' + (on ? '<span class="badge" style="background:#E8F5EC;color:#1B7A3A;font-weight:800;padding:1px 8px;border-radius:10px;">ON</span>' : '<span style="background:#F1F2F4;color:#6B7280;font-weight:800;padding:1px 8px;border-radius:10px;">OFF</span>') +
+        ' &bull; Stock ' + total + ((_dbd.bins || []).length ? ' (' + _dbd.bins.map(function (b) { return esc59(b.bin_code) + ': ' + b.qty_on_hand; }).join(', ') + ')' : '') +
+        (m.asin ? ' &bull; <a href="' + amazonUrl(m.asin) + '" target="_blank" rel="noopener" style="color:#1B4F8A;font-weight:800;">Amazon &#8599;</a>' : '') + '</div>' +
+        '<div style="font-size:10px;color:#6B7280;">Last changed ' + esc59(m.updated_at ? new Date(m.updated_at).toLocaleString('en-IN') : '-') + (m.updated_by ? ' by ' + esc59(m.updated_by) : '') + '</div></div>' +
+        '<button class="settings-btn" style="flex:0 0 auto;background:#888;padding:8px 12px;" onclick="closeListingDetail()">&#10005;</button></div>' +
+        '<div id="dbd-msg">' + (msgHtml || '') + '</div>';
+    var grp = null;
+    FIELD_CATALOG.forEach(function (f) {
+        if (f.field_name === 'sku_code' || f.field_name === 'active') return;
+        if (f.grp !== grp) { grp = f.grp; html += '<div class="dbd-grp">' + esc59(grp) + (f.excel_col ? '' : '') + '</div>'; }
+        var val = _fmtVal(f.tbl === 'commercial' ? c[f.field_name] : m[f.field_name]);
+        var colTag = f.excel_col ? ' <span style="color:#9aa4b2;font-weight:600;">(tab 6 col ' + esc59(f.excel_col) + ')</span>' : '';
+        if (f.editable) {
+            var isNum = (f.data_type === 'numeric' || f.data_type === 'int');
+            var extraBtn = (f.field_name === 'product_type') ? '<button class="scan-cam-btn bin-pick-btn" style="flex:0 0 auto;" onclick="openTypePicker(\'dbd-in-product_type\')">&#9660;</button>' : '';
+            html += '<div class="dbd-f"><label>' + esc59(f.label) + colTag + '</label><div style="display:flex;gap:6px;">' +
+                '<input id="dbd-in-' + esc59(f.field_name) + '" data-field="' + esc59(f.field_name) + '" data-orig="' + esc59(val) + '" value="' + esc59(val) + '"' +
+                (isNum ? ' inputmode="decimal"' : '') + (f.field_name === 'asin' ? ' style="text-transform:uppercase"' : '') +
+                ' oninput="dbdMark(this)" autocomplete="off">' + extraBtn + '</div></div>';
+        } else {
+            html += '<div class="dbd-f"><label>' + esc59(f.label) + colTag + ' &mdash; calculated in Excel</label><div class="dbd-ro">' + (val ? esc59(val) : '&nbsp;') + '</div></div>';
+        }
+    });
+    html += '<div style="position:sticky;bottom:-90px;background:#fff;padding:10px 0;border-top:1px solid #E2E8F0;display:flex;gap:8px;margin-top:10px;">' +
+        '<button class="settings-btn" style="flex:1" id="dbd-save-btn" onclick="saveListingDetail()">&#10003; Save changes</button>' +
+        '<button class="settings-btn" style="flex:0 0 auto;background:#888" onclick="closeListingDetail()">Close</button></div>' +
+        '<div class="settings-info" style="margin-top:6px;">Blue boxes are changed and not saved yet. Switching the listing ON / OFF is done with the button in the search list. Box fields are calculated by Excel\'s box engine and cannot be typed here.</div>';
+    document.getElementById('dbd').innerHTML = html;
+}
+function dbdMark(el) {
+    if (!el) return;
+    if (el.getAttribute('data-field') === 'asin') { try { forceUpperInput(el); } catch (e) {} }
+    el.classList.toggle('changed', String(el.value).trim() !== String(el.getAttribute('data-orig') || ''));
+}
+function saveListingDetail() {
+    if (!_dbd) return;
+    var btn = document.getElementById('dbd-save-btn');
+    if (btn && btn.disabled) return;
+    var changes = {}, lines = [], n = 0;
+    var inputs = document.querySelectorAll('#dbd input[data-field]');
+    for (var i = 0; i < inputs.length; i++) {
+        var el = inputs[i], now = String(el.value).trim(), orig = String(el.getAttribute('data-orig') || '');
+        if (now === orig) continue;
+        var f = el.getAttribute('data-field');
+        changes[f] = (f === 'asin') ? now.toUpperCase() : now;
+        lines.push('  ' + f + ':  ' + (orig || '(blank)') + '  →  ' + (now || '(blank)'));
+        n++;
+    }
+    var msg = document.getElementById('dbd-msg');
+    if (!n) { if (msg) msg.innerHTML = '<div class="move-result">Nothing changed yet - edit a box first.</div>'; return; }
+    if (!confirm('Save ' + n + ' change(s) to ' + _dbd.sku + '?\n\n' + lines.join('\n'))) return;
+    if (btn) btn.disabled = true;
+    var sku = _dbd.sku;
+    callManagerRpc('oms_admin_update_listing', { p_sku_code: sku, p_changes: changes, p_expected_updated_at: _dbd.updated_at },
+        'Save ' + n + ' change(s) to "' + sku + '"?').then(function (d) {
+        if (btn) btn.disabled = false;
+        if (!_dbd || _dbd.sku !== sku) return;
+        if (!d || !d.ok) {
+            var extra = (d && d.error === 'CONFLICT') ? '<button class="settings-btn" style="margin-top:6px;width:100%;" data-sku="' + esc59(sku) + '" onclick="openListingDetail(this.getAttribute(\'data-sku\'))">&#8635; Reload the latest values</button>' : '';
+            if (msg) msg.innerHTML = '<div class="move-result err">' + esc59((d && d.cancelled) ? 'Cancelled - nothing was saved.' : ('Not saved: ' + ((d && d.message) || 'unknown reason'))) + '</div>' + extra;
+            return;
+        }
+        // take the saved values as the new baseline
+        for (var k in changes) {
+            if (!Object.prototype.hasOwnProperty.call(changes, k)) continue;
+            var fdef = null; for (var j = 0; j < FIELD_CATALOG.length; j++) if (FIELD_CATALOG[j].field_name === k) fdef = FIELD_CATALOG[j];
+            if (fdef && fdef.tbl === 'commercial') _dbd.commercial[k] = changes[k] === '' ? null : changes[k];
+            else _dbd.master[k] = changes[k] === '' ? null : changes[k];
+        }
+        if (d.updated_at) { _dbd.updated_at = d.updated_at; _dbd.master.updated_at = d.updated_at; }
+        _dbd.master.updated_by = sessionEmployeeCode();
+        renderListingDetail('<div class="move-result ok">&#10003; Saved ' + (d.changed || 0) + ' change(s). Excel tab 6 picks this up on its next open or SYNC NOW.</div>');
+        logEvent(sku, 'Listing edited: ' + Object.keys(changes).join(', '));
+        // keep the search list in step
+        for (var r = 0; r < _mlRows.length; r++) if (_mlRows[r].sku_code === sku) {
+            ['product_name', 'product_type', 'asin'].forEach(function (x) { if (x in changes) _mlRows[r][x] = changes[x]; });
+        }
+        try { renderListingRows(); } catch (e) {}
+    });
+}
+function jsqSafe(s) { return String(s || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'"); }
+
+// Bins ------------------------------------------------------------------------
+function toggleDbBins() {
+    var body = document.getElementById('db-bins-body'), t = document.getElementById('db-bins-toggle');
+    if (!body) return;
+    var opening = body.style.display === 'none';
+    body.style.display = opening ? '' : 'none';
+    if (t) t.innerHTML = opening ? '&#9650;' : '&#9660;';
+    if (opening) loadDbBins();
+}
+var _dbBins = [];
+function loadDbBins() {
+    var list = document.getElementById('db-bins-list');
+    if (!list) return;
+    if (!db) { list.innerHTML = '<div class="settings-info">Database not reachable.</div>'; return; }
+    list.innerHTML = '<div style="color:#6B7280;font-size:12px;">Loading...</div>';
+    var extrasMissing = false;
+    withTimeout(db.from('oms_bin_summary').select('bin_code,active,sku_count,total_qty').order('bin_code'), 10000, 'Bins').then(function (r) {
+        if (r.error) throw new Error(r.error.message);
+        _dbBins = (r.data || []).map(function (x) {
+            return { bin_code: x.bin_code, active: x.active, units: Number(x.total_qty) || 0, skus: Number(x.sku_count) || 0, reserved: 0, pickable: true };
+        });
+        var byCode = {}; _dbBins.forEach(function (x) { byCode[x.bin_code] = x; });
+        // picking flag and reserved units come with the pending database update (M2)
+        return Promise.all([
+            withTimeout(db.from('oms_bins').select('bin_code,pickable'), 8000, 'Bin picking flag').then(function (pr) {
+                if (pr.error) { extrasMissing = true; return; }
+                (pr.data || []).forEach(function (x) { if (byCode[x.bin_code]) byCode[x.bin_code].pickable = x.pickable; });
+            }).catch(function () { extrasMissing = true; }),
+            withTimeout(db.from('oms_pick_reservations').select('bin_code,qty').eq('status', 'OPEN'), 8000, 'Reserved').then(function (rr) {
+                if (rr.error) { extrasMissing = true; return; }
+                (rr.data || []).forEach(function (x) { if (byCode[x.bin_code]) byCode[x.bin_code].reserved += Number(x.qty) || 0; });
+            }).catch(function () { extrasMissing = true; })
+        ]);
+    }).then(function () {
+        renderDbBins(extrasMissing ? 'Delete / Off / picking controls need the pending database update (M2) - until then they will say so.' : '');
+    }).catch(function (err) { list.innerHTML = '<div class="move-result err">Could not load bins: ' + esc59(err && err.message ? err.message : err) + '</div>'; });
+}
+function renderDbBins(note) {
+    var list = document.getElementById('db-bins-list'), badge = document.getElementById('db-bins-badge');
+    if (badge) badge.textContent = '(' + _dbBins.length + ')';
+    var html = note ? '<div class="settings-info" style="color:#9A6700;">' + esc59(note) + '</div>' : '';
+    _dbBins.forEach(function (b) {
+        var empty = (b.units === 0 && !b.reserved);
+        html += '<div style="border:1px solid #E2E8F0;border-radius:10px;padding:8px 10px;margin-bottom:6px;background:' + (b.active === false ? '#F8F9FB' : '#fff') + ';">' +
+            '<div style="display:flex;justify-content:space-between;gap:8px;align-items:center;"><div style="font-weight:800;font-size:13px;color:#0A1628;">' + esc59(b.bin_code) +
+            (b.active === false ? ' <span style="font-size:10px;color:#6B7280;">(off)</span>' : '') + (b.pickable === false ? ' <span style="font-size:10px;color:#9A6700;">(not for picking)</span>' : '') + '</div>' +
+            '<div style="font-size:11px;color:#6B7280;">' + (b.units === null ? '' : (b.units ? b.units + ' unit(s), ' + b.skus + ' product(s)' : 'empty')) + (b.reserved ? ' &bull; ' + b.reserved + ' reserved' : '') + '</div></div>';
+        {
+            html += '<div style="display:flex;gap:6px;margin-top:6px;">' +
+                (empty ? '<button class="settings-btn" style="flex:1;background:#B3261E;font-size:11px;" data-bin="' + esc59(b.bin_code) + '" onclick="manageBin(this.getAttribute(\'data-bin\'),\'DELETE\')">&#128465; Delete</button>' : '') +
+                (b.active === false ? '<button class="settings-btn" style="flex:1;font-size:11px;" data-bin="' + esc59(b.bin_code) + '" onclick="manageBin(this.getAttribute(\'data-bin\'),\'ACTIVATE\')">Switch on</button>'
+                                    : (empty ? '<button class="settings-btn" style="flex:1;background:#6B7280;font-size:11px;" data-bin="' + esc59(b.bin_code) + '" onclick="manageBin(this.getAttribute(\'data-bin\'),\'DEACTIVATE\')">Off</button>' : '')) +
+                '<button class="settings-btn" style="flex:1;background:#1B3F6B;font-size:11px;" data-bin="' + esc59(b.bin_code) + '" onclick="manageBin(this.getAttribute(\'data-bin\'),\'' + (b.pickable === false ? 'PICKABLE_ON' : 'PICKABLE_OFF') + '\')">' + (b.pickable === false ? 'Use for picking' : 'Not for picking') + '</button>' +
+                '</div>';
+        }
+        html += '</div>';
+    });
+    if (!_dbBins.length) html += '<div class="settings-info">No bins.</div>';
+    list.innerHTML = html;
+}
+function manageBin(bin, action) {
+    var res = document.getElementById('db-bins-result');
+    var words = { DELETE: 'DELETE bin ' + bin + ' for good', DEACTIVATE: 'switch bin ' + bin + ' OFF (hidden from lists)', ACTIVATE: 'switch bin ' + bin + ' back ON',
+                  PICKABLE_ON: 'let orders be picked from bin ' + bin, PICKABLE_OFF: 'stop orders being picked from bin ' + bin };
+    if (!confirm('Do you want to ' + words[action] + '?')) return;
+    callManagerRpc('oms_admin_manage_bin', { p_bin_code: bin, p_action: action }, 'Confirm: ' + words[action] + '.').then(function (d) {
+        if (!d || !d.ok) {
+            var m = (d && d.message) || 'unknown reason';
+            if (/could not find the function|schema cache|PGRST202/i.test(m)) m = 'This needs the pending database update (approval "M2").';
+            res.className = 'move-result err'; res.textContent = (d && d.cancelled) ? 'Cancelled - nothing was changed.' : ('Not changed: ' + m);
+            return;
+        }
+        res.className = 'move-result ok'; res.textContent = '✓ Done - ' + words[action] + '.';
+        logEvent(bin, 'Bin: ' + action);
+        loadBinList(true); loadDbBins();
+    });
+}
+
+// ══ v96: BULK PICK SHEET ══════════════════════════════════════════════════
+// Paste or upload a list of "SKU or ASIN, quantity". The database decides, per
+// product, which bins to take it from - the bin with the LEAST free stock first
+// - and reserves those units so no other order can be promised them. Whatever
+// cannot be covered is listed as "not available - make it". The printed sheet
+// has one QR per bin line; the PICK tab scans them exactly like order slips.
+var _bulk = { lines: [], result: null, committed: false, orderRef: '', channel: '' };
+
+function toggleBulkPick() {
+    var body = document.getElementById('bulkpick-body'), t = document.getElementById('bulkpick-toggle');
+    if (!body) return;
+    var opening = body.style.display === 'none';
+    body.style.display = opening ? '' : 'none';
+    if (t) t.innerHTML = opening ? '&#9650;' : '&#9660;';
+    if (opening) {
+        var ref = document.getElementById('bulk-ref');
+        if (ref && !ref.value) ref.value = defaultBulkRef();
+    }
+}
+function defaultBulkRef() {
+    var d = new Date(), p = function (n) { return ('0' + n).slice(-2); };
+    return 'BULK-' + d.getFullYear() + p(d.getMonth() + 1) + p(d.getDate()) + '-' + p(d.getHours()) + p(d.getMinutes());
+}
+function applyBulkPickVisibility() {
+    var sec = document.getElementById('bulkpick-section');
+    if (sec) sec.style.display = isListingManager() ? '' : 'none';
+}
+function onBulkFile(input) {
+    var f = input && input.files && input.files[0];
+    if (!f) return;
+    var rd = new FileReader();
+    rd.onload = function () {
+        document.getElementById('bulk-text').value = String(rd.result || '').replace(/^\uFEFF/, '');   // Excel's CSV byte-order mark
+        bulkMsg('Loaded ' + f.name + ' - tap Check stock.', '');
+    };
+    rd.readAsText(f);
+    input.value = '';
+}
+function bulkMsg(t, cls) { var el = document.getElementById('bulk-result'); if (el) { el.className = 'move-result' + (cls ? ' ' + cls : ''); el.innerHTML = t; } }
+// "SKU,qty" / "SKU<tab>qty" / "SKU qty"; a header line is skipped; the same
+// product on two lines is added together.
+function parseBulkText(txt) {
+    var out = [], errors = [], seen = {};
+    String(txt || '').replace(/^\uFEFF/, '').split(/\r?\n/).forEach(function (line, i) {
+        var l = line.trim();
+        if (!l) return;
+        var parts = l.split(/[,\t;]+|\s{2,}|\s(?=[0-9]+\s*$)/).map(function (x) { return x.trim().replace(/^"|"$/g, ''); }).filter(function (x) { return x !== ''; });
+        if (parts.length < 2) { errors.push('Line ' + (i + 1) + ': needs a product and a quantity ("' + l.slice(0, 40) + '")'); return; }
+        var code = parts[0].toUpperCase(), q = parts[1];
+        if (i === 0 && !/^[0-9]+$/.test(q)) return;                       // header row
+        if (!/^[0-9]{1,6}$/.test(q) || parseInt(q, 10) < 1) { errors.push('Line ' + (i + 1) + ': quantity "' + q + '" is not a whole number of 1 or more'); return; }
+        if (seen[code] !== undefined) { out[seen[code]].qty += parseInt(q, 10); return; }
+        seen[code] = out.length;
+        out.push({ sku: code, qty: parseInt(q, 10) });
+    });
+    return { lines: out, errors: errors };
+}
+var _bulkPreviewText = '';
+function bulkPreview(commit) {
+    if (commit && _bulkPreviewText !== (document.getElementById('bulk-text').value + '|' + document.getElementById('bulk-ref').value + '|' + document.getElementById('bulk-channel').value)) {
+        bulkMsg('The list, reference or channel changed after the check - tap Check stock again before reserving.', 'err'); return;
+    }
+    if (!isListingManager()) { bulkMsg('Only an Admin or Supervisor can do this.', 'err'); return; }
+    if (!db) { bulkMsg('Database not reachable right now.', 'err'); return; }
+    var ref = String(document.getElementById('bulk-ref').value || '').trim().toUpperCase();
+    var ch = document.getElementById('bulk-channel').value || 'OFFLINE';
+    if (!ref) { ref = defaultBulkRef(); document.getElementById('bulk-ref').value = ref; }
+    if (!/^[A-Z0-9][A-Z0-9_\-\/\.]{2,40}$/.test(ref)) { bulkMsg('Order reference may only use letters, digits and - _ / . (3 to 41 characters).', 'err'); return; }
+    var p = parseBulkText(document.getElementById('bulk-text').value);
+    if (p.errors.length) { bulkMsg('&#9888; Fix these first:<br>' + p.errors.map(esc59).join('<br>'), 'err'); return; }
+    if (!p.lines.length) { bulkMsg('Paste or upload at least one line: SKU or ASIN, quantity.', 'err'); return; }
+    if (p.lines.length > 500) { bulkMsg('At most 500 products per sheet.', 'err'); return; }
+    var payload = p.lines.map(function (l) { return { order_id: ref, channel: ch, sku: l.sku, qty: String(l.qty) }; });
+    _bulk.lines = p.lines; _bulk.orderRef = ref; _bulk.channel = ch;
+    if (!commit) _bulkPreviewText = document.getElementById('bulk-text').value + '|' + document.getElementById('bulk-ref').value + '|' + document.getElementById('bulk-channel').value;
+    var go = function (pin) {
+        bulkMsg(commit ? 'Reserving stock...' : 'Checking stock...', '');
+        var args = { p_lines: payload, p_commit: !!commit, p_partial_ok: true, p_source: 'APP_BULK', p_label: ref };
+        if (commit) { args.p_employee_code = sessionEmployeeCode(); args.p_pin = pin; }
+        return withTimeout(db.rpc('oms_allocate_pick', args), 30000, 'Bulk allocation').then(function (r) {
+            if (r.error) {
+                var m = r.error.message || '';
+                if (/could not find the function|schema cache/i.test(m)) m = 'This needs the pending database update (approval "M2").';
+                bulkMsg('Could not ' + (commit ? 'reserve' : 'check') + ': ' + esc59(m), 'err'); return;
+            }
+            var d = r.data || {};
+            if (!d.ok) {
+                if (d.error === 'ADMIN_PIN_REJECTED') forgetManagerPin();
+                bulkMsg(esc59(d.message || d.error || 'Refused.'), 'err'); return;
+            }
+            _bulk.result = d; _bulk.committed = !!d.committed;
+            renderBulkResult();
+            if (d.committed) { var rf = document.getElementById('bulk-ref'); if (rf) rf.value = defaultBulkRef(); }   // next sheet gets a new reference
+        }).catch(function (e) {
+            bulkMsg('No answer from the database (' + esc59(e && e.message ? e.message : e) + '). ' + (commit ? 'Tap Check stock to see whether it was reserved before trying again.' : 'Try again.'), 'err');
+        });
+    };
+    if (!commit) { go(null); return; }
+    askManagerPin('Reserve stock for ' + ref + ' and print the pick sheet?').then(function (pin) {
+        if (!pin) { bulkMsg('Cancelled - nothing was reserved.', ''); return; }
+        var ep = _mgrPinEpoch;
+        go(pin).then(function () { if (_bulk.committed && ep === _mgrPinEpoch) { _mgrPin.pin = pin; _mgrPin.at = Date.now(); } });
+    });
+}
+function renderBulkResult() {
+    var d = _bulk.result; if (!d) return;
+    var lines = d.lines || [];
+    var open = lines.filter(function (l) { return l.status === 'OPEN' || l.status === 'PICKED'; });
+    var short = lines.filter(function (l) { return l.status !== 'OPEN' && l.status !== 'PICKED'; });
+    var already = lines.some(function (l) { return l.note && /already reserved/.test(l.note); });
+    var units = open.reduce(function (t, l) { return t + Number(l.qty || 0); }, 0);
+    var shortUnits = short.reduce(function (t, l) { return t + Number(l.qty || 0); }, 0);
+    var reusedWarn = already ? '<div style="color:#9A6700;font-weight:700;margin-bottom:4px;">&#9888; This reference was used before, so its EARLIER sheet is shown. If this is a new list, change the Order reference and check again.</div>' : '';
+    var html = reusedWarn + '<div style="font-weight:800;">' + (d.committed ? '&#9989; Reserved - batch ' + esc59(d.batch_id || '') : (already ? '&#8505; Already reserved earlier' : '&#128269; Check only - nothing reserved yet')) + '</div>' +
+        '<div>' + open.length + ' pick line(s), ' + units + ' unit(s) available' + (short.length ? ' &bull; <span style="color:#B3261E;font-weight:800;">' + shortUnits + ' unit(s) NOT available</span>' : '') + '</div>';
+    html += '<div style="margin-top:6px;max-height:260px;overflow:auto;border:1px solid #E2E8F0;border-radius:8px;">';
+    lines.forEach(function (l) {
+        var ok = (l.status === 'OPEN' || l.status === 'PICKED');
+        html += '<div style="padding:6px 8px;border-bottom:1px solid #f0f2f5;font-size:12px;' + (ok ? '' : 'background:#fff5f5;') + '">' +
+            '<strong>' + esc59(l.sku_code || l.input) + '</strong>' + (l.asin ? ' <span style="color:#6B7280;">' + esc59(l.asin) + '</span>' : '') + '<br>' +
+            (ok ? 'Bin <strong>' + esc59(l.bin_code) + '</strong> &times; <strong>' + l.qty + '</strong>' + (l.pick_line ? ' &bull; line ' + l.pick_line + '/' + l.pick_total : '') + (l.status === 'PICKED' ? ' &bull; already picked' : '')
+                : '<span style="color:#B3261E;font-weight:800;">' + esc59(l.status === 'SHORT' ? 'NOT AVAILABLE' : l.status) + ' &times; ' + l.qty + '</span> ' + esc59(l.message || '')) +
+            '</div>';
+    });
+    html += '</div>';
+    if (d.committed || already) {
+        html += '<div style="display:flex;gap:6px;margin-top:8px;"><button class="settings-btn" style="flex:1" onclick="printBulkSheet()">&#128424; Print pick sheet</button>' +
+                (d.batch_id ? '<button class="settings-btn" style="flex:0 0 auto;background:#B3261E;" onclick="cancelBulkBatch(' + Number(d.batch_id) + ')">Cancel batch</button>' : '') + '</div>';
+    } else {
+        html += '<div style="margin-top:8px;"><button class="settings-btn" style="width:100%" onclick="bulkPreview(true)">&#128274; Reserve &amp; make the pick sheet (your PIN)</button></div>' +
+                '<div class="settings-info" style="margin-top:4px;">Reserving holds these units for this order - no other order can be given them until they are picked or the batch is cancelled.</div>';
+    }
+    bulkMsg(html, (d.committed || already) ? 'ok' : '');
+}
+function cancelBulkBatch(batchId) {
+    if (!confirm('Cancel batch ' + batchId + '?\n\nEvery line not picked yet is released back to free stock. Lines already picked stay picked.')) return;
+    askManagerPin('Cancel batch ' + batchId + '?').then(function (pin) {
+        if (!pin) return { ok: false, cancelled: true, message: 'Cancelled - nothing was changed.' };
+        return withTimeout(db.rpc('oms_cancel_pick', { p_batch_id: batchId, p_reason: 'Cancelled from the app',
+                                                       p_employee_code: sessionEmployeeCode(), p_pin: pin }), 12000, 'Cancel batch')
+            .then(function (r) {
+                if (r.error) return { ok: false, message: r.error.message };
+                var d0 = r.data || {};
+                if (d0.error === 'ADMIN_PIN_REJECTED') forgetManagerPin();
+                return d0;
+            });
+    }).catch(function (e) { return { ok: false, message: String(e && e.message ? e.message : e) }; }).then(function (d) {
+        if (!d || !d.ok) { bulkMsg('Not cancelled: ' + esc59((d && d.message) || 'unknown reason'), 'err'); return; }
+        bulkMsg('&#10003; Batch ' + batchId + ' cancelled - ' + (d.cancelled || 0) + ' line(s) released.', 'ok');
+        _bulk.result = null;
+        logEvent('BATCH ' + batchId, 'Bulk pick batch cancelled');
+    });
+}
+function qrSvg(text, cell) {
+    if (typeof qrcode !== 'function') return '<div style="color:#B3261E;font-size:10px;">QR unavailable</div>';
+    var q = qrcode(0, 'M'); q.addData(text); q.make();
+    return q.createSvgTag(cell || 3, 2);
+}
+function bulkQrPayload(l) {
+    // AF2|ref|channel|order|SKU|title(empty)|set|qty|bin|line|total|ASIN|flag|R<reservation>
+    return ['AF2', _bulk.orderRef, _bulk.channel, l.order_id, l.sku_code, '', (l.set_size || 1), l.qty, l.bin_code,
+            l.pick_line, l.pick_total, (l.asin || ''), '', 'R' + l.res_id].join('|');
+}
+function printBulkSheet() {
+    var d = _bulk.result; if (!d) return;
+    if (_bulk.orderRef !== String(document.getElementById('bulk-ref').value || '').trim().toUpperCase() && !d.committed) { bulkMsg('The reference changed - tap Check stock again.', 'err'); return; }
+    var lines = (d.lines || []);
+    var open = lines.filter(function (l) { return (l.status === 'OPEN') && l.res_id; });
+    var short = lines.filter(function (l) { return l.status !== 'OPEN' && l.status !== 'PICKED'; });
+    var e = esc59;
+    var rows = open.map(function (l) {
+        return '<tr><td class="c">' + l.pick_line + '/' + l.pick_total + '</td><td class="qr">' + qrSvg(bulkQrPayload(l), 3) + '</td>' +
+            '<td><div class="sku">' + e(l.sku_code) + '</div><div class="t">' + e(l.product_name || '') + '</div><div class="t">ASIN ' + e(l.asin || '-') + ' &bull; slip R' + e(l.res_id) + '</div></td>' +
+            '<td class="bin">' + e(l.bin_code) + '</td><td class="qty">' + e(l.qty) + '</td><td class="tick"></td></tr>';
+    }).join('');
+    var shortRows = short.map(function (l) {
+        return '<tr><td>' + e(l.sku_code || l.input) + '</td><td>' + e(l.asin || '') + '</td><td class="qty">' + e(l.qty) + '</td><td>' + e(l.message || l.status) + '</td></tr>';
+    }).join('');
+    var w = window.open('', '_blank');
+    if (!w) { alert('Could not open the print window - check the pop-up blocker.'); return; }
+    w.document.open();
+    w.document.write('<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Pick sheet ' + e(_bulk.orderRef) + '</title><style>' +
+        'body{font-family:Arial,Helvetica,sans-serif;margin:14px;color:#1A1A1A}h1{font-size:16px;color:#0A1628;margin:0}' +
+        '.meta{font-size:11px;color:#6B7280;margin:2px 0 10px}.gold{height:3px;background:#C9A84C;margin:6px 0 10px}' +
+        'table{border-collapse:collapse;width:100%}td,th{border:1px solid #E2E8F0;padding:6px;font-size:11px;vertical-align:middle}' +
+        'th{background:#0A1628;color:#fff;font-size:10px;text-align:left}.qr svg{display:block;width:30mm;height:30mm}' +
+        '.sku{font-weight:800;font-size:12px}.t{color:#6B7280;font-size:10px}.bin{font-size:18px;font-weight:800;text-align:center}' +
+        '.qty{font-size:18px;font-weight:800;text-align:center}.c{text-align:center;font-weight:800}.tick{width:14mm}' +
+        '.short th{background:#B3261E}.btn{margin:12px 0;padding:10px 22px;font-size:14px;font-weight:700;background:#1B4F8A;color:#fff;border:none;border-radius:8px}' +
+        'tr{page-break-inside:avoid}@media print{.btn{display:none}}</style></head><body>' +
+        '<h1>Bulk pick sheet &mdash; ' + e(_bulk.orderRef) + '</h1><div class="meta">Channel ' + e(_bulk.channel) + ' &bull; batch ' + e(d.batch_id || '') + ' &bull; printed ' + e(new Date().toLocaleString('en-IN')) +
+        ' &bull; ' + open.length + ' pick line(s). Bins are listed least-stock first. Scan each QR on the PICK tab, then the bin sticker, then each unit.</div><div class="gold"></div>' +
+        '<button class="btn" onclick="window.print()">&#128424; Print</button>' +
+        (open.length ? '<table><tr><th>Line</th><th>Scan</th><th>Product</th><th>Bin</th><th>Qty</th><th>&#10003;</th></tr>' + rows + '</table>' : '<p>Nothing to pick.</p>') +
+        (short.length ? '<h1 style="margin-top:16px;color:#B3261E;">Not available &mdash; make or source these</h1><table class="short"><tr><th>SKU / code</th><th>ASIN</th><th>Qty</th><th>Why</th></tr>' + shortRows + '</table>' : '') +
+        '</body></html>');
+    w.document.close();
+}
+
 // ── STOCK TAB (live, read-only) ──────────────────────────────────────
 var stockData = [];
 // v53: SKU -> bin breakdown text for whatever page/search is currently shown
@@ -7904,11 +8683,11 @@ function processBulkRowsSequentially(rows, idx, empCode, results, resultEl) {
         if (!skuRow) {
             // v95: listings are added only by an Admin/Supervisor (Actions >
             // Manage Listings). The CSV never creates one any more.
-            finish('FAILED - "' + sku + '" is not in the product database. An Admin or Supervisor must add it first (Actions > Manage Listings).');
+            finish('FAILED - "' + sku + '" is not in the product database. An Admin or Supervisor must add it first (DATABASE tab > Quick Add Listing).');
             return;
         }
         if (skuRow.active === false) {
-            finish('FAILED - "' + skuRow.sku_code + '" is switched OFF for stock. An Admin or Supervisor must switch it ON first (Actions > Manage Listings).');
+            finish('FAILED - "' + skuRow.sku_code + '" is switched OFF for stock. An Admin or Supervisor must switch it ON first (DATABASE tab).');
             return;
         }
         if (false) {
@@ -8811,42 +9590,82 @@ function twofaDisable() {
 // ── QR PARSER ────────────────────────────────────────────────
 // AF2 format (12 fields, backward-compatible with 9-field v8 and 11-field v15):
 // AF2|internalID|channel|marketOrderID|sku|product|setSize|qty|bin|lineNum|totalLines|asin
+// v96 (2026-09-26): PICK rebuilt for its first real use. What changed and why:
+//  1. parseQR checks the numbers. A product name containing "|" used to shift
+//     every field (qty became 24, bin became "1"); now such a code is refused.
+//     A 14th field "R<number>" links the slip to a stock RESERVATION.
+//  2. A slip can only ever take stock out ONCE. Reserved slips go through the
+//     database function oms_pick_fulfil (it refuses a second time). Older Excel
+//     slips get a fixed key PICK|order|line|SKU that the database will not
+//     accept twice. Both are also checked the moment the slip is scanned.
+//  3. Multi-line orders remember WHICH lines are done; the same line twice is
+//     refused, and a slip from a different-size order is refused.
+//  4. The screen waits for the database before saying "picked". A refusal
+//     (not enough stock, switched off, already picked) stops the pick with a
+//     Retry button - it no longer moves on with a 6-second toast.
+//  5. EXC (not in database) and MTO (make to order) slips cannot be picked.
+//  6. The stock is taken from the bin printed on the slip (the one reserved),
+//     whatever spelling the shelf sticker uses.
+//  7. A half-done pick saved on the phone belongs to the person who started it
+//     and expires after 12 hours; logout clears it.
+var PICK_SAVE_MAX_HOURS = 12;
+
 function parseQR(raw) {
     if (!raw) return null;
-    var p = raw.trim().split('|');
-    if (p[0] === 'AF2' && p.length >= 9) {
+    var p = String(raw).trim().split('|');
+    for (var i = 0; i < p.length; i++) p[i] = String(p[i]).trim();
+    if (String(p[0]).toUpperCase() === 'AF2') {
+        if (p.length < 9) return { type: 'BAD_AF2', raw: String(raw).trim(), reason: 'fewer than 9 fields' };
+        var isInt = function (x) { return /^[0-9]{1,6}$/.test(x); };
+        if (!isInt(p[7]) || parseInt(p[7], 10) < 1) return { type: 'BAD_AF2', raw: String(raw).trim(), reason: 'quantity is not a whole number' };
+        if (p.length >= 10 && p[9] !== '' && !isInt(p[9])) return { type: 'BAD_AF2', raw: String(raw).trim(), reason: 'line number is not a whole number' };
+        if (p.length >= 11 && p[10] !== '' && !isInt(p[10])) return { type: 'BAD_AF2', raw: String(raw).trim(), reason: 'line count is not a whole number' };
+        var lineNum = (p.length >= 10 && p[9] !== '') ? parseInt(p[9], 10) : 1;
+        var totalLines = (p.length >= 11 && p[10] !== '') ? parseInt(p[10], 10) : 1;
+        if (lineNum < 1 || totalLines < 1 || lineNum > totalLines) return { type: 'BAD_AF2', raw: String(raw).trim(), reason: 'line ' + lineNum + ' of ' + totalLines + ' does not make sense' };
+        var resId = null;
+        if (p.length >= 14 && p[13] !== '') {
+            if (!/^R[0-9]{1,12}$/i.test(p[13])) return { type: 'BAD_AF2', raw: String(raw).trim(), reason: 'reservation number is not valid' };
+            resId = parseInt(p[13].slice(1), 10);
+        }
         return {
             type:          'AF2',
             internalID:    p[1],
             channel:       p[2],
-            marketOrderID: p[3],
-            sku:           p[4],
+            marketOrderID: String(p[3]).toUpperCase(),
+            sku:           String(p[4]).toUpperCase(),
             product:       p[5],
             setSize:       parseInt(p[6], 10) || 1,
-            qty:           parseInt(p[7], 10) || 1,
-            bin:           p[8],
-            lineNum:       p.length >= 10 ? (parseInt(p[9],  10) || 1) : 1,
-            totalLines:    p.length >= 11 ? (parseInt(p[10], 10) || 1) : 1,
-            asin:          p.length >= 12 ? p[11].trim() : '',
-            flag:          p.length >= 13 ? p[12].trim().toUpperCase() : ''
+            qty:           parseInt(p[7], 10),
+            bin:           String(p[8]).toUpperCase(),
+            lineNum:       lineNum,
+            totalLines:    totalLines,
+            asin:          p.length >= 12 ? String(p[11]).toUpperCase() : '',
+            flag:          p.length >= 13 ? String(p[12]).toUpperCase() : '',
+            resId:         resId
         };
     }
-    if (p[0] === 'BIN' && p.length >= 2) {
-        return { type: 'BIN', binID: p[1].trim() };
+    if (String(p[0]).toUpperCase() === 'BIN' && p.length >= 2) {
+        return { type: 'BIN', binID: p[1] };
     }
-    return { type: 'UNKNOWN', raw: raw.trim() };
+    return { type: 'UNKNOWN', raw: String(raw).trim() };
+}
+function pickKeyFor(o) {
+    return o.resId ? ('PICK|R' + o.resId) : ('PICK|' + o.marketOrderID + '|' + o.lineNum + '|' + o.sku);
 }
 
 // ── FLAG ALERT (exception / out-of-stock) ────────────────────
+// v96: these slips are refused outright (see processScan); this only words it.
 function applyFlagAlert(parsed){
     if (!parsed) return;
     if (parsed.flag === 'EXC') {
-        setStatus('&#9888; SKU NOT IN DATABASE.<br>Do NOT pick from a bin. Check the panel and process this order manually.', 'error');
-        logEvent(parsed.internalID || '\u2014', 'EXCEPTION \u2014 SKU not in database');
+        setStatus('&#9940; <strong>DO NOT PICK.</strong> This product is not in the database (or switched off).<br>Set the order aside and give it to the supervisor.', 'error');
+        logEvent(parsed.internalID || '—', 'EXCEPTION — SKU not in database (slip refused)');
         pulse('e');
     } else if (parsed.flag === 'MTO') {
-        setStatus('&#9888; OUT OF STOCK &mdash; MANUFACTURE FIRST.<br>Set this order aside (QR + label + invoice) and give it to the supervisor.', 'waiting');
-        logEvent(parsed.internalID || '\u2014', 'OUT OF STOCK \u2014 manufacture first');
+        setStatus('&#9940; <strong>DO NOT PICK - OUT OF STOCK, MAKE IT FIRST.</strong><br>Set this order aside (slip + label + invoice) and give it to the supervisor.', 'waiting');
+        logEvent(parsed.internalID || '—', 'OUT OF STOCK — manufacture first (slip refused)');
+        pulse('e');
     }
 }
 
@@ -8862,15 +9681,182 @@ function goBack() {
         state.skuScanned = 0;
         state.pickState  = 'NEED_BIN';
         hideScanOptions();
-        var binName = state.order ? state.order.bin : '—';
+        var binName = state.order ? esc59(state.order.bin) : '—';
         setStatus('&#8629; Returned to bin scan.<br>Go to bin <strong>' + binName + '</strong> and scan the bin QR sticker.', 'waiting');
         logEvent(state.order ? state.order.internalID : '—', 'Stepped back to bin scan');
         updateSteps();
+        saveSession();
     } else if (state.pickState === 'NEED_BIN' || state.pickState === 'NEXT_LINE') {
         var id = state.groupOrderID || (state.order ? state.order.internalID : '—');
-        logEvent(id, 'Reset to start (back button)');
+        if (state.groupLinesDone && state.groupLinesDone.length) {
+            logEvent(id, 'Reset to start - NOTE lines ' + state.groupLinesDone.join(', ') + ' of this order were already taken out of stock');
+        } else {
+            logEvent(id, 'Reset to start (back button)');
+        }
         resetPick();
     }
+}
+
+// Before a slip is accepted: has it been picked already? (needs the database)
+function checkSlipNotPicked(o) {
+    if (!db) return Promise.resolve({ ok: false, message: 'No connection to the database. Picking needs the connection - so that nothing is taken out of stock twice. Try again in a moment.' });
+    if (o.resId) {
+        return withTimeout(db.from('oms_pick_reservations').select('status,picked_at,picked_by,sku_code,bin_code,qty,order_id').eq('res_id', o.resId).limit(1), 8000, 'Slip check').then(function (r) {
+            if (r.error) return { ok: false, message: 'Could not check this slip: ' + r.error.message };
+            var row = (r.data || [])[0];
+            if (!row) return { ok: false, message: 'This slip (R' + o.resId + ') is not in the system. Do not pick - give it to the supervisor.' };
+            if (row.sku_code !== o.sku || String(row.bin_code || '').toUpperCase() !== o.bin || Number(row.qty) !== o.qty || row.order_id !== o.marketOrderID) {
+                return { ok: false, message: 'This slip does not match what was reserved (R' + o.resId + '). Do not pick - give it to the supervisor.' };
+            }
+            if (row.status === 'PICKED') return { ok: false, already: true, message: '&#9940; ALREADY PICKED on ' + new Date(row.picked_at).toLocaleString('en-IN') + ' by ' + esc59(row.picked_by || '?') + '.<br><strong>Do NOT pick it again.</strong>' };
+            if (row.status === 'CANCELLED') return { ok: false, message: '&#9940; This slip was CANCELLED. Do not pick.' };
+            if (row.status === 'SHORT') return { ok: false, message: '&#9940; This line is OUT OF STOCK (make to order). Do not pick.' };
+            return { ok: true };
+        }).catch(function (e) { return { ok: false, message: 'Could not check this slip (no connection?). Try again in a moment.' }; });
+    }
+    return withTimeout(db.from('oms_inventory_transactions').select('created_at,employee_code').eq('client_queue_id', pickKeyFor(o)).limit(1), 8000, 'Slip check').then(function (r) {
+        if (r.error) return { ok: false, message: 'Could not check this slip: ' + r.error.message };
+        var row = (r.data || [])[0];
+        if (row) return { ok: false, already: true, message: '&#9940; ALREADY PICKED on ' + new Date(row.created_at).toLocaleString('en-IN') + ' by ' + esc59(row.employee_code || '?') + '.<br><strong>Do NOT pick it again.</strong>' };
+        return { ok: true };
+    }).catch(function () { return { ok: false, message: 'Could not check this slip (no connection?). Try again in a moment.' }; });
+}
+
+// Takes ONE printed line out of stock, exactly once. Resolves {ok, already, message}.
+function savePickLine(o, isRetry) {
+    var emp = loadEmployee();
+    var empCode = (state.session && state.session.employee_code) || (emp && emp.code) || null;
+    if (!db) return Promise.resolve({ ok: false, message: 'No connection to the database - nothing was taken out of stock yet. Tap Retry when the connection is back.' });
+    if (o.resId) {
+        return withTimeout(db.rpc('oms_pick_fulfil', { p_res_id: o.resId, p_employee_code: empCode, p_scanned_bin: o.bin, p_scanned_product: o.lastScan || null, p_device_id: null }), 12000, 'Pick save').then(function (r) {
+            if (r.error) {
+                if (isNetworkError(r)) return { ok: false, message: 'Connection dropped while saving. Tap Retry - it is safe, the database will not take it twice.' };
+                return { ok: false, message: r.error.message };
+            }
+            var d = r.data || {};
+            if (d.ok) { setDbOnline(); return { ok: true }; }
+            if (d.error === 'ALREADY_PICKED') return (isRetry && String(d.picked_by || '').toUpperCase() === String(empCode || '').toUpperCase())
+                ? { ok: true, note: 'Your earlier save did reach the database.' } : { ok: false, already: true, message: d.message };
+            return { ok: false, message: d.message || d.error || 'Refused by the database.' };
+        }).catch(function () { return { ok: false, message: 'No answer from the database (slow connection). Tap Retry - it is safe, the database will not take it twice.' }; });
+    }
+    var row = buildLedgerTxnRow({ skuCode: o.sku, asin: o.asin || null, qtyDelta: -o.qty, txnType: 'SCAN_OUT_ORDER', channel: o.channel,
+                                  orderId: o.marketOrderID, binCode: o.bin, note: 'Pick-and-pack, line ' + o.lineNum + '/' + o.totalLines }, emp);
+    row.client_queue_id = pickKeyFor(o);
+    if (empCode) row.employee_code = empCode;
+    return withTimeout(db.from('oms_inventory_transactions').insert(row).select(), 12000, 'Pick save').then(function (r) {
+        if (r.error) {
+            if (isNetworkError(r)) return { ok: false, message: 'Connection dropped while saving. Tap Retry - it is safe, the database will not take it twice.' };
+            if (r.error.code === '23505') {
+                if (!isRetry) return { ok: false, already: true, message: '&#9940; ALREADY PICKED - this slip was already taken out of stock. Do NOT pick it again.' };
+                return withTimeout(db.from('oms_inventory_transactions').select('employee_code').eq('client_queue_id', row.client_queue_id).limit(1), 8000, 'Who picked').then(function (w) {
+                    var by = w && w.data && w.data[0] ? String(w.data[0].employee_code || '') : '';
+                    return (by.toUpperCase() === String(empCode || '').toUpperCase())
+                        ? { ok: true, note: 'Your earlier save did reach the database.' }
+                        : { ok: false, already: true, message: '&#9940; ALREADY PICKED by ' + esc59(by || 'someone else') + '. Do NOT pack it twice.' };
+                }).catch(function () { return { ok: false, message: 'Could not confirm the save - tap Retry again.' }; });
+            }
+            return { ok: false, message: r.error.message };
+        }
+        setDbOnline();
+        return { ok: true };
+    }).catch(function () { return { ok: false, message: 'No answer from the database (slow connection). Tap Retry - it is safe, the database will not take it twice.' }; });
+}
+
+// Loads a slip after the "already picked?" check. first=true for the first line of an order.
+function acceptSlip(parsed, first) {
+    state.pickState = 'CHECKING';
+    setStatus('&#8987; Checking this slip...', 'waiting');
+    updateSteps();
+    checkSlipNotPicked(parsed).then(function (chk) {
+        if (state.pickState !== 'CHECKING') return;           // reset meanwhile
+        if (!chk.ok && chk.already && parsed.totalLines > 1 && (first || parsed.marketOrderID === state.groupOrderID)) {
+            // someone (or this phone before a reset) already picked this line: it is DONE for this order
+            if (first) { state.groupOrderID = parsed.marketOrderID; state.groupTotal = parsed.totalLines; state.groupLinesDone = []; }
+            (first ? loadLinesAlreadyPicked(parsed) : Promise.resolve()).then(function () { if (state.pickState === 'CHECKING') countLineAlreadyDone(parsed); });
+            return;
+        }
+        if (!chk.ok) {
+            state.pickState = first ? 'IDLE' : 'NEXT_LINE';
+            if (first) { state.groupOrderID = null; state.groupTotal = 1; state.groupDone = 0; state.groupLinesDone = []; }
+            setStatus(chk.message, 'error');
+            logEvent(parsed.internalID || parsed.marketOrderID, (chk.already ? 'ALREADY PICKED - slip refused: ' : 'Slip refused: ') + String(chk.message).replace(/<[^>]+>/g, ' '));
+            pulse('e');
+            try { vibrate([200, 80, 200]); } catch (e) {}
+            updateSteps(); saveSession();
+            return;
+        }
+        state.order = parsed;
+        state.skuScanned = 0;
+        state.bin = null;
+        if (first) {
+            state.groupOrderID = parsed.marketOrderID;
+            state.groupTotal = parsed.totalLines || 1;
+            state.groupDone = 0;
+            state.groupLinesDone = [];
+            if (state.groupTotal > 1) loadLinesAlreadyPicked(parsed);
+        }
+        state.pickState = 'NEED_BIN';
+        hideScanOptions();
+        renderOrderCard();
+        updateGroupProgress();
+        var qtyHint = parsed.qty > 1 ? ' (Qty ' + parsed.qty + ' &mdash; scan the product barcode <strong>' + parsed.qty + 'x</strong>)' : '';
+        setStatus('&#10003; ' + (first ? 'Order loaded: <strong>' + esc59(parsed.marketOrderID) + '</strong>' : 'Item ' + parsed.lineNum + '/' + state.groupTotal + ' loaded') +
+            '.<br>Go to bin <strong>' + esc59(parsed.bin) + '</strong> and scan the bin QR sticker' + qtyHint + '.', 'success');
+        logEvent(parsed.internalID || parsed.marketOrderID, first ? ('Pick slip scanned - ' + (state.groupTotal > 1 ? state.groupTotal + '-item order' : 'single-item order')) : ('Item ' + parsed.lineNum + '/' + state.groupTotal + ' loaded'));
+        pulse('s');
+        updateSteps(); saveSession();
+        fillOrderTitle(parsed);
+    });
+}
+// v96: a line that was already picked earlier counts as done for its order.
+function countLineAlreadyDone(parsed) {
+    if (state.groupLinesDone.indexOf(parsed.lineNum) === -1) state.groupLinesDone.push(parsed.lineNum);
+    state.groupDone = state.groupLinesDone.length;
+    state.order = null; state.bin = null; state.skuScanned = 0;
+    document.getElementById('order-card').classList.remove('visible');
+    updateGroupProgress();
+    if (state.groupDone >= state.groupTotal) {
+        state.pickState = 'IDLE';
+        setStatus('&#9940; ALREADY PICKED - every line of Order <strong>' + esc59(parsed.marketOrderID) + '</strong> was taken out of stock earlier. <strong>Do NOT pick it again.</strong>', 'error');
+        state.groupOrderID = null; state.groupTotal = 1; state.groupDone = 0; state.groupLinesDone = [];
+        pulse('e');
+    } else {
+        state.pickState = 'NEXT_LINE';
+        setStatus('&#8505; Line ' + parsed.lineNum + ' of this order was <strong>already picked earlier</strong> - counted as done.<br>Scan the slip of a line not done yet (done: ' + state.groupLinesDone.join(', ') + ').', 'waiting');
+    }
+    logEvent(parsed.internalID || parsed.marketOrderID, 'Line ' + parsed.lineNum + ' already picked earlier - counted as done');
+    updateSteps(); saveSession();
+}
+// v96: for a multi-line order, which lines were already taken out of stock (after a
+// reset, on another phone, or by a colleague sharing the sheet)?
+function loadLinesAlreadyPicked(o) {
+    if (!db) return Promise.resolve();
+    var q = o.resId
+        ? db.from('oms_pick_reservations').select('pick_line').eq('order_id', o.marketOrderID).eq('status', 'PICKED')
+        : db.from('oms_inventory_transactions').select('client_queue_id').like('client_queue_id', 'PICK|' + o.marketOrderID + '|%');
+    return withTimeout(q, 8000, 'Lines already picked').then(function (r) {
+        if (!r || r.error || !r.data || state.groupOrderID !== o.marketOrderID) return;
+        r.data.forEach(function (x) {
+            var n = o.resId ? Number(x.pick_line) : parseInt(String(x.client_queue_id).split('|')[2], 10);
+            if (n && n !== o.lineNum && state.groupLinesDone.indexOf(n) === -1) state.groupLinesDone.push(n);
+        });
+        state.groupDone = state.groupLinesDone.length;
+        if (state.groupDone) {
+            updateGroupProgress();
+            logEvent(o.internalID || o.marketOrderID, 'Lines already picked earlier: ' + state.groupLinesDone.join(', '));
+        }
+        saveSession();
+    }).catch(function () {});
+}
+// The slip may not carry the product name - show it from the database.
+function fillOrderTitle(o) {
+    if (o.product) return;
+    resolveSkuOrAsin(o.sku).then(function (sku) {
+        if (!sku || state.order !== o) return;
+        o.product = sku.product_name || '';
+        renderOrderCard();
+    }).catch(function () {});
 }
 
 // ── MAIN SCAN PROCESSOR ──────────────────────────────────────
@@ -8879,263 +9865,203 @@ function processScan(value) {
     if (!value) return;
     document.getElementById('scan-input').value = '';
 
-    var parsed = parseQR(value);
-
-    // ── State: NEXT_LINE (waiting for next item QR in multi-SKU order) ──
-    if (state.pickState === 'NEXT_LINE') {
-        if (parsed && parsed.type === 'AF2') {
-            if (parsed.marketOrderID !== state.groupOrderID) {
-                setStatus(
-                    '&#10060; Wrong order!<br>Expected item from Order <strong>' + state.groupOrderID + '</strong>.<br>' +
-                    'Scan item ' + (state.groupDone + 1) + ' of this order, or tap RESET.',
-                    'error'
-                );
-                pulse('e');
-            } else {
-                state.order      = parsed;
-                state.skuScanned = 0;
-                state.pickState  = 'NEED_BIN';
-                hideScanOptions();
-                renderOrderCard();
-                updateGroupProgress();
-                setStatus(
-                    '&#10003; Item ' + (state.groupDone + 1) + '/' + state.groupTotal + ' loaded.<br>' +
-                    'Go to bin <strong>' + parsed.bin + '</strong> and scan the bin QR sticker.',
-                    'success'
-                );
-                logEvent(parsed.internalID, 'Multi-line item ' + (state.groupDone + 1) + '/' + state.groupTotal + ' loaded');
-                pulse('s');
-                applyFlagAlert(parsed);
-            }
-        } else {
-            setStatus(
-                '&#9888; Scan the <strong>Pick List QR</strong> for item ' + (state.groupDone + 1) +
-                ' of Order <strong>' + state.groupOrderID + '</strong>.',
-                'waiting'
-            );
-        }
-        updateSteps();
-        saveSession();
+    if (state.pickState === 'CHECKING' || state.pickState === 'SAVING') {
+        setStatus('&#8987; One moment - still ' + (state.pickState === 'SAVING' ? 'saving the last line' : 'checking the slip') + '.', 'waiting');
+        return;
+    }
+    if (state.pickState === 'SAVE_FAILED') {
+        setStatus('&#9888; The last line is <strong>not saved yet</strong>. Tap <strong>Retry save</strong> below (or RESET to abandon it).', 'error');
+        showPickRetry(true);
         return;
     }
 
-    // ── State: IDLE (scan pick list QR to begin) ──
+    var parsed = parseQR(value);
+    if (parsed && parsed.type === 'BAD_AF2') {
+        setStatus('&#10060; This pick slip QR is damaged or wrongly printed (' + esc59(parsed.reason) + ').<br>Do not pick from it - reprint the slip.' +
+                  '<span class="scan-raw">Scanned: ' + esc59(parsed.raw).slice(0, 160) + '</span>', 'error');
+        logEvent('—', 'Bad pick slip: ' + parsed.reason);
+        pulse('e');
+        updateSteps(); saveSession();
+        return;
+    }
+
+    // ── NEXT_LINE: next slip of the same multi-line order ──
+    if (state.pickState === 'NEXT_LINE') {
+        if (parsed && parsed.type === 'AF2') {
+            if (parsed.marketOrderID !== state.groupOrderID) {
+                setStatus('&#10060; Wrong order!<br>Expected a slip from Order <strong>' + esc59(state.groupOrderID) + '</strong>.<br>Scan the next slip of this order, or tap RESET.', 'error');
+                pulse('e');
+            } else if (parsed.totalLines !== state.groupTotal) {
+                setStatus('&#10060; This slip says the order has ' + parsed.totalLines + ' line(s), the first slip said ' + state.groupTotal + '.<br>Do not pick - the slips do not belong together. Give them to the supervisor.', 'error');
+                pulse('e');
+            } else if ((state.groupLinesDone || []).indexOf(parsed.lineNum) !== -1) {
+                setStatus('&#10060; Line ' + parsed.lineNum + ' of this order is <strong>already picked</strong>.<br>Scan a line that is not done yet (done: ' + state.groupLinesDone.join(', ') + ').', 'error');
+                pulse('e');
+            } else if (parsed.flag === 'EXC' || parsed.flag === 'MTO' || !parsed.bin) {
+                applyFlagAlert(parsed.flag ? parsed : { flag: 'MTO', internalID: parsed.internalID });
+            } else {
+                acceptSlip(parsed, false);
+                return;
+            }
+        } else {
+            setStatus('&#9888; Scan the <strong>pick slip QR</strong> for the next item of Order <strong>' + esc59(state.groupOrderID) + '</strong>.', 'waiting');
+        }
+        updateSteps(); saveSession();
+        return;
+    }
+
+    // ── IDLE: first slip of an order ──
     if (state.pickState === 'IDLE') {
         if (parsed && parsed.type === 'AF2') {
-            state.order        = parsed;
-            state.skuScanned   = 0;
-            state.groupOrderID = parsed.marketOrderID;
-            state.groupTotal   = parsed.totalLines || 1;
-            state.groupDone    = 0;
-            state.pickState    = 'NEED_BIN';
-            hideScanOptions();
-            renderOrderCard();
-            updateGroupProgress();
-            var qtyHint = parsed.qty > 1
-                ? ' (Qty ' + parsed.qty + ' &mdash; scan barcode <strong>' + parsed.qty + 'x</strong>)'
-                : '';
-            setStatus(
-                '&#10003; Order loaded: <strong>' + parsed.internalID + '</strong>.<br>' +
-                'Go to bin <strong>' + parsed.bin + '</strong> and scan the bin QR sticker' + qtyHint + '.',
-                'success'
-            );
-            logEvent(parsed.internalID, 'Pick list QR scanned — ' + (state.groupTotal > 1 ? state.groupTotal + '-item order' : 'single-item order'));
-            pulse('s');
-            applyFlagAlert(parsed);
+            if (parsed.flag === 'EXC' || parsed.flag === 'MTO') { applyFlagAlert(parsed); updateSteps(); saveSession(); return; }
+            if (!parsed.marketOrderID) {
+                setStatus('&#9940; This slip has no order number. Do not pick from it - reprint the slip.', 'error');
+                pulse('e'); updateSteps(); saveSession(); return;
+            }
+            if (!parsed.bin) {
+                setStatus('&#9940; <strong>DO NOT PICK.</strong> This slip has no bin - there was no stock when it was printed.<br>Set the order aside for the supervisor (make to order).', 'error');
+                pulse('e'); updateSteps(); saveSession(); return;
+            }
+            acceptSlip(parsed, true);
+            return;
         } else if (parsed && parsed.type === 'BIN') {
-            setStatus('&#9888; Got a Bin QR but no order is loaded yet.<br>Scan the <strong>Pick List QR</strong> from column H of the printed pick list first.', 'waiting');
+            setStatus('&#9888; Got a Bin QR but no order is loaded yet.<br>Scan the <strong>pick slip QR</strong> first.', 'waiting');
         } else if (parsed && parsed.type === 'UNKNOWN') {
             var raw = parsed.raw || '';
-            var esc = raw.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-            var hint = 'Scan the <strong>Pick List QR</strong> from column H of the printed pick list.';
-            if (raw.indexOf('AF2|') === 0 && raw.split('|').length < 9) {
-                hint = 'Partial AF2 QR (fewer than 9 fields). Re-run <strong>Step3_GenerateBarcodes</strong> in Excel and reprint.';
-            } else if (raw.indexOf('|') === -1) {
-                hint = '&#9888; This looks like a plain barcode (SKU or ASIN), not a Pick List QR.<br>Make sure you scan the large QR in <strong>column H</strong> of the pick list.';
-            }
-            setStatus(
-                '&#128247; Camera working &#10003;<br>&#10060; Not a valid Pick List QR.<br>' + hint +
-                '<span class="scan-raw">Scanned: ' + esc + '</span>',
-                'error'
-            );
+            var hint = 'Scan the <strong>pick slip QR</strong>.';
+            if (raw.indexOf('|') === -1) hint = '&#9888; This looks like a plain barcode (SKU or ASIN), not a pick slip QR.';
+            setStatus('&#128247; Camera working &#10003;<br>&#10060; Not a valid pick slip QR.<br>' + hint + '<span class="scan-raw">Scanned: ' + esc59(raw).slice(0, 160) + '</span>', 'error');
             logEvent('—', 'Unknown scan in IDLE: ' + raw.slice(0, 60));
             pulse('e');
         }
 
-    // ── State: NEED_BIN (scan bin QR sticker) ──
+    // ── NEED_BIN: the shelf sticker ──
     } else if (state.pickState === 'NEED_BIN') {
         var scannedBin = null;
-        if (parsed && parsed.type === 'BIN') {
-            scannedBin = parsed.binID;
-        } else if (parsed && parsed.type === 'UNKNOWN') {
-            scannedBin = parsed.raw.trim();
-        } else if (parsed && parsed.type === 'AF2') {
-            setStatus('&#10060; That is a <strong>Pick List QR</strong>, not a bin QR.<br>Scan the <strong>QR sticker on the shelf</strong> at bin <strong>' + state.order.bin + '</strong>.', 'error');
-            pulse('e');
-            updateSteps();
-            saveSession();
-            return;
+        if (parsed && parsed.type === 'BIN') scannedBin = parsed.binID;
+        else if (parsed && parsed.type === 'UNKNOWN') scannedBin = parsed.raw.trim();
+        else if (parsed && parsed.type === 'AF2') {
+            setStatus('&#10060; That is a <strong>pick slip QR</strong>, not a bin QR.<br>Scan the <strong>QR sticker on the shelf</strong> at bin <strong>' + esc59(state.order.bin) + '</strong>.', 'error');
+            pulse('e'); updateSteps(); saveSession(); return;
         }
-
         if (scannedBin !== null) {
             var normalise = function(s) { return (s || '').toLowerCase().replace(/[\s\-_\.]/g, ''); };
-            var exp = normalise(state.order.bin);
-            var got = normalise(scannedBin);
-            if (exp === got) {  // v34 FIX: was exp===got || got.indexOf(exp)!==-1 || exp.indexOf(got)!==-1
-                                 // the two indexOf() substring checks let ANY fragment of the correct
-                                 // bin code (e.g. typing "B" for "B-04") pass as a verified match.
-                                 // Strict equality only, now that normalise() already handles
-                                 // formatting differences (spaces/dashes/underscores/dots).
-                state.bin       = { binID: scannedBin };
+            if (normalise(state.order.bin) === normalise(scannedBin)) {
+                state.bin = { binID: state.order.bin };            // the slip's bin, not the sticker's spelling
                 state.pickState = 'NEED_SKU';
-                var qtyNote = state.order.qty > 1
-                    ? ' &mdash; must scan barcode <strong>' + state.order.qty + ' times</strong> (once per unit)'
-                    : '';
-                setStatus(
-                    '&#10003; Bin <strong>' + scannedBin + '</strong> verified.<br>' +
-                    'Scan the product SKU or ASIN barcode' + qtyNote + '.',
-                    'success'
-                );
+                var qtyNote = state.order.qty > 1 ? ' &mdash; scan the barcode <strong>' + state.order.qty + ' times</strong> (once per unit)' : '';
+                setStatus('&#10003; Bin <strong>' + esc59(state.order.bin) + '</strong> verified.<br>Scan the product SKU or ASIN barcode' + qtyNote + '.', 'success');
                 showScanOptions();
-                logEvent(state.order.internalID, 'Bin ' + scannedBin + ' verified');
+                logEvent(state.order.internalID, 'Bin ' + state.order.bin + ' verified');
                 pulse('s');
             } else {
-                setStatus(
-                    '&#10060; Wrong bin!<br>Expected: <strong>' + state.order.bin + '</strong>&nbsp;&nbsp;Got: <strong>' + scannedBin + '</strong><br>' +
-                    '<small>Check the bin label and try again, or tap &larr; Back to rescan the pick list.</small>',
-                    'error'
-                );
+                setStatus('&#10060; Wrong bin!<br>Expected: <strong>' + esc59(state.order.bin) + '</strong>&nbsp;&nbsp;Got: <strong>' + esc59(scannedBin) + '</strong><br><small>Check the bin label and try again, or tap &larr; Back.</small>', 'error');
                 pulse('e');
             }
         } else {
-            setStatus('&#10060; Not a valid bin QR or code.<br>Scan the <strong>QR sticker on the shelf</strong> at bin <strong>' + state.order.bin + '</strong>.', 'error');
+            setStatus('&#10060; Not a valid bin QR or code.<br>Scan the <strong>QR sticker on the shelf</strong> at bin <strong>' + esc59(state.order.bin) + '</strong>.', 'error');
             pulse('e');
         }
 
-    // ── State: NEED_SKU (scan product barcode) ──
+    // ── NEED_SKU: the product barcode, once per unit ──
     } else if (state.pickState === 'NEED_SKU') {
         if (parsed && parsed.type === 'AF2') {
-            setStatus('&#10060; That is a <strong>Pick List QR</strong>.<br>Scan the <strong>barcode on the physical product</strong> (SKU label or ASIN Code 128).', 'error');
+            setStatus('&#10060; That is a <strong>pick slip QR</strong>.<br>Scan the <strong>barcode on the physical product</strong> (SKU label or ASIN).', 'error');
             pulse('e');
         } else {
             var v = value.toUpperCase().trim();
             var s = state.order.sku.toUpperCase().trim();
             var a = (state.order.asin || '').toUpperCase().trim();
-            var skuMatch  = (v === s);   // v35 FIX: was v===s || v.indexOf(s)!==-1 || s.indexOf(v)!==-1
-            var asinMatch = (a.length > 0 && v === a);  // v35 FIX: was v===a || v.indexOf(a)!==-1 || a.indexOf(v)!==-1
-                                 // Same bug class as the v34 bin-code fix (see NEED_BIN handler above), just never
-                                 // applied here. The two indexOf() substring checks meant ANY scan that was a
-                                 // fragment of the correct SKU/ASIN (or that CONTAINED it) passed as verified —
-                                 // e.g. scanning a random string that happened to include "123" while the real
-                                 // SKU was "AF-123" would match. Because a verified match increments
-                                 // state.skuScanned (the qty counter), this is also the direct cause of the
-                                 // reported "quantity accepts random values" symptom — it's the same root
-                                 // cause, not a separate bug. Strict equality only, now that v/s/a are already
-                                 // uppercased+trimmed above.
-
+            var skuMatch  = (v === s);
+            var asinMatch = (a.length > 0 && v === a);
             if (skuMatch || asinMatch) {
-                var matchType = (asinMatch && !skuMatch) ? 'ASIN' : 'SKU';
                 state.skuScanned++;
-                var needed    = state.order.qty;
+                state.order.lastScan = v;
+                var needed = state.order.qty;
                 var remaining = needed - state.skuScanned;
-                logEvent(state.order.internalID, matchType + ' scan ' + state.skuScanned + '/' + needed + ': ' + value);
-                pulse('s');
-                vibrate([100]);
+                logEvent(state.order.internalID, (asinMatch && !skuMatch ? 'ASIN' : 'SKU') + ' scan ' + state.skuScanned + '/' + needed + ': ' + value);
+                pulse('s'); vibrate([100]);
                 updateQtyScanDisplay();
-
                 if (remaining > 0) {
-                    setStatus(
-                        '&#9989; Scanned <strong>' + state.skuScanned + ' of ' + needed + '</strong> units.' +
+                    setStatus('&#9989; Scanned <strong>' + state.skuScanned + ' of ' + needed + '</strong> units.' +
                         '<div class="qty-remaining-banner">&#9888; ' + remaining + ' MORE SCAN' + (remaining > 1 ? 'S' : '') + ' NEEDED<br>' +
-                        'Pick ' + remaining + ' more unit' + (remaining > 1 ? 's' : '') + ' and scan the barcode again</div>' +
-                        '<div class="multi-pkg-instruction">&#128230; <strong>Multiple units of same SKU:</strong><br>' +
-                        'Hand each unit <strong>one at a time</strong> to packing.<br>' +
-                        'Tell them: &ldquo;<em>' + needed + ' units of <strong>' + state.order.sku + '</strong> &mdash; keep together.</em>&rdquo;</div>',
-                        'waiting'
-                    );
+                        'Pick ' + remaining + ' more unit' + (remaining > 1 ? 's' : '') + ' and scan the barcode again</div>', 'waiting');
                 } else {
                     hideScanOptions();
-                    // v36: this line's required scans are now fully verified picked — write
-                    // the stock deduction to the live database HERE, not at the final
-                    // CONFIRM tap, so a multi-line order that stops partway still correctly
-                    // deducts exactly what was actually picked and packed for this line.
-                    (function(lineOrder, lineBin) {
-                        writeLedgerTxn({
-                            skuCode:  lineOrder.sku,
-                            asin:     lineOrder.asin,
-                            qtyDelta: -(lineOrder.qty || 1),
-                            txnType:  'SCAN_OUT_ORDER',
-                            channel:  lineOrder.channel,
-                            orderId:  lineOrder.marketOrderID,
-                            binCode:  lineBin ? lineBin.binID : null,
-                            note:     'Pick-and-pack, line ' + lineOrder.lineNum + '/' + lineOrder.totalLines
-                        }).then(function(result) {
-                            if (result.queued) {
-                                // v63: Gap 2 — genuinely offline, not a failure: the pick was
-                                // recorded locally and will sync automatically once back online.
-                                logEvent(lineOrder.internalID, '📥 Stock deduction queued (offline) — will sync automatically.');
-                                return;
-                            }
-                            if (!result.ok) {
-                                logEvent(lineOrder.internalID, '⚠ Stock deduction NOT saved to live database (' + result.reason + ') — record manually.');
-                                // v51: this write happens after the UI has already advanced to
-                                // the next pick state (by design, for multi-line picks) — a
-                                // LOG-tab entry alone is easy to miss on the warehouse floor,
-                                // so also show a brief visible warning. Does not block/change flow.
-                                showPickSaveWarning();
-                            }
-                        });
-                    })(state.order, state.bin);
-                    state.groupDone++;
-                    var allDone = (state.groupDone >= state.groupTotal);
-
-                    if (!allDone) {
-                        var gID     = state.groupOrderID;
-                        var gTotal  = state.groupTotal;
-                        var gDone   = state.groupDone;
-                        var nextNum = gDone + 1;
-                        state.order      = null;
-                        state.bin        = null;
-                        state.skuScanned = 0;
-                        state.pickState  = 'NEXT_LINE';
-                        document.getElementById('order-card').classList.remove('visible');
-                        updateGroupProgress();
-                        setStatus(
-                            '&#9989; <strong>Item ' + gDone + ' of ' + gTotal + ' picked!</strong><br>' +
-                            'Now scan the Pick List QR for <strong>item ' + nextNum + ' of ' + gTotal + '</strong><br>' +
-                            '<small>(Order: ' + gID + ')</small>',
-                            'success'
-                        );
-                    } else {
-                        state.pickState = 'READY';
-                        updateGroupProgress();
-                        var allMsg = state.groupTotal > 1
-                            ? '&#9989; <strong>All ' + state.groupTotal + ' items picked</strong> for Order <strong>' + state.groupOrderID + '</strong>!<br>Deliver all packages to packing desk, then tap CONFIRM.'
-                            : '&#10003; Product confirmed: <strong>' + (state.order.product || state.order.sku) + '</strong>.<br>Tap CONFIRM when packed and ready for dispatch.';
-                        setStatus(allMsg, 'success');
-                        document.getElementById('action-btns').style.display = 'flex';
-                        setTimeout(function() {
-                            var ab = document.getElementById('action-btns');
-                            if (ab) { ab.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); }
-                        }, 150);
-                    }
+                    finishPickLine(false);
+                    return;
                 }
             } else {
                 var hasAsin = state.order.asin && state.order.asin.trim().length > 0;
-                var wrongHint = hasAsin
-                    ? '<br><small>Try the <strong>ASIN barcode</strong> (' + state.order.asin + ') if SKU label does not scan</small>'
-                    : '<br><small>Scan the <strong>SKU barcode</strong> (' + state.order.sku + ') on the physical product</small>';
-                setStatus(
-                    '&#10060; Wrong product!<br>Expected: <strong>' + state.order.sku + '</strong><br>Scanned: <strong>' + v + '</strong>' + wrongHint,
-                    'error'
-                );
+                setStatus('&#10060; Wrong product!<br>Expected: <strong>' + esc59(state.order.sku) + '</strong>' + (hasAsin ? ' (ASIN ' + esc59(state.order.asin) + ')' : '') +
+                          '<br>Scanned: <strong>' + esc59(v) + '</strong>', 'error');
                 pulse('e');
             }
         }
     }
-
     updateSteps();
     saveSession();
+}
+
+// All units of this line are scanned: save it to the database FIRST, then move on.
+function finishPickLine(isRetry) {
+    var o = state.order;
+    if (!o) return;
+    state.pickState = 'SAVING';
+    showPickRetry(false);
+    setStatus('&#8987; Saving - taking ' + o.qty + ' x ' + esc59(o.sku) + ' out of bin ' + esc59(o.bin) + '...', 'waiting');
+    updateSteps(); saveSession();
+    savePickLine(o, isRetry).then(function (res) {
+        if (state.order !== o) return;                       // reset meanwhile
+        if (!res.ok) {
+            state.pickState = res.already ? 'IDLE' : 'SAVE_FAILED';
+            if (res.already) {
+                setStatus(res.message, 'error');
+                logEvent(o.internalID || o.marketOrderID, 'ALREADY PICKED at save - nothing taken');
+                state.order = null; state.bin = null; state.skuScanned = 0;
+                state.groupOrderID = null; state.groupTotal = 1; state.groupDone = 0; state.groupLinesDone = [];
+                document.getElementById('order-card').classList.remove('visible');
+            } else {
+                setStatus('&#9888; <strong>NOT SAVED:</strong> ' + esc59(res.message).replace(/&lt;br&gt;/g, '<br>') + '<br>Nothing was taken out of stock for this line yet.', 'error');
+                logEvent(o.internalID || o.marketOrderID, 'Stock deduction NOT saved (' + res.message + ')');
+                showPickRetry(true);
+            }
+            pulse('e'); try { vibrate([200, 80, 200]); } catch (e) {}
+            updateSteps(); saveSession();
+            return;
+        }
+        logEvent(o.internalID || o.marketOrderID, 'Line ' + o.lineNum + '/' + o.totalLines + ' taken out of stock (' + o.qty + ' x ' + o.sku + ' @ ' + o.bin + ')' + (res.note ? ' - ' + res.note : ''));
+        state.groupLinesDone = (state.groupLinesDone || []);
+        if (state.groupLinesDone.indexOf(o.lineNum) === -1) state.groupLinesDone.push(o.lineNum);
+        state.groupDone = state.groupLinesDone.length;
+        var allDone = (state.groupDone >= state.groupTotal);
+        if (!allDone) {
+            var gID = state.groupOrderID, gTotal = state.groupTotal, gDone = state.groupDone;
+            state.order = null; state.bin = null; state.skuScanned = 0;
+            state.pickState = 'NEXT_LINE';
+            document.getElementById('order-card').classList.remove('visible');
+            updateGroupProgress();
+            setStatus('&#9989; <strong>Item ' + gDone + ' of ' + gTotal + ' picked and saved!</strong><br>Now scan the slip for the next item.<br><small>(Order: ' + esc59(gID) + ' &bull; done: ' + state.groupLinesDone.join(', ') + ')</small>', 'success');
+        } else {
+            state.pickState = 'READY';
+            updateGroupProgress();
+            setStatus(state.groupTotal > 1
+                ? '&#9989; <strong>All ' + state.groupTotal + ' items picked and saved</strong> for Order <strong>' + esc59(state.groupOrderID) + '</strong>!<br>Take them to packing, then tap CONFIRM.'
+                : '&#10003; Picked and saved: <strong>' + esc59(o.product || o.sku) + '</strong>.<br>Tap CONFIRM when packed and ready for dispatch.', 'success');
+            document.getElementById('action-btns').style.display = 'flex';
+            setTimeout(function() { var ab = document.getElementById('action-btns'); if (ab) ab.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); }, 150);
+        }
+        pulse('s');
+        updateSteps(); saveSession();
+    });
+}
+function showPickRetry(show) {
+    var el = document.getElementById('pick-retry-wrap');
+    if (el) el.style.display = show ? '' : 'none';
+}
+function retryPickSave() {
+    if (state.pickState !== 'SAVE_FAILED' || !state.order) return;
+    finishPickLine(true);
 }
 
 // ── SCAN OPTIONS PANEL ───────────────────────────────────────
@@ -9184,7 +10110,7 @@ function updateSteps() {
     for (i = 0; i < ids.length; i++) {
         document.getElementById(ids[i]).classList.remove('active', 'done');
     }
-    var idxMap = { IDLE:0, NEXT_LINE:0, NEED_BIN:1, NEED_SKU:2, READY:3 };
+    var idxMap = { IDLE:0, NEXT_LINE:0, CHECKING:0, NEED_BIN:1, NEED_SKU:2, SAVING:2, SAVE_FAILED:2, READY:3 };
     var idx = (idxMap[state.pickState] !== undefined) ? idxMap[state.pickState] : 0;
     for (i = 0; i < ids.length; i++) {
         if      (i < idx)               document.getElementById(ids[i]).classList.add('done');
@@ -9301,7 +10227,11 @@ function updateGroupProgress() {
 // ── ORDER CARD ───────────────────────────────────────────────
 function renderOrderCard() {
     if (!state.order) return;
-    var o     = state.order;
+    var o0    = state.order;
+    // v96: every value on this card comes from a printed QR or the product list,
+    // both of which people can type into - escape all of it.
+    var o = {};
+    for (var k0 in o0) { if (Object.prototype.hasOwnProperty.call(o0, k0)) o[k0] = (typeof o0[k0] === 'string') ? esc59(o0[k0]) : o0[k0]; }
     var total = (o.setSize || 1) * (o.qty || 1);
     var col   = CH_COLOR[o.channel] || '#7F8C8D';
     var name  = CH_NAME[o.channel]  || o.channel;
@@ -9387,6 +10317,8 @@ function refreshPickTab() {
 }
 function resetPick() {
     state.pickState    = 'IDLE';
+    state.groupLinesDone = [];
+    try { showPickRetry(false); } catch (e) {}
     state.order        = null;
     state.bin          = null;
     state.skuScanned   = 0;
@@ -10470,6 +11402,8 @@ function scopedLogRows() {
 }
 
 // ── RENDER LOG ───────────────────────────────────────────────
+// v96: neutralises tags but keeps the &#...; symbols the log entries use.
+function escLt(s) { return String(s == null ? '' : s).replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
 function renderLog() {
     var ul      = document.getElementById('log-list');
     var countEl = document.getElementById('log-count');
@@ -10496,13 +11430,13 @@ function renderLog() {
                 tDisp = e.ts; // legacy format fallback
             }
         }
-        var empBadge = e.empCode ? '<span class="log-emp">' + e.empCode + '</span>' : '';
+        var empBadge = e.empCode ? '<span class="log-emp">' + escLt(e.empCode) + '</span>' : '';
         var meta = '';
         if (e.sku || e.bin) {
             var parts = [];
-            if (e.sku)     parts.push('SKU:' + e.sku);
-            if (e.channel) parts.push(e.channel);
-            if (e.bin)     parts.push('Bin:' + e.bin);
+            if (e.sku)     parts.push('SKU:' + escLt(e.sku));
+            if (e.channel) parts.push(escLt(e.channel));
+            if (e.bin)     parts.push('Bin:' + escLt(e.bin));
             if (e.qty)     parts.push('Qty:' + e.qty);
             meta = '<div class="log-meta">' + parts.join(' &bull; ') + '</div>';
         }
@@ -10510,9 +11444,9 @@ function renderLog() {
             '<div class="log-row1">' +
                 '<span class="log-time">' + tDisp + '</span>' +
                 empBadge +
-                '<span class="log-order">' + (e.orderID || '—') + '</span>' +
+                '<span class="log-order">' + escLt(e.orderID || '—') + '</span>' +
             '</div>' +
-            '<div class="log-action">' + (e.action || '') + '</div>' +
+            '<div class="log-action">' + escLt(e.action || '') + '</div>' +
             meta +
             '</li>';
     }
@@ -11175,13 +12109,15 @@ function switchTab(tab) {
     // not be able to bypass this.
     if (state.session) {
         var permCheck = effectivePermissions();
-        if (permCheck[tab] !== true) {
+        // v96: the DATABASE tab is not a stored permission - it follows the role.
+        var allowedTab = (tab === 'db') ? isListingManager() : (permCheck[tab] === true);
+        if (!allowedTab) {
             console.warn('Role ' + state.session.role + ' cannot access tab: ' + tab);
             return;
         }
     }
     state.tab = tab;
-    var tabs = ['pick', 'move', 'stock', 'log', 'guide', 'settings', 'dash'];
+    var tabs = ['pick', 'move', 'stock', 'log', 'guide', 'settings', 'dash', 'db'];
     for (var i = 0; i < tabs.length; i++) {
         var tc = document.getElementById(tabs[i] + '-tab');
         var tb = document.getElementById('tab-' + tabs[i]);
@@ -11223,6 +12159,9 @@ function switchTab(tab) {
     }
     if (tab === 'dash') {
         loadDashboard(false);
+    }
+    if (tab === 'db') {
+        enterDbTab();   // v96
     }
 }
 
@@ -11369,6 +12308,19 @@ document.addEventListener('DOMContentLoaded', function() {
     }, 100);
 });
 </script>
+<!-- v96: bottom sheet used to pick a bin or a product type. -->
+<div class="sheet-bg" id="pick-sheet-bg" onclick="if(event.target===this)closePickSheet()">
+    <div class="sheet">
+        <h3 id="pick-sheet-title">Choose</h3>
+        <input type="text" class="settings-input" id="pick-sheet-filter" placeholder="Type to filter..." autocomplete="off" autocorrect="off" oninput="renderPickSheet()">
+        <div class="sheet-list" id="pick-sheet-list"></div>
+        <button class="settings-btn" style="margin-top:10px;background:#888" onclick="closePickSheet()">Close</button>
+    </div>
+</div>
+<!-- v96: full listing editor (DATABASE tab). -->
+<div class="dbd-bg" id="dbd-bg">
+    <div class="dbd" id="dbd"></div>
+</div>
 <!-- v95: Admin / Supervisor PIN box for listing changes (masked, not window.prompt). -->
 <div class="emp-modal-bg" id="mgr-pin-bg">
     <div class="emp-modal">
