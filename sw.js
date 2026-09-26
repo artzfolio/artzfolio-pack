@@ -51,7 +51,11 @@
 // v14 (2026-09-24): bumped for App v95 (Manage Listings for Admin/Supervisor,
 // PIN-checked listing on/off and add; staff told to ask an Admin). v13 / App v94
 // were built and tested but never deployed - v95 supersedes them.
-const CACHE_NAME = 'artzfolio-oms-shell-v14';
+// v15 (2026-09-26): bumped for App v96 (DATABASE tab, product card on every scan,
+// bin pick lists, PICK that can deduct only once, stock reservations and the bulk
+// pick sheet). An offline phone must not keep serving v95, whose PICK screen can
+// take the same slip out of stock twice.
+const CACHE_NAME = 'artzfolio-oms-shell-v15';
 const SHELL_FILES = ['./index.html', './manifest.json', './icon.svg'];
 
 self.addEventListener('install', function (event) {
