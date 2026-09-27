@@ -62,6 +62,13 @@
             Switched off -> clear message + "Switch on & continue". The database
             enforces the same rule (trigger trg_oms_require_tracked_sku), so
             nothing can slip past from any surface. -->
+    <!-- v98 (2026-09-27): PLAIN-WORDS MESSAGE FOR THE WRONG CODE ON THE AMAZON PAGE.
+         The printed Amazon page carries several codes: the courier (AWB) barcode on
+         the shipping label, Amazon's tax (IRN) QR at the top of the invoice, the
+         product-page QR, and our PICK QR. Scanning any of the first three in PICK now
+         says exactly what it was and where the PICK QR is (foreignScanKind()). If the
+         camera sees several codes at once, the PICK QR wins (pickCodeFromDetections()).
+         On the Actions tab and other boxes, a product-page or tax QR fills nothing in. -->
     <!-- v97 (2026-09-26): RIGHT BINS IN EVERY BIN BOX + NO "SAVE PASSWORD?" POP-UP.
          - Every bin box opens a dropdown when tapped, like the Transfer From-bin box
            always did, with the list that makes sense for the action:
@@ -2829,7 +2836,7 @@ var qrcode = function() {
     </style>
 </head>
 <body>
-<div class="ver-corner" id="verCornerBadge" onclick="handleVerBadgeTap()">v97</div>
+<div class="ver-corner" id="verCornerBadge" onclick="handleVerBadgeTap()">v98</div>
 <!-- v63: Gap 2 — offline write-queue indicator. Hidden (display:none) unless
      something is actually queued or failed. Tapping it shows the queue detail
      panel (openOfflineQueuePanel()). -->
@@ -6358,6 +6365,14 @@ function prefillMoveBin() {
     // per-SKU logic's own "only fill when blank" guards naturally no-op.
     applySessionDefaultBin();
     if (!skuVal) return;
+    // v98: a Bluetooth scanner typed a product-page or tax QR into the box.
+    var foreignP = foreignScanKind(skuVal);
+    if (foreignP === 'PRODUCT_URL' || foreignP === 'IRN') {
+        var cardEl = document.getElementById('move-sku-card'); if (cardEl) cardEl.innerHTML = '';
+        _moveCardSku = null; refreshMoveBinLists();
+        if (hintEl) hintEl.innerHTML = '<span style="color:#B3261E;font-weight:700;">' + foreignScanMessage(foreignP, 'FIELD') + '</span>';
+        return;
+    }
     resolveSkuOrAsin(skuVal).then(function(sku) {
         // v97: an older, slower lookup must not replace the product a newer one
         // already showed - the bin lists are built from _moveCardSku.
@@ -6627,6 +6642,8 @@ function submitMoveTransaction() {
     var cfg    = MOVE_MODES[moveMode];
 
     if (!skuVal) { resEl.className = 'move-result err'; resEl.textContent = 'Scan or type a SKU/ASIN first.'; return; }
+    var foreignS = foreignScanKind(skuVal);   // v98
+    if (foreignS === 'PRODUCT_URL' || foreignS === 'IRN') { resEl.className = 'move-result err'; resEl.innerHTML = foreignScanMessage(foreignS, 'FIELD'); return; }
     // v44/v57: bin is mandatory for every stock movement, no exceptions — the
     // database itself now rejects any movement without one (including
     // MANUAL_CORRECTION, whose exemption was removed 2026-08-20), so this
@@ -10142,7 +10159,11 @@ function fillOrderTitle(o) {
 }
 
 // ── MAIN SCAN PROCESSOR ──────────────────────────────────────
-function processScan(value) {
+// v98: opts (optional) = { format: barcode type from the camera,
+// knownChecked / known: set when the code was already looked up in the
+// product list (see the courier-barcode check below) }.
+function processScan(value, opts) {
+    opts = opts || {};
     value = (value || '').trim();
     if (!value) return;
     document.getElementById('scan-input').value = '';
@@ -10158,6 +10179,32 @@ function processScan(value) {
     }
 
     var parsed = parseQR(value);
+    // v98: the courier barcode, the product-page QR and Amazon's tax QR are
+    // printed on the same page as the PICK QR. Whatever step we are on, say
+    // plainly what was scanned and where the PICK QR is - and change nothing
+    // (before v98 an AWB scanned at the bin step was taken as a bin code).
+    if (parsed && parsed.type === 'UNKNOWN' && !opts.known) {
+        var foreign = foreignScanKind(parsed.raw, { format: opts.format,
+            exempt: state.order ? [state.order.sku, state.order.asin] : [] });
+        // A 10-14 digit number could still be a real product code (a numeric
+        // SKU or ASIN). Look it up once in the product list; if it is known,
+        // carry on as a normal scan instead of calling it a courier barcode.
+        if (foreign === 'AWB' && !opts.knownChecked) {
+            var rawV = value, fmtV = opts.format;
+            resolveSkuOrAsin(parsed.raw).then(function (skuRow) {
+                processScan(rawV, { format: fmtV, knownChecked: true, known: !!skuRow });
+            }).catch(function () { processScan(rawV, { format: fmtV, knownChecked: true, known: false }); });
+            return;
+        }
+        if (foreign) {
+            setStatus('&#128247; Camera working &#10003;<br>&#10060; Not a pick slip QR.<br>' + foreignScanMessage(foreign, 'PICK') +
+                      '<span class="scan-raw">Scanned: ' + esc59(parsed.raw).slice(0, 160) + '</span>', 'error');
+            logEvent('—', 'Wrong code scanned (' + foreign + '): ' + parsed.raw.slice(0, 60));
+            pulse('e');
+            updateSteps(); saveSession();
+            return;
+        }
+    }
     if (parsed && parsed.type === 'BAD_AF2') {
         setStatus('&#10060; This pick slip QR is damaged or wrongly printed (' + esc59(parsed.reason) + ').<br>Do not pick from it - reprint the slip.' +
                   '<span class="scan-raw">Scanned: ' + esc59(parsed.raw).slice(0, 160) + '</span>', 'error');
@@ -11445,7 +11492,10 @@ function startScanLoop(video) {
             // (v67), not the raw video, so native detection also only ever
             // sees the target region.
             barcodeDetector.detect(scanCanvas).then(function(codes) {
-                if (codes && codes.length > 0) { handleRawDecode(codes[0].rawValue, codes[0].format); }
+                // v98: several codes in view (the Amazon page has up to four) -
+                // use the PICK QR if it is one of them, otherwise the first.
+                var best = pickCodeFromDetections(codes);
+                if (best) { handleRawDecode(best.rawValue, best.format); }
             }).catch(function() {});
             return;
         }
@@ -11554,6 +11604,9 @@ function zxingFormatToKey(fmt) {
     if (fmt === ZXing.BarcodeFormat.EAN_8)  return 'ean_8';
     if (fmt === ZXing.BarcodeFormat.UPC_A)  return 'upc_a';
     if (fmt === ZXing.BarcodeFormat.UPC_E)  return 'UPC_E';
+    // v98: also name these two, so the courier-barcode check knows them
+    if (fmt === ZXing.BarcodeFormat.ITF)      return 'itf';
+    if (fmt === ZXing.BarcodeFormat.CODE_128) return 'code_128';
     return null;
 }
 
@@ -11575,16 +11628,103 @@ function handleRawDecode(value, formatKey) {
     }
     if (pendingDecodeCount >= 2) {
         resetDecodeConsensus();
+        _lastScanFormat = formatKey || null;   // v98: read once by onCodeDetected()
         onCodeDetected(value);
     }
+}
+
+// ══ v98: WHICH CODE ON THE AMAZON PAGE WAS SCANNED? ══════════════════════
+// Returns 'PRODUCT_URL', 'IRN', 'AWB' or null (null = treat as before).
+//   PRODUCT_URL - the product-page QR, e.g. https://amazon.in/dp/B0BJVG1V2D
+//   IRN         - Amazon's e-invoice (tax) QR: a long signed text (it starts
+//                 "eyJ" and has two dots), or signed JSON with the invoice fields
+//   AWB         - the courier barcode on the shipping label: 10 to 14 digits
+//                 (Amazon's look like 3728..., 1687..., 1337...). A 13-digit
+//                 number whose EAN check digit is right is a product barcode,
+//                 not an AWB, and is left alone.
+// opts (optional): { format: the barcode type the camera reported, e.g.
+// 'code_128' or 'upc_a'; exempt: codes that are known products here (the
+// slip's own SKU / ASIN) }.
+function foreignScanKind(raw, opts) {
+    var v = String(raw || '').trim();
+    opts = opts || {};
+    if (!v || v.indexOf('|') !== -1) return null;             // our own codes use |
+    if (/^(https?:\/\/)?([a-z0-9-]+\.)*amazon\.[a-z.]+(\/|$)/i.test(v) || /^(https?:\/\/)?([a-z0-9-]+\.)*amzn\.[a-z.]+\//i.test(v)) return 'PRODUCT_URL';
+    if ((/^eyJ[A-Za-z0-9_\-]{10,}\.[A-Za-z0-9_\-]{10,}\.[A-Za-z0-9_\-]*$/.test(v)) ||
+        (v.length > 80 && /^[A-Za-z0-9_\-]+\.[A-Za-z0-9_\-]+\.[A-Za-z0-9_\-]+$/.test(v)) ||
+        (/^\s*\{/.test(v) && /"(Irn|IrnDt|SellerGstin|BuyerGstin|DocNo|DocTyp)"\s*:/i.test(v))) return 'IRN';
+    if (/^[0-9]{10,14}$/.test(v)) {
+        // A product barcode type (UPC / EAN / ITF) is a product, never the
+        // courier number - Amazon's AWB is printed as Code-128.
+        var fmt = String(opts.format || '').toLowerCase();
+        if (/^(upc_a|upc_e|ean_13|ean_8|itf)$/.test(fmt)) return null;
+        // The slip's own SKU / ASIN is never refused, whatever it looks like.
+        var ex = opts.exempt || [];
+        for (var i = 0; i < ex.length; i++) if (ex[i] && String(ex[i]).trim().toUpperCase() === v.toUpperCase()) return null;
+        // Typed in (no barcode type known): a valid EAN-13 is a product barcode.
+        if (!fmt && v.length === 13 && checkLinearBarcodeChecksum(v, 'ean_13')) return null;
+        return 'AWB';
+    }
+    return null;
+}
+// The words shown for each kind. where = 'PICK' (the PICK tab) or 'FIELD'
+// (any other scan box).
+function foreignScanMessage(kind, where) {
+    if (kind === 'AWB') return where === 'PICK'
+        ? '&#128666; This is the <strong>courier (AWB) barcode</strong> on the shipping label. Scan the <strong>PICK QR</strong> in the box at the bottom-left of the invoice page.'
+        : '&#128666; This is the courier (AWB) barcode on the shipping label, not a product code.';
+    if (kind === 'PRODUCT_URL') return where === 'PICK'
+        ? '&#128279; This is the <strong>PRODUCT PAGE QR</strong> (right side). It only opens the product on Amazon. Scan the <strong>PICK QR</strong> on the left.'
+        : '&#128279; This is the <strong>PRODUCT PAGE QR</strong>. It only opens the product on Amazon - nothing was filled in. Scan the product barcode, or type the SKU / ASIN.';
+    if (kind === 'IRN') return where === 'PICK'
+        ? '&#129534; This is <strong>Amazon\'s tax QR</strong>. Scan the <strong>PICK QR</strong> at the bottom-left.'
+        : '&#129534; This is Amazon\'s tax QR on the invoice - nothing was filled in.';
+    return '';
+}
+// Several codes seen in one camera frame: the PICK QR ("AF2|...") wins,
+// otherwise the first one, exactly as before.
+function pickCodeFromDetections(codes) {
+    if (!codes || !codes.length) return null;
+    for (var i = 0; i < codes.length; i++) {
+        if (codes[i] && /^\s*AF2\|/i.test(String(codes[i].rawValue || ''))) return codes[i];
+    }
+    return codes[0];
+}
+// The barcode type of the last camera read (set by handleRawDecode(), taken
+// and cleared by onCodeDetected()), so typed scans never inherit it.
+var _lastScanFormat = null;
+// A red note just under a scan box; cleared as soon as the box is typed in.
+function showFieldScanNotice(targetId, html) {
+    var el = document.getElementById(targetId);
+    if (!el) { alert(String(html).replace(/<[^>]+>/g, '').replace(/&#\d+;/g, '').trim()); return; }
+    var id = targetId + '-scan-note', n = document.getElementById(id);
+    if (!n) {
+        n = document.createElement('div');
+        n.id = id;
+        var anchor = (el.closest && el.closest('.settings-row')) || el;
+        anchor.parentNode.insertBefore(n, anchor.nextSibling);
+        el.addEventListener('input', function () { var x = document.getElementById(id); if (x) { x.innerHTML = ''; x.className = ''; } });
+    }
+    n.className = 'move-result err';
+    n.innerHTML = html;
+    try { el.focus(); } catch (e) {}
 }
 
 function onCodeDetected(value) {
     // v49: capture the pending scan target BEFORE closeCamera() runs, since
     // closeCamera() clears state.scanTarget as its own cancel-safety-net.
     var target = state.scanTarget;
+    var scanFmt = _lastScanFormat; _lastScanFormat = null;   // v98
     closeCamera();
     vibrate([200]);
+    // v98: the product-page QR and Amazon's tax QR are never a SKU, ASIN or
+    // bin - fill nothing in and say what it was. (Plain ASIN / SKU barcodes
+    // and the courier number are left exactly as before here.)
+    var foreignT = target ? foreignScanKind(value) : null;
+    if (foreignT === 'PRODUCT_URL' || foreignT === 'IRN') {
+        showFieldScanNotice(target, foreignScanMessage(foreignT, 'FIELD'));
+        return;
+    }
     if (target) {
         var el = document.getElementById(target);
         if (el) {
@@ -11595,7 +11735,7 @@ function onCodeDetected(value) {
         }
         return;
     }
-    processScan(value);
+    processScan(value, { format: scanFmt });   // v98: barcode type goes with it
 }
 function closeCamera() {
     if (state.scanLoop) { clearInterval(state.scanLoop); state.scanLoop = null; }
