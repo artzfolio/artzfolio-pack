@@ -62,6 +62,13 @@
             Switched off -> clear message + "Switch on & continue". The database
             enforces the same rule (trigger trg_oms_require_tracked_sku), so
             nothing can slip past from any surface. -->
+    <!-- v100 (2026-09-28): PLUS / MINUS BUTTONS ON EVERY STOCK QUANTITY BOX.
+         The Actions tab quantity (all actions) and Quick Add "Opening stock" get a
+         big - and + either side of the box (typing still works). - stops at the
+         box's minimum (0 for Set True Count), + stops at what the chosen bin holds
+         when stock is being taken out. Hold to repeat. The buttons never take the
+         focus, so the scanner box stays ready and no keyboard pops up. One shared
+         helper: attachQtyStepper(). -->
     <!-- v99 (2026-09-28): EVERY SALE COUNTED ONCE.
          Dispatch Out now needs the sales channel (Excel's short codes) every time,
          and for Amazon also the order reference. An Amazon dispatch is checked
@@ -2598,6 +2605,13 @@ var qrcode = function() {
         .settings-section h3{font-size:13px;color:#1B4F8A;font-weight:800;margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid #dce4f0}
         .settings-row{display:flex;gap:8px;align-items:center;margin-bottom:8px}
         .settings-input{flex:1;border:1.5px solid #c5d0de;border-radius:8px;padding:9px 11px;font-size:12px;outline:none;color:#222}
+        /* v100: plus / minus buttons around a quantity box (attachQtyStepper) */
+        .qty-stepper{display:flex;align-items:stretch;flex:0 0 auto;gap:4px}
+        .qty-stepper .settings-input{flex:0 0 64px;width:64px;min-width:0;max-width:none!important;text-align:center;font-size:16px;font-weight:700;padding:9px 4px}
+        .qty-step-btn{flex:0 0 48px;width:48px;min-height:48px;border:1.5px solid #c5d0de;border-radius:8px;background:#EEF2F8;color:#0A1628;font-size:26px;font-weight:800;line-height:1;padding:0;cursor:pointer;touch-action:manipulation;-webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent;-webkit-touch-callout:none}
+        .qty-step-btn:active:not(:disabled){background:#1B3F6B;color:#fff;border-color:#1B3F6B}
+        .qty-step-btn:disabled{opacity:.35;cursor:default}
+        .qty-limit-note{font-size:11px;font-weight:700;color:#9A6700;margin:-2px 0 6px}
         .settings-input:focus{border-color:#1B4F8A}
         /* v88: always-visible drop-down arrow on every suggestion box
            (input with a list= attached). The browser's own arrow only
@@ -2853,7 +2867,7 @@ var qrcode = function() {
     </style>
 </head>
 <body>
-<div class="ver-corner" id="verCornerBadge" onclick="handleVerBadgeTap()">v99</div>
+<div class="ver-corner" id="verCornerBadge" onclick="handleVerBadgeTap()">v100</div>
 <!-- v63: Gap 2 — offline write-queue indicator. Hidden (display:none) unless
      something is actually queued or failed. Tapping it shows the queue detail
      panel (openOfflineQueuePanel()). -->
@@ -3242,8 +3256,10 @@ var qrcode = function() {
                 </div>
                 <div class="settings-row">
                     <input type="number" class="settings-input" id="move-qty-input" placeholder="Quantity" min="1" value="1" style="max-width:110px">
-                    <input type="text" class="settings-input" id="move-note-input" placeholder="Note (optional — e.g. PO number, reason)">
+                    <input type="text" class="settings-input" id="move-note-input" placeholder="Note (optional — e.g. PO number, reason)" style="min-width:0">
                 </div>
+                <!-- v100: shown only when + has reached what the chosen bin holds -->
+                <div class="qty-limit-note" id="move-qty-limit" style="display:none;"></div>
                 <div class="settings-row">
                     <button class="settings-btn" style="flex:1" id="move-submit-btn" onclick="submitMoveTransaction()">&#10003; Submit</button>
                 </div>
@@ -3503,7 +3519,7 @@ var qrcode = function() {
                             <svg viewBox="0 0 24 24"><path d="M12 9a4 4 0 1 0 4 4 4 4 0 0 0-4-4zm0 6a2 2 0 1 1 2-2 2 2 0 0 1-2 2z"/><path d="M20 4h-2.76l-1.63-2H8.39L6.76 4H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2zm0 15H4V6h3.56L9.19 4h5.62l1.63 2H20z"/></svg>
                         </button>
                     </div>
-                    <div class="settings-row">
+                    <div class="settings-row" style="flex-wrap:wrap;">
                         <input type="number" class="settings-input" id="qa-qty-input" placeholder="Opening stock (0)" min="0" value="0" style="max-width:130px">
                         <input type="number" class="settings-input" id="qa-mrp-input" placeholder="MRP (optional)" min="0" style="max-width:130px">
                         <input type="number" class="settings-input" id="qa-setsize-input" placeholder="Set size (1)" min="1" style="max-width:110px">
@@ -6597,6 +6613,199 @@ function skipCountRow(skuCode) {
 // types the barcode as real keystrokes into whatever currently has focus. So focus
 // is kept and only the SOFT keyboard is suppressed, via inputmode="none". A
 // deliberate tap on the field clears inputmode and the keyboard appears as normal.
+// ══ v100: PLUS / MINUS BUTTONS ON QUANTITY BOXES ════════════════════════
+// attachQtyStepper(inputId, opts) puts a big "-" button left of the box and a
+// "+" right of it. The box stays typeable.
+//   opts.max     a fixed highest value (optional)
+//   opts.maxFn   function returning null (no limit) or { max, note } - asked
+//                on every press, so it follows the product / bin chosen
+//   opts.noteId  element that shows opts.maxFn's note while + is at the limit
+//   opts.label   what the box is, for the buttons' spoken names (default "quantity")
+// The lowest value is the box's own min="" (read every time, so a screen
+// that changes it - Set True Count allows 0 - is followed).
+// Every step fires "input" and "change" exactly as typing does. A tap steps
+// once (the step happens on pointerdown; the click that follows is ignored),
+// holding repeats faster and faster (at most 200 steps), and a finger or
+// mouse press never moves the focus - so a scanner box that was ready stays
+// ready and no keyboard pops up. Keyboard users reach the buttons with Tab.
+var _qtySteppers = {};
+function attachQtyStepper(inputId, opts) {
+    var el = document.getElementById(inputId);
+    if (!el || _qtySteppers[inputId]) return;
+    opts = opts || {};
+    var wrap = document.createElement('div');
+    wrap.className = 'qty-stepper';
+    wrap.id = inputId + '-stepper';
+    el.parentNode.insertBefore(wrap, el);
+    var minus = _qtyStepButton(inputId, -1, opts.label), plus = _qtyStepButton(inputId, 1, opts.label);
+    wrap.appendChild(minus); wrap.appendChild(el); wrap.appendChild(plus);
+    el.setAttribute('inputmode', 'numeric');
+    _qtySteppers[inputId] = { el: el, opts: opts, minus: minus, plus: plus };
+    // A value set by the app itself (reset after a save, resume, mode switch)
+    // fires no event - so watch the value property to keep the buttons right.
+    try {
+        var d = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value');
+        Object.defineProperty(el, 'value', { configurable: true,
+            get: function () { return d.get.call(this); },
+            set: function (v) { d.set.call(this, v); refreshQtyStepper(inputId); } });
+    } catch (e) {}
+    ['input', 'change', 'focus', 'blur'].forEach(function (ev) { el.addEventListener(ev, function () { refreshQtyStepper(inputId); }); });
+    refreshQtyStepper(inputId);
+}
+// Review A3: every button's "stop repeating", so one hidden page / lost
+// focus stops them all.
+var _qtyStepStops = [];
+function stopAllQtyRepeats() { _qtyStepStops.forEach(function (f) { try { f(); } catch (e) {} }); }
+document.addEventListener('visibilitychange', function () { if (document.hidden) stopAllQtyRepeats(); });
+window.addEventListener('pagehide', stopAllQtyRepeats);
+window.addEventListener('blur', stopAllQtyRepeats);
+var QTY_STEP_HOLD_MAX = 200;   // most steps one hold can make
+function _qtyStepButton(inputId, dir, label) {
+    var b = document.createElement('button');
+    b.type = 'button';                     // never submits anything
+    b.className = 'qty-step-btn';
+    // Review A5: reachable with Tab and Enter / Space; a finger or mouse press
+    // still never moves the focus (pointerdown / mousedown are cancelled).
+    b.textContent = dir < 0 ? '−' : '+';
+    b.setAttribute('aria-label', (dir < 0 ? 'Decrease ' : 'Increase ') + (label || 'quantity'));
+    b.id = inputId + (dir < 0 ? '-minus' : '-plus');
+    var timer = null, delay = 0, steps = 0, prevFocus = null;
+    var pressed = false, lastUp = 0, pressedTimer = null;
+    var stop = function () { if (timer) { clearTimeout(timer); timer = null; } };
+    _qtyStepStops.push(stop);
+    var begin = function (e) {
+        if (e && e.button) return;         // left button / finger only
+        if (e && e.cancelable) e.preventDefault();   // keeps the focus where it was
+        prevFocus = document.activeElement;
+        pressed = true;
+        if (pressedTimer) { clearTimeout(pressedTimer); pressedTimer = null; }
+        stop();
+        if (!stepQty(inputId, dir)) return;
+        delay = 450; steps = 1;
+        var again = function () {
+            if (steps >= QTY_STEP_HOLD_MAX || !stepQty(inputId, dir)) { stop(); return; }
+            steps++;
+            delay = Math.max(60, Math.round(delay * 0.8));
+            timer = setTimeout(again, delay);
+        };
+        timer = setTimeout(again, delay);
+    };
+    // The press ended: remember when, so the click the browser sends next
+    // (after a tap OR after a long hold, whatever kind of event it is) is ignored.
+    var end = function () {
+        stop();
+        lastUp = Date.now();
+        if (pressedTimer) clearTimeout(pressedTimer);
+        pressedTimer = setTimeout(function () { pressed = false; pressedTimer = null; }, 700);
+    };
+    if (window.PointerEvent) {
+        b.addEventListener('pointerdown', begin);
+        ['pointerup', 'pointercancel', 'pointerleave', 'lostpointercapture'].forEach(function (ev) { b.addEventListener(ev, end); });
+    } else {
+        b.addEventListener('touchstart', begin, { passive: false });
+        b.addEventListener('mousedown', begin);
+        ['touchend', 'touchcancel', 'mouseup', 'mouseleave'].forEach(function (ev) { b.addEventListener(ev, end); });
+    }
+    b.addEventListener('mousedown', function (e) { e.preventDefault(); });
+    b.addEventListener('click', function (e) {
+        e.preventDefault();
+        // Review A2: a press (tap, mouse, hold) already stepped on pointerdown.
+        // Its click - whatever event type the browser uses, and even after a
+        // long hold - is ignored: any click while a press is recorded or within
+        // 700 ms of the press ending. Only a click with no press - Enter /
+        // Space on a focused button - steps here.
+        var fromPress = pressed || (Date.now() - lastUp < 700);
+        pressed = false;
+        if (!fromPress) { stepQty(inputId, dir); return; }
+        // If the browser moved the focus onto the button anyway, give it back.
+        if (document.activeElement === b) {
+            if (prevFocus && prevFocus !== b && prevFocus !== document.body && prevFocus.focus) { try { prevFocus.focus(); } catch (x) {} }
+            else { try { b.blur(); } catch (x) {} }
+        }
+    });
+    b.addEventListener('contextmenu', function (e) { e.preventDefault(); });   // long press: no menu
+    return b;
+}
+function _qtyStepLimits(inputId) {
+    var s = _qtySteppers[inputId];
+    var min = parseInt(s.el.min, 10); if (isNaN(min)) min = 0;
+    var lim = null;
+    if (s.opts.maxFn) { try { lim = s.opts.maxFn(); } catch (e) { lim = null; } }
+    var max = lim && lim.max != null ? Number(lim.max) : null;
+    var own = parseInt(s.el.max, 10);
+    if (!isNaN(own)) max = (max == null) ? own : Math.min(max, own);
+    if (s.opts.max != null) max = (max == null) ? s.opts.max : Math.min(max, s.opts.max);
+    if (max != null && max < min) max = min;
+    return { min: min, max: max, note: lim && lim.note ? lim.note : '' };
+}
+// One step up (dir 1) or down (dir -1). Returns true if the value changed.
+function stepQty(inputId, dir) {
+    var s = _qtySteppers[inputId];
+    if (!s) return false;
+    var L = _qtyStepLimits(inputId);
+    var cur = parseInt(s.el.value, 10), next;
+    if (isNaN(cur)) next = L.min;                      // empty box: either button gives the minimum
+    else next = cur + dir;
+    if (next < L.min) next = L.min;
+    // Review A1: the upper limit only stops + . A typed value above it
+    // (the card can be out of date) steps DOWN by one, never jumps to the limit.
+    if (dir > 0 && L.max != null && next > L.max) {
+        if (!isNaN(cur) && cur >= L.max) { refreshQtyStepper(inputId); return false; }   // already at / above it: + does nothing
+        next = L.max;
+    }
+    if (!isNaN(cur) && next === cur) { refreshQtyStepper(inputId); return false; }
+    s.el.value = String(next);
+    s.el.dispatchEvent(new Event('input', { bubbles: true }));
+    s.el.dispatchEvent(new Event('change', { bubbles: true }));
+    refreshQtyStepper(inputId);
+    return true;
+}
+function refreshQtyStepper(inputId) {
+    var s = _qtySteppers[inputId];
+    if (!s) return;
+    var L = _qtyStepLimits(inputId);
+    var cur = parseInt(s.el.value, 10);
+    s.minus.disabled = !isNaN(cur) && cur <= L.min;
+    var atMax = L.max != null && !isNaN(cur) && cur >= L.max;
+    s.plus.disabled = atMax;
+    s.plus.title = L.max != null ? ('Most: ' + L.max) : '';
+    var note = s.opts.noteId ? document.getElementById(s.opts.noteId) : null;
+    if (note) {
+        var show = atMax && L.note;
+        note.style.display = show ? '' : 'none';
+        note.textContent = show ? L.note : '';
+    }
+}
+// Actions tab: when stock is being TAKEN out of a bin (Dispatch Out, Remove /
+// Lost, QC Hold, Transfer), + stops at what that bin holds for the
+// product shown on the card. Counting (Set True Count) and stock coming in
+// have no upper limit here. Typing a bigger number is still possible - the
+// database refuses a removal the bin cannot cover, exactly as before.
+function moveQtyMax() {
+    var cfg = MOVE_MODES[moveMode] || {};
+    if (cfg.isCorrection || moveBinRole('from') !== 'OUT') return null;
+    var binEl = document.getElementById('move-bin-input');
+    var bin = binEl ? String(binEl.value || '').trim().toUpperCase() : '';
+    if (!bin || !_moveCardSku || !_moveCardSku.live_bins) return null;
+    for (var i = 0; i < _moveCardSku.live_bins.length; i++) {
+        var b = _moveCardSku.live_bins[i];
+        if (String(b.bin_code || '').trim().toUpperCase() === bin) {
+            var q = Math.max(0, Number(b.qty_on_hand) || 0);
+            return { max: q, note: 'Bin ' + bin + ' holds ' + q + ' of ' + _moveCardSku.sku_code + ' - that is the most you can take from it.' };
+        }
+    }
+    return null;
+}
+function setupQtySteppers() {
+    attachQtyStepper('move-qty-input', { maxFn: moveQtyMax, noteId: 'move-qty-limit', max: 99999 });
+    attachQtyStepper('qa-qty-input', { max: 99999, label: 'opening stock' });
+    var binEl = document.getElementById('move-bin-input');
+    if (binEl) ['input', 'change'].forEach(function (ev) { binEl.addEventListener(ev, function () { refreshQtyStepper('move-qty-input'); }); });
+}
+if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', setupQtySteppers);
+else setupQtySteppers();
+// ══ end v100 quantity steppers ═════════════════════════════════════════
+
 function armScanInputNoKeyboard(id) {
     var el = document.getElementById(id);
     if (!el) return;
@@ -8104,6 +8313,7 @@ function refreshMoveBinLists() {
     if (binEl.getAttribute('list') !== 'move-bin-list-live') binEl.setAttribute('list', 'move-bin-list-live');
     fillBinDatalist('move-bin-list-live', binChoices(moveBinRole('from'), moveHolders(), null));
     refreshToBinList();
+    refreshQtyStepper('move-qty-input');   // v100: the + limit follows the product and bin
 }
 // Transfer TO list: never offers the bin the stock is coming FROM.
 function refreshToBinList() {
