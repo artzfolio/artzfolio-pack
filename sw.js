@@ -55,7 +55,9 @@
 // bin pick lists, PICK that can deduct only once, stock reservations and the bulk
 // pick sheet). An offline phone must not keep serving v95, whose PICK screen can
 // take the same slip out of stock twice.
-const CACHE_NAME = 'artzfolio-oms-shell-v17';
+// v18 (2026-09-28): bumped for App v99 (sales channel required on Dispatch Out,
+// Amazon dispatch checked against the printed order, bulk pick template).
+const CACHE_NAME = 'artzfolio-oms-shell-v18';
 const SHELL_FILES = ['./index.html', './manifest.json', './icon.svg'];
 
 self.addEventListener('install', function (event) {
