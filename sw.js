@@ -57,7 +57,8 @@
 // take the same slip out of stock twice.
 // v18 (2026-09-28): bumped for App v99 (sales channel required on Dispatch Out,
 // Amazon dispatch checked against the printed order, bulk pick template).
-const CACHE_NAME = 'artzfolio-oms-shell-v18';
+// v19 (2026-09-28): bumped for App v100 (plus / minus buttons on quantity boxes).
+const CACHE_NAME = 'artzfolio-oms-shell-v19';
 const SHELL_FILES = ['./index.html', './manifest.json', './icon.svg'];
 
 self.addEventListener('install', function (event) {
