@@ -62,6 +62,19 @@
             Switched off -> clear message + "Switch on & continue". The database
             enforces the same rule (trigger trg_oms_require_tracked_sku), so
             nothing can slip past from any surface. -->
+    <!-- v97 (2026-09-26): RIGHT BINS IN EVERY BIN BOX + NO "SAVE PASSWORD?" POP-UP.
+         - Every bin box opens a dropdown when tapped, like the Transfer From-bin box
+           always did, with the list that makes sense for the action:
+             stock LEAVING a bin (Dispatch, Remove/Lost, QC Hold, Transfer FROM):
+               only bins holding the product, least stock first - "A6 (20 on hand)";
+             stock ARRIVING (New Stock, Returns, Found, QC Release, Transfer TO):
+               bins already holding it first - "A14 (already holds 24)" - then every
+               other bin - "(empty for this SKU)"; Transfer TO never offers the From bin;
+             Set True Count: holders first, then all other bins.
+           The down-arrow button shows exactly the same list. See binChoices().
+         - PIN boxes are no longer password boxes. Chrome treated the manager PIN box
+           as a password and offered to save "ASIN + PIN" on every tab switch. PINs
+           are still shown as dots (CSS masking, with a dot-font fallback). -->
     <!-- v96 (2026-09-26): THE DATABASE TAB + A PRODUCT CARD ON EVERY SCAN.
          - New DATABASE tab (Admin / Supervisor only): search every listing, open one
            and edit every field that Excel tab 6 has (grouped, PIN-checked, logged,
@@ -2576,6 +2589,14 @@ var qrcode = function() {
            see-through leaves it clickable, and a tap then hits both it and our
            own handler -- the list opens and closes again in the same tap. */
         input[list]::-webkit-calendar-picker-indicator{display:none !important}
+        /* v97: PIN boxes are ordinary text boxes (so no browser offers to save
+           them as a password) and are shown as dots here instead. Chrome, Edge,
+           Safari and Samsung Internet use -webkit-text-security. A browser that
+           does not know it gets a tiny built-in font in which every character is
+           drawn as a dot, so the PIN is never readable on screen either way. */
+        @font-face{font-family:'OmsPinMask';src:url(data:font/woff;base64,d09GRgABAAAAAAKQAAoAAAAAA5AAAQAAAAAAAAAAAAAAAAAAAAAAAAAAAABPUy8yAAABZAAAADMAAABgZQDpw2NtYXAAAAGgAAAAOwAAAQIguyfTZ2x5ZgAAAeQAAAA6AAAAWlinejZoZWFkAAAA9AAAADYAAAA2LynumGhoZWEAAAEsAAAAHwAAACQFegIKaG10eAAAAZgAAAAIAAAACAJYAHhsb2NhAAAB3AAAAAgAAAAIAAAALW1heHAAAAFMAAAAGAAAACAABQAibmFtZQAAAiAAAABYAAAAaQH6QAxwb3N0AAACeAAAABUAAAAsA2xwdgABAAAAAQAAcAI8fl8PPPUAAwPoAAAAAObd1X4AAAAA5t3VfgB4AKoB4AISAAAAAwACAAAAAAAAeJxjYGRgYFb4b8HAwBTBUMFQwfiAASiCAhgBVvMDiQB4nGNgZGBgYGZQYADRDAxMDGgAAAPpACh4nGNgZopgnMDAysDCQAA0MDAwMjAowPn2QACkFFTPMyv8t2BgYFZgOIGmBagYAPLMBg4AAlgAAAAAAHh4nGNgYGBiYGBgBmIRIMkIplkY3gFpDiAEydUpKKme//8fyFKAse4/uGUMVMvBAAGMQHVDFgIAgZcLzgAAAAAAAAAALXicY2BkqGBYxfiASYhBnoGBUZ+dn12e3Z6N8QEzt4C4tLySsrKSvLS4ADczGp8xDocEjM8AAO2dCaoAAHicLYhBCoAgAATHEqIOQdAX+kK/EMMfeBARtUPi/9NoDsvMApITQUewfNsZmFqNCDm3Z2f7fWDl0Llc4Va2RON8TfZBkylcBG4UtnnE4PBUUuvnBc0WDkB4nGNgYsAPmEGYkYk5Jb8EAANSAVYAAAA=) format('woff');font-display:block}
+        .pin-mask{-webkit-text-security:disc;text-security:disc}
+        @supports not (-webkit-text-security:disc){ .pin-mask{font-family:'OmsPinMask' !important;letter-spacing:.12em} }
         .settings-btn{background:#1B4F8A;color:#fff;border:none;padding:9px 14px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;touch-action:manipulation}
         .settings-btn:active{background:#153C6E}
         .settings-btn.danger{background:#E74C3C}
@@ -2808,7 +2829,7 @@ var qrcode = function() {
     </style>
 </head>
 <body>
-<div class="ver-corner" id="verCornerBadge" onclick="handleVerBadgeTap()">v96</div>
+<div class="ver-corner" id="verCornerBadge" onclick="handleVerBadgeTap()">v97</div>
 <!-- v63: Gap 2 — offline write-queue indicator. Hidden (display:none) unless
      something is actually queued or failed. Tapping it shows the queue detail
      panel (openOfflineQueuePanel()). -->
@@ -2966,6 +2987,18 @@ var qrcode = function() {
                         <button class="settings-btn" style="flex:1" onclick="bulkPreview(false)">&#128269; Check stock</button>
                     </div>
                     <div class="move-result" id="bulk-result"></div>
+                    <!-- v97: every batch that is still holding stock, from any source
+                         (this app's bulk sheet, Excel, or the Amazon QR stamp tool), with
+                         a way to release the whole batch or just one order. -->
+                    <div id="held-section" style="margin-top:14px;border-top:1px solid #E2E8F0;padding-top:10px;">
+                        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;">
+                            <div style="font-weight:800;color:#0A1628;font-size:13px;">&#128274; Held stock (open batches)</div>
+                            <button class="settings-btn" style="flex:0 0 auto;padding:6px 10px;font-size:11px;" onclick="loadHeldBatches()">&#8635; Refresh</button>
+                        </div>
+                        <div class="settings-info" style="margin-top:4px;">Units reserved for orders and not picked yet. No other order can be given them. <strong>Cancel batch</strong> releases every unpicked line of the batch; <strong>Cancel one order</strong> releases just that order. Lines already picked stay picked.</div>
+                        <div class="move-result" id="held-result"></div>
+                        <div id="held-list"></div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -3084,8 +3117,11 @@ var qrcode = function() {
                 <div class="settings-row">
                     <!-- v50: Enter-key support for Bluetooth scanner guns — moves on to Qty
                          rather than submitting, since Qty/Note may still need adjusting. -->
-                    <input type="text" class="settings-input" id="move-bin-input" placeholder="Bin location (required)" list="move-bin-list" autocomplete="off" autocorrect="off" autocapitalize="characters" style="text-transform:uppercase" data-src="" oninput="markMoveBinTouched()" onkeydown="if(event.key==='Enter'){document.getElementById('move-qty-input').focus();}">
+                    <input type="text" class="settings-input" id="move-bin-input" placeholder="Bin location (required)" list="move-bin-list-live" autocomplete="off" autocorrect="off" autocapitalize="characters" style="text-transform:uppercase" data-src="" oninput="markMoveBinTouched();refreshToBinList()" onkeydown="if(event.key==='Enter'){document.getElementById('move-qty-input').focus();}">
                     <datalist id="move-bin-list"></datalist>
+                    <!-- v97: move-bin-list-live is now the list for THIS box in every
+                         action, filled by refreshMoveBinLists() with the bins that make
+                         sense for the action (see binChoices()). -->
                     <!-- v93: Transfer-only suggestion source for the From-Bin field above —
                          populated in prefillMoveBin() with only the bins where the scanned
                          SKU actually has live stock. Swapped in and out of the From-Bin
@@ -3113,7 +3149,11 @@ var qrcode = function() {
      datalist and camera-scan pattern as the "From" bin field above it. -->
 <div class="field-label" id="move-tobin-label" style="display:none;">To bin &mdash; where the stock is going</div>
 <div class="settings-row" id="move-transfer-tobin-row" style="display:none;">
-    <input type="text" class="settings-input" id="move-transfer-tobin-input" placeholder="Pick from the list or type a bin" autocomplete="off" autocorrect="off" autocapitalize="characters" style="text-transform:uppercase" oninput="forceUpperInput(this, event)">
+    <!-- v97: the To-bin box now has its own dropdown (it had none): bins already
+         holding the product first, then every other bin, never the From bin. A new
+         bin can still be typed. Enter moves on to Quantity (scanner guns). -->
+    <input type="text" class="settings-input" id="move-transfer-tobin-input" placeholder="Pick from the list or type a bin" list="move-tobin-list" autocomplete="off" autocorrect="off" autocapitalize="characters" style="text-transform:uppercase" oninput="forceUpperInput(this, event)" onfocus="refreshToBinList()" onkeydown="if(event.key==='Enter'){document.getElementById('move-qty-input').focus();}">
+    <datalist id="move-tobin-list"></datalist>
     <button class="scan-cam-btn bin-pick-btn" onclick="openBinPicker('move-transfer-tobin-input')" title="Choose from the list">&#9660;</button>
     <button class="scan-cam-btn" onclick="openScannerFor('move-transfer-tobin-input')" title="Scan bin barcode/QR">
         <svg viewBox="0 0 24 24"><path d="M12 9a4 4 0 1 0 4 4 4 4 0 0 0-4-4zm0 6a2 2 0 1 1 2-2 2 2 0 0 1-2 2z"/><path d="M20 4h-2.76l-1.63-2H8.39L6.76 4H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2zm0 15H4V6h3.56L9.19 4h5.62l1.63 2H20z"/></svg>
@@ -3397,7 +3437,7 @@ var qrcode = function() {
                         <button class="scan-cam-btn bin-pick-btn" onclick="openTypePicker('qa-type-input')" title="Choose from the list">&#9660;</button>
                     </div>
                     <div class="settings-row">
-                        <input type="text" class="settings-input" id="qa-bin-input" placeholder="Bin (only if adding opening stock now)" autocomplete="off" autocorrect="off" autocapitalize="characters" style="text-transform:uppercase" oninput="forceUpperInput(this, event)">
+                        <input type="text" class="settings-input" id="qa-bin-input" placeholder="Bin (only if adding opening stock now)" list="move-bin-list" autocomplete="off" autocorrect="off" autocapitalize="characters" style="text-transform:uppercase" oninput="forceUpperInput(this, event)">
                         <button class="scan-cam-btn bin-pick-btn" onclick="openBinPicker('qa-bin-input')" title="Choose from the list">&#9660;</button>
                         <button class="scan-cam-btn" onclick="openScannerFor('qa-bin-input')" title="Scan bin barcode/QR">
                             <svg viewBox="0 0 24 24"><path d="M12 9a4 4 0 1 0 4 4 4 4 0 0 0-4-4zm0 6a2 2 0 1 1 2-2 2 2 0 0 1-2 2z"/><path d="M20 4h-2.76l-1.63-2H8.39L6.76 4H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2zm0 15H4V6h3.56L9.19 4h5.62l1.63 2H20z"/></svg>
@@ -3641,7 +3681,7 @@ var qrcode = function() {
                     <div id="twofa-key" style="margin:8px 0;padding:10px;background:#F8F9FB;border:1px solid #E2E8F0;border-radius:6px;font-family:monospace;font-size:13px;word-break:break-all;text-align:center;letter-spacing:1px;"></div>
                     <div class="settings-info" style="font-weight:700;color:#1B4F8A;margin-top:14px;">Step 2 &mdash; prove it works</div>
                     <div class="settings-row">
-                        <input type="tel" inputmode="numeric" maxlength="6" class="settings-input" id="twofa-confirm-code" placeholder="6-digit code from the app" autocomplete="off">
+                        <input type="text" inputmode="numeric" pattern="[0-9]*" maxlength="6" class="settings-input" id="twofa-confirm-code" name="oms-2fa-setup-code" placeholder="6-digit code from the app" autocomplete="one-time-code" autocorrect="off" autocapitalize="off" spellcheck="false" data-lpignore="true" data-1p-ignore="true" data-bwignore="true" data-form-type="other">
                         <button class="settings-btn" onclick="twofaConfirm()">&#10003; Turn on</button>
                     </div>
                     <div class="move-result" id="twofa-setup-result"></div>
@@ -3671,7 +3711,7 @@ var qrcode = function() {
                             <option value="SUPERVISOR">Supervisor</option>
                             <option value="ADMIN">Admin</option>
                         </select>
-                        <input type="tel" inputmode="numeric" maxlength="4" class="settings-input" id="admin-add-pin" placeholder="4-digit PIN" style="max-width:110px">
+                        <input type="text" inputmode="numeric" pattern="[0-9]*" maxlength="4" class="settings-input pin-mask" id="admin-add-pin" name="oms-new-staff-code" placeholder="4-digit PIN" style="max-width:110px" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" data-lpignore="true" data-1p-ignore="true" data-bwignore="true" data-form-type="other">
                     </div>
                     <div class="settings-row">
                         <button class="settings-btn" style="flex:1" onclick="adminAddEmployee()">&#10003; Add Employee</button>
@@ -3828,7 +3868,7 @@ var qrcode = function() {
         </div>
         <div class="emp-field">
             <label for="login-pin-input">4-Digit PIN</label>
-            <input type="tel" inputmode="numeric" maxlength="4" id="login-pin-input" placeholder="&bull;&bull;&bull;&bull;" autocomplete="off">
+            <input type="text" inputmode="numeric" pattern="[0-9]*" maxlength="4" id="login-pin-input" name="oms-login-code-x" class="pin-mask" placeholder="&bull;&bull;&bull;&bull;" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" data-lpignore="true" data-1p-ignore="true" data-bwignore="true" data-form-type="other">
         </div>
         <!-- v68 (Part B, v11 prompt): opt-in, unchecked by default — a shared
              warehouse tablet keeps today's require-login-after-tab-close
@@ -3851,7 +3891,7 @@ var qrcode = function() {
         <p id="totp-who">Enter the 6-digit code from the phone that was set up for this account.</p>
         <div class="emp-field">
             <label for="totp-code-input">6-Digit Code</label>
-            <input type="tel" inputmode="numeric" maxlength="11" id="totp-code-input" placeholder="&bull;&bull;&bull;&bull;&bull;&bull;" autocomplete="one-time-code"
+            <input type="text" inputmode="numeric" maxlength="11" id="totp-code-input" name="oms-2fa-code" placeholder="&bull;&bull;&bull;&bull;&bull;&bull;" autocomplete="one-time-code" autocorrect="off" autocapitalize="off" spellcheck="false" data-lpignore="true" data-1p-ignore="true" data-bwignore="true" data-form-type="other"
                    onkeydown="if(event.key==='Enter'){submitTotpCode();}">
         </div>
         <div class="settings-notice" style="margin-bottom:10px;">&#128161; The code changes every 30 seconds &mdash; if it has just changed, use the new one. If every code is refused, set the phone's clock to <strong>automatic</strong>. A <strong>backup code</strong> can also be typed here instead.</div>
@@ -3875,11 +3915,11 @@ var qrcode = function() {
         </div>
         <div class="emp-field">
             <label for="setup-pin1-input">4-Digit PIN</label>
-            <input type="tel" inputmode="numeric" maxlength="4" id="setup-pin1-input" placeholder="&bull;&bull;&bull;&bull;" autocomplete="off">
+            <input type="text" inputmode="numeric" pattern="[0-9]*" maxlength="4" id="setup-pin1-input" name="oms-setup-code-a" class="pin-mask" placeholder="&bull;&bull;&bull;&bull;" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" data-lpignore="true" data-1p-ignore="true" data-bwignore="true" data-form-type="other">
         </div>
         <div class="emp-field">
             <label for="setup-pin2-input">Confirm PIN</label>
-            <input type="tel" inputmode="numeric" maxlength="4" id="setup-pin2-input" placeholder="&bull;&bull;&bull;&bull;" autocomplete="off">
+            <input type="text" inputmode="numeric" pattern="[0-9]*" maxlength="4" id="setup-pin2-input" name="oms-setup-code-b" class="pin-mask" placeholder="&bull;&bull;&bull;&bull;" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" data-lpignore="true" data-1p-ignore="true" data-bwignore="true" data-form-type="other">
         </div>
         <button class="emp-save-btn" onclick="submitFirstTimeSetup()">&#10003;&nbsp; Create Admin Account</button>
         <div class="emp-err" id="setup-err"></div>
@@ -4720,6 +4760,7 @@ function attemptLogin() {
             pendingLogin = null;
             writeAuditLog('LOGIN_FAILED', { employeeCode: code, details: { message: row.message || null } });
             errEl.textContent = row.message || 'Login failed. Check your code and PIN.';
+            pinEl.value = '';   // v97: never leave a PIN sitting in the box
             return;
         }
         // v73 (Master Prompt v17, Part C): carries the per-employee
@@ -5181,7 +5222,7 @@ function renderSessionBar() {
             // the MOVE bin field for every scan in this session while it stays
             // open, never locked (still editable per scan). Left blank behaves
             // exactly as before v77.
-            '<input type="text" class="settings-input" id="scan-session-default-bin" placeholder="Default bin for this session (optional, e.g. a PO number)" autocomplete="off" autocorrect="off" autocapitalize="characters" style="text-transform:uppercase;margin:8px 0;">' +
+            '<input type="text" class="settings-input" id="scan-session-default-bin" list="move-bin-list" placeholder="Default bin for this session (optional, e.g. a PO number)" autocomplete="off" autocorrect="off" autocapitalize="characters" style="text-transform:uppercase;margin:8px 0;">' +
             '<button class="settings-btn" onclick="startScanSession()">&#9654;&#65039; Start Session</button>' +
             '</div>';
         return;
@@ -5517,7 +5558,8 @@ function adminShowResetPin(code) {
     if (container.style.display === 'block') { container.style.display = 'none'; container.innerHTML = ''; return; }
     container.innerHTML =
         '<div class="settings-row">' +
-            '<input type="tel" inputmode="numeric" maxlength="4" class="settings-input" id="admin-resetpin-input-' + code + '" placeholder="New 4-digit PIN" style="max-width:140px">' +
+            // v97: masked text box, not a password box - see .pin-mask
+            '<input type="text" inputmode="numeric" pattern="[0-9]*" maxlength="4" class="settings-input pin-mask" id="admin-resetpin-input-' + code + '" name="oms-reset-code-' + code + '" placeholder="New 4-digit PIN" style="max-width:140px" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" data-lpignore="true" data-1p-ignore="true" data-bwignore="true" data-form-type="other">' +
             '<button class="settings-btn" onclick="adminSubmitResetPin(\'' + code + '\')">Save</button>' +
         '</div>' +
         '<div class="move-result" id="admin-resetpin-result-' + code + '"></div>';
@@ -6264,6 +6306,7 @@ function loadBinList(force) {
                     BIN_INFO = m;
                     return withTimeout(db.from('oms_bins').select('bin_code,pickable'), 8000, 'Bin picking flag').then(function (pr) {
                         if (pr && !pr.error && pr.data) pr.data.forEach(function (r) { if (BIN_INFO[r.bin_code]) BIN_INFO[r.bin_code].pickable = r.pickable; });
+                        refreshMoveBinLists();   // v97: "QC hold" labels need the picking flag
                     });
                 }).catch(function () {});
             var dl = document.getElementById('move-bin-list');
@@ -6275,6 +6318,7 @@ function loadBinList(force) {
                     dl.appendChild(opt);
                 });
             }
+            refreshMoveBinLists();   // v97: the Actions-tab lists use BIN_LIST too
             return BIN_LIST;
         })
         .catch(function() { return BIN_LIST; });
@@ -6315,8 +6359,12 @@ function prefillMoveBin() {
     applySessionDefaultBin();
     if (!skuVal) return;
     resolveSkuOrAsin(skuVal).then(function(sku) {
-        if (_cardSeq === _moveCardSeq) renderMoveSkuCard(sku, skuVal);   // v96
+        // v97: an older, slower lookup must not replace the product a newer one
+        // already showed - the bin lists are built from _moveCardSku.
+        if (_cardSeq !== _moveCardSeq) return;
+        renderMoveSkuCard(sku, skuVal);   // v96
         _moveCardSku = sku;
+        refreshMoveBinLists();            // v97: right bins for this product
         if (!sku) {
             // v70 (Part C, v14 prompt): this used to return silently — a scan
             // that worked but didn't match anything looked identical to a
@@ -6340,18 +6388,8 @@ function prefillMoveBin() {
         // this just stops the dead end from being offered in the first place.
         // To-Bin is untouched — it keeps the full bin list, and free text for
         // a brand-new bin, exactly as before.
-        if (moveMode === 'BIN_TRANSFER') {
-            var liveBinListEl = document.getElementById('move-bin-list-live');
-            if (liveBinListEl) {
-                liveBinListEl.innerHTML = '';
-                liveBins.forEach(function(b) {
-                    var liveOpt = document.createElement('option');
-                    liveOpt.value = b.bin_code;
-                    liveOpt.label = b.bin_code + ' (' + b.qty_on_hand + ' on hand)';
-                    liveBinListEl.appendChild(liveOpt);
-                });
-            }
-        }
+        // v97: that Transfer-only list is now built for EVERY action by
+        // refreshMoveBinLists() (called just above), so nothing more to do here.
         // v56: LIVE bin data wins over the (sometimes stale) registered
         // default_bin — see binMismatchNote() comment for why. Auto-fill only
         // when there's exactly one live bin (unambiguous); when stock is
@@ -6530,9 +6568,10 @@ function setMoveMode(mode) {
     // prefillMoveBin()); every other mode shows the full warehouse bin list,
     // exactly as before. Cleared here on every switch because the SKU field
     // is always cleared on a mode switch too (a few lines above).
-    binInput.setAttribute('list', mode === 'BIN_TRANSFER' ? 'move-bin-list-live' : 'move-bin-list');
-    var liveBinListReset = document.getElementById('move-bin-list-live');
-    if (liveBinListReset) liveBinListReset.innerHTML = '';
+    // v97: every action now uses the contextual list (move-bin-list-live); it
+    // is rebuilt for the new action by refreshMoveBinLists() at the end of this
+    // function, once the SKU and bins have been cleared.
+    binInput.setAttribute('list', 'move-bin-list-live');
     if (cfg.isCorrection) {
         qtyInput.min = '0';
         qtyInput.placeholder = 'Count in THIS bin (0+)';
@@ -6565,6 +6604,7 @@ function setMoveMode(mode) {
     if (transferRow) transferRow.style.display = (mode === 'BIN_TRANSFER') ? '' : 'none';
     var transferToBinEl = document.getElementById('move-transfer-tobin-input');
     if (transferToBinEl) transferToBinEl.value = '';
+    refreshMoveBinLists();   // v97
     loadBinList();
     armScanInputNoKeyboard('move-sku-input');
 }
@@ -7448,6 +7488,12 @@ function onMoveSkuTyping() {
     if (_moveTypingTimer) clearTimeout(_moveTypingTimer);
     var v = (document.getElementById('move-sku-input').value || '').trim();
     if (!v) { renderMoveSkuCard(null, ''); _moveCardSku = null; return; }
+    // v97: the box no longer holds the code that was looked up - forget that
+    // product's bins at once and ignore any lookup still on its way back.
+    if (v.toUpperCase() !== _moveLookupFor) {
+        _moveCardSeq++;
+        if (_moveCardSku) { _moveCardSku = null; refreshMoveBinLists(); }
+    }
     _moveTypingTimer = setTimeout(function () {
         var now = (document.getElementById('move-sku-input').value || '').trim();
         if (now.length < 4) return;
@@ -7459,7 +7505,20 @@ function renderMoveSkuCard(sku, typed) {
     var el = document.getElementById('move-sku-card');
     if (!el) return;
     typed = String(typed || '').trim();
-    if (!sku && !typed) { el.innerHTML = ''; return; }
+    if (!sku && !typed) {
+        el.innerHTML = '';
+        // v97: an empty product box (mode switch, after every save) means no
+        // product: forget the old one so the bin lists and the down-arrow list
+        // go back to "all bins" instead of showing the previous product's
+        // (now out of date) bins, and let the same code be looked up again.
+        // _moveCardSeq++ makes any lookup still on its way back be ignored, so
+        // it cannot put the old product back after the box was emptied or the
+        // action was switched.
+        _moveCardSeq++;
+        _moveCardSku = null; _moveLookupFor = '';
+        refreshMoveBinLists();
+        return;
+    }
     if (!sku) {
         el.innerHTML = '<div class="sku-card bad"><div class="sc-row"><span class="sc-k">Scanned</span><span class="sc-v">' + esc59(typed.toUpperCase()) +
             '</span></div><div style="color:#B3261E;font-weight:700;">&#9940; Not in the product database.</div></div>';
@@ -7549,36 +7608,141 @@ function _allBinItems(exclude) {
     });
     return out;
 }
+// ══ v97: THE RIGHT BINS IN EVERY BIN BOX ═══════════════════════════════
+// One builder decides what every Actions-tab bin box offers, for both the
+// dropdown that opens when the box is tapped (a <datalist>, exactly how the
+// Transfer From-bin box has worked since v93) and the down-arrow sheet.
+//   OUT   - stock is taken OUT of this bin (Dispatch, Remove/Lost, QC Hold,
+//           Transfer FROM): only the bins that hold the product, least first.
+//           "A6 (20 on hand)"; a bin kept out of order picking gets ", QC hold".
+//   IN    - stock is put INTO this bin (New Stock, Returns, Found, QC Release,
+//           Transfer TO): bins already holding it first ("A14 (already holds
+//           24)"), then every other active bin ("(empty for this SKU)").
+//   COUNT - Set True Count: holders first ("(20 on hand)"), then the rest.
+// With no product scanned yet, every box offers every active bin (as before).
+// Uses only data the app already fetches: the product's per-bin stock from
+// oms_bin_stock (read by resolveSkuOrAsin) and the bin list from oms_bins.
+function moveBinRole(which) {
+    var cfg = MOVE_MODES[moveMode] || {};
+    if (which === 'to') return 'IN';
+    if (cfg.isTransfer) return 'OUT';
+    if (cfg.isCorrection) return 'COUNT';
+    return (cfg.sign < 0) ? 'OUT' : 'IN';
+}
+// The scanned product's bins that hold stock, least first (ties A to Z), or
+// null when no product is known (nothing scanned, not found, or offline).
+function moveHolders() {
+    if (!_moveCardSku || !_moveCardSku.live_bins) return null;
+    return _moveCardSku.live_bins.filter(function (b) { return b.bin_code && Number(b.qty_on_hand) > 0; })
+        .slice().sort(function (a, b) {
+            return (Number(a.qty_on_hand) - Number(b.qty_on_hand)) || String(a.bin_code).localeCompare(String(b.bin_code));
+        });
+}
+function _binIsQcHold(code) { return !!(BIN_INFO[code] && BIN_INFO[code].pickable === false); }
+// Returns [{ value, label, group: 'all' | 'holds' | 'other', qty, qc }].
+function binChoices(role, holders, exclude) {
+    var ex = String(exclude || '').trim().toUpperCase();
+    var out = [], seen = {};
+    function skip(c) { return ex && String(c).toUpperCase() === ex; }
+    if (!holders) {
+        (BIN_LIST || []).forEach(function (b) { if (!skip(b)) out.push({ value: b, label: '', group: 'all' }); });
+        return out;
+    }
+    holders.forEach(function (h) {
+        var c = h.bin_code, q = Number(h.qty_on_hand) || 0, qc = _binIsQcHold(c);
+        seen[String(c).toUpperCase()] = true;
+        if (skip(c)) return;
+        out.push({ value: c, group: 'holds', qty: q, qc: qc,
+                   label: c + ' (' + (role === 'IN' ? 'already holds ' + q : q + ' on hand') + (qc ? ', QC hold' : '') + ')' });
+    });
+    if (role !== 'OUT') {
+        (BIN_LIST || []).forEach(function (b) {
+            if (seen[String(b).toUpperCase()] || skip(b)) return;
+            var qc = _binIsQcHold(b);
+            out.push({ value: b, group: 'other', qty: 0, qc: qc, label: b + ' (empty for this SKU' + (qc ? ', QC hold' : '') + ')' });
+        });
+    }
+    return out;
+}
+// Rewrites a <datalist> only when its contents really change, so an open
+// dropdown is not rebuilt under someone's finger for nothing.
+function fillBinDatalist(listId, choices) {
+    var dl = document.getElementById(listId);
+    if (!dl) return;
+    var sig = choices.map(function (c) { return c.value + '\u0001' + c.label; }).join('\u0002');
+    if (dl.getAttribute('data-sig') === sig && dl.options.length === choices.length) return;
+    dl.innerHTML = '';
+    choices.forEach(function (c) {
+        var o = document.createElement('option');
+        o.value = c.value;
+        if (c.label) o.label = c.label;
+        dl.appendChild(o);
+    });
+    dl.setAttribute('data-sig', sig);
+}
+// Rebuilds both Actions-tab lists. Called when the product changes, the action
+// changes, the bin list loads, and after every save (the save clears the
+// product box, which runs renderMoveSkuCard(null, '')).
+function refreshMoveBinLists() {
+    var binEl = document.getElementById('move-bin-input');
+    if (!binEl) return;
+    if (binEl.getAttribute('list') !== 'move-bin-list-live') binEl.setAttribute('list', 'move-bin-list-live');
+    fillBinDatalist('move-bin-list-live', binChoices(moveBinRole('from'), moveHolders(), null));
+    refreshToBinList();
+}
+// Transfer TO list: never offers the bin the stock is coming FROM.
+function refreshToBinList() {
+    var fromEl = document.getElementById('move-bin-input');
+    var from = fromEl ? (fromEl.value || '').trim() : '';
+    fillBinDatalist('move-tobin-list', binChoices('IN', moveHolders(), from));
+}
 function openBinPicker(inputId) {
     loadBinList().then(function () {
         var items = [], title = 'Choose a bin', empty = 'No bins yet - type a new one in the box.';
-        var skuBins = [];
-        if (_moveCardSku && inputId === 'move-bin-input') {
-            skuBins = (_moveCardSku.live_bins || []).filter(function (b) { return b.bin_code && Number(b.qty_on_hand) > 0; })
-                .sort(function (a, b) { return (Number(a.qty_on_hand) - Number(b.qty_on_hand)) || String(a.bin_code).localeCompare(String(b.bin_code)); });
-        }
-        if (inputId === 'move-bin-input' && moveMode === 'BIN_TRANSFER') {
-            title = 'FROM bin - where ' + (_moveCardSku ? _moveCardSku.sku_code : 'the product') + ' is now';
-            if (!_moveCardSku) { openPickSheet(title, inputId, [], 'Scan or type the product first - then this list shows only the bins that hold it.'); return; }
-            skuBins.forEach(function (b) { items.push(_binItem(b.bin_code, 'holds ' + b.qty_on_hand + ' of this product', b.qty_on_hand + ' pcs')); });
-            empty = 'This product has no stock in any bin, so there is nothing to transfer.';
-        } else if (inputId === 'move-transfer-tobin-input') {
-            var from = (document.getElementById('move-bin-input').value || '').trim();
-            title = 'TO bin - where the stock is going';
-            items = _allBinItems(from);
-        } else if (inputId === 'move-bin-input') {
-            if (skuBins.length) {
-                items.push({ sep: 'Bins holding ' + _moveCardSku.sku_code + ' (least first)' });
-                skuBins.forEach(function (b) { items.push(_binItem(b.bin_code, 'holds ' + b.qty_on_hand + ' of this product', b.qty_on_hand + ' pcs')); });
-                items.push({ sep: 'All bins' });
+        if (inputId === 'move-bin-input' || inputId === 'move-transfer-tobin-input') {
+            // v97: exactly the same bins, in the same order, as the dropdown.
+            var isTo = (inputId === 'move-transfer-tobin-input');
+            var role = moveBinRole(isTo ? 'to' : 'from');
+            var holders = moveHolders();
+            var exclude = isTo ? (document.getElementById('move-bin-input').value || '').trim() : null;
+            var what = _moveCardSku ? _moveCardSku.sku_code : 'the product';
+            title = isTo ? 'TO bin - where the stock is going'
+                  : (MOVE_MODES[moveMode] || {}).isTransfer ? 'FROM bin - where ' + what + ' is now'
+                  : role === 'OUT' ? 'Bin - where ' + what + ' is taken from'
+                  : role === 'COUNT' ? 'Bin you counted' : 'Bin - where ' + what + ' is going';
+            if (!holders) {
+                items.push({ sep: 'All bins - scan the product first to see only the bins that hold it' });
+                items = items.concat(_allBinItems(exclude));
+            } else {
+                var ch = binChoices(role, holders, exclude), headHold = false, headOther = false;
+                ch.forEach(function (c) {
+                    if (c.group === 'holds') {
+                        if (!headHold) { items.push({ sep: 'Bins holding ' + what + ' (least first)' }); headHold = true; }
+                        items.push(_binItem(c.value, (role === 'IN' ? 'already holds ' : 'holds ') + c.qty + ' of this product' + (c.qc ? ' • QC hold' : ''), c.qty + ' pcs'));
+                    } else {
+                        if (!headOther) { items.push({ sep: 'Other bins (empty for this SKU)' }); headOther = true; }
+                        items.push(_binItem(c.value, 'empty for this SKU' + (c.qc ? ' • QC hold' : ''), ''));
+                    }
+                });
+                if (role === 'OUT') empty = 'This product has no stock in any bin, so there is nothing to take out.';
             }
-            items = items.concat(_allBinItems(null));
         } else {
             items = _allBinItems(null);
         }
         openPickSheet(title, inputId, items, empty);
     });
 }
+// v97: a PIN is never left in a box when the page is closed or swapped away.
+// pagehide covers closing the tab; visibilitychange covers switching to
+// another app on Android, where pagehide does not fire.
+function clearPinBoxes() {
+    try {
+        var pins = document.querySelectorAll('input.pin-mask');
+        for (var i = 0; i < pins.length; i++) pins[i].value = '';
+    } catch (e) {}
+}
+window.addEventListener('pagehide', clearPinBoxes);
+document.addEventListener('visibilitychange', function () { if (document.hidden) clearPinBoxes(); });
 function openTypePicker(inputId) {
     loadQuickAddTypeOptions().then(function () {
         var act = [], rest = [];
@@ -7837,6 +8001,7 @@ function toggleBulkPick() {
     if (opening) {
         var ref = document.getElementById('bulk-ref');
         if (ref && !ref.value) ref.value = defaultBulkRef();
+        loadHeldBatches();   // v97
     }
 }
 function defaultBulkRef() {
@@ -7913,6 +8078,7 @@ function bulkPreview(commit) {
             _bulk.result = d; _bulk.committed = !!d.committed;
             renderBulkResult();
             if (d.committed) { var rf = document.getElementById('bulk-ref'); if (rf) rf.value = defaultBulkRef(); }   // next sheet gets a new reference
+            if (d.committed) loadHeldBatches();   // v97: the new batch appears in Held stock
         }).catch(function (e) {
             bulkMsg('No answer from the database (' + esc59(e && e.message ? e.message : e) + '). ' + (commit ? 'Tap Check stock to see whether it was reserved before trying again.' : 'Try again.'), 'err');
         });
@@ -7969,8 +8135,124 @@ function cancelBulkBatch(batchId) {
     }).catch(function (e) { return { ok: false, message: String(e && e.message ? e.message : e) }; }).then(function (d) {
         if (!d || !d.ok) { bulkMsg('Not cancelled: ' + esc59((d && d.message) || 'unknown reason'), 'err'); return; }
         bulkMsg('&#10003; Batch ' + batchId + ' cancelled - ' + (d.cancelled || 0) + ' line(s) released.', 'ok');
-        _bulk.result = null;
+        // v97: this can now be any batch from the Held stock list, so only
+        // forget the sheet on screen if it is the batch that was cancelled.
+        if (_bulk.result && Number(_bulk.result.batch_id) === Number(batchId)) _bulk.result = null;
+        heldMsg('&#10003; Batch ' + batchId + ' cancelled - ' + (d.cancelled || 0) + ' line(s) released.', 'ok');
         logEvent('BATCH ' + batchId, 'Bulk pick batch cancelled');
+        loadHeldBatches();
+    });
+}
+// ══ v97: HELD STOCK (OPEN BATCHES) ════════════════════════════════════════
+// Lists every reservation batch still OPEN, whoever made it: this app's bulk
+// sheet, Excel, or the Amazon QR stamp tool (label = its batch folder name).
+// Read-only lists straight from oms_pick_batches / oms_pick_reservations (the
+// app's public key may read both - same as the Bins section already does).
+// Changes go through the PIN-checked oms_cancel_pick only.
+var HELD_SOURCE_NAMES = { APP_BULK: 'App bulk', EXCEL: 'Excel', STAMP: 'Amazon stamp', OTHER: 'Other' };
+var _held = { batches: [], orders: {} };   // orders: batch_id -> { ORDER_ID: open lines }
+function heldMsg(html, cls) {
+    var el = document.getElementById('held-result');
+    if (el) { el.className = 'move-result' + (cls ? ' ' + cls : ''); el.innerHTML = html || ''; }
+}
+// Reads all rows of a query page by page (the database hands out at most
+// 1,000 rows at a time, and an Amazon batch can be large).
+function fetchAllPages(makeQuery, label) {
+    var rows = [], size = 1000;
+    function page(from) {
+        return withTimeout(makeQuery().range(from, from + size - 1), 12000, label).then(function (r) {
+            if (r.error) throw new Error(r.error.message);
+            var got = r.data || [];
+            rows = rows.concat(got);
+            if (got.length === size && rows.length < 50000) return page(from + size);
+            return rows;
+        });
+    }
+    return page(0);
+}
+function loadHeldBatches() {
+    var list = document.getElementById('held-list');
+    if (!list || !isListingManager()) return;
+    if (!db) { list.innerHTML = '<div class="settings-info">Database not reachable right now.</div>'; return; }
+    list.innerHTML = '<div style="color:#6B7280;font-size:12px;">Loading...</div>';
+    var batches = [];
+    fetchAllPages(function () {
+        return db.from('oms_pick_batches').select('batch_id,label,source,created_at,created_by,status').eq('status', 'OPEN').order('created_at', { ascending: false });
+    }, 'Open batches').then(function (b) {
+        batches = b;
+        if (!batches.length) return [];
+        var ids = batches.map(function (x) { return x.batch_id; });
+        return fetchAllPages(function () {
+            return db.from('oms_pick_reservations').select('batch_id,order_id,qty,status').in('batch_id', ids).order('res_id');
+        }, 'Held lines');
+    }).then(function (res) {
+        var per = {}, orders = {};
+        batches.forEach(function (x) { per[x.batch_id] = { open: 0, units: 0, picked: 0, short: 0, cancelled: 0 }; orders[x.batch_id] = {}; });
+        res.forEach(function (r) {
+            var c = per[r.batch_id]; if (!c) return;
+            if (r.status === 'OPEN') {
+                c.open++; c.units += Number(r.qty) || 0;
+                var o = String(r.order_id || '').toUpperCase();
+                orders[r.batch_id][o] = (orders[r.batch_id][o] || 0) + 1;
+            } else if (r.status === 'PICKED') c.picked++;
+            else if (r.status === 'SHORT') c.short++;
+            else c.cancelled++;
+        });
+        _held = { batches: batches, orders: orders };
+        renderHeldBatches(per);
+    }).catch(function (err) {
+        list.innerHTML = '<div class="move-result err">Could not load held stock: ' + esc59(err && err.message ? err.message : err) + '</div>';
+    });
+}
+function renderHeldBatches(per) {
+    var list = document.getElementById('held-list');
+    if (!list) return;
+    if (!_held.batches.length) { list.innerHTML = '<div class="settings-info">No stock is held right now.</div>'; return; }
+    var html = '';
+    _held.batches.forEach(function (b) {
+        var c = per[b.batch_id] || { open: 0, units: 0, picked: 0, short: 0 };
+        var nOrders = Object.keys(_held.orders[b.batch_id] || {}).length;
+        var when = b.created_at ? new Date(b.created_at).toLocaleString('en-IN') : '';
+        html += '<div class="held-row" data-batch="' + esc59(b.batch_id) + '" style="border:1px solid #E2E8F0;border-radius:10px;padding:8px 10px;margin-top:6px;background:#fff;">' +
+            '<div style="display:flex;justify-content:space-between;gap:8px;"><div style="font-weight:800;font-size:13px;color:#0A1628;word-break:break-all;">' + esc59(b.label || ('Batch ' + b.batch_id)) + '</div>' +
+            '<div style="font-size:11px;font-weight:800;color:#1B3F6B;white-space:nowrap;">' + esc59(HELD_SOURCE_NAMES[b.source] || b.source || '') + '</div></div>' +
+            '<div style="font-size:11px;color:#6B7280;">Batch ' + esc59(b.batch_id) + ' &bull; ' + esc59(when) + (b.created_by ? ' &bull; by ' + esc59(b.created_by) : '') + '</div>' +
+            '<div class="held-counts" style="font-size:12px;margin-top:2px;"><strong>' + c.open + '</strong> line(s) open (' + c.units + ' unit(s), ' + nOrders + ' order(s)) &bull; <strong>' + c.picked + '</strong> picked' +
+                (c.short ? ' &bull; ' + c.short + ' short' : '') + '</div>' +
+            '<div style="display:flex;gap:6px;margin-top:6px;">' +
+                '<button class="settings-btn" style="flex:1;font-size:11px;background:#B3261E;" data-batch="' + esc59(b.batch_id) + '" onclick="cancelBulkBatch(Number(this.getAttribute(\'data-batch\')))">Cancel batch</button>' +
+                '<button class="settings-btn" style="flex:1;font-size:11px;background:#6B7280;" data-batch="' + esc59(b.batch_id) + '" onclick="cancelHeldOrder(Number(this.getAttribute(\'data-batch\')))"' + (c.open ? '' : ' disabled') + '>Cancel one order&hellip;</button>' +
+            '</div></div>';
+    });
+    list.innerHTML = html;
+}
+// Releases the unpicked lines of ONE order. The batch number is deliberately
+// NOT sent: oms_cancel_pick closes the whole batch whenever it is given one.
+// The order number is checked against this batch first, so a typing slip
+// cannot release some other order.
+function cancelHeldOrder(batchId, typed) {
+    var known = _held.orders[batchId] || {};
+    var ord = (typed !== undefined) ? typed : prompt('Cancel which order in batch ' + batchId + '?\n\nType or paste the order number exactly as on the slip.');
+    if (ord === null || ord === undefined) return;
+    ord = String(ord).trim().toUpperCase();
+    if (!ord) return;
+    if (!known[ord]) { heldMsg('Order ' + esc59(ord) + ' has no unpicked lines in batch ' + esc59(batchId) + ' - nothing was changed. Check the number.', 'err'); return; }
+    if (!confirm('Cancel order ' + ord + '?\n\n' + known[ord] + ' unpicked line(s) are released back to free stock. Lines already picked stay picked.')) return;
+    askManagerPin('Cancel order ' + ord + '?').then(function (pin) {
+        if (!pin) return { ok: false, cancelled: true, message: 'Cancelled - nothing was changed.' };
+        return withTimeout(db.rpc('oms_cancel_pick', { p_order_id: ord, p_reason: 'Order cancelled from the app (batch ' + batchId + ')',
+                                                       p_employee_code: sessionEmployeeCode(), p_pin: pin }), 12000, 'Cancel order')
+            .then(function (r) {
+                if (r.error) return { ok: false, message: r.error.message };
+                var d0 = r.data || {};
+                if (d0.error === 'ADMIN_PIN_REJECTED') forgetManagerPin();
+                return d0;
+            });
+    }).catch(function (e) { return { ok: false, message: String(e && e.message ? e.message : e) }; }).then(function (d) {
+        if (!d || !d.ok) { heldMsg('Not cancelled: ' + esc59((d && d.message) || 'unknown reason'), 'err'); return; }
+        heldMsg('&#10003; Order ' + esc59(ord) + ' cancelled - ' + (d.cancelled || 0) + ' line(s) released.', 'ok');
+        logEvent('ORDER ' + ord, 'Held order cancelled (batch ' + batchId + ')');
+        loadHeldBatches();
     });
 }
 function qrSvg(text, cell) {
@@ -12326,7 +12608,9 @@ document.addEventListener('DOMContentLoaded', function() {
     <div class="emp-modal">
         <h2>&#128274; Your PIN</h2>
         <p id="mgr-pin-reason">Confirm this change with your own PIN.</p>
-        <input type="password" inputmode="numeric" maxlength="4" id="mgr-pin-input" placeholder="&bull;&bull;&bull;&bull;" autocomplete="off"
+        <!-- v97: was a password-type box - that is what made Chrome offer to save
+             "ASIN + PIN" as a login. Now a masked text box (.pin-mask). -->
+        <input type="text" inputmode="numeric" pattern="[0-9]*" maxlength="4" id="mgr-pin-input" name="oms-confirm-code-x" class="pin-mask" placeholder="&bull;&bull;&bull;&bull;" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" data-lpignore="true" data-1p-ignore="true" data-bwignore="true" data-form-type="other"
                style="width:100%;font-size:22px;letter-spacing:10px;text-align:center;padding:10px;border:1px solid #E2E8F0;border-radius:10px;"
                onkeydown="if(event.key==='Enter')mgrPinOk();">
         <div style="display:flex;gap:8px;margin-top:14px;">
