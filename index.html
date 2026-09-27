@@ -62,6 +62,23 @@
             Switched off -> clear message + "Switch on & continue". The database
             enforces the same rule (trigger trg_oms_require_tracked_sku), so
             nothing can slip past from any surface. -->
+    <!-- v99 (2026-09-28): EVERY SALE COUNTED ONCE.
+         Dispatch Out now needs the sales channel (Excel's short codes) every time,
+         and for Amazon also the order reference. An Amazon dispatch is checked
+         against the printed order lines before it is saved: a line already picked
+         is refused, stock held for the order is booked as that pick slip, and an
+         unpicked line is marked PICKED so its paper slip can no longer take the
+         stock off a second time. The PICK tab refuses a (non-reserved) slip whose
+         order was already sent out from the Actions tab. A pick slip scanned into
+         the Actions tab is refused with an "Open PICK tab" button. The bulk pick
+         sheet uses the same channel codes, has a Download template button and
+         reads the .xlsx template directly (lines starting with # are ignored).
+         Review fixes (2026-09-28): a matched Amazon dispatch is saved under the
+         order's T-ID (typed ref in the note); every refusal is based on stock
+         actually out in the ledger (not reversed) against units ordered - a
+         PICKED label alone never blocks; reserved slips are checked too; one
+         queue id per dispatch attempt; stricter bulk header rule; the template
+         download is saved only when it really is an .xlsx. -->
     <!-- v98 (2026-09-27): PLAIN-WORDS MESSAGE FOR THE WRONG CODE ON THE AMAZON PAGE.
          The printed Amazon page carries several codes: the courier (AWB) barcode on
          the shipping label, Amazon's tax (IRN) QR at the top of the invoice, the
@@ -2836,7 +2853,7 @@ var qrcode = function() {
     </style>
 </head>
 <body>
-<div class="ver-corner" id="verCornerBadge" onclick="handleVerBadgeTap()">v98</div>
+<div class="ver-corner" id="verCornerBadge" onclick="handleVerBadgeTap()">v99</div>
 <!-- v63: Gap 2 — offline write-queue indicator. Hidden (display:none) unless
      something is actually queued or failed. Tapping it shows the queue detail
      panel (openOfflineQueuePanel()). -->
@@ -2975,20 +2992,34 @@ var qrcode = function() {
             <div class="settings-section" id="bulkpick-section" style="margin-top:16px;display:none;">
                 <h3 style="margin-top:0;cursor:pointer;" onclick="toggleBulkPick()">&#128424; Bulk pick sheet <span style="font-size:11px;font-weight:600;color:#6B7280;">(Admin / Supervisor)</span> <span id="bulkpick-toggle">&#9660;</span></h3>
                 <div id="bulkpick-body" style="display:none;">
-                    <div class="settings-info">For a bulk order: paste or upload a list, one product per line &mdash; <strong>SKU or ASIN, quantity</strong> (e.g. <code>AZPER200565FRA_NM_01-S1_NB, 12</code>). The app takes each product from the bin with the <strong>least stock first</strong>, reserves those units so no other order gets them, and prints a sheet with one QR per bin. Anything not in stock is listed as <strong>not available</strong>. Save an Excel list as CSV to upload it.</div>
+                    <div class="settings-info">For a bulk order: paste or upload a list, one product per line &mdash; <strong>SKU or ASIN, quantity</strong> (e.g. <code>AZPER200565FRA_NM_01-S1_NB, 12</code>). The app takes each product from the bin with the <strong>least stock first</strong>, reserves those units so no other order gets them, and prints a sheet with one QR per bin. Anything not in stock is listed as <strong>not available</strong>. Upload the Excel template (<strong>&#11015; Download template</strong>) or a CSV file.</div>
                     <div class="settings-row">
                         <input type="text" class="settings-input" id="bulk-ref" placeholder="Order reference" autocomplete="off" style="text-transform:uppercase" oninput="forceUpperInput(this, event)">
-                        <select class="settings-input" id="bulk-channel" style="max-width:130px">
-                            <option value="OFFLINE">Offline / B2B</option>
-                            <option value="AMAZON">Amazon</option>
+                        <!-- v99: Excel's own channel short codes, default Direct -->
+                        <select class="settings-input" id="bulk-channel" style="max-width:150px">
+                        <optgroup label="Amazon">
+                            <option value="ETRADE">Etrade</option>
+                            <option value="COCOBLU">Cocoblu</option>
+                            <option value="FLEX">Flex</option>
+                            <option value="EASYSHIP">EasyShip</option>
+                        </optgroup>
+                        <optgroup label="Website">
                             <option value="SHOPIFY">Shopify</option>
+                        </optgroup>
+                        <optgroup label="Marketplaces">
+                            <option value="FLIPKART">Flipkart</option>
                             <option value="MYNTRA">Myntra</option>
-                            <option value="OTHER">Other</option>
+                        </optgroup>
+                        <optgroup label="Direct / offline">
+                            <option value="DIRECT" selected>Direct</option>
+                            <option value="REFERRAL">Referral (sales by referral)</option>
+                        </optgroup>
                         </select>
                     </div>
                     <div class="settings-row"><textarea class="settings-input" id="bulk-text" rows="6" placeholder="SKU or ASIN, quantity&#10;AZPER200565FRA_NM_01-S1_NB, 12&#10;B0FXS2XJ45, 3" style="font-family:monospace;font-size:12px;"></textarea></div>
                     <div class="settings-row">
-                        <input type="file" id="bulk-file" accept=".csv,.txt,text/csv,text/plain" onchange="onBulkFile(this)" style="font-size:12px;flex:1;">
+                        <input type="file" id="bulk-file" accept=".xlsx,.csv,.txt,text/csv,text/plain,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" onchange="onBulkFile(this)" style="font-size:12px;flex:1;min-width:0;">
+                        <button class="settings-btn" type="button" style="flex:0 0 auto;padding:6px 10px;font-size:12px;" onclick="downloadBulkPickTemplate()">&#11015; Download template</button>
                     </div>
                     <div class="settings-row">
                         <button class="settings-btn" style="flex:1" onclick="bulkPreview(false)">&#128269; Check stock</button>
@@ -3176,16 +3207,38 @@ var qrcode = function() {
                 <!-- v81: only shown in Dispatch mode. Written to the ledger's own
                      order_id / channel columns, not buried in the note text, so
                      dispatches can be reported on properly. -->
-                <div class="settings-row" id="move-dispatch-row" style="display:none;">
-                    <input type="text" class="settings-input" id="move-order-input" placeholder="Order number (recommended)" autocomplete="off" style="text-transform:uppercase">
-                    <select class="settings-input" id="move-channel-input" style="max-width:130px">
-                        <option value="">Channel…</option>
-                        <option value="AMAZON">Amazon</option>
-                        <option value="SHOPIFY">Shopify</option>
-                        <option value="MYNTRA">Myntra</option>
-                        <option value="OFFLINE">Offline / B2B</option>
-                        <option value="OTHER">Other</option>
+                <!-- v99: the sales channel is REQUIRED and blank on every mode switch, so a
+                     wrong channel is never carried over silently. Values are Excel's own
+                     short codes ('2. Settings' SALES CHANNELS). For the four Amazon
+                     channels the order reference is required too - see
+                     checkAmazonDispatch(). -->
+                <div id="move-dispatch-row" style="display:none;">
+                <div class="field-label">Sales channel * &mdash; where is this order from?</div>
+                <div class="settings-row">
+                    <select class="settings-input" id="move-channel-input" onchange="updateDispatchOrderPlaceholder()">
+                        <option value="">Choose the channel&hellip;</option>
+                        <optgroup label="Amazon">
+                            <option value="ETRADE">Etrade</option>
+                            <option value="COCOBLU">Cocoblu</option>
+                            <option value="FLEX">Flex</option>
+                            <option value="EASYSHIP">EasyShip</option>
+                        </optgroup>
+                        <optgroup label="Website">
+                            <option value="SHOPIFY">Shopify</option>
+                        </optgroup>
+                        <optgroup label="Marketplaces">
+                            <option value="FLIPKART">Flipkart</option>
+                            <option value="MYNTRA">Myntra</option>
+                        </optgroup>
+                        <optgroup label="Direct / offline">
+                            <option value="DIRECT">Direct</option>
+                            <option value="REFERRAL">Referral (sales by referral)</option>
+                        </optgroup>
                     </select>
+                </div>
+                <div class="settings-row">
+                    <input type="text" class="settings-input" id="move-order-input" placeholder="Order / bill no. (optional)" autocomplete="off" style="text-transform:uppercase">
+                </div>
                 </div>
                 <div class="settings-row">
                     <input type="number" class="settings-input" id="move-qty-input" placeholder="Quantity" min="1" value="1" style="max-width:110px">
@@ -6154,9 +6207,12 @@ function writeLedgerTxn(opts) {
     // since replaying it later would just fail identically; that keeps
     // surfacing immediately as a normal error, exactly as before.
     if (!db) {
+        // v99: an online-only write (Amazon dispatch) is never queued.
+        if (opts.onlineOnly) return Promise.resolve({ ok: false, reason: 'No connection to the database - nothing was saved.' });
         return queueOfflineWrite(buildLedgerTxnRow(opts, emp)).then(function () { return { ok: true, queued: true }; });
     }
     var row = buildLedgerTxnRow(opts, emp);
+    if (opts.clientQueueId) row.client_queue_id = opts.clientQueueId;   // v99 review A6: kept per dispatch attempt
     if (!row.client_queue_id) row.client_queue_id = makeQueueId();   // v96: same key if this very write is later replayed from the queue
     return withTimeout(db.from('oms_inventory_transactions').insert(row).select(), 10000, 'Stock transaction').then(function(res) {
         // v96: supabase-js reports a dropped connection as a returned error with
@@ -6164,7 +6220,14 @@ function writeLedgerTxn(opts) {
         // connectivity failure, so it is queued exactly like the .catch() below.
         if (res.error && isNetworkError(res)) {
             setDbOffline(res.error.message);
+            if (opts.onlineOnly) return confirmOnlineOnlyWrite(row);   // v99
             return queueOfflineWrite(row).then(function () { return { ok: true, queued: true }; });
+        }
+        // v99 review A6: an online-only write with a kept queue id that the
+        // database already holds = the earlier try landed. Saved once.
+        if (res.error && opts.onlineOnly && opts.clientQueueId && res.error.code === '23505' && /client_queue_id/i.test(res.error.message || '')) {
+            setDbOnline();
+            return { ok: true, earlierSave: true };
         }
         if (res.error) {
             // v94: a SKU-gate refusal (OMS01 / OMS02) means the database is
@@ -6202,6 +6265,7 @@ function writeLedgerTxn(opts) {
         // connectivity failure (timeout/network error — a real rejection
         // the server actually answered lands in the .then(res.error) branch
         // above instead), so it's safe to queue here rather than just fail.
+        if (opts.onlineOnly) return confirmOnlineOnlyWrite(row);   // v99
         return queueOfflineWrite(row).then(function () { return { ok: true, queued: true }; });
     });
 }
@@ -6254,7 +6318,7 @@ var MOVE_MODES = {
     // SCAN_OUT_ORDER is already an allowed value on the table's own check
     // constraint and is exactly what the PICK tab writes — so this needs no
     // special-casing at all, only sign: -1.
-    SCAN_OUT_ORDER:        { title: '&#128228; Dispatch / Order Out', desc: 'Stock physically leaving for a customer order. Scan or type the SKU/ASIN, confirm the bin it is picked from, enter how many, and add the order number. This is what makes sales velocity, ABC tiers and reorder alerts work — without it the system only ever sees stock coming in.', sign: -1 },
+    SCAN_OUT_ORDER:        { title: '&#128228; Dispatch / Order Out', desc: 'Stock physically leaving for a customer order. Scan or type the SKU/ASIN, confirm the bin it is picked from, enter how many, choose the sales channel, and add the order number (needed for Amazon). For an Amazon order that has a printed pick slip, the PICK tab is the better way. This is what makes sales velocity, ABC tiers and reorder alerts work — without it the system only ever sees stock coming in.', sign: -1 },
     // v92 (2026-09-19): 9th MOVE mode — Transfer. isTransfer (not sign) is
     // what submitMoveTransaction() branches on — it writes BIN_TRANSFER_OUT
     // from the Bin field and BIN_TRANSFER_IN into the new To-Bin field, so
@@ -6371,6 +6435,13 @@ function prefillMoveBin() {
         var cardEl = document.getElementById('move-sku-card'); if (cardEl) cardEl.innerHTML = '';
         _moveCardSku = null; refreshMoveBinLists();
         if (hintEl) hintEl.innerHTML = '<span style="color:#B3261E;font-weight:700;">' + foreignScanMessage(foreignP, 'FIELD') + '</span>';
+        return;
+    }
+    // v99: a PICK slip QR typed in by a scanner gun is not a product.
+    if (isPickSlipText(skuVal)) {
+        var cardEl2 = document.getElementById('move-sku-card'); if (cardEl2) cardEl2.innerHTML = '';
+        _moveCardSku = null; refreshMoveBinLists();
+        if (hintEl) hintEl.innerHTML = '<span style="color:#B3261E;font-weight:700;">' + pickSlipInActionsMessage() + '</span>';
         return;
     }
     resolveSkuOrAsin(skuVal).then(function(sku) {
@@ -6613,6 +6684,8 @@ function setMoveMode(mode) {
     if (ordEl) ordEl.value = '';
     var chEl = document.getElementById('move-channel-input');
     if (chEl) chEl.value = '';
+    updateDispatchOrderPlaceholder();   // v99
+    _dispatchAttempt = { key: '', qid: '' };   // v99 review A6: a mode switch clears the form
     if (mode === 'SCAN_OUT_ORDER') { showDispatchHealthNote(); }
     // v92: Transfer-only To-Bin row, mirrors the gradeRow/dispRow pattern above.
     var transferRow = document.getElementById('move-transfer-tobin-row');
@@ -6644,6 +6717,7 @@ function submitMoveTransaction() {
     if (!skuVal) { resEl.className = 'move-result err'; resEl.textContent = 'Scan or type a SKU/ASIN first.'; return; }
     var foreignS = foreignScanKind(skuVal);   // v98
     if (foreignS === 'PRODUCT_URL' || foreignS === 'IRN') { resEl.className = 'move-result err'; resEl.innerHTML = foreignScanMessage(foreignS, 'FIELD'); return; }
+    if (isPickSlipText(skuVal)) { resEl.className = 'move-result err'; resEl.innerHTML = pickSlipInActionsMessage(); return; }   // v99
     // v44/v57: bin is mandatory for every stock movement, no exceptions — the
     // database itself now rejects any movement without one (including
     // MANUAL_CORRECTION, whose exemption was removed 2026-08-20), so this
@@ -6655,6 +6729,32 @@ function submitMoveTransaction() {
         if (qtyVal === null || isNaN(qtyVal) || qtyVal < 0) { resEl.className = 'move-result err'; resEl.textContent = 'Enter the true count (0 or more).'; return; }
     } else if (!qtyVal || qtyVal < 1) {
         resEl.className = 'move-result err'; resEl.textContent = 'Enter a valid quantity (1 or more).'; return;
+    }
+    // v99: Dispatch Out needs the sales channel every time, and for Amazon the
+    // order reference as well (the check against the printed order needs it).
+    if (moveMode === 'SCAN_OUT_ORDER') {
+        var _dch = (document.getElementById('move-channel-input') || {}).value || '';
+        var _dref = String((document.getElementById('move-order-input') || {}).value || '').trim().toUpperCase();
+        if (!_dch) {
+            resEl.className = 'move-result err';
+            resEl.textContent = 'Choose the sales channel first - where is this order from? (Amazon Etrade / Cocoblu / Flex / EasyShip, Shopify, Flipkart, Myntra, Direct or Referral)';
+            try { document.getElementById('move-channel-input').focus(); } catch (e) {}
+            return;
+        }
+        if (isAmazonChannel(_dch)) {
+            if (!_dref) {
+                resEl.className = 'move-result err';
+                resEl.textContent = 'For an Amazon order, type the order reference: the T-ID, the Amazon order number (403-...) or the invoice number. Or scan the PICK slip in the PICK tab instead.';
+                try { document.getElementById('move-order-input').focus(); } catch (e) {}
+                return;
+            }
+            if (!DISPATCH_REF_OK.test(_dref)) {
+                resEl.className = 'move-result err';
+                resEl.textContent = 'The order reference may only use letters, numbers and - / _ . (3 to 41 characters, no spaces).';
+                return;
+            }
+            if (!db) { resEl.className = 'move-result err'; resEl.innerHTML = AMAZON_DISPATCH_OFFLINE_MSG; return; }
+        }
     }
     // v56: notes are recommended, never mandatory — removed the hard 'note
     // required' block that used to sit here for Found/Lost/QC Hold/Set True
@@ -7140,6 +7240,299 @@ function setListingActiveRow(r, makeOn) {
     });
 }
 
+// ══ v99: DISPATCH OUT - SALES CHANNEL + AMAZON ORDER CHECK ══════════════
+// One sale = one stock-out = one history row. An Amazon order that has a
+// printed invoice already has an order line (oms_order_lines, written by the
+// QR stamp tool) and a paper pick slip. If it is sent out from the Actions tab
+// instead, that paper slip must not be able to take the stock off again, and
+// Excel must count the sale once (from the order line) - so before saving,
+// the dispatch is checked against the order line, earlier picks and held stock.
+var AMAZON_DISPATCH_CHANNELS = ['ETRADE', 'COCOBLU', 'FLEX', 'EASYSHIP'];
+var DISPATCH_REF_OK = /^[A-Z0-9][A-Z0-9\-\/_.]{2,40}$/;
+var AMAZON_DISPATCH_OFFLINE_MSG = '&#128268; Needs internet to check the Amazon order &mdash; use the PICK slip, or try again when online.';
+function isAmazonChannel(c) { return AMAZON_DISPATCH_CHANNELS.indexOf(String(c || '').toUpperCase()) !== -1; }
+function updateDispatchOrderPlaceholder() {
+    var ch = (document.getElementById('move-channel-input') || {}).value || '';
+    var o = document.getElementById('move-order-input');
+    if (o) o.placeholder = isAmazonChannel(ch) ? 'Amazon order ref * (T-ID, 403-... or invoice no.)' : 'Order / bill no. (optional)';
+}
+// Date + time in India time, e.g. "27 Sept 2026, 04:15 pm".
+function fmtIST(ts) {
+    if (!ts) return '?';
+    try { return new Date(ts).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }); }
+    catch (e) { return String(ts); }
+}
+function isPickSlipText(v) { return /^\s*AF2\|/i.test(String(v || '')); }
+function pickSlipInActionsMessage() {
+    return '&#9888; This is a <strong>PICK SLIP</strong>. Use the PICK tab to scan it &mdash; it takes the stock off and marks the order picked.' +
+        '<div style="margin-top:6px;"><button class="settings-btn" type="button" onclick="openPickTabFromActions()">&#128230; Open PICK tab</button></div>';
+}
+function openPickTabFromActions() {
+    var el = document.getElementById('move-sku-input');
+    if (el) el.value = '';
+    var n = document.getElementById('move-sku-input-scan-note'); if (n) { n.innerHTML = ''; n.className = ''; }
+    var h = document.getElementById('move-live-bin-hint'); if (h) h.textContent = '';
+    switchTab('pick');
+}
+function _refUp(x) { return String(x == null ? '' : x).trim().toUpperCase(); }
+// PostgREST "or" filter: col ILIKE each id (quoted). Every id has passed
+// DISPATCH_REF_OK, so it holds no comma, bracket, quote, % or *; an "_" may
+// match any one letter, so the rows are always re-checked exactly afterwards.
+function _refOrFilter(cols, ids) {
+    var parts = [];
+    cols.forEach(function (c) { ids.forEach(function (x) { parts.push(c + '.ilike."' + x + '"'); }); });
+    return parts.join(',');
+}
+// Txn ids undone by a session void ("Session void - reverses txn #123 ...").
+function _reversedTxnIds(rows) {
+    var out = {};
+    (rows || []).forEach(function (x) {
+        if (x.txn_type !== 'MANUAL_CORRECTION') return;
+        var m = /reverses txn #(\d+)/i.exec(String(x.note || ''));
+        if (m) out[m[1]] = true;
+    });
+    return out;
+}
+var ORDER_LINE_FIELDS = 'line_id,channel,invoice_no,line_no,amazon_order_no,tid,order_date,batch_label,sku_code,asin,qty_ordered,qty_in_stock,qty_mto,status,bins,reserved,pick_batch_id,flag_reason,updated_at';
+// The order lines for this reference + product (T-ID, Amazon order no. or
+// invoice no. - any letter case; SKU or ASIN).
+function _matchOrderLines(rows, R, skuCode, asin) {
+    return (rows || []).filter(function (l) {
+        var refHit = _refUp(l.tid) === R || _refUp(l.amazon_order_no) === R || _refUp(l.invoice_no) === R;
+        var skuHit = _refUp(l.sku_code) === skuCode || (asin && _refUp(l.asin) === asin);
+        return refHit && skuHit;
+    });
+}
+// Every name the order goes by: the reference given + each matching line's
+// T-ID, Amazon order number and invoice number (review A1).
+function _orderIdsFor(R, lines) {
+    var idSet = {}; idSet[R] = true;
+    (lines || []).forEach(function (l) { [l.tid, l.amazon_order_no, l.invoice_no].forEach(function (x) { var u = _refUp(x); if (u && DISPATCH_REF_OK.test(u)) idSet[u] = true; }); });
+    return Object.keys(idSet);
+}
+// LEDGER EVIDENCE (review A3): every SCAN_OUT_ORDER row for this order (any of
+// its names) + product that was NOT undone by a session void, and how many
+// units they took out. The order line's PICKED label alone never counts.
+// Resolves { outs, units, last, dispatches } or rejects when it cannot read.
+function _loadOrderOutRows(ids, skuCode) {
+    var q = db.from('oms_inventory_transactions').select('txn_id,created_at,employee_code,client_queue_id,qty_delta,order_id,txn_type,note')
+        .eq('sku_code', skuCode).in('txn_type', ['SCAN_OUT_ORDER', 'MANUAL_CORRECTION'])
+        .or(_refOrFilter(['order_id'], ids)).order('created_at', { ascending: true }).limit(1000);
+    return withTimeout(q, 10000, 'Earlier picks').then(function (r) {
+        if (!r || r.error) throw new Error('lookup failed');
+        var idSet = {}; ids.forEach(function (x) { idSet[x] = true; });
+        var tx = (r.data || []).filter(function (x) { return idSet[_refUp(x.order_id)]; });
+        var rev = _reversedTxnIds(tx);
+        var outs = tx.filter(function (x) { return x.txn_type === 'SCAN_OUT_ORDER' && !rev[String(x.txn_id)]; });
+        return {
+            outs: outs,
+            units: outs.reduce(function (t, x) { return t + Math.max(0, -Number(x.qty_delta || 0)); }, 0),
+            last: outs.length ? outs[outs.length - 1] : null,
+            dispatches: outs.filter(function (x) { return !/^PICK\|/.test(String(x.client_queue_id || '')); })
+        };
+    });
+}
+// Resolves one of:
+//   { action: 'SAVE_PLAIN',  message }                    no printed invoice for this order + product
+//   { action: 'SAVE_LINKED', lines, saveId, markPicked }  printed, units still to send: save, then mark PICKED when complete
+//   { action: 'FULFIL', res }                             stock is held for it in this bin + qty
+//   { action: 'REFUSE', message }                         all sent / too many / held elsewhere / offline
+// Refusals rest on the stock ledger only: units already out (not reversed)
+// against units ordered on the line(s).
+function checkAmazonDispatch(ref, sku, binVal, qtyVal) {
+    var offline = { action: 'REFUSE', message: AMAZON_DISPATCH_OFFLINE_MSG };
+    if (!db) return Promise.resolve(offline);
+    var R = _refUp(ref), skuCode = _refUp(sku.sku_code), asin = _refUp(sku.asin), bin = _refUp(binVal), qty = Number(qtyVal);
+    return withTimeout(db.from('oms_order_lines').select(ORDER_LINE_FIELDS)
+            .or(_refOrFilter(['tid', 'amazon_order_no', 'invoice_no'], [R])), 10000, 'Order line check').then(function (r) {
+        if (!r || r.error) throw new Error(r && r.error ? r.error.message : 'no answer');
+        var lines = _matchOrderLines(r.data, R, skuCode, asin);
+        if (!lines.length) return { action: 'SAVE_PLAIN', message: 'No printed invoice found for ' + esc59(R) + ' &mdash; saved as a dispatch.' };
+        var ids = _orderIdsFor(R, lines);
+        var qRes = db.from('oms_pick_reservations').select('res_id,order_id,sku_code,bin_code,qty,status,picked_at,picked_by')
+            .eq('sku_code', skuCode).or(_refOrFilter(['order_id'], ids));
+        return Promise.all([_loadOrderOutRows(ids, skuCode), withTimeout(qRes, 10000, 'Held stock')]).then(function (rs) {
+            var ev = rs[0];
+            if (!rs[1] || rs[1].error) throw new Error('lookup failed');
+            var idSet = {}; ids.forEach(function (x) { idSet[x] = true; });
+            var res = (rs[1].data || []).filter(function (x) { return idSet[_refUp(x.order_id)]; });
+            var ordered = lines.reduce(function (t, l) { return t + (Number(l.qty_ordered) || 0); }, 0);
+            // A1: a linked dispatch is saved under the line's T-ID.
+            var tidLine = lines.filter(function (l) { return _refUp(l.tid); })[0];
+            var saveId = tidLine ? _refUp(tidLine.tid) : R;
+            if (ordered > 0 && ev.units >= ordered) {
+                var l0 = ev.last, bySlip = /^PICK\|/.test(String(l0.client_queue_id || ''));
+                return { action: 'REFUSE', message: (bySlip ? 'Already picked on ' : 'Already sent out on ') + fmtIST(l0.created_at) + ' by ' + esc59(l0.employee_code || '?') +
+                    ' (' + ev.units + ' of ' + ordered + ' out). <strong>Do NOT send it again.</strong>' };
+            }
+            var held = res.filter(function (x) { return x.status === 'OPEN'; });
+            if (held.length) {
+                for (var i = 0; i < held.length; i++) {
+                    if (_refUp(held[i].bin_code) === bin && Number(held[i].qty) === qty) return { action: 'FULFIL', res: held[i], ref: R };
+                }
+                var where = held.map(function (x) { return 'bin <strong>' + esc59(x.bin_code) + '</strong> (qty ' + Number(x.qty) + ')'; }).join(', ');
+                return { action: 'REFUSE', message: 'This order\'s stock is held in ' + where + '. Take it from ' +
+                    (held.length === 1 ? 'bin <strong>' + esc59(held[0].bin_code) + '</strong> with quantity ' + Number(held[0].qty) : 'those bins, one bin at a time with that quantity') +
+                    ', or cancel the hold first (PICK &gt; Bulk pick sheet &gt; Held stock).' };
+            }
+            if (ordered > 0 && ev.units + qty > ordered) {
+                var left = ordered - ev.units;
+                return { action: 'REFUSE', message: ev.units
+                    ? '<strong>' + ev.units + ' of ' + ordered + ' already sent</strong> &mdash; you may send ' + left + ' more. You are sending ' + qty + '. Check the quantity.'
+                    : 'The invoice for ' + esc59(R) + ' is for <strong>' + ordered + '</strong> of this product. You are sending ' + qty + '. Check the quantity.' };
+            }
+            return { action: 'SAVE_LINKED', lines: lines, ref: R, saveId: saveId, sent: ev.units, ordered: ordered,
+                     markPicked: ordered === 0 || ev.units + qty >= ordered };
+        });
+    }).catch(function () { return offline; });
+}
+// After an online-only write lost its answer: did it land anyway?
+function confirmOnlineOnlyWrite(row) {
+    var unsure = { ok: false, reason: 'The connection dropped and the save could not be confirmed. Check the Log tab or Live Stock before trying again.' };
+    if (!db || !row || !row.client_queue_id) return Promise.resolve(unsure);
+    return withTimeout(db.from('oms_inventory_transactions').select('txn_id').eq('client_queue_id', row.client_queue_id).limit(1), 8000, 'Save check').then(function (r) {
+        return (r && !r.error && r.data && r.data.length) ? { ok: true, row: r.data[0] } : unsure;
+    }).catch(function () { return unsure; });
+}
+// Re-sends the order line(s) unchanged except status = PICKED, so the stamp
+// tool and Excel both see the order as done. Resolves { ok, message }.
+function markOrderLinesPicked(lines) {
+    if (!db) return Promise.resolve({ ok: false, message: 'no connection' });
+    var payload = lines.map(function (l) {
+        return { channel: l.channel, invoice_no: l.invoice_no, line_no: l.line_no, amazon_order_no: l.amazon_order_no,
+                 tid: l.tid, order_date: l.order_date, batch_label: l.batch_label, sku_code: l.sku_code, asin: l.asin,
+                 qty_ordered: l.qty_ordered, qty_in_stock: l.qty_in_stock, qty_mto: l.qty_mto, status: 'PICKED',
+                 bins: l.bins, reserved: l.reserved, pick_batch_id: l.pick_batch_id, flag_reason: l.flag_reason };
+    });
+    return withTimeout(db.rpc('oms_record_order_lines', { p_lines: payload }), 12000, 'Mark order picked').then(function (r) {
+        if (r.error) return { ok: false, message: r.error.message };
+        var d = r.data || {};
+        if (!d.ok) return { ok: false, message: (d.errors && d.errors.length ? d.errors.join('; ') : (d.error || 'refused')) };
+        return { ok: true };
+    }).catch(function (e) { return { ok: false, message: String(e && e.message ? e.message : e) }; });
+}
+// Review A6: one queue id per dispatch attempt (same form contents).
+var _dispatchAttempt = { key: '', qid: '' };
+function dispatchAttemptQueueId(parts) {
+    var key = JSON.stringify(parts);
+    if (_dispatchAttempt.key !== key || !_dispatchAttempt.qid) _dispatchAttempt = { key: key, qid: makeQueueId() };
+    return _dispatchAttempt.qid;
+}
+function _clearMoveAfterSave() {
+    _dispatchAttempt = { key: '', qid: '' };
+    document.getElementById('move-sku-input').value = '';
+    resetMoveBinField();
+    document.getElementById('move-qty-input').value = '1';
+    document.getElementById('move-note-input').value = '';
+    if (document.getElementById('move-order-input')) document.getElementById('move-order-input').value = '';
+    if (document.getElementById('move-live-bin-hint')) document.getElementById('move-live-bin-hint').textContent = '';
+    renderMoveSkuCard(null, '');
+    armScanInputNoKeyboard('move-sku-input');
+}
+// The Amazon Dispatch Out path. Never queued offline: the check needs the database.
+function saveAmazonDispatch(sku, binVal, qtyVal, note, resEl, ref, channel) {
+    resEl.className = 'move-result';
+    resEl.textContent = 'Checking the Amazon order ' + ref + '...';
+    return checkAmazonDispatch(ref, sku, binVal, qtyVal).then(function (d) {
+        if (d.action === 'REFUSE') {
+            resEl.className = 'move-result err';
+            resEl.innerHTML = '&#9940; ' + d.message + '<br><small>Nothing was taken out of stock.</small>';
+            logEvent(sku.sku_code, 'Dispatch refused (' + ref + '): ' + String(d.message).replace(/<[^>]+>/g, '').replace(/&[a-z#0-9]+;/g, ' '));
+            return;
+        }
+        if (d.action === 'FULFIL') {
+            resEl.textContent = 'Booking it as the pick slip for ' + ref + '...';
+            var empCode = sessionEmployeeCode() || ((loadEmployee() || {}).code) || null;
+            return withTimeout(db.rpc('oms_pick_fulfil', { p_res_id: d.res.res_id, p_employee_code: empCode, p_scanned_bin: binVal,
+                                                          p_scanned_product: sku.sku_code, p_device_id: null }), 12000, 'Pick save').then(function (r) {
+                if (r.error) {
+                    resEl.className = 'move-result err';
+                    resEl.textContent = isNetworkError(r)
+                        ? 'No answer from the database. Submit again - it is safe, the held stock cannot be taken twice.'
+                        : 'Could not save: ' + r.error.message;
+                    return;
+                }
+                var x = r.data || {};
+                if (!x.ok) { resEl.className = 'move-result err'; resEl.innerHTML = '&#9940; ' + esc59(x.message || x.error || 'Refused by the database.'); return; }
+                setDbOnline();
+                resEl.className = 'move-result ok';
+                resEl.innerHTML = '&#10003; Booked as the pick slip for <strong>' + esc59(ref) + '</strong> &mdash; ' + qtyVal + ' x ' + esc59(sku.sku_code) + ' taken from bin ' + esc59(binVal) + '. Its paper slip is now used up.';
+                logEvent(sku.sku_code, 'Dispatch Out booked as pick slip R' + d.res.res_id + ' (' + ref + '): -' + qtyVal + ' @ ' + binVal);
+                writeAuditLog('SCAN_OUT_ORDER', { skuCode: sku.sku_code, details: { qty_delta: -qtyVal, bin_code: binVal, order_id: ref, channel: channel, via: 'pick reservation R' + d.res.res_id, note: note || null, product_name: sku.product_name || null } });
+                _clearMoveAfterSave();
+            }).catch(function () {
+                resEl.className = 'move-result err';
+                resEl.textContent = 'No answer from the database (slow connection). Submit again - it is safe, the held stock cannot be taken twice.';
+            });
+        }
+        resEl.textContent = 'Saving...';
+        // Review A1: a dispatch that matches a printed order is saved under
+        // the order's T-ID (what the pick slip carries); what was typed goes
+        // in the note.
+        var linked = d.action === 'SAVE_LINKED';
+        var saveId = linked ? d.saveId : ref;
+        var saveNote = linked ? ('ref typed: ' + ref + (note ? ' | ' + note : '')) : (note || null);
+        // Review A6: the same form contents keep the same queue id until the
+        // save succeeds or the form is cleared, so a retry after a lost reply
+        // is stopped by the database's unique key instead of saving twice.
+        var qid = dispatchAttemptQueueId([sku.sku_code, binVal, qtyVal, channel, saveId, saveNote]);
+        return writeLedgerTxn({
+            sessionEligible: true, skuCode: sku.sku_code, asin: sku.asin, qtyDelta: -qtyVal,
+            txnType: 'SCAN_OUT_ORDER', binCode: binVal, orderId: saveId, channel: channel, note: saveNote,
+            onlineOnly: true, clientQueueId: qid
+        }).then(function (result) {
+            if (!result.ok) { resEl.className = 'move-result err'; resEl.textContent = '❌ Could not save: ' + result.reason; return; }
+            _dispatchAttempt = { key: '', qid: '' };
+            var head = '&#10003; Saved &mdash; -' + qtyVal + ' units of ' + esc59(sku.sku_code) + ' (' + esc59(sku.product_name || '') + ') @ bin ' + esc59(binVal) + ', order <strong>' + esc59(saveId) + '</strong>' +
+                (saveId !== _refUp(ref) ? ' (you typed ' + esc59(ref) + ')' : '') + '.' + (result.earlierSave ? ' <em>(Your earlier try had already reached the database - saved once.)</em>' : '');
+            var tail = d.action === 'SAVE_PLAIN' ? '<br>' + d.message
+                : (d.markPicked ? '<br>Matched the printed invoice &mdash; the order is now marked as sent, so its paper pick slip cannot be used.'
+                                : '<br>Matched the printed invoice &mdash; ' + (d.sent + qtyVal) + ' of ' + d.ordered + ' sent so far.');
+            resEl.className = 'move-result ok';
+            resEl.innerHTML = head + tail;
+            logEvent(sku.sku_code, 'Dispatch Out (' + channel + ' ' + saveId + (saveId !== _refUp(ref) ? ', typed ' + ref : '') + '): -' + qtyVal + ' @ ' + binVal + (note ? ' — ' + note : '') + (d.action === 'SAVE_LINKED' ? ' [printed order]' : ' [no printed invoice]'));
+            writeAuditLog('SCAN_OUT_ORDER', { skuCode: sku.sku_code, details: { qty_delta: -qtyVal, bin_code: binVal, order_id: saveId, ref_typed: ref, channel: channel, note: saveNote, product_name: sku.product_name || null } });
+            _clearMoveAfterSave();
+            if (d.action === 'SAVE_LINKED' && d.markPicked) {
+                return markOrderLinesPicked(d.lines).then(function (w) {
+                    if (w.ok) { logEvent(sku.sku_code, 'Order ' + ref + ' marked PICKED'); return; }
+                    // The stock-out stays saved; this only affects the order's label.
+                    resEl.innerHTML += '<div style="margin-top:6px;color:#9A6700;font-weight:700;">&#9888; Stock was taken off correctly, but the order could not be marked as sent (' + esc59(w.message) + '). Tell the supervisor. The PICK tab will still refuse its slip.</div>';
+                });
+            }
+        });
+    });
+}
+// PICK tab (any slip - review A2): was this order + product already sent out
+// from the Actions tab (Dispatch Out)? Based on the stock ledger only (review
+// A3): non-reversed SCAN_OUT_ORDER rows for any of the order's names - the
+// slip's order id plus every T-ID / Amazon order no. / invoice no. of its
+// order line (review A1). The slip is refused when an Actions-tab dispatch
+// exists AND taking the slip would send more than the line ordered (or no
+// order line is known). An order line merely labelled PICKED never blocks.
+// Resolves a refusal message, or null (fine - or the check could not run, in
+// which case picking carries on as before; the slip key still stops a second
+// scan of the same slip).
+function checkOrderDispatchedElsewhere(o) {
+    if (!db || !o || !o.marketOrderID || !o.sku) return Promise.resolve(null);
+    var R = _refUp(o.marketOrderID), skuU = _refUp(o.sku), asinU = _refUp(o.asin), slipQty = Number(o.qty) || 0;
+    if (!DISPATCH_REF_OK.test(R)) return Promise.resolve(null);
+    return withTimeout(db.from('oms_order_lines').select('tid,amazon_order_no,invoice_no,sku_code,asin,qty_ordered,status,updated_at')
+            .or(_refOrFilter(['tid', 'amazon_order_no', 'invoice_no'], [R])), 8000, 'Order check').then(function (r) {
+        if (!r || r.error) return null;
+        var lines = _matchOrderLines(r.data, R, skuU, asinU);
+        return _loadOrderOutRows(_orderIdsFor(R, lines), skuU).then(function (ev) {
+            if (!ev.dispatches.length) return null;           // only an Actions-tab dispatch blocks a slip
+            var ordered = lines.reduce(function (t, l) { return t + (Number(l.qty_ordered) || 0); }, 0);
+            if (ordered > 0 && ev.units + slipQty <= ordered) return null;   // part-sent: this slip still fits
+            var d0 = ev.dispatches[ev.dispatches.length - 1];
+            return '&#9940; This order was already sent out on ' + fmtIST(d0.created_at) + ' by ' + esc59(d0.employee_code || '?') + '.<br><strong>Do NOT pick it again.</strong>' +
+                (ordered > 0 ? '<br><small>(' + ev.units + ' of ' + ordered + ' already out)</small>' : '');
+        });
+    }).catch(function () { return null; });
+}
+// ══ end v99 dispatch ═════════════════════════════════════════════════════
+
 function proceedMoveWithSku(sku, binVal, qtyVal, note, resEl) {
     var cfg = MOVE_MODES[moveMode];
     var returnGrade = (moveMode === 'RETURN_IN') ? ((document.getElementById('move-return-grade') || {}).value || 'GOOD') : 'GOOD';
@@ -7193,6 +7586,11 @@ function proceedMoveWithSku(sku, binVal, qtyVal, note, resEl) {
         var _c = document.getElementById('move-channel-input');
         dispOrder   = _o && _o.value ? _o.value.trim().toUpperCase() : null;
         dispChannel = _c && _c.value ? _c.value : null;
+        // v99: an Amazon dispatch with a reference is checked against the
+        // printed order first (online only) - see checkAmazonDispatch().
+        if (dispOrder && isAmazonChannel(dispChannel)) {
+            return saveAmazonDispatch(sku, binVal, qtyVal, note, resEl, dispOrder, dispChannel);
+        }
     }
     return writeLedgerTxn({
         sessionEligible: true,
@@ -8032,6 +8430,23 @@ function applyBulkPickVisibility() {
 function onBulkFile(input) {
     var f = input && input.files && input.files[0];
     if (!f) return;
+    // v99: the Excel template (.xlsx) is read directly - sheet PICK LIST,
+    // columns A (SKU or ASIN) and B (Quantity) from row 6 down.
+    if (/\.(xlsx|xlsm)$/i.test(f.name || '') || /spreadsheetml/i.test(f.type || '')) {
+        input.value = '';
+        bulkMsg('Reading ' + esc59(f.name) + '...', '');
+        readBulkPickXlsxFile(f).then(function (res) {
+            if (!res.ok) { bulkMsg('&#9888; ' + res.message, 'err'); return; }
+            document.getElementById('bulk-text').value = res.text;
+            bulkMsg('Loaded ' + esc59(f.name) + ' - ' + res.count + ' row(s) from the sheet PICK LIST. Tap Check stock.', '');
+        });
+        return;
+    }
+    if (/\.(xls|ods|numbers)$/i.test(f.name || '')) {
+        input.value = '';
+        bulkMsg('&#9888; This kind of file cannot be read here. Use the template (.xlsx), or in Excel choose File &gt; Save As &gt; CSV and upload that.', 'err');
+        return;
+    }
     var rd = new FileReader();
     rd.onload = function () {
         document.getElementById('bulk-text').value = String(rd.result || '').replace(/^\uFEFF/, '');   // Excel's CSV byte-order mark
@@ -8040,19 +8455,197 @@ function onBulkFile(input) {
     rd.readAsText(f);
     input.value = '';
 }
+// ══ v99: BULK PICK TEMPLATE + XLSX READER ════════════════════════════════
+// The template sits next to this page. If it cannot be fetched (offline, not
+// deployed yet) a CSV with # instruction lines is offered instead.
+var BULK_PICK_TEMPLATE = 'ArtzFolio_OMS_Bulk_Pick_Template_v1.0_2026-09.xlsx';
+function downloadBulkPickTemplate() {
+    var saveBlob = function (blob, name) {
+        var u = URL.createObjectURL(blob), a = document.createElement('a');
+        a.href = u; a.download = name;
+        document.body.appendChild(a); a.click(); document.body.removeChild(a);
+        setTimeout(function () { URL.revokeObjectURL(u); }, 1000);
+    };
+    var csvFallback = function () {
+        saveBlob(new Blob([bulkPickCsvTemplateText()], { type: 'text/csv' }), 'ArtzFolio_Bulk_Pick_List.csv');
+        bulkMsg('Template not available offline &mdash; a simple CSV version was saved instead. Fill it in and upload it here.', '');
+    };
+    try {
+        fetch(BULK_PICK_TEMPLATE, { method: 'GET', cache: 'no-store' }).then(function (r) {
+            if (!r.ok) throw new Error('not deployed');
+            return r.blob();
+        }).then(function (blob) {
+            // Review A5: offline, the service worker can answer with the app
+            // page itself. Only a real .xlsx (a ZIP: starts with "PK") is saved.
+            return blob.slice(0, 2).arrayBuffer().then(function (ab) {
+                var b2 = new Uint8Array(ab);
+                if (blob.size < 100 || b2[0] !== 0x50 || b2[1] !== 0x4b) throw new Error('not an xlsx');
+                saveBlob(blob, BULK_PICK_TEMPLATE);
+            });
+        }).catch(csvFallback);
+    } catch (e) { csvFallback(); }
+}
+function bulkPickCsvTemplateText() {
+    return '# ArtzFolio bulk pick list - one product per line.\r\n' +
+           '# Column 1: SKU or ASIN.  Column 2: how many (a whole number, 1 or more).\r\n' +
+           '# Lines starting with # are ignored. The same product twice is added together.\r\n' +
+           '# Upload it in the app: PICK > Bulk pick sheet > Choose file.\r\n' +
+           'SKU or ASIN,Quantity\r\n';
+}
+// --- tiny .xlsx reader (no library) ---------------------------------------
+// An .xlsx file is a ZIP of XML files. Reads the sheet "PICK LIST", columns A
+// (SKU or ASIN) and B (Quantity) from row 6 down (row 5 is the header) and
+// stops after 20 empty rows in a row. Needs DecompressionStream('deflate-raw')
+// (every current phone browser has it).
+function xlsxUnescape(t) {
+    return String(t).replace(/&(#x[0-9a-fA-F]+|#[0-9]+|lt|gt|amp|quot|apos);/g, function (m, e) {
+        if (e === 'lt') return '<'; if (e === 'gt') return '>'; if (e === 'amp') return '&';
+        if (e === 'quot') return '"'; if (e === 'apos') return "'";
+        var n = e.charAt(1) === 'x' ? parseInt(e.slice(2), 16) : parseInt(e.slice(1), 10);
+        try { return String.fromCodePoint(n); } catch (x) { return ''; }
+    });
+}
+function _u16(b, o) { return b[o] | (b[o + 1] << 8); }
+function _u32(b, o) { return (b[o] | (b[o + 1] << 8) | (b[o + 2] << 16) | (b[o + 3] << 24)) >>> 0; }
+// name -> { method, comp, off } from the ZIP's central directory.
+function xlsxZipIndex(b) {
+    var eocd = -1;
+    for (var i = b.length - 22; i >= Math.max(0, b.length - 65557); i--) {
+        if (b[i] === 0x50 && b[i + 1] === 0x4b && b[i + 2] === 0x05 && b[i + 3] === 0x06) { eocd = i; break; }
+    }
+    if (eocd < 0) throw new Error('NOT_ZIP');
+    var n = _u16(b, eocd + 10), p = _u32(b, eocd + 16), out = {};
+    var dec = new TextDecoder('utf-8');
+    for (var k = 0; k < n; k++) {
+        if (_u32(b, p) !== 0x02014b50) throw new Error('BAD_ZIP');
+        var method = _u16(b, p + 10), comp = _u32(b, p + 20), nl = _u16(b, p + 28), xl = _u16(b, p + 30), cl = _u16(b, p + 32), off = _u32(b, p + 42);
+        out[dec.decode(b.subarray(p + 46, p + 46 + nl))] = { method: method, comp: comp, off: off };
+        p += 46 + nl + xl + cl;
+    }
+    return out;
+}
+function xlsxZipText(b, idx, name) {
+    var e = idx[name];
+    if (!e) return Promise.resolve(null);
+    if (_u32(b, e.off) !== 0x04034b50) return Promise.reject(new Error('BAD_ZIP'));
+    var start = e.off + 30 + _u16(b, e.off + 26) + _u16(b, e.off + 28);
+    var data = b.subarray(start, start + e.comp);
+    var dec = new TextDecoder('utf-8');
+    if (e.method === 0) return Promise.resolve(dec.decode(data));
+    if (e.method !== 8) return Promise.reject(new Error('UNSUPPORTED_ZIP'));
+    var ds = new DecompressionStream('deflate-raw');
+    return new Response(new Blob([data]).stream().pipeThrough(ds)).arrayBuffer().then(function (ab) { return dec.decode(new Uint8Array(ab)); });
+}
+function _xattr(attrs, name) {
+    var m = new RegExp('(?:^|\\s)' + name + '\\s*=\\s*"([^"]*)"').exec(attrs || '');
+    return m ? xlsxUnescape(m[1]) : null;
+}
+function _xtexts(xml) {   // all <t>...</t> inside, phonetic runs dropped
+    var s = String(xml || '').replace(/<(?:\w+:)?rPh\b[\s\S]*?<\/(?:\w+:)?rPh>/g, ''), out = '', m;
+    var re = /<(?:\w+:)?t(?:\s[^>]*)?>([\s\S]*?)<\/(?:\w+:)?t>/g;
+    while ((m = re.exec(s))) out += xlsxUnescape(m[1]);
+    return out;
+}
+function _xcolNum(letters) { var n = 0; for (var i = 0; i < letters.length; i++) n = n * 26 + (letters.charCodeAt(i) - 64); return n; }
+function _xnum(v) {
+    var t = String(v).trim();
+    if (!/^[-+]?(\d+\.?\d*|\.\d+)([eE][-+]?\d+)?$/.test(t)) return t;
+    var n = Number(t);
+    if (Math.abs(n - Math.round(n)) < 1e-9) return String(Math.round(n));
+    return String(n);
+}
+// bytes (Uint8Array) -> Promise { ok, rows: [{row, a, b}], message }
+function xlsxReadPickList(bytes) {
+    if (typeof DecompressionStream === 'undefined') return Promise.resolve({ ok: false, message: 'This phone cannot read Excel files. Save the sheet as CSV and upload that.' });
+    var idx;
+    try { idx = xlsxZipIndex(bytes); } catch (e) { return Promise.resolve({ ok: false, message: 'This is not a readable .xlsx file. Save the sheet as CSV and upload that.' }); }
+    return Promise.all([xlsxZipText(bytes, idx, 'xl/workbook.xml'), xlsxZipText(bytes, idx, 'xl/_rels/workbook.xml.rels'), xlsxZipText(bytes, idx, 'xl/sharedStrings.xml')]).then(function (t) {
+        var wb = t[0] || '', rels = t[1] || '', sst = t[2] || '', m;
+        var sheetRid = null, re = /<(?:\w+:)?sheet\b([^>]*?)\/?>/g;
+        while ((m = re.exec(wb))) {
+            if (String(_xattr(m[1], 'name') || '').trim().toUpperCase() === 'PICK LIST') { var r = /(?:^|\s)[\w]+:id\s*=\s*"([^"]*)"/.exec(m[1]); sheetRid = r ? r[1] : null; break; }
+        }
+        if (!sheetRid) return { ok: false, message: 'The file has no sheet called PICK LIST. Use the template (Download template), or save the list as CSV.' };
+        var target = null, rr = /<(?:\w+:)?Relationship\b([^>]*?)\/?>/g;
+        while ((m = rr.exec(rels))) { if (_xattr(m[1], 'Id') === sheetRid) { target = _xattr(m[1], 'Target'); break; } }
+        if (!target) return { ok: false, message: 'The sheet PICK LIST could not be found inside the file. Save it as CSV and upload that.' };
+        var path = target.charAt(0) === '/' ? target.slice(1) : ('xl/' + target.replace(/^\.\//, ''));
+        var shared = [], rs = /<(?:\w+:)?si\b[^>]*?(?:\/>|>([\s\S]*?)<\/(?:\w+:)?si>)/g;
+        while ((m = rs.exec(sst))) shared.push(_xtexts(m[1] || ''));
+        return xlsxZipText(bytes, idx, path).then(function (sheet) {
+            if (sheet == null) return { ok: false, message: 'The sheet PICK LIST could not be read. Save it as CSV and upload that.' };
+            var cells = {}, maxRow = 0, rowNo = 0;
+            var rowRe = /<(?:\w+:)?row\b([^>]*?)(?:\/>|>([\s\S]*?)<\/(?:\w+:)?row>)/g, rm;
+            while ((rm = rowRe.exec(sheet))) {
+                var rAttr = _xattr(rm[1], 'r');
+                rowNo = rAttr ? parseInt(rAttr, 10) : rowNo + 1;
+                var colNo = 0, cellRe = /<(?:\w+:)?c\b([^>]*?)(?:\/>|>([\s\S]*?)<\/(?:\w+:)?c>)/g, cm;
+                while ((cm = cellRe.exec(rm[2] || ''))) {
+                    var ref = _xattr(cm[1], 'r'), typ = _xattr(cm[1], 't') || 'n', inner = cm[2] || '';
+                    colNo = ref ? _xcolNum(ref.replace(/[0-9$]/g, '').toUpperCase()) : colNo + 1;
+                    if (colNo > 2) continue;
+                    var vm = /<(?:\w+:)?v(?:\s[^>]*)?>([\s\S]*?)<\/(?:\w+:)?v>/.exec(inner), v = vm ? xlsxUnescape(vm[1]) : '', val = '';
+                    if (typ === 's') val = shared[parseInt(v, 10)] || '';
+                    else if (typ === 'inlineStr') val = _xtexts(inner);
+                    else if (typ === 'str') val = v;
+                    else if (typ === 'b') val = v === '1' ? 'TRUE' : (v === '0' ? 'FALSE' : '');
+                    else if (typ === 'e') val = '';
+                    else val = v === '' ? '' : _xnum(v);
+                    val = String(val).trim();
+                    if (val === '') continue;
+                    cells[rowNo + ':' + colNo] = val;
+                    if (rowNo > maxRow) maxRow = rowNo;
+                }
+            }
+            var rows = [], empty = 0;
+            for (var r = 6; r <= maxRow; r++) {
+                var a = cells[r + ':1'] || '', b = cells[r + ':2'] || '';
+                if (!a && !b) { if (++empty >= 20) break; continue; }
+                empty = 0;
+                rows.push({ row: r, a: a, b: b });
+            }
+            return { ok: true, rows: rows };
+        });
+    }).catch(function () { return { ok: false, message: 'This .xlsx file could not be read. Save the sheet as CSV and upload that.' }; });
+}
+// The rows as text for the list box: "SKU,qty" per line, after a # note.
+function xlsxPickRowsToText(rows, fileName) {
+    return '# From ' + String(fileName || 'the file').replace(/[\r\n]/g, ' ') + ', sheet PICK LIST\n' +
+        'SKU or ASIN,Quantity\n' +      // review A4: a fixed header, so row 6 is never taken as one
+        rows.map(function (x) { return x.a + ',' + x.b; }).join('\n');
+}
+function readBulkPickXlsxFile(f) {
+    return f.arrayBuffer().then(function (ab) { return xlsxReadPickList(new Uint8Array(ab)); }).then(function (res) {
+        if (!res.ok) return res;
+        if (!res.rows.length) return { ok: false, message: 'The sheet PICK LIST has nothing filled in. Type one product per row from row 6: SKU or ASIN in column A, quantity in column B.' };
+        return { ok: true, count: res.rows.length, text: xlsxPickRowsToText(res.rows, f.name) };
+    }).catch(function () { return { ok: false, message: 'This file could not be read. Save the sheet as CSV and upload that.' }; });
+}
+// ══ end v99 xlsx reader ══════════════════════════════════════════════════
 function bulkMsg(t, cls) { var el = document.getElementById('bulk-result'); if (el) { el.className = 'move-result' + (cls ? ' ' + cls : ''); el.innerHTML = t; } }
 // "SKU,qty" / "SKU<tab>qty" / "SKU qty"; a header line is skipped; the same
 // product on two lines is added together.
+// v99: lines starting with # are instructions (template / CSV) and are
+// skipped; the header is the first line that is not blank or #.
+// v99 review A4: the first line is a header only when column A is not a
+// plausible SKU / ASIN, or column B is words with no digits ("Quantity").
+// "SKU-A, 12.5" or "SKU-A, 2 pcs" is data, and is reported as an error.
+function bulkLooksLikeHeader(a, b) {
+    var plausible = /^[A-Za-z0-9][A-Za-z0-9_\-.\/]{2,59}$/.test(String(a || ''));
+    return !plausible || (/[A-Za-z]/.test(String(b || '')) && !/[0-9]/.test(String(b || '')));
+}
 function parseBulkText(txt) {
-    var out = [], errors = [], seen = {};
+    var out = [], errors = [], seen = {}, firstData = true;
     String(txt || '').replace(/^\uFEFF/, '').split(/\r?\n/).forEach(function (line, i) {
         var l = line.trim();
         if (!l) return;
+        if (l.charAt(0) === '#') return;                                  // v99
+        var isFirst = firstData; firstData = false;
         var parts = l.split(/[,\t;]+|\s{2,}|\s(?=[0-9]+\s*$)/).map(function (x) { return x.trim().replace(/^"|"$/g, ''); }).filter(function (x) { return x !== ''; });
         if (parts.length < 2) { errors.push('Line ' + (i + 1) + ': needs a product and a quantity ("' + l.slice(0, 40) + '")'); return; }
         var code = parts[0].toUpperCase(), q = parts[1];
-        if (i === 0 && !/^[0-9]+$/.test(q)) return;                       // header row
-        if (!/^[0-9]{1,6}$/.test(q) || parseInt(q, 10) < 1) { errors.push('Line ' + (i + 1) + ': quantity "' + q + '" is not a whole number of 1 or more'); return; }
+        if (isFirst && bulkLooksLikeHeader(parts[0], q)) return;          // v99 review A4: header only if it looks like one
+        if (!/^[0-9]{1,6}$/.test(q) || parseInt(q, 10) < 1) { errors.push('Line ' + (i + 1) + ': quantity "' + q + '" - quantity must be a whole number (1 or more)'); return; }   // v99 review A4
         if (seen[code] !== undefined) { out[seen[code]].qty += parseInt(q, 10); return; }
         seen[code] = out.length;
         out.push({ sku: code, qty: parseInt(q, 10) });
@@ -8067,7 +8660,7 @@ function bulkPreview(commit) {
     if (!isListingManager()) { bulkMsg('Only an Admin or Supervisor can do this.', 'err'); return; }
     if (!db) { bulkMsg('Database not reachable right now.', 'err'); return; }
     var ref = String(document.getElementById('bulk-ref').value || '').trim().toUpperCase();
-    var ch = document.getElementById('bulk-channel').value || 'OFFLINE';
+    var ch = document.getElementById('bulk-channel').value || 'DIRECT';   // v99: Excel short code
     if (!ref) { ref = defaultBulkRef(); document.getElementById('bulk-ref').value = ref; }
     if (!/^[A-Z0-9][A-Z0-9_\-\/\.]{2,40}$/.test(ref)) { bulkMsg('Order reference may only use letters, digits and - _ / . (3 to 41 characters).', 'err'); return; }
     var p = parseBulkText(document.getElementById('bulk-text').value);
@@ -10010,14 +10603,18 @@ function checkSlipNotPicked(o) {
             if (row.status === 'PICKED') return { ok: false, already: true, message: '&#9940; ALREADY PICKED on ' + new Date(row.picked_at).toLocaleString('en-IN') + ' by ' + esc59(row.picked_by || '?') + '.<br><strong>Do NOT pick it again.</strong>' };
             if (row.status === 'CANCELLED') return { ok: false, message: '&#9940; This slip was CANCELLED. Do not pick.' };
             if (row.status === 'SHORT') return { ok: false, message: '&#9940; This line is OUT OF STOCK (make to order). Do not pick.' };
-            return { ok: true };
+            // v99 review A2: sent out from the Actions tab already?
+            return checkOrderDispatchedElsewhere(o).then(function (msg) { return msg ? { ok: false, message: msg } : { ok: true }; });
         }).catch(function (e) { return { ok: false, message: 'Could not check this slip (no connection?). Try again in a moment.' }; });
     }
     return withTimeout(db.from('oms_inventory_transactions').select('created_at,employee_code').eq('client_queue_id', pickKeyFor(o)).limit(1), 8000, 'Slip check').then(function (r) {
         if (r.error) return { ok: false, message: 'Could not check this slip: ' + r.error.message };
         var row = (r.data || [])[0];
         if (row) return { ok: false, already: true, message: '&#9940; ALREADY PICKED on ' + new Date(row.created_at).toLocaleString('en-IN') + ' by ' + esc59(row.employee_code || '?') + '.<br><strong>Do NOT pick it again.</strong>' };
-        return { ok: true };
+        // v99: sent out from the Actions tab (Dispatch Out) already?
+        return checkOrderDispatchedElsewhere(o).then(function (msg) {
+            return msg ? { ok: false, message: msg } : { ok: true };
+        });
     }).catch(function () { return { ok: false, message: 'Could not check this slip (no connection?). Try again in a moment.' }; });
 }
 
@@ -10027,6 +10624,10 @@ function savePickLine(o, isRetry) {
     var empCode = (state.session && state.session.employee_code) || (emp && emp.code) || null;
     if (!db) return Promise.resolve({ ok: false, message: 'No connection to the database - nothing was taken out of stock yet. Tap Retry when the connection is back.' });
     if (o.resId) {
+        // v99 review A2: checked again just before the stock comes off (not on
+        // a Retry; if the check cannot run, picking carries on as before).
+        return (isRetry ? Promise.resolve(null) : checkOrderDispatchedElsewhere(o)).then(function (sentMsg) {
+        if (sentMsg) return { ok: false, already: true, message: sentMsg };
         return withTimeout(db.rpc('oms_pick_fulfil', { p_res_id: o.resId, p_employee_code: empCode, p_scanned_bin: o.bin, p_scanned_product: o.lastScan || null, p_device_id: null }), 12000, 'Pick save').then(function (r) {
             if (r.error) {
                 if (isNetworkError(r)) return { ok: false, message: 'Connection dropped while saving. Tap Retry - it is safe, the database will not take it twice.' };
@@ -10038,11 +10639,18 @@ function savePickLine(o, isRetry) {
                 ? { ok: true, note: 'Your earlier save did reach the database.' } : { ok: false, already: true, message: d.message };
             return { ok: false, message: d.message || d.error || 'Refused by the database.' };
         }).catch(function () { return { ok: false, message: 'No answer from the database (slow connection). Tap Retry - it is safe, the database will not take it twice.' }; });
+        });   // v99 review A2
     }
     var row = buildLedgerTxnRow({ skuCode: o.sku, asin: o.asin || null, qtyDelta: -o.qty, txnType: 'SCAN_OUT_ORDER', channel: o.channel,
                                   orderId: o.marketOrderID, binCode: o.bin, note: 'Pick-and-pack, line ' + o.lineNum + '/' + o.totalLines }, emp);
     row.client_queue_id = pickKeyFor(o);
     if (empCode) row.employee_code = empCode;
+    // v99: checked again just before the stock comes off (someone may have
+    // dispatched it from the Actions tab since the slip was scanned). Not on a
+    // Retry - the unique slip key already stops a second deduction there. If
+    // the check cannot run, picking carries on exactly as before.
+    return (isRetry ? Promise.resolve(null) : checkOrderDispatchedElsewhere(o)).then(function (sentMsg) {
+    if (sentMsg) return { ok: false, already: true, message: sentMsg };
     return withTimeout(db.from('oms_inventory_transactions').insert(row).select(), 12000, 'Pick save').then(function (r) {
         if (r.error) {
             if (isNetworkError(r)) return { ok: false, message: 'Connection dropped while saving. Tap Retry - it is safe, the database will not take it twice.' };
@@ -10060,6 +10668,7 @@ function savePickLine(o, isRetry) {
         setDbOnline();
         return { ok: true };
     }).catch(function () { return { ok: false, message: 'No answer from the database (slow connection). Tap Retry - it is safe, the database will not take it twice.' }; });
+    });   // v99
 }
 
 // Loads a slip after the "already picked?" check. first=true for the first line of an order.
@@ -11723,6 +12332,11 @@ function onCodeDetected(value) {
     var foreignT = target ? foreignScanKind(value) : null;
     if (foreignT === 'PRODUCT_URL' || foreignT === 'IRN') {
         showFieldScanNotice(target, foreignScanMessage(foreignT, 'FIELD'));
+        return;
+    }
+    // v99: the camera read a PICK slip QR for the Actions tab product box.
+    if (target === 'move-sku-input' && isPickSlipText(value)) {
+        showFieldScanNotice(target, pickSlipInActionsMessage());
         return;
     }
     if (target) {
