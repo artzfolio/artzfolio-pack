@@ -63,7 +63,8 @@
 // use - best effort: a missing file never stops the app shell installing.
 // v21 (2026-09-29): bumped for App v102 (pick flow, Held stock in plain words).
 // v22 (2026-09-29): bumped for App v103 (Reserved stock tile and screen).
-const CACHE_NAME = 'artzfolio-oms-shell-v22';
+// v23 (2026-09-29): bumped for App v104 (Reserved stock released in one database call).
+const CACHE_NAME = 'artzfolio-oms-shell-v23';
 const OPTIONAL_FILES = ['./zxing_reader_3.1.4.js', './zxing_reader_3.1.4.wasm'];
 const SHELL_FILES = ['./index.html', './manifest.json', './icon.svg'];
 
