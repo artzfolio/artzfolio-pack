@@ -62,6 +62,9 @@
             Switched off -> clear message + "Switch on & continue". The database
             enforces the same rule (trigger trg_oms_require_tracked_sku), so
             nothing can slip past from any surface. -->
+    <!-- v105 (2026-09-29): same as v104 built in the v104 work folder (reads both answer
+         shapes of oms_cancel_pick_lines); only the version number changed, so it is not
+         confused with a different v104 file. -->
     <!-- v104 (2026-09-29): RESERVED STOCK - releasing many lines is now ONE database
          call (oms_cancel_pick_lines, update M7): one PIN check, all-or-nothing per
          call, a result for every line; 500 lines per call. Without M7 the app
@@ -2963,7 +2966,7 @@ var qrcode = function() {
     </style>
 </head>
 <body>
-<div class="ver-corner" id="verCornerBadge" onclick="handleVerBadgeTap()">v104</div>
+<div class="ver-corner" id="verCornerBadge" onclick="handleVerBadgeTap()">v105</div>
 <!-- v63: Gap 2 — offline write-queue indicator. Hidden (display:none) unless
      something is actually queued or failed. Tapping it shows the queue detail
      panel (openOfflineQueuePanel()). -->
@@ -9979,12 +9982,18 @@ function _rsReleaseBulk(lines, pin, reason) {
                 part.forEach(function (x) { failed.push({ x: x, why: d.message || d.error || 'not released' }); });
                 return next();
             }
-            var byId = {}; (d.results || []).forEach(function (q) { byId[Number(q.res_id)] = q; });
+            // live M7 answer: released:[{res_id,...}], skipped:[{res_id,status,message}]
+            // (an older draft answered results:[{res_id, ok, message}] - also read)
+            var byId = {};
+            if (Array.isArray(d.released) || Array.isArray(d.skipped)) {
+                (d.released || []).forEach(function (q) { byId[Number(q.res_id)] = { ok: true }; });
+                (d.skipped || []).forEach(function (q) { byId[Number(q.res_id)] = { ok: false, message: q.message || q.status }; });
+            } else (d.results || []).forEach(function (q) { byId[Number(q.res_id)] = q; });
             part.forEach(function (x) {
                 var q = byId[Number(x.res_id)];
                 if (!q) unknown.push(x);                       // no word about this line: re-check it
                 else if (q.ok) { done.push(x); delete _rs.sel[x.res_id]; }
-                else failed.push({ x: x, why: q.message || q.error || 'not released' });
+                else failed.push({ x: x, why: q.message || q.error || 'not released', skipped: true });
             });
             return next();
         }, function () { unknown = unknown.concat(part); return next(); });   // timed out: unknown
@@ -10048,6 +10057,7 @@ function _rsRelease(ids, what, bulk) {
         return _rsReleaseBulk(lines, pin, reason).then(function (b) {
             if (b && b.missing) { _rs.bulkMissing = true; return perLine(); }
             _rs.bulkMissing = false;
+            b.bulk = true;
             return b;
         });
     }).catch(function (e) { rsMsg('Not released: ' + esc59(e && e.message ? e.message : e), 'err'); return null; }).then(function (res) {
@@ -10076,10 +10086,15 @@ function _rsRelease(ids, what, bulk) {
 function _rsReport(res, unsure) {
         var du = 0; res.done.forEach(function (x) { du += Number(x.qty) || 0; });
         var h = '';
-        if (res.done.length) h += '&#10003; ' + _rsLines(res.done.length) + ' released (' + _rsUnits(du) + ' are free stock again). Those slips no longer work.' +
+        if (res.bulk) h += '&#10003; Released ' + _rsLines(res.done.length) + ' (' + _rsUnits(du) + ').' + (res.done.length ? ' That stock is free again; those slips no longer work.' : '') +
             (res.done.some(function (x) { return x._late; }) ? ' (' + res.done.filter(function (x) { return x._late; }).map(function (x) { return 'R' + esc59(x.res_id); }).join(', ') + ': no answer in time, but the refreshed list shows it released.)' : '');
+        else if (res.done.length) h += '&#10003; ' + _rsLines(res.done.length) + ' released (' + _rsUnits(du) + ' are free stock again). Those slips no longer work.' +
+            (res.done.some(function (x) { return x._late; }) ? ' (' + res.done.filter(function (x) { return x._late; }).map(function (x) { return 'R' + esc59(x.res_id); }).join(', ') + ': no answer in time, but the refreshed list shows it released.)' : '');
+        var skipped = res.failed.filter(function (f) { return f.skipped; }), notRel = res.failed.filter(function (f) { return !f.skipped; });
+        if (skipped.length) h += (h ? '<br>' : '') + '&#9888; <strong>Skipped ' + _rsLines(skipped.length) + ' (not released):</strong><br>' + skipped.map(function (f) { return 'R' + esc59(f.x.res_id) + ' (' + esc59(f.x.sku_code) + '): ' + esc59(f.why); }).join('<br>');
+        res.failed = notRel;
         if (res.failed.length) h += (h ? '<br>' : '') + '&#10007; <strong>' + _rsLines(res.failed.length) + ' NOT released:</strong><br>' + res.failed.map(function (f) { return 'R' + esc59(f.x.res_id) + ' (' + esc59(f.x.sku_code) + '): ' + esc59(f.why); }).join('<br>');
-        if (res.pinRejected && !res.done.length) h += (h ? '<br>' : '') + '&#10007; <strong>PIN not accepted &mdash; nothing was released.</strong>';
+        if (res.pinRejected && !res.done.length) h = '&#10007; <strong>PIN not accepted &mdash; nothing was released.</strong>';
         if (res.notTried.length) h += '<br>&#9888; ' + _rsLines(res.notTried.length) + ' not tried because the PIN was not accepted: ' + res.notTried.map(function (x) { return 'R' + esc59(x.res_id); }).join(', ') + '. Nothing was changed on them.';
         if (unsure.length) h += '<br>&#9888; <strong>No answer in time and the list could not be refreshed:</strong> ' + unsure.map(function (x) { return 'R' + esc59(x.res_id); }).join(', ') + ' may or may not have been released. Tap Refresh to check.';
         rsMsg(h, (res.failed.length || res.notTried.length || unsure.length) ? 'err' : 'ok');
