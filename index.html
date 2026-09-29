@@ -62,6 +62,28 @@
             Switched off -> clear message + "Switch on & continue". The database
             enforces the same rule (trigger trg_oms_require_tracked_sku), so
             nothing can slip past from any surface. -->
+    <!-- v103 (2026-09-29): RESERVED STOCK. A tile on DASH and PICK: "Reserved
+         stock: N units (M lines)" and how many units are held more than 2 days.
+         A new screen lists every reserved line oldest first (date, weekday, time,
+         age, source, order), flags "Order already dispatched another way" and
+         "Old - check", filters / search / group by SKU or date, and releases one
+         line, the ticked lines, or every line shown older than N days (own PIN,
+         Admin / Supervisor only). -->
+    <!-- v102 (2026-09-29): PICK FLOW + HELD STOCK IN PLAIN WORDS. A pick is complete
+         when the last product scan is saved (no Confirm step); a green "Picked"
+         box stays until the next slip, also after the app is reopened; the same
+         slip scanned again on this phone within 10 minutes says calmly "Already
+         picked by you" instead of a red refusal; the camera closes after a pick.
+         Held stock: tappable batch cards, lines with a plain status each, release
+         a line / the rest of an order / a batch, "What is this screen?". -->
+    <!-- v101 (2026-09-28): SCANNER OVERHAUL + SHORT PICK QR + HELD STOCK SCREEN.
+         Camera 1920x1080 with continuous focus, the main rear camera (not a wide
+         lens without autofocus), 2x zoom to start, the whole picture decoded (not
+         only the orange box), the phone's built-in detector first and ZXing-C++
+         (WebAssembly) on iPhones / other phones, QR accepted on the first clean
+         read, beep + vibration, a small diagnostic line. Short pick QR
+         "AF3|R<reservation>[|bin]". Live bin quantity on the pick card. Held stock
+         screen on the PICK tab: release a line / an order / a batch. -->
     <!-- v100 (2026-09-28): PLUS / MINUS BUTTONS ON EVERY STOCK QUANTITY BOX.
          The Actions tab quantity (all actions) and Quick Add "Opening stock" get a
          big - and + either side of the box (typing still works). - stops at the
@@ -2539,6 +2561,55 @@ var qrcode = function() {
         .status.success{background:#eafaf1;color:#1e8449}
         .status.error{background:#fdedec;color:#c0392b}
         .status.waiting{background:#fef9e7;color:#7d6608}
+        /* v102: calm information (e.g. "Already picked by you") and the green
+           "Picked" box that stays until the next slip */
+        .status.info{background:#eaf0fb;color:#1B3F6B;border:1px solid #bcd0ee}
+        .pick-done-box{display:none;background:#eafaf1;border:2px solid #1B7A3A;color:#14532d;border-radius:12px;padding:12px 14px;margin:8px 0;font-size:15px;line-height:1.45}
+        .pick-done-box.visible{display:block}
+        .pick-done-box .pd-title{font-size:20px;font-weight:900;color:#1B7A3A}
+        .pick-done-box .pd-next{margin-top:6px;font-weight:800;color:#0A1628}
+        /* v102: Held stock cards */
+        .hs-help{background:#fff;border:1px solid #E2E8F0;border-radius:10px;padding:8px 10px;margin-top:8px;font-size:12px;color:#1A1A1A}
+        .hs-help summary{font-weight:800;color:#1B3F6B;cursor:pointer}
+        .hs-help ul{margin:6px 0 0 18px;padding:0}
+        .hs-card{display:block;width:100%;text-align:left;border:1px solid #E2E8F0;border-left:5px solid #9A6700;border-radius:10px;background:#fff;padding:10px 12px;margin-top:8px;font-size:13px;color:#1A1A1A;cursor:pointer}
+        .hs-card.finished{border-left-color:#9CA3AF;background:#F8F9FB;color:#6B7280}
+        .hs-card .hc-title{font-weight:800;color:#0A1628;word-break:break-all}
+        .hs-card.finished .hc-title{color:#6B7280}
+        .hs-card .hc-open{float:right;font-weight:800;color:#1B3F6B}
+        .hs-chip{display:inline-block;border-radius:999px;padding:2px 9px;font-size:11px;font-weight:800;margin-top:3px}
+        .hs-chip.picked{background:#eafaf1;color:#1B7A3A}
+        .hs-chip.held{background:#fef9e7;color:#9A6700}
+        .hs-chip.short{background:#fdedec;color:#B3261E}
+        .hs-chip.released{background:#EEF2F8;color:#6B7280}
+        /* v103: Reserved stock tile + screen */
+        .rs-tile{display:block;width:100%;box-sizing:border-box;text-align:left;border:1px solid #dce4f0;border-left:5px solid #1B3F6B;border-radius:12px;background:#fff;padding:10px 12px;margin:0 0 10px;font-size:13px;color:#1A1A1A;cursor:pointer}
+        .rs-tile.warn{border-left-color:#9A6700;background:#fef9e7}
+        .rs-tile.danger{border-left-color:#B3261E;background:#fdedec}
+        .rs-tile.off{cursor:default;color:#6B7280}
+        div.rs-tile{cursor:default}
+        .rs-tile-main{font-weight:800;color:#0A1628;font-size:14px}
+        .rs-tile-num{font-size:17px}
+        .rs-tile-old{font-weight:800;color:#9A6700;margin-top:3px}
+        .rs-tile.danger .rs-tile-old{color:#B3261E}
+        .rs-tile-sub{font-size:11px;color:#6B7280;margin-top:3px}
+        .rs-line{display:flex;gap:8px;align-items:flex-start;border:1px solid #E2E8F0;border-left:4px solid #1B3F6B;border-radius:10px;background:#fff;padding:8px 10px;margin-top:8px;font-size:12px;overflow-wrap:anywhere}
+        .rs-line.old{border-left-color:#9A6700}
+        .rs-line.disp{border-left-color:#B3261E}
+        .rs-body{flex:1;min-width:0}
+        .rs-tick input{width:22px;height:22px;margin:2px 0 0}
+        .rs-dim{color:#6B7280;font-size:11px}
+        .hs-chip.rs-flag-old{background:#fef9e7;color:#9A6700}
+        .hs-chip.rs-flag-disp{background:#fdedec;color:#B3261E;white-space:normal}
+        .hs-chip.rs-flag-part{background:#fef9e7;color:#9A6700;white-space:normal}
+        .rs-group{border:1px solid #E2E8F0;border-radius:10px;background:#fff;padding:8px 10px;margin-top:8px;font-size:13px}
+        .rs-group summary{cursor:pointer}
+        .rs-seg{display:flex;gap:6px;margin-top:6px}
+        .rs-seg button{flex:1;border:1px solid #1B3F6B;background:#fff;color:#1B3F6B;border-radius:8px;padding:7px 4px;font-size:12px;font-weight:800;min-height:36px}
+        .rs-seg button.on{background:#1B3F6B;color:#fff}
+        .rs-filters{display:flex;gap:6px;margin-top:6px}
+        .rs-filters select{flex:1;min-width:0;min-height:38px;border:1px solid #E2E8F0;border-radius:8px;font-size:12px;background:#fff}
+        .hs-explain{font-size:11px;color:#6B7280;margin-top:3px}
         .scan-raw{display:block;font-size:10px;font-weight:400;font-family:monospace;word-break:break-all;margin-top:4px;opacity:.8}
         /* CAMERA ERROR BANNER */
         .cam-error-banner{display:none;background:#fff3cd;border:2px solid #fd7e14;border-radius:12px;padding:12px 14px;margin-bottom:10px;font-size:12px;color:#856404}
@@ -2778,6 +2849,27 @@ var qrcode = function() {
         #flash.s{background:rgba(39,174,96,.22)}
         #flash.e{background:rgba(192,57,43,.22)}
         /* EMPLOYEE MODAL */
+        /* v101: scanner extras */
+        .cam-diag{color:rgba(255,255,255,.72);font-size:10px;line-height:1.3;margin-top:4px;word-break:break-word}
+        .cam-switch-btn{display:none;position:fixed;top:calc(14px + env(safe-area-inset-top,0px) + 54px);right:14px;z-index:210;width:44px;height:44px;border-radius:50%;background:rgba(0,0,0,.45);border:2px solid rgba(255,255,255,.7);color:#fff;font-size:20px;align-items:center;justify-content:center}
+        .cam-switch-btn.visible{display:flex}
+        .cam-zoom-slider-wrap{display:none;align-items:center;gap:8px;color:#fff;font-size:12px;font-weight:700;margin:6px 0}
+        .cam-zoom-slider-wrap.visible{display:flex}
+        .cam-zoom-slider-wrap input{flex:1;height:32px}
+        /* v101: Held stock screen */
+        .hs-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:230;align-items:stretch;justify-content:center}
+        .hs-bg.active{display:flex}
+        .hs-box{background:#F8F9FB;width:100%;max-width:560px;overflow-y:auto;padding:12px 12px 90px;box-sizing:border-box}
+        .hs-batch{border:1px solid #E2E8F0;border-radius:10px;background:#fff;margin-top:10px;overflow:hidden}
+        .hs-bh{background:#0A1628;color:#fff;padding:8px 10px}
+        .hs-order{border-top:1px solid #E2E8F0;padding:8px 10px}
+        .hs-line{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:6px 0;border-top:1px dashed #E2E8F0;font-size:12px}
+        .hs-btn{border:none;border-radius:8px;padding:8px 10px;font-size:11px;font-weight:800;color:#fff;background:#B3261E;min-height:36px}
+        .hs-btn.grey{background:#6B7280}
+        .hs-btn:disabled{opacity:.45}
+        .move-bin-live{font-size:12px;line-height:1.45;background:#F8F9FB;border:1px solid #E2E8F0;border-radius:8px;padding:6px 10px;margin:4px 0 6px}
+        .cam-status{color:#FFFFFF;font-weight:800;font-size:15px;text-align:center;margin:6px 0 8px;animation:camPulse 1.4s ease-in-out infinite}
+        @keyframes camPulse{0%,100%{opacity:1}50%{opacity:.55}}
         .emp-modal-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:400;align-items:center;justify-content:center}
         .emp-modal-bg.active{display:flex}
         .emp-modal{background:#fff;border-radius:18px;padding:24px 22px 20px;width:min(340px,90vw);box-shadow:0 8px 40px rgba(0,0,0,.25)}
@@ -2867,7 +2959,7 @@ var qrcode = function() {
     </style>
 </head>
 <body>
-<div class="ver-corner" id="verCornerBadge" onclick="handleVerBadgeTap()">v100</div>
+<div class="ver-corner" id="verCornerBadge" onclick="handleVerBadgeTap()">v103</div>
 <!-- v63: Gap 2 — offline write-queue indicator. Hidden (display:none) unless
      something is actually queued or failed. Tapping it shows the queue detail
      panel (openOfflineQueuePanel()). -->
@@ -2971,6 +3063,8 @@ var qrcode = function() {
 
             <!-- Status message -->
             <div class="status idle" id="status-msg">Scan a Pick List QR code to begin</div>
+            <!-- v102: stays on screen after a successful pick until the next slip -->
+            <div class="pick-done-box" id="pick-done-box"></div>
 
             <!-- Scan options: SKU or ASIN -->
             <div class="scan-options-banner" id="scan-options-banner">
@@ -2991,11 +3085,11 @@ var qrcode = function() {
             <!-- Order card -->
             <div class="order-card" id="order-card"></div>
 
-            <!-- Action buttons (shown only in READY state) -->
+            <!-- v102: shown after a finished pick. There is no Confirm step any more -
+                 the stock came off when the last product scan was saved. -->
             <div class="actions" id="action-btns" style="display:none;">
-                <button class="btn btn-confirm" onclick="confirmOrder()">&#10003; CONFIRM</button>
-                <button class="btn btn-issue" onclick="reportIssue()">&#9888; ISSUE</button>
-                <button class="btn btn-reset" onclick="resetPick()">&#8635; RESET</button>
+                <button class="btn btn-confirm" onclick="nextSlipAfterPick()">&#10003; Next slip</button>
+                <button class="btn btn-issue" onclick="reportIssue()">&#9888; Report a problem</button>
             </div>
             <!-- v96: shown only when a line could not be saved - nothing moves on until it is. -->
             <div class="actions" id="pick-retry-wrap" style="display:none;">
@@ -3003,6 +3097,12 @@ var qrcode = function() {
                 <button class="btn btn-reset" onclick="if(confirm('Abandon this line? It is NOT taken out of stock. Lines already saved stay saved.'))resetPick()">&#10005; Reset</button>
             </div>
             <!-- v96: BULK PICK SHEET (Admin / Supervisor) -->
+            <!-- v101: Held stock screen (Admin / Supervisor) -->
+            <div id="pick-held-btn-wrap" style="display:none;margin-top:14px;">
+                <!-- v103: Reserved stock tile (tap = the Reserved stock screen) -->
+                <div id="rsv-tile-pick"></div>
+                <button class="settings-btn" style="width:100%;min-height:44px;" onclick="openHeldStock()">&#128274; Held stock &mdash; see and release reserved lines</button>
+            </div>
             <div class="settings-section" id="bulkpick-section" style="margin-top:16px;display:none;">
                 <h3 style="margin-top:0;cursor:pointer;" onclick="toggleBulkPick()">&#128424; Bulk pick sheet <span style="font-size:11px;font-weight:600;color:#6B7280;">(Admin / Supervisor)</span> <span id="bulkpick-toggle">&#9660;</span></h3>
                 <div id="bulkpick-body" style="display:none;">
@@ -3047,7 +3147,7 @@ var qrcode = function() {
                             <div style="font-weight:800;color:#0A1628;font-size:13px;">&#128274; Held stock (open batches)</div>
                             <button class="settings-btn" style="flex:0 0 auto;padding:6px 10px;font-size:11px;" onclick="loadHeldBatches()">&#8635; Refresh</button>
                         </div>
-                        <div class="settings-info" style="margin-top:4px;">Units reserved for orders and not picked yet. No other order can be given them. <strong>Cancel batch</strong> releases every unpicked line of the batch; <strong>Cancel one order</strong> releases just that order. Lines already picked stay picked.</div>
+                        <div class="settings-info" style="margin-top:4px;">Printed slips hold their stock until they are picked. Only batches that still hold stock are listed. <strong>Tap a batch</strong> to see each order and line, and to release stock if an order was cancelled.</div>
                         <div class="move-result" id="held-result"></div>
                         <div id="held-list"></div>
                     </div>
@@ -3254,6 +3354,9 @@ var qrcode = function() {
                     <input type="text" class="settings-input" id="move-order-input" placeholder="Order / bill no. (optional)" autocomplete="off" style="text-transform:uppercase">
                 </div>
                 </div>
+                <!-- v101: "In bin A28 now: N units / Held for orders / Other bins" for the
+                     product on the card and the bin in the box (renderMoveBinLive) -->
+                <div class="move-bin-live" id="move-bin-live" style="display:none;"></div>
                 <div class="settings-row">
                     <input type="number" class="settings-input" id="move-qty-input" placeholder="Quantity" min="1" value="1" style="max-width:110px">
                     <input type="text" class="settings-input" id="move-note-input" placeholder="Note (optional — e.g. PO number, reason)" style="min-width:0">
@@ -3552,7 +3655,7 @@ var qrcode = function() {
             </div>
             <div class="log-header">
                 <h2>&#128202; Owner Dashboard</h2>
-                <button class="csv-btn" onclick="loadDashboard(true)">&#8635; Refresh</button>
+                <button class="csv-btn" onclick="loadDashboard(true);loadReservedSummary(true);">&#8635; Refresh</button>
             </div>
 
             <!-- v64: filters, collapsed by default to save phone screen space.
@@ -3575,6 +3678,8 @@ var qrcode = function() {
                 </div>
             </details>
 
+            <!-- v103: Reserved stock tile -->
+            <div id="rsv-tile-dash"></div>
             <div class="dash-tiles" id="dash-tiles">
                 <div class="settings-info">Loading...</div>
             </div>
@@ -3905,6 +4010,8 @@ var qrcode = function() {
             <div class="cam-zoom-label" id="cam-zoom-label">1.0x</div>
             <button class="cam-zoom-btn" onclick="adjustZoom(-1)" title="Zoom out" aria-label="Zoom out">&#8722;</button>
         </div>
+        <!-- v101: switch between rear cameras (shown only when there are two or more) -->
+        <button class="cam-switch-btn" id="cam-switch-btn" onclick="switchScanCamera()" title="Use another rear camera" aria-label="Use another rear camera">&#128260;</button>
         <!-- v64: shown only when zero decoders (ZXing/BarcodeDetector/jsQR) initialized -->
         <div class="cam-no-decoder-banner" id="cam-no-decoder-banner">
             &#9888; No barcode scanner available on this device/connection
@@ -3923,8 +4030,15 @@ var qrcode = function() {
         <div class="cam-bottom">
             <div class="cam-hint" id="cam-hint">Point at the <strong>barcode or QR code</strong></div>
             <div class="cam-blur-hint" id="cam-blur-hint">&#128065; Image looks blurry &mdash; hold the barcode a little further away and keep it steady.</div>
+            <div class="cam-zoom-slider-wrap" id="cam-zoom-slider-wrap"><span>Zoom</span><input type="range" id="cam-zoom-slider" min="1" max="4" step="0.1" value="1" oninput="setScanZoom(this.value)"><span id="cam-zoom-slider-val">1.0x</span></div>
             <div class="cam-formats" id="cam-formats">Loading scanner...</div>
-            <button class="cam-close" onclick="closeCamera()">&#10005;&nbsp; Close Camera</button>
+            <div class="cam-diag" id="cam-diag"></div>
+            <!-- v101: plain status + a way out to the keyboard for a code that will not read -->
+            <div class="cam-status" id="cam-status">Scanning&hellip;</div>
+            <div style="display:flex;gap:8px;">
+                <button class="cam-close" style="flex:1;background:#FFFFFF;color:#0A1628;" onclick="typeInsteadOfScan()">&#9000;&nbsp; Type it instead</button>
+                <button class="cam-close" style="flex:1;" onclick="closeCamera()">&#10005;&nbsp; Close Camera</button>
+            </div>
         </div>
     </div>
 
@@ -5071,6 +5185,7 @@ function logout() {
     clearResumeSession();   // v94
     clearUiState();         // v94
     state.session = null;
+    try { onReservedRoleChange(); } catch (e) {}   // v103: no count left on screen
     location.reload();
 }
 
@@ -5272,6 +5387,7 @@ function applySessionDefaultBin() {
         binEl.value = bin;
     }
     binEl.setAttribute('data-src', 'session');
+    try { renderMoveBinLive(); } catch (e) {}   // v101
 }
 // v77: replaces the bare `move-bin-input.value = ''` used at every
 // clear-fields-for-next-entry site (mode switch, and after each of the 3
@@ -5507,6 +5623,7 @@ function applyRolePermissions() {
     }
     applyListingManagerVisibility();   // v95
     try { applyBulkPickVisibility(); } catch (e) {}          // v96
+    try { onReservedRoleChange(); } catch (e) {}             // v103
     // v96: a half-done pick restored at start-up belongs to whoever started it
     if (state._pickOwner && state.session && state._pickOwner !== state.session.employee_code) {
         state._pickOwner = ''; try { lsRemove(LS_SESSION); resetPick(); } catch (e) {}
@@ -5811,13 +5928,15 @@ function saveSession() {
         skuScanned:   state.skuScanned,
         groupOrderID: state.groupOrderID,
         groupTotal:   state.groupTotal,
-        groupDone:    state.groupDone
+        groupDone:    state.groupDone,
+        lastPick:     state.lastPick || null      // v102
     };
     lsSetJSON(LS_SESSION, snap);
 }
 function restoreSession() {
     var snap = lsGetJSON(LS_SESSION);
-    if (!snap || snap.pickState === 'IDLE' || snap.pickState === 'READY') return false;
+    if (!snap || snap.pickState === 'IDLE') return false;
+    if (snap.pickState === 'READY') snap.pickState = 'DONE';     // v102: a v101 finished pick
     // v96: a half-done pick belongs to the person who started it and expires.
     var who = (state.session && state.session.employee_code) || ((loadEmployee() || {}).code) || '';
     if (!snap.v96 || !snap.at || (Date.now() - snap.at) > PICK_SAVE_MAX_HOURS * 3600000 || (who && snap.emp && who !== snap.emp)) {
@@ -5835,6 +5954,8 @@ function restoreSession() {
     state.groupOrderID = snap.groupOrderID || null;
     state.groupTotal   = snap.groupTotal   || 1;
     state.groupDone    = snap.groupDone    || 0;
+    state.lastPick     = snap.lastPick     || null;              // v102
+    if (state.pickState === 'DONE' && !state.lastPick) { lsRemove(LS_SESSION); state.pickState = 'IDLE'; return false; }
     if (state.pickState === 'SAVE_FAILED') setTimeout(function () { showPickRetry(true); }, 50);
     return true;
 }
@@ -6532,6 +6653,7 @@ function prefillMoveBin() {
                 usedFallback = true;
             }
         }
+        renderMoveBinLive();   // v101: the bin may have just been filled in above
         if (hintEl) {
             if (sessBin) {
                 hintEl.textContent = 'Session bin ' + sessBin + ' is in force — edit the box if this one item goes elsewhere.' +
@@ -6800,7 +6922,7 @@ function setupQtySteppers() {
     attachQtyStepper('move-qty-input', { maxFn: moveQtyMax, noteId: 'move-qty-limit', max: 99999 });
     attachQtyStepper('qa-qty-input', { max: 99999, label: 'opening stock' });
     var binEl = document.getElementById('move-bin-input');
-    if (binEl) ['input', 'change'].forEach(function (ev) { binEl.addEventListener(ev, function () { refreshQtyStepper('move-qty-input'); }); });
+    if (binEl) ['input', 'change'].forEach(function (ev) { binEl.addEventListener(ev, function () { refreshQtyStepper('move-qty-input'); renderMoveBinLive(); }); });   // v101: + live bin lines
 }
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', setupQtySteppers);
 else setupQtySteppers();
@@ -7471,7 +7593,7 @@ function fmtIST(ts) {
     try { return new Date(ts).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }); }
     catch (e) { return String(ts); }
 }
-function isPickSlipText(v) { return /^\s*AF2\|/i.test(String(v || '')); }
+function isPickSlipText(v) { return /^\s*AF[23]\|/i.test(String(v || '')); }   // v101: AF3 too
 function pickSlipInActionsMessage() {
     return '&#9888; This is a <strong>PICK SLIP</strong>. Use the PICK tab to scan it &mdash; it takes the stock off and marks the order picked.' +
         '<div style="margin-top:6px;"><button class="settings-btn" type="button" onclick="openPickTabFromActions()">&#128230; Open PICK tab</button></div>';
@@ -8125,6 +8247,38 @@ function onMoveSkuTyping() {
         prefillMoveBin();
     }, 900);
 }
+// v101: the live bin lines on the Actions tab. The per-bin stock is the one
+// read when the product was scanned (resolveSkuOrAsin); the units held for
+// orders are read once per product from oms_pick_reservations.
+function loadMoveHeld(sku) {
+    if (!db || !sku || !sku.sku_code || sku._held) return;
+    sku._held = { loading: true };
+    withTimeout(db.from('oms_pick_reservations').select('res_id,bin_code,qty').eq('sku_code', String(sku.sku_code).toUpperCase()).eq('status', 'OPEN'), 8000, 'Held stock')
+        .then(function (r) {
+            if (!r || r.error) throw new Error('no answer');
+            var m = {};
+            (r.data || []).forEach(function (x) { var b = String(x.bin_code || '').toUpperCase(); m[b] = (m[b] || 0) + (Number(x.qty) || 0); });
+            sku._held = { bins: m };
+        }).catch(function () { sku._held = { error: true }; })
+        .then(function () { if (_moveCardSku === sku) renderMoveBinLive(); });
+}
+function renderMoveBinLive() {
+    var el = document.getElementById('move-bin-live');
+    if (!el) return;
+    var binEl = document.getElementById('move-bin-input');
+    var bin = binEl ? String(binEl.value || '').trim().toUpperCase() : '';
+    var sku = _moveCardSku;
+    if (!sku || !sku.live_bins || !bin) { el.style.display = 'none'; el.innerHTML = ''; return; }
+    var qty = 0, other = [];
+    sku.live_bins.forEach(function (b) {
+        var bc = String(b.bin_code || '').trim().toUpperCase(), q = Number(b.qty_on_hand) || 0;
+        if (bc === bin) qty += q; else if (bc && q > 0) other.push({ bin: bc, qty: q });
+    });
+    other.sort(function (a, b) { return (b.qty - a.qty) || a.bin.localeCompare(b.bin); });
+    var hb = sku._held && sku._held.bins, held = hb ? (hb[bin] || 0) : null;
+    el.innerHTML = liveStockLinesHtml(bin, { qty: qty, held: held, others: held, mine: 0, other: other, at: sku._liveAt || new Date().toISOString() });
+    el.style.display = '';
+}
 function renderMoveSkuCard(sku, typed) {
     var el = document.getElementById('move-sku-card');
     if (!el) return;
@@ -8168,6 +8322,9 @@ function renderMoveSkuCard(sku, typed) {
         (sku.asin ? '<div class="sc-row"><span class="sc-k">Amazon</span><span class="sc-v"><a href="' + amazonUrl(sku.asin) + '" target="_blank" rel="noopener">amazon.in/dp/' + esc59(String(sku.asin).toUpperCase()) + ' &#8599;</a></span></div>' : '') +
         '</div>';
     el.innerHTML = html;
+    if (!sku._liveAt) sku._liveAt = new Date().toISOString();   // v101
+    loadMoveHeld(sku);                                          // v101
+    renderMoveBinLive();                                        // v101
 }
 
 // ── Asking before a brand-new bin is created by a typo ─────────────────────
@@ -8314,6 +8471,7 @@ function refreshMoveBinLists() {
     fillBinDatalist('move-bin-list-live', binChoices(moveBinRole('from'), moveHolders(), null));
     refreshToBinList();
     refreshQtyStepper('move-qty-input');   // v100: the + limit follows the product and bin
+    renderMoveBinLive();                   // v101: "In bin X now: N units ..."
 }
 // Transfer TO list: never offers the bin the stock is coming FROM.
 function refreshToBinList() {
@@ -8636,6 +8794,9 @@ function defaultBulkRef() {
 function applyBulkPickVisibility() {
     var sec = document.getElementById('bulkpick-section');
     if (sec) sec.style.display = isListingManager() ? '' : 'none';
+    var hb = document.getElementById('pick-held-btn-wrap');   // v101
+    if (hb) hb.style.display = isListingManager() ? '' : 'none';
+    if (isListingManager()) { try { loadReservedSummary(false); } catch (e) {} }   // v103
 }
 function onBulkFile(input) {
     var f = input && input.files && input.files[0];
@@ -8991,6 +9152,11 @@ function fetchAllPages(makeQuery, label) {
     return page(0);
 }
 function loadHeldBatches() {
+    // v102: the same plain-words batch cards as the Held stock screen; a tap
+    // opens that batch there. (The v97 counts line below is no longer used.)
+    return loadHeldCardsInto('held-list');
+}
+function loadHeldBatches_v97() {
     var list = document.getElementById('held-list');
     if (!list || !isListingManager()) return;
     if (!db) { list.innerHTML = '<div class="settings-info">Database not reachable right now.</div>'; return; }
@@ -9075,15 +9241,820 @@ function cancelHeldOrder(batchId, typed) {
         loadHeldBatches();
     });
 }
+// ══ v102: HELD STOCK SCREEN (rewritten in plain words) ═════════════════════
+// The founder could not read the v97/v101 lists ("0 line · open units 0 · open
+// orders 1 · packed 1 · short 8") and the batches could not be tapped. Now:
+//  * one tappable CARD per batch: "Printed 28-Sep 13:49 · 21 orders · 8 picked ✓
+//    · 13 not in stock (make to order) · 0 still held"
+//  * by default only batches that still HOLD stock (a line still OPEN), newest
+//    first; "Show finished batches" adds the rest, greyed, "Finished - nothing held"
+//  * a tapped batch shows its orders and lines, each with a status chip:
+//    Picked ✓ (time, by) / Held - waiting to be picked (bin, qty) /
+//    Not in stock - make to order (nothing held) / Released
+//  * release ONE line (oms_cancel_pick_line, else oms_cancel_reservation),
+//    the REST of one order (oms_cancel_pick p_order_id) or EVERYTHING still held
+//    in the batch (oms_cancel_pick p_batch_id) - each with one line saying what
+//    it does, a confirm box and the person's own PIN, exactly as before
+//  * "holds stock" is worked out from the OPEN lines, so it is right with or
+//    without database update M6 (which closes empty batches by itself)
+// Reads only: oms_pick_batches, oms_pick_reservations, oms_order_lines (the
+// app's public key may read them - same as v97/v101).
+var _hs = { rows: [], batches: {}, orderInfo: {}, m5: null, lineFns: null, view: null, loaded: false };
+// The one-line release: oms_cancel_pick_line first, then oms_cancel_reservation.
+var HS_LINE_FNS = ['oms_cancel_pick_line', 'oms_cancel_reservation'];
+var HS_RECENT_BATCHES = 150;       // finished batches listed (newest first)
+var HS_EXPLAIN = {
+    line:  'Puts these units back as free stock. The printed slip for this line will no longer work.',
+    order: 'Puts every unit still held for this order back as free stock. Its printed slips will no longer work. Lines already picked stay picked.',
+    batch: 'Puts every unit still held in this batch back as free stock. Those printed slips will no longer work. Lines already picked stay picked.'
+};
+function hsMsg(html, cls) { var el = document.getElementById('hs-msg'); if (el) { el.className = 'move-result' + (cls ? ' ' + cls : ''); el.innerHTML = html || ''; } }
+// Review B2 (v101): "this database has no such function" means ONLY PostgREST's
+// PGRST202 / "Could not find the function public.<name>" for THAT function.
+function _isMissingFunction(err, fnName) {
+    if (!err) return false;
+    var m = String(err.message || '') + ' ' + String(err.details || '') + ' ' + String(err.hint || '');
+    var nameOk = !fnName || m.indexOf(fnName) !== -1;
+    return nameOk && (err.code === 'PGRST202' || /could not find the function/i.test(m));
+}
+var M5_NEEDED = 'needs database update M5';
+// Asks the database's own list of functions (no side effects) whether the
+// one-line release exists. null = could not tell - the button then just tries.
+function probeM5() {
+    if (_hs.m5 !== null) return Promise.resolve(_hs.m5);
+    try {
+        return withTimeout(fetch(DB_URL + '/rest/v1/', { headers: { apikey: DB_ANON_KEY, Authorization: 'Bearer ' + DB_ANON_KEY, Accept: 'application/openapi+json' } }), 8000, 'M5 check')
+            .then(function (r) { return r.ok ? r.json() : null; })
+            .then(function (j) {
+                if (j && j.paths) {
+                    _hs.lineFns = HS_LINE_FNS.filter(function (f) { return !!j.paths['/rpc/' + f]; });
+                    _hs.m5 = _hs.lineFns.length > 0;
+                }
+                return _hs.m5;
+            }).catch(function () { return null; });
+    } catch (e) { return Promise.resolve(null); }
+}
+function openHeldStock() {
+    if (!isListingManager()) return;
+    document.getElementById('hs-bg').classList.add('active');
+    _hs.view = null;
+    hsMsg('');
+    loadHeldStock();
+}
+function closeHeldStock() { document.getElementById('hs-bg').classList.remove('active'); }
+function _chunks(arr, n) { var out = []; for (var i = 0; i < arr.length; i += n) out.push(arr.slice(i, i + n)); return out; }
+function _hsAge(ts) {
+    if (!ts) return '';
+    var h = (Date.now() - new Date(ts).getTime()) / 3600000;
+    if (h < 1) return Math.max(1, Math.round(h * 60)) + ' min';
+    if (h < 48) return Math.round(h) + ' h';
+    return Math.round(h / 24) + ' days';
+}
+function _hsWhen(ts) {
+    try {
+        var d = new Date(ts); if (isNaN(d.getTime())) return String(ts || '');
+        var m = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][d.getMonth()];
+        return ('0' + d.getDate()).slice(-2) + '-' + m + ' ' + ('0' + d.getHours()).slice(-2) + ':' + ('0' + d.getMinutes()).slice(-2);
+    } catch (e) { return String(ts); }
+}
+var HS_COLS = 'res_id,batch_id,order_id,channel,pick_line,pick_total,sku_code,asin,bin_code,qty,status,picked_at,picked_by,cancelled_at,created_at';
+// Loads every batch that still holds stock (from its OPEN lines) plus the most
+// recent batches, and ALL lines of those batches. Resolves true / throws.
+function loadHeldData() {
+    if (!db) return Promise.reject(new Error('Database not reachable right now.'));
+    probeM5();
+    var openRows = [], recent = [];
+    return Promise.all([
+        fetchAllPages(function () { return db.from('oms_pick_reservations').select('batch_id').eq('status', 'OPEN').order('res_id'); }, 'Held lines'),
+        withTimeout(db.from('oms_pick_batches').select('batch_id,label,source,created_at,created_by,status').order('created_at', { ascending: false }).limit(HS_RECENT_BATCHES), 12000, 'Batches')
+    ]).then(function (res) {
+        openRows = res[0] || [];
+        if (res[1] && res[1].error) throw new Error(res[1].error.message);
+        recent = (res[1] && res[1].data) || [];
+        var batches = {}, ids = [], seen = {};
+        recent.forEach(function (b) { batches[b.batch_id] = b; if (!seen[b.batch_id]) { seen[b.batch_id] = 1; ids.push(b.batch_id); } });
+        var missing = [];
+        openRows.forEach(function (x) { if (x.batch_id != null && !seen[x.batch_id]) { seen[x.batch_id] = 1; ids.push(x.batch_id); missing.push(x.batch_id); } });
+        var pb = Promise.all(_chunks(missing, 100).map(function (c) {
+            return withTimeout(db.from('oms_pick_batches').select('batch_id,label,source,created_at,created_by,status').in('batch_id', c), 12000, 'Batches').then(function (r) {
+                if (r.error) throw new Error(r.error.message);
+                (r.data || []).forEach(function (b) { batches[b.batch_id] = b; });
+            });
+        }));
+        var pl = Promise.all(_chunks(ids, 60).map(function (c) {
+            return fetchAllPages(function () { return db.from('oms_pick_reservations').select(HS_COLS).in('batch_id', c).order('res_id'); }, 'Batch lines');
+        }));
+        return Promise.all([pb, pl]).then(function (r2) {
+            var rows = [];
+            (r2[1] || []).forEach(function (part) { rows = rows.concat(part || []); });
+            _hs.rows = rows; _hs.batches = batches; _hs.loaded = true;
+            // invoice numbers for the orders of batches that still hold stock
+            var holdIds = {}; rows.forEach(function (x) { if (x.status === 'OPEN') holdIds[x.batch_id] = 1; });
+            return loadHeldOrderInfo(rows.filter(function (x) { return holdIds[x.batch_id]; }));
+        });
+    });
+}
+// Amazon T-ID -> invoice / Amazon order no (the T-ID is on the slip, the invoice on the paper).
+function loadHeldOrderInfo(rows) {
+    var oids = [], seen = {};
+    rows.forEach(function (x) { var o = String(x.order_id || '').toUpperCase(); if (o && !seen[o] && !_hs.orderInfo[o] && DISPATCH_REF_OK.test(o)) { seen[o] = 1; oids.push(o); } });
+    if (!oids.length) return Promise.resolve(true);
+    return Promise.all(_chunks(oids, 100).map(function (c) {
+        return withTimeout(db.from('oms_order_lines').select('tid,amazon_order_no,invoice_no').in('tid', c), 12000, 'Invoices').then(function (r) {
+            ((r && r.data) || []).forEach(function (l) { var k = String(l.tid || '').toUpperCase(); if (k && !_hs.orderInfo[k]) _hs.orderInfo[k] = { invoice: l.invoice_no, aon: l.amazon_order_no }; });
+        });
+    })).then(function () { return true; }, function () { return true; });
+}
+// One summary per batch, worked out from its lines.
+function heldBatchSummary(batchId) {
+    var c = { lines: 0, orders: 0, picked: 0, held: 0, heldUnits: 0, shortLines: 0, released: 0 }, ords = {};
+    _hs.rows.forEach(function (x) {
+        if (Number(x.batch_id) !== Number(batchId)) return;
+        c.lines++;
+        ords[String(x.order_id || '').toUpperCase()] = 1;
+        if (x.status === 'PICKED') c.picked++;
+        else if (x.status === 'OPEN') { c.held++; c.heldUnits += Number(x.qty) || 0; }
+        else if (x.status === 'SHORT') c.shortLines++;
+        else c.released++;
+    });
+    c.orders = Object.keys(ords).length;
+    c.holds = c.held > 0;
+    return c;
+}
+var HELD_SOURCE_WORDS = { APP_BULK: 'App bulk pick sheet', EXCEL: 'Excel pick list', STAMP: 'Amazon printed slips', OTHER: 'Other' };
+function heldCardHtml(b, c) {
+    var title = esc59(HELD_SOURCE_WORDS[b.source] || b.source || 'Batch') + (b.label ? ' &middot; ' + esc59(b.label) : '');
+    var parts = ['Printed ' + esc59(_hsWhen(b.created_at))];
+    parts.push(c.orders + ' order' + (c.orders === 1 ? '' : 's') + (c.lines !== c.orders ? ' (' + c.lines + ' lines)' : ''));
+    parts.push(c.picked + ' picked &#10003;');
+    parts.push(c.shortLines + ' not in stock (make to order)');
+    if (c.released) parts.push(c.released + ' released');
+    parts.push(c.held + ' still held' + (c.held ? ' (' + c.heldUnits + ' unit' + (c.heldUnits === 1 ? '' : 's') + ')' : ''));
+    return '<button type="button" class="hs-card' + (c.holds ? '' : ' finished') + '" data-batch="' + esc59(b.batch_id) + '" onclick="openHeldBatch(Number(this.getAttribute(\'data-batch\')))">' +
+        '<span class="hc-open">Open &#9656;</span><div class="hc-title">' + title + '</div>' +
+        '<div style="margin-top:3px;">' + parts.join(' &middot; ') + '</div>' +
+        (c.holds ? '' : '<div style="margin-top:3px;font-weight:800;">Finished &mdash; nothing held</div>') +
+        (b.created_by ? '<div style="font-size:11px;color:#6B7280;margin-top:2px;">by ' + esc59(b.created_by) + ' &middot; batch ' + esc59(b.batch_id) + '</div>' : '') +
+        '</button>';
+}
+// Does this line match the search box (order, T-ID, invoice, Amazon order, SKU, bin, R-number)?
+function _hsMatch(x, q) {
+    if (!q) return true;
+    var oid = String(x.order_id || '').toUpperCase(), inf = _hs.orderInfo[oid] || {};
+    return [oid, inf.invoice, inf.aon, x.sku_code, x.asin, x.bin_code, 'R' + x.res_id].join(' ').toUpperCase().indexOf(q) !== -1;
+}
+// The batch list: cards, holding batches first-class, finished ones only on request.
+function heldCardsHtml(showFinished, q) {
+    var ids = Object.keys(_hs.batches).map(Number);
+    ids.sort(function (a, b) {
+        var ta = new Date((_hs.batches[a] || {}).created_at || 0).getTime(), tb = new Date((_hs.batches[b] || {}).created_at || 0).getTime();
+        return (tb - ta) || (b - a);
+    });
+    var html = '', nHold = 0, nFin = 0;
+    ids.forEach(function (id) {
+        var b = _hs.batches[id], c = heldBatchSummary(id);
+        if (!c.lines) return;
+        if (q && !_hs.rows.some(function (x) { return Number(x.batch_id) === id && _hsMatch(x, q); })) return;
+        if (c.holds) nHold++; else nFin++;
+        if (!c.holds && !showFinished) return;
+        html += heldCardHtml(b, c);
+    });
+    var head = nHold
+        ? '<div style="font-size:12px;color:#6B7280;margin-top:6px;">' + nHold + (nHold === 1 ? ' batch still holds stock' : ' batches still hold stock') + (q ? ' (matching the search)' : '') + '. Tap one to see its orders.</div>'
+        : '<div class="settings-info" style="margin-top:8px;">' + (q ? 'No batch holding stock matches this search.' : '&#10003; Nothing is held right now - every printed slip has been picked or released.') + '</div>';
+    if (!showFinished && nFin) head += '<div style="font-size:11px;color:#6B7280;margin-top:2px;">' + nFin + ' finished batch' + (nFin === 1 ? ' is' : 'es are') + ' hidden - tick "Show finished batches" to see ' + (nFin === 1 ? 'it' : 'them') + '.</div>';
+    return head + html;
+}
+function loadHeldStock() {
+    var list = document.getElementById('hs-list');
+    if (!list) return Promise.resolve();
+    if (!db) { list.innerHTML = '<div class="settings-info">Database not reachable right now.</div>'; return Promise.resolve(); }
+    if (!_hs.loaded) list.innerHTML = '<div style="color:#6B7280;font-size:12px;margin-top:8px;">Loading...</div>';
+    return loadHeldData().then(function () { renderHeldStock(); }).catch(function (err) {
+        list.innerHTML = '<div class="move-result err">Could not load held stock: ' + esc59(err && err.message ? err.message : err) + '</div>';
+    });
+}
+// The bulk pick sheet's own list (PICK > Bulk pick sheet > Held stock): the
+// same cards, holding batches only; a tap opens the full screen on that batch.
+function loadHeldCardsInto(elId) {
+    var list = document.getElementById(elId);
+    if (!list || !isListingManager()) return Promise.resolve();
+    if (!db) { list.innerHTML = '<div class="settings-info">Database not reachable right now.</div>'; return Promise.resolve(); }
+    list.innerHTML = '<div style="color:#6B7280;font-size:12px;">Loading...</div>';
+    return loadHeldData().then(function () {
+        list.innerHTML = heldCardsHtml(false, '');
+        try { renderHeldStock(); } catch (e) {}
+    }).catch(function (err) {
+        list.innerHTML = '<div class="move-result err">Could not load held stock: ' + esc59(err && err.message ? err.message : err) + '</div>';
+    });
+}
+function openHeldBatch(batchId) {
+    var bg = document.getElementById('hs-bg');
+    if (bg && !bg.classList.contains('active')) { if (!isListingManager()) return; bg.classList.add('active'); }
+    _hs.view = Number(batchId);
+    hsMsg('');
+    renderHeldStock();
+    var lines = _hs.rows.filter(function (x) { return Number(x.batch_id) === Number(batchId); });
+    loadHeldOrderInfo(lines).then(function () { if (_hs.view === Number(batchId)) renderHeldStock(); });
+    try { document.querySelector('#hs-bg .hs-box').scrollTop = 0; } catch (e) {}
+}
+function heldBackToList() { _hs.view = null; hsMsg(''); renderHeldStock(); }
+function clearHeldFilters() { var el = document.getElementById('hs-search'); if (el) el.value = ''; renderHeldStock(); }
+function _lineChip(x) {
+    if (x.status === 'PICKED') return '<span class="hs-chip picked">Picked &#10003;' + (x.picked_at || x.picked_by ? ' (' + [x.picked_at ? esc59(_hsWhen(x.picked_at)) : '', x.picked_by ? 'by ' + esc59(x.picked_by) : ''].filter(Boolean).join(', ') + ')' : '') + '</span>';
+    if (x.status === 'OPEN') return '<span class="hs-chip held">Held &mdash; waiting to be picked (bin ' + esc59(x.bin_code) + ', qty ' + esc59(x.qty) + ')</span>';
+    if (x.status === 'SHORT') return '<span class="hs-chip short">Not in stock &mdash; make to order (nothing held)</span>';
+    return '<span class="hs-chip released">Released' + (x.cancelled_at ? ' (' + esc59(_hsWhen(x.cancelled_at)) + ')' : '') + '</span>';
+}
+function renderHeldStock() {
+    var list = document.getElementById('hs-list');
+    if (!list) return;
+    var q = String((document.getElementById('hs-search') || {}).value || '').trim().toUpperCase();
+    var showFin = !!(document.getElementById('hs-show-finished') || {}).checked;
+    var sum = document.getElementById('hs-summary');
+    if (!_hs.loaded) return;
+    if (_hs.view === null || !_hs.batches[_hs.view]) {
+        _hs.view = null;
+        if (sum) sum.textContent = '';
+        list.innerHTML = heldCardsHtml(showFin, q);
+        return;
+    }
+    // ── one batch: its orders and lines ──
+    var id = _hs.view, b = _hs.batches[id], c = heldBatchSummary(id);
+    if (sum) sum.textContent = '';
+    var html = '<button type="button" class="settings-btn" style="margin-top:8px;min-height:40px;" onclick="heldBackToList()">&#8592; All batches</button>' +
+        '<div class="hs-batch"><div class="hs-bh"><div style="font-weight:800;word-break:break-all;">' + (HELD_SOURCE_WORDS[b.source] || esc59(b.source) || 'Batch') + (b.label ? ' &middot; ' + esc59(b.label) : '') + '</div>' +
+        '<div style="font-size:12px;opacity:.9;margin-top:2px;">Printed ' + esc59(_hsWhen(b.created_at)) + ' &middot; ' + c.orders + ' order' + (c.orders === 1 ? '' : 's') + ' &middot; ' + c.picked + ' picked &#10003; &middot; ' +
+        c.shortLines + ' not in stock (make to order)' + (c.released ? ' &middot; ' + c.released + ' released' : '') + ' &middot; ' + c.held + ' still held</div>' +
+        (c.holds
+            ? '<button class="hs-btn" style="margin-top:8px;width:100%;" onclick="releaseHeldBatch(' + Number(id) + ')">Release everything still held in this batch</button><div class="hs-explain" style="color:#E2E8F0;">' + HS_EXPLAIN.batch + '</div>'
+            : '<div style="margin-top:6px;font-weight:800;">Finished &mdash; nothing held</div>') +
+        '</div>';
+    var orders = {}, oorder = [];
+    _hs.rows.forEach(function (x) {
+        if (Number(x.batch_id) !== Number(id) || !_hsMatch(x, q)) return;
+        var oid = String(x.order_id || '').toUpperCase();
+        if (!orders[oid]) { orders[oid] = []; oorder.push(oid); }
+        orders[oid].push(x);
+    });
+    if (!oorder.length) html += '<div class="settings-info" style="margin:8px 10px;">No line in this batch matches the search.</div>';
+    var lineBtn = function (x) {
+        if (_hs.m5 === false) return '<button class="hs-btn grey" disabled title="' + M5_NEEDED + '">' + M5_NEEDED + '</button>';
+        return '<button class="hs-btn" onclick="releaseHeldLine(' + Number(x.res_id) + ')">Release this line</button><div class="hs-explain">' + HS_EXPLAIN.line + '</div>';
+    };
+    oorder.forEach(function (oid) {
+        var lines = orders[oid], inf = _hs.orderInfo[oid] || {};
+        var nHeld = lines.filter(function (x) { return x.status === 'OPEN'; }).length;
+        html += '<div class="hs-order"><div><strong>' + esc59(oid || '(no order number)') + '</strong>' +
+            (inf.invoice ? ' <span style="color:#6B7280;font-size:11px;">invoice ' + esc59(inf.invoice) + '</span>' : '') +
+            (inf.aon ? ' <span style="color:#6B7280;font-size:11px;">Amazon ' + esc59(inf.aon) + '</span>' : '') + '</div>';
+        lines.forEach(function (x) {
+            html += '<div class="hs-line" style="display:block;"><div><strong>' + esc59(x.sku_code) + '</strong> &times; ' + esc59(x.qty) +
+                ' <span style="color:#6B7280;font-size:11px;">line ' + esc59(x.pick_line) + ' of ' + esc59(x.pick_total) + ' &middot; R' + esc59(x.res_id) + '</span></div>' +
+                _lineChip(x) + (x.status === 'OPEN' ? '<div style="margin-top:4px;">' + lineBtn(x) + '</div>' : '') + '</div>';
+        });
+        if (nHeld && oid) html += '<div style="margin-top:6px;"><button class="hs-btn grey" data-order="' + esc59(oid) + '" onclick="releaseHeldOrder(this.getAttribute(\'data-order\'))">Release the rest of this order</button><div class="hs-explain">' + HS_EXPLAIN.order + '</div></div>';
+        html += '</div>';
+    });
+    html += '</div>';
+    list.innerHTML = html;
+}
+// One PIN-checked call. Resolves the database answer, or { ok:false, m5:true }
+// when the function is not in the database.
+function _hsCall(fn, args, reason) {
+    return askManagerPin(reason).then(function (pin) {
+        if (!pin) return { ok: false, cancelled: true, message: 'Cancelled - nothing was changed.' };
+        var a = {}; for (var k in args) a[k] = args[k];
+        a.p_employee_code = sessionEmployeeCode(); a.p_pin = pin;
+        return withTimeout(db.rpc(fn, a), 12000, reason).then(function (r) {
+            if (r.error) return _isMissingFunction(r.error, fn) ? { ok: false, m5: true, message: 'This ' + M5_NEEDED + '.' } : { ok: false, message: r.error.message };
+            var d = r.data || {};
+            if (Array.isArray(d)) return { ok: true, rows: d };
+            if (d.error === 'ADMIN_PIN_REJECTED' || d.error === 'ADMIN_LOCKED') forgetManagerPin();
+            return d;
+        });
+    }).catch(function (e) { return { ok: false, message: String(e && e.message ? e.message : e) }; });
+}
+function _hsAfterRelease() {
+    loadHeldStock();
+    try { if (document.getElementById('held-list')) loadHeldCardsInto('held-list'); } catch (e) {}
+}
+function releaseHeldLine(resId) {
+    var x = null;
+    _hs.rows.forEach(function (r) { if (Number(r.res_id) === Number(resId) && r.status === 'OPEN') x = r; });
+    if (!x) { hsMsg('That line is no longer held - tap Refresh.', 'err'); return; }
+    if (!confirm('Release this line?\n\n' + x.qty + ' x ' + x.sku_code + ' in bin ' + x.bin_code + ' (order ' + x.order_id + ') go back to free stock.\nThe printed slip for this line will no longer work.')) return;
+    var fns = (_hs.lineFns && _hs.lineFns.length) ? _hs.lineFns.slice() : HS_LINE_FNS.slice();
+    var args = { p_res_id: Number(resId), p_reason: 'Released from the app (Held stock)' };
+    // asks for the PIN once, then tries oms_cancel_pick_line and, if the
+    // database does not have it, oms_cancel_reservation.
+    askManagerPin('Release line R' + resId + '?').then(function (pin) {
+        if (!pin) return { ok: false, message: 'Cancelled - nothing was changed.' };
+        function tryFn(i) {
+            if (i >= fns.length) return Promise.resolve({ ok: false, m5: true });
+            var a = { p_res_id: args.p_res_id, p_reason: args.p_reason, p_employee_code: sessionEmployeeCode(), p_pin: pin };
+            return withTimeout(db.rpc(fns[i], a), 12000, 'Release line').then(function (r) {
+                if (r.error) return _isMissingFunction(r.error, fns[i]) ? tryFn(i + 1) : { ok: false, message: r.error.message };
+                _hs.lineFns = fns.slice(i);
+                var d = r.data || {};
+                if (d.error === 'ADMIN_PIN_REJECTED' || d.error === 'ADMIN_LOCKED') forgetManagerPin();
+                return d;
+            });
+        }
+        return tryFn(0);
+    }).catch(function (e) { return { ok: false, message: String(e && e.message ? e.message : e) }; }).then(function (d) {
+        if (d && d.m5) { _hs.m5 = false; _hs.lineFns = []; renderHeldStock(); hsMsg('Releasing one line ' + M5_NEEDED + '. Release the rest of the order instead, or ask for the update.', 'err'); return; }
+        if (!d || !d.ok) { hsMsg('Not released: ' + esc59((d && d.message) || 'unknown reason'), 'err'); return; }
+        _hs.m5 = true;
+        hsMsg('&#10003; Line R' + resId + ' released - ' + x.qty + ' x ' + esc59(x.sku_code) + ' is free stock again. That slip will no longer work.', 'ok');
+        logEvent('R' + resId, 'Held line released');
+        _hsAfterRelease();
+    });
+}
+function releaseHeldOrder(orderId) {
+    orderId = String(orderId || '').toUpperCase();
+    var n = _hs.rows.filter(function (r) { return r.status === 'OPEN' && String(r.order_id || '').toUpperCase() === orderId; }).length;
+    if (!n) { hsMsg('Order ' + esc59(orderId) + ' has nothing held - tap Refresh.', 'err'); return; }
+    if (!confirm('Release the rest of order ' + orderId + '?\n\nEvery unit still held for this order goes back to free stock - ' + n + ' held line(s) shown here, plus any in other batches for the same order. Their printed slips will no longer work. Lines already picked stay picked.')) return;
+    _hsCall('oms_cancel_pick', { p_order_id: orderId, p_reason: 'Order released from the app (Held stock)' }, 'Release order ' + orderId + '?').then(function (d) {
+        if (!d || !d.ok) { hsMsg('Not released: ' + esc59((d && d.message) || 'unknown reason'), 'err'); return; }
+        hsMsg('&#10003; Order ' + esc59(orderId) + ': ' + (d.cancelled || 0) + ' line(s) released - that stock is free again.', 'ok');
+        logEvent('ORDER ' + orderId, 'Held order released');
+        _hsAfterRelease();
+    });
+}
+function releaseHeldBatch(batchId) {
+    var n = _hs.rows.filter(function (r) { return r.status === 'OPEN' && Number(r.batch_id) === Number(batchId); }).length;
+    if (!n) { hsMsg('This batch holds nothing any more - tap Refresh.', 'err'); return; }
+    var b = _hs.batches[batchId] || {};
+    if (!confirm('Release EVERYTHING still held in this batch?\n\n' + (b.label || ('Batch ' + batchId)) + '\n' + n + ' held line(s) go back to free stock. Those printed slips will no longer work. Lines already picked stay picked.')) return;
+    _hsCall('oms_cancel_pick', { p_batch_id: Number(batchId), p_reason: 'Batch released from the app (Held stock)' }, 'Release batch ' + (b.label || batchId) + '?').then(function (d) {
+        if (!d || !d.ok) { hsMsg('Not released: ' + esc59((d && d.message) || 'unknown reason'), 'err'); return; }
+        hsMsg('&#10003; ' + (d.cancelled || 0) + ' line(s) released - that stock is free again.', 'ok');
+        logEvent('BATCH ' + batchId, 'Held batch released');
+        _hsAfterRelease();
+    });
+}
+// ══ end v102 held stock ════════════════════════════════════════════════════
+// ══ v103: RESERVED STOCK - every unit still held, line by line ═════════════
+// The founder: units can stay reserved for a long time (order cancelled, or
+// the team packed a unit from other stock) and nobody can see or free them.
+// This screen lists EVERY OPEN reservation line (not per batch), oldest first,
+// with the date + weekday + time it was reserved, how old it is, where it came
+// from (Amazon printed slips / app bulk sheet / Excel pick list) and two plain
+// warnings:
+//   * "Order already dispatched another way" - the same order + SKU already
+//     left stock through a route that was NOT this slip (a phone dispatch, a
+//     bulk dispatch, Excel), or its Amazon order line is marked PICKED.
+//   * "Old - check" - held more than 2 days.
+// Release: one line, the ticked lines, or every line shown older than N days.
+// Always a confirm box saying how many lines / units and which slips stop
+// working, then ONE PIN (Admin / Supervisor, askManagerPin), then
+// oms_cancel_pick_line once per line, one after another, with progress; every
+// failure is listed. Reading this screen writes nothing.
+// A tile "Reserved stock: N units (M lines)" sits on the DASH tab (anyone who
+// may see DASH sees the count - it is only a number) and on the PICK tab
+// (Admin / Supervisor, next to Held stock). Opening the list and releasing
+// stay Admin / Supervisor only, exactly like Held stock.
+var RS_OLD_DAYS = 2;               // "Old - check" and the amber tile after this many days
+var RS_VERY_OLD_DAYS = 7;          // the tile turns red when anything is older than this
+var RS_COLS = 'res_id,batch_id,order_id,channel,order_line,pick_line,pick_total,sku_code,asin,bin_code,qty,status,created_at,created_by';
+var RS_SOURCE_WORDS = { STAMP: 'Amazon printed slip', APP_BULK: 'App bulk pick sheet', EXCEL: 'Excel pick list', OTHER: 'Other' };
+var _rs = { rows: [], batches: {}, olines: {}, disp: {}, loaded: false, sel: {}, busy: false, sumAt: 0, sum: null, group: 'list', shownIds: [], roleKey: null };
+// v103 review fix 4: how long one release call may take before the app says
+// "No answer in time - it may or may not have been released" and re-checks.
+var RS_CALL_TIMEOUT_MS = 12000;
+// v103 review fix 5: every date / weekday / day group is India time
+// (Asia/Kolkata, UTC+5:30, no daylight saving), whatever the phone is set to.
+var RS_IST_MS = 330 * 60000;
+var _rsDayMs = 86400000;
+function rsMsg(html, cls) { var el = document.getElementById('rs-msg'); if (el) { el.className = 'move-result' + (cls ? ' ' + cls : ''); el.innerHTML = html || ''; } }
+function _rsOffline() { return !db || (typeof navigator !== 'undefined' && navigator.onLine === false); }
+var RS_OFFLINE_TEXT = 'You are offline. Reserved stock can only be seen and released with internet. Nothing has changed.';
+function _rsAgeMs(x) { var t = new Date(x.created_at).getTime(); return isNaN(t) ? 0 : Math.max(0, Date.now() - t); }
+function _rsAgeDays(x) { return _rsAgeMs(x) / _rsDayMs; }
+function _rsAgeWords(x) {
+    var ms = _rsAgeMs(x), d = Math.floor(ms / _rsDayMs);
+    if (d >= 2) return d + ' days ago';
+    if (d === 1) return '1 day ago';
+    var h = Math.floor(ms / 3600000);
+    if (h >= 1) return h + (h === 1 ? ' hour ago' : ' hours ago');
+    return Math.max(1, Math.round(ms / 60000)) + ' min ago';
+}
+var _RS_DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+var _RS_MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+// A Date whose getUTC*() parts are the India-time parts of ts (null if invalid).
+function _rsIst(ts) { var t = new Date(ts).getTime(); return isNaN(t) ? null : new Date(t + RS_IST_MS); }
+function _rsDate(ts, withTime) {
+    var d = _rsIst(ts); if (!d) return String(ts || '');
+    var s = _RS_DAYS[d.getUTCDay()] + ', ' + ('0' + d.getUTCDate()).slice(-2) + '-' + _RS_MON[d.getUTCMonth()] + '-' + d.getUTCFullYear();
+    if (withTime) s += ', ' + ('0' + d.getUTCHours()).slice(-2) + ':' + ('0' + d.getUTCMinutes()).slice(-2) + ' IST';
+    return s;
+}
+function _rsDayKey(ts) { var d = _rsIst(ts); return !d ? '' : d.getUTCFullYear() + '-' + ('0' + (d.getUTCMonth() + 1)).slice(-2) + '-' + ('0' + d.getUTCDate()).slice(-2); }
+function _rsUnits(n) { return n + (n === 1 ? ' unit' : ' units'); }
+function _rsLines(n) { return n + (n === 1 ? ' line' : ' lines'); }
+
+// ── the tiles (DASH + PICK) - one small read: qty + date of each OPEN line ──
+function loadReservedSummary(force) {
+    var els = [document.getElementById('rsv-tile-dash'), document.getElementById('rsv-tile-pick')].filter(Boolean);
+    if (!els.length) return Promise.resolve(null);
+    if (_rsOffline()) { els.forEach(function (el) { el.innerHTML = '<div class="rs-tile off">Reserved stock: cannot be counted while offline.</div>'; }); return Promise.resolve(null); }
+    if (!force && _rs.sum && (Date.now() - _rs.sumAt) < 30000) { renderReservedTiles(); return Promise.resolve(_rs.sum); }
+    return fetchAllPages(function () { return db.from('oms_pick_reservations').select('res_id,qty,created_at').eq('status', 'OPEN').order('res_id'); }, 'Reserved count')
+        .then(function (rows) {
+            var s = { lines: 0, units: 0, oldLines: 0, oldUnits: 0, veryOld: 0 };
+            rows.forEach(function (x) {
+                var q = Number(x.qty) || 0, a = _rsAgeDays(x);
+                s.lines++; s.units += q;
+                if (a > RS_OLD_DAYS) { s.oldLines++; s.oldUnits += q; }
+                if (a > RS_VERY_OLD_DAYS) s.veryOld++;
+            });
+            _rs.sum = s; _rs.sumAt = Date.now();
+            renderReservedTiles();
+            return s;
+        }).catch(function (err) {
+            els.forEach(function (el) { el.innerHTML = '<div class="rs-tile off">Reserved stock: could not be counted (' + esc59(err && err.message ? err.message : err) + ').</div>'; });
+            return null;
+        });
+}
+function renderReservedTiles() {
+    var s = _rs.sum; if (!s) return;
+    var mgr = isListingManager();
+    var cls = s.veryOld ? 'danger' : (s.oldLines ? 'warn' : '');
+    var inner = '<div class="rs-tile-main">&#128274; Reserved stock: <span class="rs-tile-num">' + _rsUnits(s.units) + '</span> (' + _rsLines(s.lines) + ')</div>' +
+        (s.oldUnits ? '<div class="rs-tile-old">&#9888; ' + _rsUnits(s.oldUnits) + ' held more than ' + RS_OLD_DAYS + ' days' + (s.veryOld ? ' &mdash; some more than ' + RS_VERY_OLD_DAYS + ' days' : '') + '</div>' : (s.lines ? '<div class="rs-tile-sub">Nothing held more than ' + RS_OLD_DAYS + ' days.</div>' : '<div class="rs-tile-sub">Nothing is reserved right now.</div>')) +
+        (mgr ? '<div class="rs-tile-sub">Tap to see every reserved unit and release it &#9656;</div>' : '<div class="rs-tile-sub">Only an Admin or Supervisor can open the list and release units.</div>');
+    // review fix 6: each tile only for whoever may see it right now
+    var canDash = !!state.session && effectivePermissions().dash === true;
+    ['rsv-tile-dash', 'rsv-tile-pick'].forEach(function (id) {
+        var el = document.getElementById(id); if (!el) return;
+        if ((id === 'rsv-tile-dash' && !canDash) || (id === 'rsv-tile-pick' && !mgr)) { el.innerHTML = ''; return; }
+        el.innerHTML = mgr
+            ? '<button type="button" class="rs-tile ' + cls + '" onclick="openReservedStock()">' + inner + '</button>'
+            : '<div class="rs-tile ' + cls + '">' + inner + '</div>';
+    });
+}
+
+// ── the screen ─────────────────────────────────────────────────────────────
+function openReservedStock() {
+    if (!isListingManager()) return;
+    try { closeHeldStock(); } catch (e) {}
+    document.getElementById('rs-bg').classList.add('active');
+    rsMsg('');
+    _rs.sel = {};
+    loadReservedStock();
+}
+function closeReservedStock() { document.getElementById('rs-bg').classList.remove('active'); }
+function reservedToHeld() { closeReservedStock(); openHeldStock(); }
+function heldToReserved() { openReservedStock(); }
+// Loads the OPEN lines, their batches, their Amazon order lines and any
+// dispatch of the same order that did not come from this slip. Reads only.
+function loadReservedData() {
+    var rows = [];
+    return fetchAllPages(function () { return db.from('oms_pick_reservations').select(RS_COLS).eq('status', 'OPEN').order('created_at').order('res_id'); }, 'Reserved lines')
+        .then(function (r) {
+            rows = r || [];
+            var bids = [], seenB = {}, oids = [], seenO = {};
+            rows.forEach(function (x) {
+                if (x.batch_id != null && !seenB[x.batch_id]) { seenB[x.batch_id] = 1; bids.push(x.batch_id); }
+                var o = String(x.order_id || '').toUpperCase();
+                if (o && !seenO[o]) { seenO[o] = 1; oids.push(o); }
+            });
+            var batches = {}, olines = {};
+            var pb = Promise.all(_chunks(bids, 100).map(function (c) {
+                return withTimeout(db.from('oms_pick_batches').select('batch_id,label,source,created_at,created_by,status').in('batch_id', c), 12000, 'Batches').then(function (q) {
+                    if (q.error) throw new Error(q.error.message);
+                    (q.data || []).forEach(function (b) { batches[b.batch_id] = b; });
+                });
+            }));
+            // Amazon order lines (T-ID -> invoice, Amazon order no, PICKED?) - a failure here only hides the extra info
+            var po = Promise.all(_chunks(oids, 100).map(function (c) {
+                return withTimeout(db.from('oms_order_lines').select('tid,amazon_order_no,invoice_no,line_no,sku_code,status').in('tid', c), 12000, 'Order lines').then(function (q) {
+                    ((q && q.data) || []).forEach(function (l) { var k = String(l.tid || '').toUpperCase(); (olines[k] = olines[k] || []).push(l); });
+                });
+            })).catch(function () { return null; });
+            return Promise.all([pb, po]).then(function () {
+                // every reference the order may have been dispatched under
+                var refs = {}, refList = [];
+                oids.forEach(function (o) {
+                    var add = function (v) { v = String(v || '').trim(); if (v && !refs[v.toUpperCase()]) { refs[v.toUpperCase()] = o; refList.push(v); if (v.toUpperCase() !== v) refList.push(v.toUpperCase()); } };
+                    add(o);
+                    (olines[o] || []).forEach(function (l) { add(l.amazon_order_no); add(l.invoice_no); });
+                });
+                var disp = {};
+                var pl = Promise.all(_chunks(refList, 80).map(function (c) {
+                    return withTimeout(db.from('oms_inventory_transactions').select('txn_id,order_id,sku_code,qty_delta,client_queue_id,created_at,txn_type').eq('txn_type', 'SCAN_OUT_ORDER').in('order_id', c), 12000, 'Dispatches').then(function (q) {
+                        ((q && q.data) || []).forEach(function (t) {
+                            var o = refs[String(t.order_id || '').toUpperCase()]; if (!o) return;
+                            // a slip pick of ANY reservation line (PICK|R<n>) is accounted for by that
+                            // line's own reservation (PICKED), so it is not "another way"
+                            if (/^PICK\|R\d+$/i.test(String(t.client_queue_id || ''))) return;
+                            // v103 review fix 2: NET the rows - a voided / reversed dispatch (a
+                            // positive balancing row) cancels the negative one it undoes
+                            var k = o + '|' + String(t.sku_code || '').toUpperCase();
+                            var e = disp[k] = disp[k] || { out: 0, last: null };
+                            var dq = Number(t.qty_delta) || 0;
+                            e.out -= dq;
+                            if (dq < 0 && (!e.last || String(t.created_at) > String(e.last))) e.last = t.created_at;
+                        });
+                    });
+                })).catch(function () { return null; });
+                return pl.then(function () {
+                    _rs.rows = rows; _rs.batches = batches; _rs.olines = olines; _rs.disp = disp; _rs.loaded = true;
+                    // forget ticks on lines that are gone
+                    var live = {}; rows.forEach(function (x) { live[x.res_id] = 1; });
+                    Object.keys(_rs.sel).forEach(function (k) { if (!live[k]) delete _rs.sel[k]; });
+                    return true;
+                });
+            });
+        });
+}
+function loadReservedStock() {
+    var list = document.getElementById('rs-list');
+    if (!list) return Promise.resolve();
+    if (_rsOffline()) { list.innerHTML = '<div class="settings-info">' + RS_OFFLINE_TEXT + '</div>'; document.getElementById('rs-total').innerHTML = ''; return Promise.resolve(); }
+    if (!_rs.loaded) list.innerHTML = '<div style="color:#6B7280;font-size:12px;margin-top:8px;">Loading...</div>';
+    return loadReservedData().then(function () { renderReservedStock(); }).catch(function (err) {
+        list.innerHTML = '<div class="move-result err">Could not load reserved stock: ' + esc59(err && err.message ? err.message : err) + '</div>';
+    });
+}
+// Flags for one line.
+// v103 review fix 2: "dispatched another way" only when the units that went out
+// another way (netted, voids taken off) cover EVERY unit still reserved for that
+// order + SKU, or when the Amazon order line for exactly this line is PICKED.
+// Some but not enough units -> the softer amber "partial" note, never "safe".
+function _rsFlags(x) {
+    var o = String(x.order_id || '').toUpperCase(), sku = String(x.sku_code || '').toUpperCase();
+    var f = { dispatched: false, partial: false, how: '', out: 0, need: 0, old: _rsAgeDays(x) > RS_OLD_DAYS };
+    (_rs.olines[o] || []).forEach(function (l) {
+        if (String(l.status || '').toUpperCase() !== 'PICKED') return;
+        if (String(l.sku_code || '').toUpperCase() !== sku) return;
+        if (x.order_line == null || l.line_no == null || Number(l.line_no) !== Number(x.order_line)) return;
+        f.dispatched = true; f.how = 'its Amazon order line is marked picked';
+    });
+    var d = _rs.disp[o + '|' + sku];
+    if (!f.dispatched && d && d.out > 0) {
+        var need = 0;
+        _rs.rows.forEach(function (y) { if (String(y.order_id || '').toUpperCase() === o && String(y.sku_code || '').toUpperCase() === sku) need += Number(y.qty) || 0; });
+        f.out = d.out; f.need = need;
+        if (d.out >= need) { f.dispatched = true; f.how = d.out + ' of ' + need + ' reserved unit' + (need === 1 ? '' : 's') + ' went out on ' + _rsDate(d.last, true); }
+        else f.partial = true;
+    }
+    return f;
+}
+function _rsSource(x) {
+    var b = _rs.batches[x.batch_id] || {};
+    var w = RS_SOURCE_WORDS[b.source] || b.source || 'Pick batch';
+    return w + (b.label ? ' &middot; ' + esc59(b.label) : '');
+}
+function _rsOrderInfo(x) {
+    var o = String(x.order_id || '').toUpperCase(), inf = null;
+    (_rs.olines[o] || []).forEach(function (l) { if (!inf && (l.invoice_no || l.amazon_order_no)) inf = l; });
+    return inf || {};
+}
+function _rsMatch(x, q) {
+    if (!q) return true;
+    var inf = _rsOrderInfo(x);
+    return [x.order_id, inf.invoice_no, inf.amazon_order_no, x.sku_code, x.asin, x.bin_code, 'R' + x.res_id].join(' ').toUpperCase().indexOf(q) !== -1;
+}
+// The lines the current filters show, oldest first.
+function reservedShown() {
+    var q = String((document.getElementById('rs-search') || {}).value || '').trim().toUpperCase();
+    var age = Number((document.getElementById('rs-age') || {}).value || 0);
+    var ch = String((document.getElementById('rs-channel') || {}).value || '');
+    var out = _rs.rows.filter(function (x) {
+        if (age > 0 && !(_rsAgeDays(x) > age)) return false;
+        if (ch && String(x.channel || '') !== ch) return false;
+        return _rsMatch(x, q);
+    });
+    out.sort(function (a, b) { return (new Date(a.created_at).getTime() - new Date(b.created_at).getTime()) || (Number(a.res_id) - Number(b.res_id)); });
+    return out;
+}
+function _rsLineHtml(x) {
+    var f = _rsFlags(x), inf = _rsOrderInfo(x);
+    var ticked = !!_rs.sel[x.res_id];
+    var h = '<div class="rs-line' + (f.dispatched ? ' disp' : ((f.old || f.partial) ? ' old' : '')) + '" data-res="' + Number(x.res_id) + '">' +
+        '<label class="rs-tick"><input type="checkbox" ' + (ticked ? 'checked ' : '') + 'onchange="rsTick(' + Number(x.res_id) + ', this.checked)"></label>' +
+        '<div class="rs-body">' +
+        '<div><strong>' + esc59(x.sku_code) + '</strong> &times; <strong>' + esc59(x.qty) + '</strong> &middot; bin <strong>' + esc59(x.bin_code || '-') + '</strong>' +
+        (x.asin ? ' <span class="rs-dim">ASIN ' + esc59(x.asin) + '</span>' : '') + '</div>' +
+        '<div class="rs-dim">Order <strong style="color:#1A1A1A;">' + esc59(x.order_id || '-') + '</strong>' +
+        (inf.invoice_no ? ' &middot; invoice ' + esc59(inf.invoice_no) : '') +
+        (inf.amazon_order_no ? ' &middot; Amazon ' + esc59(inf.amazon_order_no) : '') +
+        (x.channel ? ' &middot; ' + esc59(x.channel) : '') + ' &middot; slip R' + esc59(x.res_id) + '</div>' +
+        '<div class="rs-dim">Reserved <strong style="color:#1A1A1A;">' + esc59(_rsDate(x.created_at, true)) + '</strong> (' + esc59(_rsAgeWords(x)) + ')' +
+        ' &middot; ' + _rsSource(x) + (x.created_by ? ' &middot; by ' + esc59(x.created_by) : '') + '</div>' +
+        (f.dispatched ? '<span class="hs-chip rs-flag-disp">Order already dispatched another way (' + esc59(f.how) + ') &mdash; likely safe to release</span> ' : '') +
+        (f.partial ? '<span class="hs-chip rs-flag-part">Some units of this order already went out another way (' + esc59(f.out) + ' of ' + esc59(f.need) + ') &mdash; check</span> ' : '') +
+        (f.old ? '<span class="hs-chip rs-flag-old">Old &ndash; check</span>' : '') +
+        '<div style="margin-top:5px;"><button class="hs-btn" onclick="releaseReservedLine(' + Number(x.res_id) + ')">Release this line</button></div>' +
+        '</div></div>';
+    return h;
+}
+function renderReservedStock() {
+    var list = document.getElementById('rs-list'), tot = document.getElementById('rs-total');
+    if (!list || !_rs.loaded) return;
+    var shown = reservedShown();
+    // v103 review fixes 1 + 3: the list on screen is remembered exactly as drawn,
+    // and a tick on a line that is no longer shown is dropped - so a release
+    // can only ever touch lines the person can see.
+    var shownSet = {}; shown.forEach(function (x) { shownSet[x.res_id] = 1; });
+    Object.keys(_rs.sel).forEach(function (k) { if (!shownSet[k]) delete _rs.sel[k]; });
+    _rs.shownIds = shown.map(function (x) { return Number(x.res_id); });
+    var allU = 0; _rs.rows.forEach(function (x) { allU += Number(x.qty) || 0; });
+    var shU = 0, oldN = 0, dispN = 0, partN = 0; shown.forEach(function (x) { shU += Number(x.qty) || 0; var f = _rsFlags(x); if (f.old) oldN++; if (f.dispatched) dispN++; if (f.partial) partN++; });
+    // channel filter options from the data
+    var chSel = document.getElementById('rs-channel');
+    if (chSel) {
+        var cur = chSel.value, chs = {};
+        _rs.rows.forEach(function (x) { if (x.channel) chs[x.channel] = 1; });
+        var opts = '<option value="">All channels</option>' + Object.keys(chs).sort().map(function (c) { return '<option value="' + esc59(c) + '"' + (c === cur ? ' selected' : '') + '>' + esc59(c) + '</option>'; }).join('');
+        if (chSel.innerHTML !== opts) chSel.innerHTML = opts;
+        if (cur && !chs[cur]) chSel.value = '';
+    }
+    if (tot) tot.innerHTML = '<strong>' + _rsUnits(allU) + ' reserved in ' + _rsLines(_rs.rows.length) + '</strong>' +
+        (shown.length !== _rs.rows.length ? ' &middot; showing ' + _rsUnits(shU) + ' in ' + _rsLines(shown.length) : '') +
+        (oldN ? ' &middot; <span style="color:#9A6700;font-weight:800;">' + oldN + ' held more than ' + RS_OLD_DAYS + ' days</span>' : '') +
+        (dispN ? ' &middot; <span style="color:#B3261E;font-weight:800;">' + dispN + ' already dispatched another way</span>' : '') +
+        (partN ? ' &middot; <span style="color:#9A6700;font-weight:800;">' + partN + ' partly sent another way</span>' : '');
+    // the bulk buttons
+    var selIds = _rsTickedShown(), selU = 0;
+    shown.forEach(function (x) { if (_rs.sel[x.res_id]) selU += Number(x.qty) || 0; });
+    var bs = document.getElementById('rs-rel-sel');
+    if (bs) { bs.disabled = !selIds.length || _rs.busy; bs.textContent = 'Release selected (' + _rsLines(selIds.length) + ', ' + _rsUnits(selU) + ')'; }
+    var age = Number((document.getElementById('rs-age') || {}).value || 0);
+    var bo = document.getElementById('rs-rel-old');
+    if (bo) {
+        bo.disabled = !age || !shown.length || _rs.busy;
+        bo.textContent = age ? 'Release all ' + _rsLines(shown.length) + ' shown (older than ' + age + (age === 1 ? ' day' : ' days') + ')' : 'Release all shown older than N days (choose an age above first)';
+    }
+    var all = document.getElementById('rs-all');
+    if (all) all.checked = shown.length > 0 && shown.every(function (x) { return _rs.sel[x.res_id]; });
+    if (!_rs.rows.length) { list.innerHTML = '<div class="settings-info" style="margin-top:8px;">&#10003; Nothing is reserved right now &mdash; every printed slip has been picked or released.</div>'; return; }
+    if (!shown.length) { list.innerHTML = '<div class="settings-info" style="margin-top:8px;">No reserved line matches these filters.</div>'; return; }
+    var g = _rs.group, html = '';
+    if (g === 'sku' || g === 'date') {
+        var groups = {}, order = [];
+        shown.forEach(function (x) {
+            var k = g === 'sku' ? String(x.sku_code || '') : _rsDayKey(x.created_at);
+            if (!groups[k]) { groups[k] = []; order.push(k); }
+            groups[k].push(x);
+        });
+        if (g === 'sku') order.sort(function (a, b) { var ua = 0, ub = 0; groups[a].forEach(function (x) { ua += Number(x.qty) || 0; }); groups[b].forEach(function (x) { ub += Number(x.qty) || 0; }); return (ub - ua) || (a < b ? -1 : 1); });
+        order.forEach(function (k) {
+            var ls = groups[k], u = 0; ls.forEach(function (x) { u += Number(x.qty) || 0; });
+            var title = g === 'sku'
+                ? '<strong>' + esc59(k) + '</strong> &mdash; ' + _rsUnits(u) + ' reserved in ' + _rsLines(ls.length) + ' <span class="rs-dim">(oldest ' + esc59(_rsAgeWords(ls[0])) + ')</span>'
+                : '<strong>' + esc59(_rsDate(ls[0].created_at, false)) + '</strong> &mdash; ' + _rsUnits(u) + ' in ' + _rsLines(ls.length);
+            html += '<details class="rs-group" data-key="' + esc59(k) + '"><summary>' + title + '</summary>' + ls.map(_rsLineHtml).join('') + '</details>';
+        });
+    } else {
+        html = shown.map(_rsLineHtml).join('');
+    }
+    list.innerHTML = html;
+}
+// the ticked lines that are on screen right now (review fix 1)
+function _rsTickedShown() { return (_rs.shownIds || []).filter(function (id) { return !!_rs.sel[id]; }); }
+function rsSetGroup(g) {
+    if (g !== _rs.group) _rs.sel = {};   // review fix 1: a view change clears the ticks
+    _rs.group = g;
+    ['list', 'sku', 'date'].forEach(function (k) { var b = document.getElementById('rs-g-' + k); if (b) b.classList.toggle('on', k === g); });
+    renderReservedStock();
+}
+function rsTick(resId, on) { if (on) _rs.sel[resId] = 1; else delete _rs.sel[resId]; renderReservedStock(); }
+function rsTickAll(on) { reservedShown().forEach(function (x) { if (on) _rs.sel[x.res_id] = 1; else delete _rs.sel[x.res_id]; }); renderReservedStock(); }
+function rsClearFilters() {
+    ['rs-search', 'rs-age', 'rs-channel'].forEach(function (id) { var el = document.getElementById(id); if (el) el.value = ''; });
+    renderReservedStock();
+}
+
+// ── release ────────────────────────────────────────────────────────────────
+function releaseReservedLine(resId) { _rsRelease([Number(resId)], 'this line'); }
+function releaseReservedSelected() { _rsRelease(_rsTickedShown(), 'the ticked lines'); }
+function releaseReservedOld() {
+    var age = Number((document.getElementById('rs-age') || {}).value || 0);
+    if (!age) { rsMsg('Choose an age first (for example "older than 2 days").', 'err'); return; }
+    // review fix 3: exactly the list drawn on screen (snapshot taken when it was drawn)
+    _rsRelease((_rs.shownIds || []).slice(), 'every line shown older than ' + age + (age === 1 ? ' day' : ' days'));
+}
+function _rsRelease(ids, what) {
+    if (!isListingManager()) { rsMsg('Only an Admin or Supervisor can release reserved stock.', 'err'); return Promise.resolve(); }
+    if (_rs.busy) return Promise.resolve();
+    if (_rsOffline()) { rsMsg(RS_OFFLINE_TEXT, 'err'); return Promise.resolve(); }
+    var byId = {}; _rs.rows.forEach(function (x) { byId[x.res_id] = x; });
+    var lines = ids.map(function (i) { return byId[i]; }).filter(Boolean);
+    if (!lines.length) { rsMsg('Nothing to release - tap Refresh.', 'err'); return Promise.resolve(); }
+    var units = 0; lines.forEach(function (x) { units += Number(x.qty) || 0; });
+    var sample = lines.slice(0, 8).map(function (x) { return 'R' + x.res_id + ': ' + x.qty + ' x ' + x.sku_code + ', bin ' + (x.bin_code || '-') + ', order ' + (x.order_id || '-') + ', reserved ' + _rsDate(x.created_at, false); }).join('\n');
+    var more = lines.length > 8 ? '\n...and ' + (lines.length - 8) + ' more line(s).' : '';
+    var slips = lines.map(function (x) { return 'R' + x.res_id; });
+    var slipTxt = slips.length > 20 ? slips.slice(0, 20).join(', ') + ' and ' + (slips.length - 20) + ' more' : slips.join(', ');
+    if (!confirm('Release ' + what + '?\n\n' + _rsLines(lines.length) + ', ' + _rsUnits(units) + ' in total:\n' + sample + more +
+        '\n\nThese units go back to free stock. The printed slips for these lines will stop working: ' + slipTxt +
+        '.\nThis does not change anything on Amazon.')) return Promise.resolve();
+    _rs.busy = true; renderReservedStock();
+    var reason = 'Released from the app (Reserved stock)';
+    var fns = (_hs.lineFns && _hs.lineFns.length) ? _hs.lineFns.slice() : HS_LINE_FNS.slice();
+    return askManagerPin('Release ' + _rsLines(lines.length) + ' (' + _rsUnits(units) + ')?').then(function (pin) {
+        if (!pin) { rsMsg('Cancelled - nothing was changed.', ''); return null; }
+        var done = [], failed = [], notTried = [], unknown = [], stop = false, i = 0;
+        function callOne(x, k) {
+            if (k >= fns.length) return Promise.resolve({ ok: false, message: 'This database cannot release one line (needs database update M5).' });
+            var a = { p_res_id: Number(x.res_id), p_reason: reason, p_employee_code: sessionEmployeeCode(), p_pin: pin };
+            return withTimeout(db.rpc(fns[k], a), RS_CALL_TIMEOUT_MS, 'Release line').then(function (r) {
+                if (r.error) {
+                    if (_isMissingFunction(r.error, fns[k])) return callOne(x, k + 1);
+                    // the request never got an answer (connection dropped): unknown, not "failed"
+                    if (!r.status && /fetch|network|load failed|abort/i.test(String(r.error.message || ''))) return { unknown: true };
+                    return { ok: false, message: r.error.message };
+                }
+                if (k > 0) fns = fns.slice(k);
+                return r.data || { unknown: true };
+            }, function () { return { unknown: true }; });   // timed out: unknown
+        }
+        function next() {
+            if (i >= lines.length) return Promise.resolve();
+            var x = lines[i++];
+            if (stop) { notTried.push(x); return next(); }
+            rsMsg('Releasing ' + i + ' of ' + lines.length + '... (R' + esc59(x.res_id) + ')', '');
+            return callOne(x, 0).then(function (d) {
+                if (d && d.ok) { done.push(x); delete _rs.sel[x.res_id]; }
+                else if (d && d.unknown) { unknown.push(x); }
+                else {
+                    failed.push({ x: x, why: (d && d.message) || 'unknown reason' });
+                    if (d && (d.error === 'ADMIN_PIN_REJECTED' || d.error === 'ADMIN_LOCKED')) { forgetManagerPin(); stop = true; }
+                }
+                return next();
+            });
+        }
+        return next().then(function () { return { done: done, failed: failed, notTried: notTried, unknown: unknown }; });
+    }).catch(function (e) { rsMsg('Not released: ' + esc59(e && e.message ? e.message : e), 'err'); return null; }).then(function (res) {
+        _rs.busy = false;
+        if (!res) { renderReservedStock(); return; }
+        if (res.unknown.length) {
+            rsMsg('No answer in time for ' + res.unknown.map(function (x) { return 'R' + esc59(x.res_id); }).join(', ') + ' &mdash; it may or may not have been released. Refreshing&hellip;', '');
+        }
+        // re-read the list first, then report from the refreshed data (review fix 4)
+        return loadReservedData().then(function () { return true; }, function () { return false; }).then(function (refreshed) {
+            var stillOpen = {}; _rs.rows.forEach(function (x) { stillOpen[x.res_id] = 1; });
+            var unsure = [];
+            res.unknown.forEach(function (x) {
+                if (!refreshed) unsure.push(x);
+                else if (stillOpen[x.res_id]) res.failed.push({ x: x, why: 'no answer in time; the refreshed list shows it is still reserved, so it was NOT released' });
+                else { res.done.push(x); x._late = true; delete _rs.sel[x.res_id]; }
+            });
+            if (refreshed) renderReservedStock(); else loadReservedStock();
+            _rsReport(res, unsure);
+            loadReservedSummary(true);
+            try { if (_hs.loaded) loadHeldStock(); } catch (e) {}
+            try { if (document.getElementById('held-list') && isListingManager()) loadHeldCardsInto('held-list'); } catch (e) {}
+        });
+    });
+}
+function _rsReport(res, unsure) {
+        var du = 0; res.done.forEach(function (x) { du += Number(x.qty) || 0; });
+        var h = '';
+        if (res.done.length) h += '&#10003; ' + _rsLines(res.done.length) + ' released (' + _rsUnits(du) + ' are free stock again). Those slips no longer work.' +
+            (res.done.some(function (x) { return x._late; }) ? ' (' + res.done.filter(function (x) { return x._late; }).map(function (x) { return 'R' + esc59(x.res_id); }).join(', ') + ': no answer in time, but the refreshed list shows it released.)' : '');
+        if (res.failed.length) h += (h ? '<br>' : '') + '&#10007; <strong>' + _rsLines(res.failed.length) + ' NOT released:</strong><br>' + res.failed.map(function (f) { return 'R' + esc59(f.x.res_id) + ' (' + esc59(f.x.sku_code) + '): ' + esc59(f.why); }).join('<br>');
+        if (res.notTried.length) h += '<br>&#9888; ' + _rsLines(res.notTried.length) + ' not tried because the PIN was not accepted: ' + res.notTried.map(function (x) { return 'R' + esc59(x.res_id); }).join(', ') + '. Nothing was changed on them.';
+        if (unsure.length) h += '<br>&#9888; <strong>No answer in time and the list could not be refreshed:</strong> ' + unsure.map(function (x) { return 'R' + esc59(x.res_id); }).join(', ') + ' may or may not have been released. Tap Refresh to check.';
+        rsMsg(h, (res.failed.length || res.notTried.length || unsure.length) ? 'err' : 'ok');
+        if (res.done.length) {
+            try { logEvent(res.done.length === 1 ? 'R' + res.done[0].res_id : res.done.length + ' lines', 'Reserved stock released' + (res.done.length > 1 ? ' (' + res.done.map(function (x) { return 'R' + x.res_id; }).join(', ') + ')' : '')); } catch (e) {}
+        }
+}
+// v103 review fix 6: the tiles follow the signed-in person. Called from
+// applyRolePermissions() (sign-in, permission refresh, role change) and logout().
+function onReservedRoleChange() {
+    var sess = state.session;
+    var key = sess ? [sess.employee_code, String(sess.role || '').toUpperCase(), effectivePermissions().dash === true].join('|') : '';
+    if (key === _rs.roleKey) return;
+    _rs.roleKey = key;
+    _rs.sel = {}; _rs.rows = []; _rs.loaded = false; _rs.shownIds = [];
+    if (!isListingManager()) { try { closeReservedStock(); } catch (e) {} }
+    var dashOk = !!sess && effectivePermissions().dash === true;
+    var el = document.getElementById('rsv-tile-dash');
+    if (el && !dashOk) el.innerHTML = '';
+    var ep = document.getElementById('rsv-tile-pick');
+    if (ep && !isListingManager()) ep.innerHTML = '';
+    if (!sess) { _rs.sum = null; _rs.sumAt = 0; return; }
+    if (_rs.sum) renderReservedTiles();                       // redraw at once for the new role
+    if (dashOk || isListingManager()) loadReservedSummary(true);
+}
+// ══ end v103 reserved stock ════════════════════════════════════════════════
+
 function qrSvg(text, cell) {
     if (typeof qrcode !== 'function') return '<div style="color:#B3261E;font-size:10px;">QR unavailable</div>';
     var q = qrcode(0, 'M'); q.addData(text); q.make();
     return q.createSvgTag(cell || 3, 2);
 }
 function bulkQrPayload(l) {
-    // AF2|ref|channel|order|SKU|title(empty)|set|qty|bin|line|total|ASIN|flag|R<reservation>
-    return ['AF2', _bulk.orderRef, _bulk.channel, l.order_id, l.sku_code, '', (l.set_size || 1), l.qty, l.bin_code,
-            l.pick_line, l.pick_total, (l.asin || ''), '', 'R' + l.res_id].join('|');
+    // v101: every line here has a reservation, so the short "AF3|R<res>|bin"
+    // QR is printed - fewer squares, bigger squares, reads from further away.
+    // (v96-v100 printed AF2|ref|channel|order|SKU|...|R<res>; still scannable.)
+    return 'AF3|R' + l.res_id + (l.bin_code ? '|' + String(l.bin_code).toUpperCase() : '');
 }
 function printBulkSheet() {
     var d = _bulk.result; if (!d) return;
@@ -10747,10 +11718,38 @@ function parseQR(raw) {
             resId:         resId
         };
     }
+    // v101: the short pick QR "AF3|R<reservation>" (+ optional bin). The
+    // rest (order, product, bin, quantity) is read from the reservation.
+    if (String(p[0]).toUpperCase() === 'AF3') {
+        var m3 = /^AF3\|R([0-9]{1,12})(?:\|([A-Za-z0-9 _.\/-]{1,24}))?$/i.exec(String(raw).trim());
+        if (!m3) return { type: 'BAD_AF3', raw: String(raw).trim(), reason: 'the short pick code is not complete' };
+        return { type: 'AF3', resId: parseInt(m3[1], 10), bin: m3[2] ? m3[2].trim().toUpperCase() : '', raw: String(raw).trim() };
+    }
     if (String(p[0]).toUpperCase() === 'BIN' && p.length >= 2) {
         return { type: 'BIN', binID: p[1] };
     }
     return { type: 'UNKNOWN', raw: String(raw).trim() };
+}
+// v101: reads the reservation behind a short pick QR and returns the same
+// shape parseQR() gives for a reserved AF2 slip, or { error } in plain words.
+function resolveAF3(p3) {
+    if (!db) return Promise.resolve({ error: '&#128268; Needs internet to read this short pick code. Try again when the connection is back.' });
+    return withTimeout(db.from('oms_pick_reservations').select('res_id,order_id,channel,pick_line,pick_total,sku_code,asin,bin_code,qty,status').eq('res_id', p3.resId).limit(1), 8000, 'Short pick code').then(function (r) {
+        if (!r || r.error) return { error: '&#128268; Needs internet to read this short pick code (' + esc59(r && r.error ? r.error.message : 'no answer') + ').' };
+        var row = (r.data || [])[0];
+        if (!row) return { error: '&#9940; This pick code (R' + p3.resId + ') is not in the system. Do not pick - give it to the supervisor.' };
+        if (p3.bin && String(row.bin_code || '').toUpperCase() !== p3.bin) return { error: '&#9940; This pick code (R' + p3.resId + ') does not match its reservation (bin ' + esc59(p3.bin) + ' printed, ' + esc59(row.bin_code) + ' reserved). Do not pick - give it to the supervisor.' };
+        return withTimeout(db.from('oms_sku_master').select('product_name,set_size').eq('sku_code', row.sku_code).limit(1), 8000, 'Product').then(function (m) {
+            var sku = (m && m.data && m.data[0]) || {};
+            return { parsed: {
+                type: 'AF2', af3: true, internalID: 'R' + row.res_id, channel: row.channel || '',
+                marketOrderID: String(row.order_id || '').toUpperCase(), sku: String(row.sku_code || '').toUpperCase(),
+                product: sku.product_name || '', setSize: parseInt(sku.set_size, 10) || 1, qty: Number(row.qty) || 0,
+                bin: String(row.bin_code || '').toUpperCase(), lineNum: Number(row.pick_line) || 1, totalLines: Number(row.pick_total) || 1,
+                asin: String(row.asin || '').toUpperCase(), flag: '', resId: Number(row.res_id)
+            } };
+        }, function () { return { error: '&#128268; Needs internet to read this short pick code. Try again.' }; });
+    }).catch(function () { return { error: '&#128268; Needs internet to read this short pick code. Try again when the connection is back.' }; });
 }
 function pickKeyFor(o) {
     return o.resId ? ('PICK|R' + o.resId) : ('PICK|' + o.marketOrderID + '|' + o.lineNum + '|' + o.sku);
@@ -10807,10 +11806,10 @@ function checkSlipNotPicked(o) {
             if (r.error) return { ok: false, message: 'Could not check this slip: ' + r.error.message };
             var row = (r.data || [])[0];
             if (!row) return { ok: false, message: 'This slip (R' + o.resId + ') is not in the system. Do not pick - give it to the supervisor.' };
-            if (row.sku_code !== o.sku || String(row.bin_code || '').toUpperCase() !== o.bin || Number(row.qty) !== o.qty || row.order_id !== o.marketOrderID) {
+            if (String(row.sku_code || '').toUpperCase() !== String(o.sku || '').toUpperCase() || String(row.bin_code || '').toUpperCase() !== o.bin || Number(row.qty) !== o.qty || String(row.order_id || '').toUpperCase() !== String(o.marketOrderID || '').toUpperCase()) {   // v101: letter case ignored
                 return { ok: false, message: 'This slip does not match what was reserved (R' + o.resId + '). Do not pick - give it to the supervisor.' };
             }
-            if (row.status === 'PICKED') return { ok: false, already: true, message: '&#9940; ALREADY PICKED on ' + new Date(row.picked_at).toLocaleString('en-IN') + ' by ' + esc59(row.picked_by || '?') + '.<br><strong>Do NOT pick it again.</strong>' };
+            if (row.status === 'PICKED') return { ok: false, already: true, pickedBy: row.picked_by || '', pickedAt: row.picked_at || '', message: '&#9940; ALREADY PICKED on ' + new Date(row.picked_at).toLocaleString('en-IN') + ' by ' + esc59(row.picked_by || '?') + '.<br><strong>Do NOT pick it again.</strong>' };
             if (row.status === 'CANCELLED') return { ok: false, message: '&#9940; This slip was CANCELLED. Do not pick.' };
             if (row.status === 'SHORT') return { ok: false, message: '&#9940; This line is OUT OF STOCK (make to order). Do not pick.' };
             // v99 review A2: sent out from the Actions tab already?
@@ -10820,7 +11819,7 @@ function checkSlipNotPicked(o) {
     return withTimeout(db.from('oms_inventory_transactions').select('created_at,employee_code').eq('client_queue_id', pickKeyFor(o)).limit(1), 8000, 'Slip check').then(function (r) {
         if (r.error) return { ok: false, message: 'Could not check this slip: ' + r.error.message };
         var row = (r.data || [])[0];
-        if (row) return { ok: false, already: true, message: '&#9940; ALREADY PICKED on ' + new Date(row.created_at).toLocaleString('en-IN') + ' by ' + esc59(row.employee_code || '?') + '.<br><strong>Do NOT pick it again.</strong>' };
+        if (row) return { ok: false, already: true, pickedBy: row.employee_code || '', pickedAt: row.created_at || '', message: '&#9940; ALREADY PICKED on ' + new Date(row.created_at).toLocaleString('en-IN') + ' by ' + esc59(row.employee_code || '?') + '.<br><strong>Do NOT pick it again.</strong>' };
         // v99: sent out from the Actions tab (Dispatch Out) already?
         return checkOrderDispatchedElsewhere(o).then(function (msg) {
             return msg ? { ok: false, message: msg } : { ok: true };
@@ -10888,6 +11887,16 @@ function acceptSlip(parsed, first) {
     updateSteps();
     checkSlipNotPicked(parsed).then(function (chk) {
         if (state.pickState !== 'CHECKING') return;           // reset meanwhile
+        // v102: picked by THIS person in the last 10 minutes (this phone's own
+        // list was cleared, e.g. another browser) - calm information, not a refusal.
+        if (!chk.ok && chk.already && isOwnRecentServerPick(chk)) {
+            state.pickState = first ? 'IDLE' : 'NEXT_LINE';
+            if (first) { state.groupOrderID = null; state.groupTotal = 1; state.groupDone = 0; state.groupLinesDone = []; }
+            showAlreadyPickedByYou({ t: new Date(chk.pickedAt).getTime(), sku: parsed.sku, qty: parsed.qty, bin: parsed.bin, order: parsed.marketOrderID }, parsed);
+            restoreDoneState();
+            updateSteps(); saveSession();
+            return;
+        }
         if (!chk.ok && chk.already && parsed.totalLines > 1 && (first || parsed.marketOrderID === state.groupOrderID)) {
             // someone (or this phone before a reset) already picked this line: it is DONE for this order
             if (first) { state.groupOrderID = parsed.marketOrderID; state.groupTotal = parsed.totalLines; state.groupLinesDone = []; }
@@ -10917,6 +11926,8 @@ function acceptSlip(parsed, first) {
         state.pickState = 'NEED_BIN';
         hideScanOptions();
         renderOrderCard();
+        renderDoneBox();          // v102: hides the green "Picked" box
+        loadLiveBinQty(parsed);   // v101
         updateGroupProgress();
         var qtyHint = parsed.qty > 1 ? ' (Qty ' + parsed.qty + ' &mdash; scan the product barcode <strong>' + parsed.qty + 'x</strong>)' : '';
         setStatus('&#10003; ' + (first ? 'Order loaded: <strong>' + esc59(parsed.marketOrderID) + '</strong>' : 'Item ' + parsed.lineNum + '/' + state.groupTotal + ' loaded') +
@@ -10997,7 +12008,68 @@ function processScan(value, opts) {
         return;
     }
 
-    var parsed = parseQR(value);
+    var parsed = opts.af3Resolved || parseQR(value);
+    // v102: which slip is this? ('R<res>' or 'PICK|order|line|SKU'; null = not a slip)
+    var scannedKey = slipKeyOf(parsed);
+    var isSlip = !!scannedKey;
+    // v102: a slip THIS phone picked in the last 10 minutes -> calm info, nothing
+    // else happens (not a refusal, not logged as one). The camera often reads
+    // the same slip again a few seconds after the pick.
+    if (isSlip && !opts.af3Resolved) {
+        var mine = ownRecentPick(scannedKey);
+        if (mine) {
+            showAlreadyPickedByYou(mine, parsed);
+            return;
+        }
+    }
+    // v102: the slip whose pick is open right now, scanned again at the bin or
+    // product step -> ignored with a calm reminder of what to scan.
+    if (isSlip && (state.pickState === 'NEED_BIN' || state.pickState === 'NEED_SKU') && state.order && scannedKey === slipKeyOf(state.order)) {
+        setStatus('&#8505; That is the same slip - it is already open.<br>' + (state.pickState === 'NEED_BIN'
+            ? 'Now scan the <strong>QR sticker on the shelf</strong> at bin <strong>' + esc59(state.order.bin) + '</strong>.'
+            : 'Now scan the <strong>barcode on the product</strong> (' + esc59(state.order.sku) + ').'), 'info');
+        return;
+    }
+    // v102: after a finished pick, the next slip starts a new order; anything
+    // else leaves the green "Picked" box where it is.
+    if (state.pickState === 'DONE') {
+        if (isSlip || (parsed && (parsed.type === 'BAD_AF2' || parsed.type === 'BAD_AF3'))) {
+            clearDoneState();
+        } else {
+            setStatus('&#8505; The last pick is finished. Scan the <strong>next pick slip</strong>.', 'info');
+            return;
+        }
+    }
+    // v101: a short pick QR is looked up first (the slip steps need the
+    // order / product / bin behind it); at the bin or product step it is
+    // simply "a pick slip", as before.
+    if (parsed && parsed.type === 'BAD_AF3') {
+        setStatus('&#10060; This short pick code is damaged or wrongly printed (' + esc59(parsed.reason) + ').<br>Do not pick from it - reprint the slip.' +
+                  '<span class="scan-raw">Scanned: ' + esc59(parsed.raw).slice(0, 160) + '</span>', 'error');
+        pulse('e'); updateSteps(); saveSession();
+        return;
+    }
+    if (parsed && parsed.type === 'AF3') {
+        if (state.pickState === 'IDLE' || state.pickState === 'NEXT_LINE') {
+            var before = state.pickState, rawAF3 = value;
+            state.pickState = 'CHECKING';
+            setStatus('&#8987; Reading the short pick code R' + parsed.resId + '...', 'waiting');
+            updateSteps();
+            resolveAF3(parsed).then(function (res) {
+                if (state.pickState !== 'CHECKING') return;      // reset meanwhile
+                state.pickState = before;
+                if (res.error) {
+                    setStatus(res.error, 'error'); pulse('e');
+                    logEvent('R' + parsed.resId, 'Short pick code refused: ' + String(res.error).replace(/<[^>]+>/g, ' ').replace(/&[a-z#0-9]+;/g, ' '));
+                    updateSteps(); saveSession();
+                    return;
+                }
+                processScan(rawAF3, { af3Resolved: res.parsed });
+            });
+            return;
+        }
+        parsed = { type: 'AF2', af3: true };    // "that is a pick slip" at the bin / product step
+    }
     // v98: the courier barcode, the product-page QR and Amazon's tax QR are
     // printed on the same page as the PICK QR. Whatever step we are on, say
     // plainly what was scanned and where the PICK QR is - and change nothing
@@ -11096,6 +12168,7 @@ function processScan(value, opts) {
             var normalise = function(s) { return (s || '').toLowerCase().replace(/[\s\-_\.]/g, ''); };
             if (normalise(state.order.bin) === normalise(scannedBin)) {
                 state.bin = { binID: state.order.bin };            // the slip's bin, not the sticker's spelling
+                loadLiveBinQty(state.order);                          // v101: fresh count at the shelf
                 state.pickState = 'NEED_SKU';
                 var qtyNote = state.order.qty > 1 ? ' &mdash; scan the barcode <strong>' + state.order.qty + ' times</strong> (once per unit)' : '';
                 setStatus('&#10003; Bin <strong>' + esc59(state.order.bin) + '</strong> verified.<br>Scan the product SKU or ASIN barcode' + qtyNote + '.', 'success');
@@ -11179,6 +12252,8 @@ function finishPickLine(isRetry) {
             return;
         }
         logEvent(o.internalID || o.marketOrderID, 'Line ' + o.lineNum + '/' + o.totalLines + ' taken out of stock (' + o.qty + ' x ' + o.sku + ' @ ' + o.bin + ')' + (res.note ? ' - ' + res.note : ''));
+        rememberOwnPick(o);                // v102: this phone picked this slip
+        closeCameraIfOpen();               // v102: nothing more to scan on this slip
         state.groupLinesDone = (state.groupLinesDone || []);
         if (state.groupLinesDone.indexOf(o.lineNum) === -1) state.groupLinesDone.push(o.lineNum);
         state.groupDone = state.groupLinesDone.length;
@@ -11190,14 +12265,20 @@ function finishPickLine(isRetry) {
             document.getElementById('order-card').classList.remove('visible');
             updateGroupProgress();
             setStatus('&#9989; <strong>Item ' + gDone + ' of ' + gTotal + ' picked and saved!</strong><br>Now scan the slip for the next item.<br><small>(Order: ' + esc59(gID) + ' &bull; done: ' + state.groupLinesDone.join(', ') + ')</small>', 'success');
+            state.lastPick = { lines: [pickDoneLine(o)], order: gID, done: gDone, total: gTotal, final: false, t: Date.now() };
+            renderDoneBox();
         } else {
-            state.pickState = 'READY';
+            // v102: the pick is COMPLETE here - the stock is already out. No
+            // Confirm step: the green box stays until the next slip.
+            state.pickState = 'DONE';
+            state.lastPick = { lines: [pickDoneLine(o)], order: state.groupOrderID || o.marketOrderID, done: state.groupTotal, total: state.groupTotal, final: true, t: Date.now() };
+            writeAuditLog('PICK_CONFIRMED', { orderId: state.groupOrderID || o.internalID, skuCode: o.sku, channel: o.channel,
+                details: { items: state.groupTotal, qty: o.qty, auto: 'v102: pick complete when the last product scan is saved' } });
+            state.order = null; state.bin = null; state.skuScanned = 0;
+            document.getElementById('order-card').classList.remove('visible');
             updateGroupProgress();
-            setStatus(state.groupTotal > 1
-                ? '&#9989; <strong>All ' + state.groupTotal + ' items picked and saved</strong> for Order <strong>' + esc59(state.groupOrderID) + '</strong>!<br>Take them to packing, then tap CONFIRM.'
-                : '&#10003; Picked and saved: <strong>' + esc59(o.product || o.sku) + '</strong>.<br>Tap CONFIRM when packed and ready for dispatch.', 'success');
-            document.getElementById('action-btns').style.display = 'flex';
-            setTimeout(function() { var ab = document.getElementById('action-btns'); if (ab) ab.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); }, 150);
+            setStatus('&#9989; Picked and saved. Scan the next slip.', 'success');
+            renderDoneBox();
         }
         pulse('s');
         updateSteps(); saveSession();
@@ -11258,7 +12339,7 @@ function updateSteps() {
     for (i = 0; i < ids.length; i++) {
         document.getElementById(ids[i]).classList.remove('active', 'done');
     }
-    var idxMap = { IDLE:0, NEXT_LINE:0, CHECKING:0, NEED_BIN:1, NEED_SKU:2, SAVING:2, SAVE_FAILED:2, READY:3 };
+    var idxMap = { IDLE:0, NEXT_LINE:0, CHECKING:0, NEED_BIN:1, NEED_SKU:2, SAVING:2, SAVE_FAILED:2, READY:3, DONE:3 };
     var idx = (idxMap[state.pickState] !== undefined) ? idxMap[state.pickState] : 0;
     for (i = 0; i < ids.length; i++) {
         if      (i < idx)               document.getElementById(ids[i]).classList.add('done');
@@ -11321,12 +12402,12 @@ function updateNextActionBanner() {
             text: skuText,
             sub:  skuSub
         };
-    } else if (state.pickState === 'READY') {
+    } else if (state.pickState === 'READY' || state.pickState === 'DONE') {
         cfg = {
             cls:  'state-ready',
             icon: '&#9989;',
-            text: 'All Items Verified \u2014 Confirm',
-            sub:  'Tap CONFIRM when all packages are ready for dispatch'
+            text: 'Picked \u2713 \u2014 Scan the Next Slip',
+            sub:  'The stock is already out of the bin. Nothing to confirm.'
         };
     }
 
@@ -11349,7 +12430,7 @@ function updateGroupProgress() {
 
     var done      = state.groupDone;
     var total     = state.groupTotal;
-    var isReady   = (state.pickState === 'READY');
+    var isReady   = (state.pickState === 'READY' || state.pickState === 'DONE');
     var activeIdx = isReady ? -1 : done;
 
     var statusHTML;
@@ -11373,6 +12454,78 @@ function updateGroupProgress() {
 }
 
 // ── ORDER CARD ───────────────────────────────────────────────
+// v101: "Bin A28 holds N of this product (live)", read fresh from the
+// database when the slip is loaded and again when the bin is scanned, plus
+// how many of those are held for OTHER orders.
+function loadLiveBinQty(o) {
+    if (!db || !o || !o.sku || !o.bin) return;
+    o.liveBin = { loading: true };
+    if (state.order === o) renderOrderCard();
+    var sku = String(o.sku).toUpperCase(), bin = String(o.bin).toUpperCase();
+    var qS = db.from('oms_bin_stock').select('bin_code,qty_on_hand').eq('sku_code', sku);
+    var qR = db.from('oms_pick_reservations').select('res_id,bin_code,qty').eq('sku_code', sku).eq('status', 'OPEN');
+    Promise.all([withTimeout(qS, 8000, 'Bin stock'), withTimeout(qR, 8000, 'Held stock')]).then(function (rs) {
+        if (!rs[0] || rs[0].error) throw new Error('no stock answer');
+        var qty = 0, others = null, held = null, mine = 0, elsewhere = {};
+        (rs[0].data || []).forEach(function (x) {
+            var bc = String(x.bin_code || '').toUpperCase(), q = Number(x.qty_on_hand) || 0;
+            if (bc === bin) qty += q;
+            else if (bc && q > 0) elsewhere[bc] = (elsewhere[bc] || 0) + q;
+        });
+        if (rs[1] && !rs[1].error) {
+            others = 0; held = 0;
+            (rs[1].data || []).forEach(function (x) {
+                if (String(x.bin_code || '').toUpperCase() !== bin) return;
+                var q = Number(x.qty) || 0;
+                held += q;
+                if (Number(x.res_id) === Number(o.resId || 0)) mine += q; else others += q;
+            });
+        }
+        // v101: the other bins holding this product, most first ("A12 (5), A3 (2)")
+        var other = Object.keys(elsewhere).map(function (k) { return { bin: k, qty: elsewhere[k] }; })
+            .sort(function (a, b) { return (b.qty - a.qty) || a.bin.localeCompare(b.bin); });
+        o.liveBin = { qty: qty, others: others, held: held, mine: mine, other: other, at: new Date().toISOString() };
+    }).catch(function () { o.liveBin = { error: true }; }).then(function () {
+        if (state.order === o) { renderOrderCard(); saveSession(); }
+    });
+}
+// v101: the three lines shown on the pick card and on the Actions tab:
+//   In this bin now: N units (live, HH:MM)
+//   Held for orders: M  (this slip 2, other orders 3)
+//   Other bins: A12 (5), A3 (2)
+function liveStockLinesHtml(bin, lb) {
+    var t = new Date(lb.at || Date.now());
+    var hhmm = ('0' + t.getHours()).slice(-2) + ':' + ('0' + t.getMinutes()).slice(-2);
+    var h = 'In bin <strong>' + esc59(bin) + '</strong> now: <strong class="lb-qty">' + lb.qty + '</strong> unit' + (lb.qty === 1 ? '' : 's') +
+            ' <span style="color:#6B7280;">(live, ' + hhmm + ')</span>';
+    if (lb.held) {
+        var parts = [];
+        if (lb.mine) parts.push('this slip ' + lb.mine);
+        if (lb.others) parts.push('other orders ' + lb.others);
+        h += '<br><span style="color:#9A6700;">Held for orders: <strong>' + lb.held + '</strong>' + (parts.length > 1 || lb.mine ? ' (' + parts.join(', ') + ')' : '') + '</span>';
+    }
+    if (lb.other) {
+        h += '<br><span style="color:#374151;">Other bins: ' + (lb.other.length
+            ? lb.other.slice(0, 6).map(function (x) { return esc59(x.bin) + ' (' + x.qty + ')'; }).join(', ') + (lb.other.length > 6 ? ' +' + (lb.other.length - 6) + ' more' : '')
+            : 'none') + '</span>';
+    }
+    return h;
+}
+function liveBinRowHtml(o) {
+    var lb = o && o.liveBin;
+    if (!lb) return '';
+    var v;
+    if (lb.loading) v = '<span style="color:#6B7280;">checking...</span>';
+    else if (lb.error) v = '<span style="color:#6B7280;">could not read (no connection?)</span>';
+    else {
+        var t = new Date(lb.at);
+        var hhmm = ('0' + t.getHours()).slice(-2) + ':' + ('0' + t.getMinutes()).slice(-2);
+        var short = lb.qty < (Number(o.qty) || 0);
+        v = liveStockLinesHtml(o.bin, lb) +
+            (short ? '<br><span style="color:#B3261E;font-weight:800;">Fewer than this slip needs - tell the supervisor.</span>' : '');
+    }
+    return '<div class="card-row"><span class="card-label">Bin now</span><span class="card-value" id="live-bin-qty">' + v + '</span></div>';
+}
 function renderOrderCard() {
     if (!state.order) return;
     var o0    = state.order;
@@ -11414,6 +12567,7 @@ function renderOrderCard() {
         '<div class="card-row"><span class="card-label">Set Size</span><span class="card-value">Set of ' + (o.setSize || 1) + '</span></div>' +
         '<div class="card-row"><span class="card-label">Qty Ordered</span><span class="card-value">' + (o.qty || 1) + ' unit' + ((o.qty || 1) > 1 ? 's' : '') + '</span></div>' +
         '<div class="card-row"><span class="card-label">Bin</span><span class="card-value">' + (o.bin || '—') + '</span></div>' +
+        liveBinRowHtml(o0) +   // v101
         qtyScanRow +
         '<div class="total-banner">&#11088; PACK ' + total + ' PIECE' + (total > 1 ? 'S' : '') +
         ' <span style="font-size:11px;font-weight:600;opacity:.9;">&nbsp;(' + (o.qty || 1) + ' unit' + ((o.qty||1)>1?'s':'') + ' &times; set of ' + (o.setSize||1) + ')</span></div>';
@@ -11428,7 +12582,122 @@ function updateQtyScanDisplay() {
     }
 }
 
+// ══ v102: PICK FINISHED / SAME SLIP AGAIN ══════════════════════════════════
+// Real incident 2026-09-28 14:25 (R105): the pick was saved (stock out once),
+// then ~10 s later the same slip was read again and the app replaced the
+// success screen with a red "already picked - do not pick it again". Now:
+//  * a slip this phone picked in the last 10 minutes -> calm blue information
+//  * the finished pick stays on screen (green box) until the next slip, and is
+//    shown again if the app is closed and reopened
+//  * the camera is closed after the pick
+var OWN_PICK_MINUTES = 10;
+var LS_OWN_PICKS = 'oms_own_picks_v102';
+// The slip's identity: 'R<reservation>' for reserved slips (AF2 with R field, AF3),
+// else the unique pick key the database uses.
+function slipKeyOf(p) {
+    if (!p) return null;
+    if (p.type === 'AF3') return 'R' + p.resId;
+    if (p.type === 'AF2' && p.af3 && !p.marketOrderID) return null;   // placeholder at bin/product step
+    if (p.type === 'AF2' || p.marketOrderID) {
+        if (p.resId) return 'R' + p.resId;
+        if (!p.marketOrderID) return null;
+        return 'PICK|' + String(p.marketOrderID).toUpperCase() + '|' + p.lineNum + '|' + String(p.sku || '').toUpperCase();
+    }
+    return null;
+}
+function _myEmpCode() {
+    var emp = loadEmployee();
+    return String((state.session && state.session.employee_code) || (emp && emp.code) || '').toUpperCase();
+}
+function _ownPicks() {
+    var list = [];
+    try { list = lsGetJSON(LS_OWN_PICKS) || []; } catch (e) { list = []; }
+    if (!Array.isArray(list)) list = [];
+    var cut = Date.now() - OWN_PICK_MINUTES * 60000;
+    return list.filter(function (x) { return x && x.t >= cut; });
+}
+function rememberOwnPick(o) {
+    try {
+        var list = _ownPicks(), key = slipKeyOf(o);
+        if (!key) return;
+        list = list.filter(function (x) { return x.key !== key; });
+        list.push({ key: key, t: Date.now(), emp: _myEmpCode(), sku: o.sku, qty: o.qty, bin: o.bin, order: o.marketOrderID, line: o.lineNum, total: o.totalLines });
+        lsSetJSON(LS_OWN_PICKS, list.slice(-50));
+    } catch (e) {}
+}
+function ownRecentPick(key) {
+    if (!key) return null;
+    var me = _myEmpCode(), hit = null;
+    _ownPicks().forEach(function (x) { if (x.key === key && (!x.emp || !me || x.emp === me)) hit = x; });
+    return hit;
+}
+// The database says "already picked": was it this person, in the last 10 minutes?
+function isOwnRecentServerPick(chk) {
+    if (!chk || !chk.pickedBy || !chk.pickedAt) return false;
+    var t = new Date(chk.pickedAt).getTime();
+    return String(chk.pickedBy).toUpperCase() === _myEmpCode() && !isNaN(t) && (Date.now() - t) <= OWN_PICK_MINUTES * 60000 && (Date.now() - t) >= -60000;
+}
+function _hhmm(t) { var d = new Date(t); return ('0' + d.getHours()).slice(-2) + ':' + ('0' + d.getMinutes()).slice(-2); }
+function showAlreadyPickedByYou(rec, parsed) {
+    closeCameraIfOpen();
+    // v102 review fix: inside a multi-item order, a line picked earlier must
+    // still count as done, or the order could never finish.
+    if (state.pickState === 'NEXT_LINE' && parsed && parsed.lineNum && state.groupOrderID &&
+        String(parsed.marketOrderID || '').toUpperCase() === String(state.groupOrderID).toUpperCase()) {
+        countLineAlreadyDone(parsed);
+        return;
+    }
+    var what = rec.sku ? ' (' + esc59(rec.sku) + (rec.qty ? ' &times; ' + esc59(rec.qty) : '') + (rec.bin ? ' from bin ' + esc59(rec.bin) : '') + ')' : '';
+    var step = (state.pickState === 'NEED_BIN' && state.order) ? 'Carry on with the open slip: scan the shelf sticker at bin <strong>' + esc59(state.order.bin) + '</strong>.'
+             : (state.pickState === 'NEED_SKU' && state.order) ? 'Carry on with the open slip: scan the product barcode (' + esc59(state.order.sku) + ').'
+             : (state.pickState === 'NEXT_LINE') ? 'Scan the slip for the <strong>next item</strong> of this order.'
+             : 'Scan the <strong>next</strong> pick slip.';
+    setStatus('&#8505; <strong>Already picked by you at ' + _hhmm(rec.t) + '</strong>' + what + ' - nothing more to do.<br>' + step, 'info');
+    logEvent(rec.order || (parsed && (parsed.internalID || parsed.marketOrderID)) || '—', 'Same slip scanned again - already picked by you at ' + _hhmm(rec.t) + ' (nothing done)');
+}
+function pickDoneLine(o) { return { sku: o.sku, qty: o.qty, bin: o.bin, product: o.product || '', line: o.lineNum, total: o.totalLines }; }
+function renderDoneBox() {
+    var el = document.getElementById('pick-done-box');
+    var ab = document.getElementById('action-btns');
+    var lp = state.lastPick;
+    var show = !!lp && (state.pickState === 'DONE' || state.pickState === 'NEXT_LINE');
+    if (!el) return;
+    if (!show) { el.classList.remove('visible'); el.innerHTML = ''; if (ab) ab.style.display = 'none'; return; }
+    var l = (lp.lines || [])[0] || {};
+    var html = '<div class="pd-title">Picked &#10003;</div>' +
+        '<div><strong>' + esc59(l.sku) + '</strong> &times; <strong>' + esc59(l.qty) + '</strong> from bin <strong>' + esc59(l.bin) + '</strong>' +
+        (l.product ? '<br><span style="font-size:13px;">' + esc59(l.product) + '</span>' : '') + '</div>' +
+        '<div style="font-size:12px;margin-top:4px;">Saved at ' + _hhmm(lp.t) + ' &bull; the stock is already out of the bin. Nothing to confirm.' +
+        (lp.total > 1 ? '<br>Order ' + esc59(lp.order) + ': ' + lp.done + ' of ' + lp.total + ' items done.' : '') + '</div>' +
+        '<div class="pd-next">' + (lp.final ? '&#10145; Scan the next slip.' : '&#10145; Scan the slip for the next item of this order.') + '</div>';
+    el.innerHTML = html;
+    el.classList.add('visible');
+    if (ab) ab.style.display = (state.pickState === 'DONE') ? 'flex' : 'none';
+}
+function clearDoneState() {
+    state.pickState = 'IDLE';
+    state.lastPick = null;
+    state.order = null; state.bin = null; state.skuScanned = 0;
+    state.groupOrderID = null; state.groupTotal = 1; state.groupDone = 0; state.groupLinesDone = [];
+    renderDoneBox();
+    updateGroupProgress();
+}
+// After calm information in the DONE state the green box stays where it is.
+function restoreDoneState() { try { renderDoneBox(); } catch (e) {} }
+function nextSlipAfterPick() {
+    resetPick();
+    setStatus('Scan the next pick slip.', 'idle');
+}
+function closeCameraIfOpen() {
+    try {
+        var ov = document.getElementById('cam-overlay');
+        if (ov && ov.classList.contains('active')) closeCamera();
+    } catch (e) {}
+}
+
 // ── CONFIRM / ISSUE / RESET ──────────────────────────────────
+// v102: no button calls confirmOrder() any more - a pick is complete when the
+// last product scan is saved. Kept for anything that still calls it.
 function confirmOrder() {
     var id    = state.groupOrderID || (state.order ? state.order.internalID : '?');
     var items = state.groupTotal;
@@ -11465,6 +12734,8 @@ function refreshPickTab() {
 }
 function resetPick() {
     state.pickState    = 'IDLE';
+    state.lastPick     = null;       // v102
+    try { renderDoneBox(); } catch (e) {}
     state.groupLinesDone = [];
     try { showPickRetry(false); } catch (e) {}
     state.order        = null;
@@ -11504,6 +12775,359 @@ var decodersReady    = false;
 var DESIRED_BARCODE_FORMATS  = ['qr_code', 'code_128', 'code_39', 'ean_13', 'ean_8', 'upc_a', 'upc_e', 'itf', 'data_matrix', 'pdf417', 'aztec'];
 var REQUIRED_BARCODE_FORMATS = ['qr_code', 'code_128', 'ean_13', 'ean_8', 'upc_a', 'upc_e'];
 
+// ══ v101: SCANNER OVERHAUL ════════════════════════════════════════════════
+// Why v100 failed (BUILD_REPORT_v101.md): a 1280x720 picture, only the small
+// orange box was decoded, the lens was never zoomed, some phones hand the
+// browser a rear camera that cannot autofocus, and phones without the
+// built-in detector fell back to an old, slow JavaScript decoder.
+var ZXW_VERSION    = '3.1.4';
+var ZXW_LOCAL_JS   = 'zxing_reader_3.1.4.js';     // deployed next to the app
+var ZXW_LOCAL_WASM = 'zxing_reader_3.1.4.wasm';
+var ZXW_CDN        = 'https://cdn.jsdelivr.net/npm/zxing-wasm@3.1.4/dist/';
+var ZXW_FORMATS    = ['QRCode', 'Code128', 'EAN13', 'EAN8', 'UPCA', 'UPCE', 'Code39', 'ITF', 'DataMatrix'];
+var zxw = { state: 'idle', from: '', promise: null };
+var scanEngine = { name: 'starting', label: 'starting', short: '...', nativeMissing: [], promise: null };
+var SCAN_ENGINE_LABELS = {
+    'native':      ['Native (phone’s built-in detector)', 'Native'],
+    'native+wasm': ['Native + ZXing-C++ for the codes the phone cannot read', 'Native+ZXing-C++'],
+    'wasm':        ['ZXing-C++ (WebAssembly)', 'ZXing-C++'],
+    'zxing-js':    ['ZXing-JS (old fallback)', 'ZXing-JS'],
+    'jsqr':        ['jsQR (QR codes only)', 'jsQR'],
+    'none':        ['none', 'manual']
+};
+var SCAN_CAM_KEY = 'af_scan_camera', SCAN_ZOOM_KEY = 'af_scan_zoom';
+var SCAN_MATRIX_FORMATS = /^(qr_code|data_matrix|aztec|pdf417|micro_qr)$/i;
+
+function setScanEngine(name) {
+    scanEngine.name = name;
+    var l = SCAN_ENGINE_LABELS[name] || [name, name];
+    scanEngine.label = l[0]; scanEngine.short = l[1];
+    refreshDecoderStatus();
+}
+function _loadScript(src) {
+    return new Promise(function (res, rej) {
+        var el = document.createElement('script');
+        el.src = src; el.async = true;
+        el.onload = function () { res(); };
+        el.onerror = function () { rej(new Error('could not load ' + src)); };
+        document.head.appendChild(el);
+    });
+}
+// The WebAssembly ZXing-C++ decoder, loaded once, only on phones without a
+// usable built-in detector: the copy next to the app first (the service
+// worker keeps it for offline use), the public CDN as a spare.
+function loadZxingWasm() {
+    if (zxw.promise) return zxw.promise;
+    zxw.state = 'loading';
+    function tryFrom(jsUrl, wasmUrl, tag) {
+        return _loadScript(jsUrl).then(function () {
+            if (!window.ZXingWASM || typeof ZXingWASM.readBarcodes !== 'function') throw new Error('not the decoder');
+            ZXingWASM.prepareZXingModule({ overrides: { locateFile: function (path, prefix) { return /\.wasm$/.test(path) ? wasmUrl : prefix + path; } } });
+            // A real (empty) read proves the WebAssembly part loaded too.
+            return ZXingWASM.readBarcodes(new ImageData(8, 8), { formats: ['QRCode'], tryHarder: false }).then(function () { zxw.from = tag; return true; });
+        });
+    }
+    zxw.promise = tryFrom(ZXW_LOCAL_JS, ZXW_LOCAL_WASM, 'app')
+        .catch(function (e1) {
+            console.warn('[scan] local decoder files not usable (' + (e1 && e1.message) + ') - trying the CDN');
+            try { delete window.ZXingWASM; } catch (x) { window.ZXingWASM = undefined; }
+            return tryFrom(ZXW_CDN + 'iife/reader/index.js', ZXW_CDN + 'reader/zxing_reader.wasm', 'cdn');
+        })
+        .then(function () { zxw.state = 'ready'; return true; })
+        .catch(function (e) { console.warn('[scan] WebAssembly decoder unavailable:', e); zxw.state = 'failed'; return false; });
+    return zxw.promise;
+}
+// The phone's built-in detector counts only if it reads QR codes.
+function probeNativeDetector() {
+    if (typeof BarcodeDetector === 'undefined') return Promise.resolve(null);
+    var fmtsP;
+    try { fmtsP = BarcodeDetector.getSupportedFormats ? BarcodeDetector.getSupportedFormats() : Promise.resolve([]); }
+    catch (e) { return Promise.resolve(null); }
+    return Promise.resolve(fmtsP).then(function (fmts) {
+        fmts = fmts || [];
+        if (fmts.indexOf('qr_code') === -1) return null;
+        var use = DESIRED_BARCODE_FORMATS.filter(function (f) { return fmts.indexOf(f) !== -1; });
+        scanEngine.nativeMissing = REQUIRED_BARCODE_FORMATS.filter(function (f) { return use.indexOf(f) === -1; });
+        return new BarcodeDetector({ formats: use });
+    }).catch(function () { return null; });
+}
+// Chooses the engine once per page: built-in detector (+ ZXing-C++ for any
+// everyday format it lacks) > ZXing-C++ > ZXing-JS > jsQR > none.
+function initScanEngine() {
+    if (scanEngine.promise) return scanEngine.promise;
+    setScanEngine('starting');
+    scanEngine.promise = probeNativeDetector().then(function (det) {
+        barcodeDetector = det;
+        if (det && !scanEngine.nativeMissing.length) { setScanEngine('native'); return scanEngine.name; }
+        return loadZxingWasm().then(function (ok) {
+            if (det) setScanEngine(ok ? 'native+wasm' : 'native');
+            else if (ok) setScanEngine('wasm');
+            else if (zxingDecoder) setScanEngine('zxing-js');
+            else if (typeof jsQR === 'function') setScanEngine('jsqr');
+            else setScanEngine('none');
+            return scanEngine.name;
+        });
+    });
+    return scanEngine.promise;
+}
+// zxing-wasm format names -> the keys the rest of the app uses.
+function zxwFormatKey(f) {
+    var k = String(f || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+    var map = { qrcode: 'qr_code', microqrcode: 'qr_code', code128: 'code_128', ean13: 'ean_13', ean8: 'ean_8', upca: 'upc_a',
+                upce: 'UPC_E', code39: 'code_39', itf: 'itf', datamatrix: 'data_matrix', pdf417: 'pdf417', aztec: 'aztec' };
+    return map[k] || k || null;
+}
+var _fullCanvas = null, _fullCtx = null;
+// The part of the picture to decode: the whole frame, or the middle 60%.
+function scanRegion(vw, vh, useCentre) {
+    if (!useCentre) return { sx: 0, sy: 0, sw: vw, sh: vh };
+    var f = 0.6;
+    return { sx: Math.round(vw * (1 - f) / 2), sy: Math.round(vh * (1 - f) / 2), sw: Math.round(vw * f), sh: Math.round(vh * f) };
+}
+// maxSide: the longest side the decoder gets (shrinks a bigger picture);
+// upscale: also ENLARGE a smaller one to that size (tiny far codes then get
+// enough pixels per square for the decoder).
+function _drawRegion(video, r, maxSide, upscale) {
+    if (!_fullCanvas) { _fullCanvas = document.createElement('canvas'); _fullCtx = _fullCanvas.getContext('2d', { willReadFrequently: true }); }
+    var sc = maxSide / Math.max(r.sw, r.sh);
+    if (!upscale) sc = Math.min(1, sc);
+    var dw = Math.max(1, Math.round(r.sw * sc)), dh = Math.max(1, Math.round(r.sh * sc));
+    if (_fullCanvas.width !== dw) _fullCanvas.width = dw;
+    if (_fullCanvas.height !== dh) _fullCanvas.height = dh;
+    _fullCtx.drawImage(video, r.sx, r.sy, r.sw, r.sh, 0, 0, dw, dh);
+    return { canvas: _fullCanvas, ctx: _fullCtx, w: dw, h: dh };
+}
+// Decodes one frame with one engine. Resolves [{rawValue, format}].
+// Two kinds of pass, taken in turn by the scan loop:
+//   'fast'   - the whole picture, quickly: the built-in detector gets the
+//              camera frame as it is; pixel decoders get it shrunk to at most
+//              1280 px (a near or large code is read in well under 0.1 s)
+//   'detail' - for small / far codes: the built-in detector gets the middle
+//              60% of the frame (it then fills more of the detector's input);
+//              ZXing-C++ gets the WHOLE frame ENLARGED to 2880 px (x1.5 for a
+//              1080p camera) - a far code anywhere in the picture then has
+//              enough pixels per square; the old JS decoders get the middle
+//              60% at camera resolution (they are too slow for more).
+// Measured on 27 synthetic 1080p frames (BUILD_REPORT_v101.md): ZXing-C++
+// 'fast' alone reads 11, 'detail' 25; the camera size alone (no
+// enlarging) only 20.
+var ZXW_OPTS = { formats: ZXW_FORMATS, tryHarder: true, tryRotate: true, tryInvert: false, textMode: 'Plain', maxNumberOfSymbols: 4 };
+// v1.1 of this build: a third pass,
+//   'zoom'   - the middle of the picture (half its width and height)
+//              ENLARGED x2, for every engine: a small or far code in the
+//              middle gets twice the pixels per square (the "digital zoom"
+//              native scanner apps apply when a code is small).
+// The loop takes them in the order of SCAN_PASSES, one per camera frame.
+var SCAN_PASSES = ['fast', 'detail', 'fast', 'zoom'];
+function zoomRegion(vw, vh) { return { sx: Math.round(vw / 4), sy: Math.round(vh / 4), sw: Math.round(vw / 2), sh: Math.round(vh / 2) }; }
+function decodeScanFrame(source, vw, vh, pass, engine) {
+    var detail = (pass === 'detail' || pass === true);
+    var zoom = (pass === 'zoom');
+    if (engine === 'native') {
+        if (!barcodeDetector) return Promise.resolve([]);
+        if (zoom) { var gz = _drawRegion(source, zoomRegion(vw, vh), Math.max(vw, vh), true); return barcodeDetector.detect(gz.canvas); }
+        if (!detail) return barcodeDetector.detect(source);               // full camera frame, full resolution
+        var g0 = _drawRegion(source, scanRegion(vw, vh, true), 4096);
+        return barcodeDetector.detect(g0.canvas);
+    }
+    var g;
+    if (zoom) g = _drawRegion(source, zoomRegion(vw, vh), Math.max(vw, vh), true);   // half the frame, x2
+    else if (engine === 'wasm') g = detail ? _drawRegion(source, scanRegion(vw, vh, false), Math.min(2880, 2 * Math.max(vw, vh)), true) : _drawRegion(source, scanRegion(vw, vh, false), 1280);
+    else g = detail ? _drawRegion(source, scanRegion(vw, vh, true), 4096) : _drawRegion(source, scanRegion(vw, vh, false), 1280);
+    var img = g.ctx.getImageData(0, 0, g.w, g.h);
+    if (engine === 'wasm') {
+        var o = {}; for (var k in ZXW_OPTS) o[k] = ZXW_OPTS[k];
+        o.tryDownscale = !detail && !zoom;
+        return ZXingWASM.readBarcodes(img, o).then(function (res) {
+            return (res || []).filter(function (x) { return x && x.isValid && x.text; })
+                              .map(function (x) { return { rawValue: x.text, format: zxwFormatKey(x.format) }; });
+        });
+    }
+    if (engine === 'zxing-js' && zxingDecoder) {
+        try {
+            var lum = useCanvasLum ? new ZXing.HTMLCanvasElementLuminanceSource(g.canvas) : null;
+            if (!lum) {
+                var rgba = img.data, n = g.w * g.h, rgb = new Uint8ClampedArray(n * 3);
+                for (var i = 0; i < n; i++) { rgb[i * 3] = rgba[i * 4]; rgb[i * 3 + 1] = rgba[i * 4 + 1]; rgb[i * 3 + 2] = rgba[i * 4 + 2]; }
+                lum = new ZXing.RGBLuminanceSource(rgb, g.w, g.h);
+            }
+            var res = zxingDecoder.decode(new ZXing.BinaryBitmap(new ZXing.HybridBinarizer(lum)));
+            return Promise.resolve(res ? [{ rawValue: res.getText(), format: zxingFormatToKey(res.getBarcodeFormat()) }] : []);
+        } catch (e) { return Promise.resolve([]); }
+    }
+    if (engine === 'jsqr' && typeof jsQR === 'function') {
+        var c = jsQR(img.data, g.w, g.h, { inversionAttempts: 'attemptBoth' });
+        return Promise.resolve(c && c.data ? [{ rawValue: c.data, format: 'qr_code' }] : []);
+    }
+    return Promise.resolve([]);
+}
+// Which engine decodes frame number n (the mixed mode takes turns).
+function engineForFrame(n) {
+    var e = scanEngine.name;
+    if (e === 'native+wasm') return (n % 3 === 2) ? 'wasm' : 'native';
+    return e;
+}
+// ── camera choice ──
+function scanVideoConstraints(deviceId) {
+    var v = { width: { ideal: 1920 }, height: { ideal: 1080 }, frameRate: { ideal: 30 }, advanced: [{ focusMode: 'continuous' }] };
+    if (deviceId) v.deviceId = { exact: deviceId }; else v.facingMode = { ideal: 'environment' };
+    return { audio: false, video: v };
+}
+function _trackCaps(track) { try { return track && track.getCapabilities ? (track.getCapabilities() || {}) : {}; } catch (e) { return {}; } }
+function _hasContinuousFocus(track) { var c = _trackCaps(track); return !!(c.focusMode && c.focusMode.indexOf('continuous') !== -1); }
+function _stopStream(st) { try { st.getTracks().forEach(function (t) { t.stop(); }); } catch (e) {} }
+function _trackDeviceId(track) { try { return (track && track.getSettings && track.getSettings().deviceId) || ''; } catch (e) { return ''; } }
+function rememberScanCamera(track) { var id = _trackDeviceId(track); if (id) lsSet(SCAN_CAM_KEY, id); _pendingScanCam = ''; }
+// Review B3: a camera the APP chose is only remembered once it has actually
+// read a code (commitPendingScanCamera, called on a good read). iPhones give
+// no focus information and no lens numbers, so a guess must never stick.
+// A camera the PERSON chose (the switch button) is remembered at once.
+var _pendingScanCam = '';
+function pendingScanCamera(track) { _pendingScanCam = _trackDeviceId(track) || ''; }
+function commitPendingScanCamera() { if (_pendingScanCam) { lsSet(SCAN_CAM_KEY, _pendingScanCam); _pendingScanCam = ''; } }
+// True only when the camera LISTS its focus modes and continuous is not one
+// of them. No list at all (iPhone, some older Android) = unknown: keep it.
+function _definitelyNoContinuousFocus(track) {
+    var c = _trackCaps(track);
+    return Array.isArray(c.focusMode) && c.focusMode.length > 0 && c.focusMode.indexOf('continuous') === -1;
+}
+// Review B1: every opening of the scanner gets a number; closing it moves the
+// number on. A camera stream that arrives for an older number is stale.
+var _camGen = 0;
+function camOpenIsStale(gen) {
+    var ov = document.getElementById('cam-overlay');
+    return gen !== _camGen || !(ov && ov.classList.contains('active'));
+}
+// Rear cameras, main one first (Android names them "camera2 0, facing back",
+// "camera2 2, facing back" ... - the lowest number is normally the main lens).
+function listBackCameras() {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) return Promise.resolve([]);
+    return navigator.mediaDevices.enumerateDevices().then(function (ds) {
+        var backs = (ds || []).filter(function (d) { return d.kind === 'videoinput' && d.deviceId && !/front|user|selfie|facetime/i.test(d.label || ''); });
+        backs.sort(function (a, b) {
+            var na = /(\d+)/.exec(a.label || ''), nb = /(\d+)/.exec(b.label || '');
+            return (na ? +na[1] : 99) - (nb ? +nb[1] : 99);
+        });
+        return backs;
+    }).catch(function () { return []; });
+}
+// Opens the camera the scanner should use: the one remembered on this phone,
+// otherwise the default rear camera - unless that one cannot autofocus, in
+// which case the other rear cameras are tried once and the first that can
+// autofocus is kept (and remembered).
+function openBestCamera() {
+    var saved = lsGet(SCAN_CAM_KEY);
+    var md = navigator.mediaDevices;
+    var first = saved
+        ? md.getUserMedia(scanVideoConstraints(saved)).catch(function () { lsRemove(SCAN_CAM_KEY); saved = null; return md.getUserMedia(scanVideoConstraints(null)); })
+        : md.getUserMedia(scanVideoConstraints(null));
+    return first.then(function (stream) {
+        var track = stream.getVideoTracks()[0];
+        // review B3: stay on the phone's default rear camera unless it says
+        // plainly that it cannot autofocus
+        if (saved || !track || !_definitelyNoContinuousFocus(track)) { if (!saved) pendingScanCamera(track); return stream; }
+        var curId = _trackDeviceId(track);
+        return listBackCameras().then(function (backs) {
+            var others = backs.filter(function (d) { return d.deviceId !== curId; }).slice(0, 3);
+            if (!others.length) { pendingScanCamera(track); return stream; }
+            _stopStream(stream);
+            var i = 0;
+            function next() {
+                if (i >= others.length) {
+                    return md.getUserMedia(scanVideoConstraints(curId || null)).then(function (s0) { pendingScanCamera(s0.getVideoTracks()[0]); return s0; });
+                }
+                var d = others[i++];
+                return md.getUserMedia(scanVideoConstraints(d.deviceId)).then(function (s1) {
+                    if (_hasContinuousFocus(s1.getVideoTracks()[0])) { pendingScanCamera(s1.getVideoTracks()[0]); return s1; }
+                    _stopStream(s1); return next();
+                }, function () { return next(); });
+            }
+            return next();
+        });
+    });
+}
+function refreshSwitchCameraButton() {
+    var b = document.getElementById('cam-switch-btn');
+    if (!b) return;
+    listBackCameras().then(function (backs) { b.classList.toggle('visible', backs.length > 1); });
+}
+// The rotate button: the next rear camera, swapped in place (the scanner
+// keeps running), and remembered for next time.
+function switchScanCamera() {
+    listBackCameras().then(function (backs) {
+        if (backs.length < 2 || !state.camStream) return;
+        var curId = _trackDeviceId(state.camStream.getVideoTracks()[0]);
+        var idx = -1;
+        for (var i = 0; i < backs.length; i++) if (backs[i].deviceId === curId) idx = i;
+        var nextDev = backs[(idx + 1) % backs.length];
+        var old = state.camStream;
+        state.camStream = null;
+        _stopStream(old);
+        var gen = _camGen;
+        return navigator.mediaDevices.getUserMedia(scanVideoConstraints(nextDev.deviceId)).then(function (st) {
+            if (camOpenIsStale(gen)) { _stopStream(st); return; }   // review B1: closed while switching
+            state.camStream = st;
+            st.getVideoTracks().forEach(wireVideoTrack);
+            rememberScanCamera(st.getVideoTracks()[0]);
+            var v = document.getElementById('cam-video');
+            v.srcObject = st;
+            try { var pr = v.play(); if (pr && pr.catch) pr.catch(function () {}); } catch (e) {}
+        });
+    }).catch(function (e) { handleCameraDeath('Could not switch camera. Tap below to reconnect.'); });
+}
+// ── zoom ──
+function setScanZoom(value) {
+    if (!state.zoomSupported || !state.camStream) return;
+    var track = state.camStream.getVideoTracks()[0];
+    if (!track) return;
+    var z = Math.max(state.zoomMin, Math.min(state.zoomMax, Number(value)));
+    track.applyConstraints({ advanced: [{ zoom: z }] }).then(function () {
+        state.zoomValue = z; lsSet(SCAN_ZOOM_KEY, String(z)); updateZoomLabel();
+    }).catch(function () {});
+}
+// Once per camera: start at the zoom this phone last used, else 2x (1.5x on
+// a shorter zoom range) - a small code then fills more of the picture.
+function applyStartZoom(track) {
+    if (!track || track._afZoomDone || !state.zoomSupported) return;
+    track._afZoomDone = true;
+    var saved = parseFloat(lsGet(SCAN_ZOOM_KEY));
+    var want = !isNaN(saved) ? saved : (state.zoomMax >= 2 ? 2 : (state.zoomMax >= 1.5 ? 1.5 : null));
+    if (want === null) return;
+    want = Math.max(state.zoomMin, Math.min(state.zoomMax, want));
+    track.applyConstraints({ advanced: [{ zoom: want }] }).then(function () { state.zoomValue = want; updateZoomLabel(); }).catch(function () {});
+}
+// ── success feedback ──
+var _beepCtx = null;
+function primeScanBeep() {
+    try {
+        var AC = window.AudioContext || window.webkitAudioContext;
+        if (!AC) return;
+        if (!_beepCtx) _beepCtx = new AC();
+        if (_beepCtx.state === 'suspended' && _beepCtx.resume) _beepCtx.resume();
+    } catch (e) {}
+}
+function scanBeep() {
+    try {
+        if (!_beepCtx) return;
+        var o = _beepCtx.createOscillator(), g = _beepCtx.createGain();
+        o.frequency.value = 1760; g.gain.value = 0.08;
+        o.connect(g); g.connect(_beepCtx.destination);
+        o.start(); o.stop(_beepCtx.currentTime + 0.08);
+    } catch (e) {}
+}
+// ── the small diagnostic line under the picture ──
+function scanDiagText(video) {
+    var t = state.camStream && state.camStream.getVideoTracks()[0];
+    var st = {};
+    try { st = (t && t.getSettings) ? (t.getSettings() || {}) : {}; } catch (e) {}
+    var focus = st.focusMode || (_hasContinuousFocus(t) ? 'continuous' : 'fixed / unknown');
+    return 'Engine: ' + scanEngine.short + ' · ' + (video ? video.videoWidth + '×' + video.videoHeight : '?') +
+        ' · focus: ' + focus + ' · zoom: ' + (state.zoomSupported ? state.zoomValue.toFixed(1) + 'x' : 'n/a') +
+        (t && t.label ? ' · ' + String(t.label).slice(0, 32) : '');
+}
+var _scanAccepted = { v: null, t: 0 };
+// ══ end v101 scanner helpers ═══════════════════════════════════════════════
+
 function initDecoders() {
     if (decodersReady) return;
     decodersReady = true;
@@ -11537,23 +13161,10 @@ function initDecoders() {
     // including Rajat's phone. Which decoder actually runs each tick is now
     // decided by priority order in startScanLoop() (native tried first), not
     // by which one happened to initialize.
-    if (typeof BarcodeDetector !== 'undefined') {
-        try {
-            BarcodeDetector.getSupportedFormats().then(function(fmts) {
-                var use = DESIRED_BARCODE_FORMATS.filter(function(f) { return fmts.indexOf(f) !== -1; });
-                if (!use.length) { barcodeDetector = null; refreshDecoderStatus(); return; }
-                var missing = REQUIRED_BARCODE_FORMATS.filter(function(f) { return use.indexOf(f) === -1; });
-                if (missing.length) {
-                    console.warn('BarcodeDetector: this browser does not support format(s) ' + missing.join(', ') + ' natively — ZXing fallback will handle those.');
-                }
-                barcodeDetector = new BarcodeDetector({ formats: use });
-                refreshDecoderStatus();
-            }).catch(function() {
-                try { barcodeDetector = new BarcodeDetector(); } catch (e2) { barcodeDetector = null; }
-                refreshDecoderStatus();
-            });
-        } catch (e) { console.warn('BarcodeDetector init error:', e); barcodeDetector = null; }
-    }
+    // v101: which decoder runs is decided by initScanEngine() - the phone's
+    // built-in detector if it reads QR codes, else ZXing-C++ (WebAssembly),
+    // else the old ZXing-JS / jsQR.
+    initScanEngine();
 
     // v67: scanCanvas now holds only the cropped, upscaled scan-target region
     // (see computeScanTargetRect() / startScanLoop() below) — never the full
@@ -11650,26 +13261,18 @@ function refreshDecoderStatus() {
     // supports it — ZXing (unmaintained pure-JS pattern matching, measurably
     // lower real-world recall) is the fallback for browsers without it, not
     // the default. See startScanLoop()'s decode block for the matching order.
+    // v101: the label names the engine initScanEngine() chose.
     var label;
-    if (barcodeDetector) {
-        label = 'Native (ML Kit) — Code128 + EAN/UPC + QR + more';
-    } else if (zxingDecoder) {
-        label = 'ZXing ' + (useCanvasLum ? '(canvas mode)' : '(rgb mode)') + ' — Code128 + QR + all formats (fallback — no native decoder on this browser)';
-    } else if (typeof jsQR !== 'undefined' && jsQR) {
-        label = 'jsQR (offline fallback) — QR codes only';
-    } else {
-        label = 'No auto-decoder — type code manually or use Bluetooth scanner';
-    }
+    if (scanEngine.name === 'starting') label = 'Starting the scanner...';
+    else if (scanEngine.name === 'none') label = 'No auto-decoder — type code manually or use Bluetooth scanner';
+    else label = 'Scanner: ' + scanEngine.label + ' — point at the code, anywhere in the picture';
     var fmtEl = document.getElementById('cam-formats');
     if (fmtEl) fmtEl.textContent = label;
     var hintTextEl = document.getElementById('scan-hint-text');
-    if (hintTextEl) hintTextEl.textContent = 'Scanner ready: ' + (barcodeDetector ? 'Native (ML Kit)' : zxingDecoder ? 'ZXing' : jsQR ? 'jsQR' : 'manual') + ' — Tap camera to scan';
+    if (hintTextEl) hintTextEl.textContent = 'Scanner ready: ' + (scanEngine.name === 'starting' ? '...' : scanEngine.name === 'none' ? 'manual' : scanEngine.short) + ' — Tap camera to scan';
 
     var noDecoderBanner = document.getElementById('cam-no-decoder-banner');
-    if (noDecoderBanner) {
-        var noDecoder = !zxingDecoder && !barcodeDetector && (typeof jsQR === 'undefined' || !jsQR);
-        noDecoderBanner.classList.toggle('visible', noDecoder);
-    }
+    if (noDecoderBanner) noDecoderBanner.classList.toggle('visible', scanEngine.name === 'none');
 }
 
 function setCamBtn(busy) {
@@ -11701,10 +13304,14 @@ function wireVideoTrack(track) {
         handleCameraDeath('Camera connection was lost. Tap below to reconnect.');
     };
     try {
+        // v101: continuous focus, exposure and white balance - each only when
+        // this camera offers it.
         var caps = track.getCapabilities ? track.getCapabilities() : null;
-        if (caps && caps.focusMode && caps.focusMode.indexOf('continuous') !== -1) {
-            track.applyConstraints({ advanced: [{ focusMode: 'continuous' }] }).catch(function() {});
-        }
+        var adv = {};
+        ['focusMode', 'exposureMode', 'whiteBalanceMode'].forEach(function (k) {
+            if (caps && caps[k] && caps[k].indexOf('continuous') !== -1) adv[k] = 'continuous';
+        });
+        if (Object.keys(adv).length) track.applyConstraints({ advanced: [adv] }).catch(function() {});
     } catch (e) { /* getCapabilities/applyConstraints unsupported on this device — safe to ignore, camera still works */ }
     updateTorchAvailability(track);
     // v69 (Master Prompt v12): detect zoom range and tap-to-focus method on
@@ -11777,12 +13384,22 @@ function updateZoomAvailability(track) {
     } catch (e) { hasZoom = false; }
     state.zoomSupported = hasZoom;
     if (ctrl) ctrl.classList.toggle('visible', hasZoom);
-    if (hasZoom) updateZoomLabel();
+    var sw = document.getElementById('cam-zoom-slider-wrap');   // v101
+    if (sw) sw.classList.toggle('visible', hasZoom);
+    if (hasZoom) {
+        var sl = document.getElementById('cam-zoom-slider');
+        if (sl) { sl.min = String(state.zoomMin); sl.max = String(state.zoomMax); sl.step = String(Math.max(0.1, (state.zoomMax - state.zoomMin) / 40)); }
+        updateZoomLabel();
+        applyStartZoom(track);    // v101: 2x to start (or the zoom last used)
+    }
 }
 
 function updateZoomLabel() {
     var label = document.getElementById('cam-zoom-label');
     if (label) label.textContent = state.zoomValue.toFixed(1) + 'x';
+    var sl = document.getElementById('cam-zoom-slider'), sv = document.getElementById('cam-zoom-slider-val');   // v101
+    if (sl) sl.value = String(state.zoomValue);
+    if (sv) sv.textContent = state.zoomValue.toFixed(1) + 'x';
 }
 
 function adjustZoom(direction) {
@@ -11792,6 +13409,7 @@ function adjustZoom(direction) {
     var next = Math.max(state.zoomMin, Math.min(state.zoomMax, state.zoomValue + direction * state.zoomStep));
     track.applyConstraints({ advanced: [{ zoom: next }] }).then(function() {
         state.zoomValue = next;
+        lsSet(SCAN_ZOOM_KEY, String(next));   // v101: remembered on this phone
         updateZoomLabel();
     }).catch(function() { /* zoom adjust failed — leave state as-is, not fatal to scanning */ });
 }
@@ -11948,6 +13566,16 @@ document.addEventListener('click', function (ev) {
     try { if (typeof el.showPicker === 'function') el.showPicker(); } catch (e) {}
 }, true);
 
+// v101: "Type it instead" - closes the camera and puts the cursor, with the
+// normal keyboard, in the box the scan was meant for (the PICK tab's scan box
+// when the camera was opened from there).
+function typeInsteadOfScan() {
+    var id = state.scanTarget || 'scan-input';
+    closeCamera();
+    var el = document.getElementById(id);
+    if (!el) return;
+    try { el.setAttribute('inputmode', 'text'); el.scrollIntoView({ block: 'center' }); el.focus(); if (el.select) el.select(); } catch (e) {}
+}
 function openScannerFor(targetInputId) {
     state.scanTarget = targetInputId;
     openCamera();
@@ -11977,12 +13605,16 @@ function openCamera() {
     if (hintEl) hintEl.innerHTML = '&#128247; <strong style="color:#F39C12">Requesting camera...</strong><br><small style="color:rgba(255,255,255,.75)">Tap Allow when the permission prompt appears</small>';
     setCamBtn(true);
 
-    navigator.mediaDevices.getUserMedia({
-        // v66 (Section 1, v8 prompt): request continuous autofocus where
-        // supported — 'advanced' constraints are ignored silently, not
-        // fatal, on devices/browsers that don't understand focusMode.
-        video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 }, advanced: [{ focusMode: 'continuous' }] }
-    }).then(function(stream) {
+    // v101: 1920x1080, continuous focus, and the rear camera that can
+    // actually autofocus (see openBestCamera()).
+    primeScanBeep();
+    var myGen = ++_camGen;   // review B1: this opening's number
+    openBestCamera().then(function(stream) {
+        // review B1: the camera can take a few seconds to arrive (up to 4
+        // cameras are tried). If the scanner was closed meanwhile, or opened
+        // again, this stream is stale: switch it off and never scan with it.
+        if (camOpenIsStale(myGen)) { console.log('[cam] stale camera stream stopped'); _stopStream(stream); return; }
+        refreshSwitchCameraButton();
         console.log('[cam] stream acquired');
         setCamBtn(false);
         state.camStream = stream;
@@ -11991,6 +13623,7 @@ function openCamera() {
         video.srcObject = stream;
         function beginScanning() {
             if (state.scanLoop) return;
+            if (camOpenIsStale(myGen)) return;   // review B1: closed before the picture started
             console.log('[cam] beginScanning entered');
             initDecoders(); updateCamHint(); startScanLoop(video);
         }
@@ -12049,7 +13682,10 @@ function openCamera() {
 }
 
 function retryBasicCamera() {
+    var rGen = ++_camGen;   // review B1
     navigator.mediaDevices.getUserMedia({ video: true }).then(function(stream) {
+        // review B1: a newer opening or a close happened while waiting
+        if (rGen !== _camGen) { _stopStream(stream); return; }
         console.log('[cam] stream acquired (retryBasicCamera)');
         setCamBtn(false);
         state.camStream = stream;
@@ -12060,6 +13696,7 @@ function retryBasicCamera() {
         startCameraWatchdog(); // v72: same stuck-loading backstop as openCamera()
         var go = function() {
             if (state.scanLoop) return;
+            if (camOpenIsStale(rGen)) return;   // review B1
             console.log('[cam] beginScanning entered (retryBasicCamera)');
             initDecoders(); updateCamHint(); startScanLoop(video);
         };
@@ -12094,6 +13731,8 @@ function retryBasicCamera() {
 
 function _showOverlay() {
     document.getElementById('cam-overlay').classList.add('active');
+    primeScanBeep();                 // v101
+    refreshSwitchCameraButton();     // v101
     var video = document.getElementById('cam-video');
     if (state.camStream && !video.srcObject) video.srcObject = state.camStream;
     if (!state.scanLoop) {
@@ -12199,165 +13838,81 @@ var CROP_UPSCALE         = 1.75; // v67: modest upscale of the ROI crop, matchin
                                   // do — helps resolve fine bar spacing (ZXing #474)
 
 function startScanLoop(video) {
-    clearCameraWatchdog(); // v72: the scanner is genuinely starting — the stuck-loading backstop is no longer needed for this open
+    // v101: decodes the camera picture ONCE PER NEW FRAME
+    // (requestVideoFrameCallback; requestAnimationFrame where the browser has
+    // no such call), whenever the decoder is free - no fixed timer. Three
+    // passes are taken in turn (see decodeScanFrame()): the whole frame, a
+    // detail pass, and the centre enlarged x2 for small / far codes. The
+    // orange box is a guide only. A slow 250 ms timer keeps the v66-v72 jobs:
+    // the stall watchdog, the diagnostic line and the debug readout; its id is
+    // state.scanLoop, so every existing "stop the scanner" path
+    // (clearInterval(state.scanLoop); state.scanLoop = null) also stops the
+    // frame loop below.
+    clearCameraWatchdog();
     if (state.scanLoop) { clearInterval(state.scanLoop); }
-    var camFrameEl = document.getElementById('cam-frame');
-    var debugEl    = document.getElementById('cam-debug');
-    var lastVideoTime = -1, stallTicks = 0, blurTicks = 0;
-    // v70 (Part A, v14 prompt): rolling 2-consecutive-read consensus buffer —
-    // a fresh session/camera-open always starts with a clean buffer. Also
-    // reset if the on-screen target rect changes size significantly
-    // tick-to-tick (orientation change, resize), since that means the frame
-    // being scanned just changed meaningfully and a stale pending value from
-    // the previous framing shouldn't be allowed to "complete" against a read
-    // from a genuinely different shot.
+    var debugEl = document.getElementById('cam-debug');
+    var diagEl  = document.getElementById('cam-diag');
+    var busy = false, frameNo = 0, found = 0, lastDiag = 0, loopStart = Date.now();
+    var lastVideoTime = -1, lastVideoChange = Date.now(), blurTicks = 0;
     resetDecodeConsensus();
-    var lastTargetW = null, lastTargetH = null;
-    state.scanLoop = setInterval(function() {
-        if (!state.camStream) return;
+    _scanAccepted = { v: null, t: 0 };
+    initScanEngine();
+    var myLoop = setInterval(function () {
+        if (!state.camStream) { lastVideoChange = Date.now(); return; }
         if (!video || video.readyState < 2) return;
-        var vw = video.videoWidth;
-        var vh = video.videoHeight;
-        if (!vw || !vh) return;
-
-        // v66 (Section 1, v7 prompt): stall watchdog — catches a dead track
-        // even on browsers/OSes that never fire 'ended', by noticing the
-        // video's own clock has frozen for ~2s straight.
-        if (video.currentTime === lastVideoTime) {
-            stallTicks++;
-            if (stallTicks >= STALL_TICKS_LIMIT) {
-                handleCameraDeath('Camera connection was lost. Tap below to reconnect.');
-                return;
-            }
-        } else {
-            stallTicks = 0;
-            lastVideoTime = video.currentTime;
+        var now = Date.now();
+        // stall watchdog (v66): the picture has not moved for 2.5 s
+        if (video.currentTime !== lastVideoTime) { lastVideoTime = video.currentTime; lastVideoChange = now; }
+        else if (now - lastVideoChange > 2500) { handleCameraDeath('Camera connection was lost. Tap below to reconnect.'); return; }
+        if (now - lastDiag > 500) {
+            lastDiag = now;
+            if (diagEl) diagEl.textContent = scanDiagText(video);
+            var stEl = document.getElementById('cam-status');   // v101
+            if (stEl) stEl.textContent = (now - loopStart > 8000) ? 'Scanning\u2026 still nothing - move a little closer or further, or use + zoom' : 'Scanning\u2026';
+            if (state.scanDebug && debugEl) {
+                debugEl.classList.add('visible');
+                debugEl.textContent = scanDiagText(video) + '\nframes: ' + frameNo + ' | reads: ' + found + ' | loop: ' + scanFrameApi(video) + ' | wasm from: ' + (zxw.from || '-');
+            } else if (debugEl && !state.scanDebug) debugEl.classList.remove('visible');
         }
-
-        // v67 (Section 1, v10 prompt): THE structural fix — crop to the actual
-        // on-screen target zone (the orange .cam-frame brackets) instead of
-        // scanning/blur-checking the full raw frame. Recomputed every tick:
-        // never cached, since the target box and video dimensions can both
-        // change (resize, orientation change, device swapping resolutions).
-        var targetRect = camFrameEl ? computeScanTargetRect(video, camFrameEl) : null;
-        if (!targetRect) return; // brackets not measurable yet (layout not settled) — skip this tick
-
-        // v70 (Part A, v14 prompt): target rect changed significantly since
-        // the last tick (>20% either dimension) — treat as a new framing and
-        // drop any pending consensus value rather than let it complete
-        // against a read from a meaningfully different shot.
-        if (lastTargetW !== null) {
-            var wChange = Math.abs(targetRect.sWidth  - lastTargetW) / lastTargetW;
-            var hChange = Math.abs(targetRect.sHeight - lastTargetH) / lastTargetH;
-            if (wChange > 0.2 || hChange > 0.2) resetDecodeConsensus();
-        }
-        lastTargetW = targetRect.sWidth;
-        lastTargetH = targetRect.sHeight;
-
-        var cw = Math.max(1, Math.round(targetRect.sWidth  * CROP_UPSCALE));
-        var ch = Math.max(1, Math.round(targetRect.sHeight * CROP_UPSCALE));
-        if (scanCanvas.width  !== cw) scanCanvas.width  = cw;
-        if (scanCanvas.height !== ch) scanCanvas.height = ch;
-        scanCtx.drawImage(video, targetRect.sx, targetRect.sy, targetRect.sWidth, targetRect.sHeight, 0, 0, cw, ch);
-        var w = cw, h = ch;
-
-        // v66 (Section 3, v8 prompt): blur/stability gate — tells the user
-        // WHY nothing is scanning instead of leaving them guessing forever.
-        // v67: now scored on the cropped target region only, not diluted by
-        // blank background outside the brackets.
-        var sharpness = frameSharpness(scanCanvas, scanCtx);
-        var blurHintEl = document.getElementById('cam-blur-hint');
-        if (sharpness < BLUR_SCORE_THRESHOLD) {
-            blurTicks++;
-            if (blurTicks >= BLUR_STREAK_TICKS && blurHintEl) blurHintEl.classList.add('visible');
-        } else {
-            blurTicks = 0;
-            if (blurHintEl) blurHintEl.classList.remove('visible');
-        }
-
-        var activeDecoderLabel = barcodeDetector ? 'Native (ML Kit)' : zxingDecoder ? 'ZXing (fallback)' : (typeof jsQR !== 'undefined' && jsQR) ? 'jsQR (fallback)' : 'none';
-        // v69 (Master Prompt v12, item 4): report whether tap-to-focus and
-        // zoom are actually supported on this device, so a future diagnosis
-        // has this data without guessing.
-        var focusLabel = (state.tapFocusMethod === 'manual' || state.tapFocusMethod === 'single-shot') ? 'tap-supported (focus distance)' :
-                          (state.tapFocusMethod === 'poi') ? 'tap-supported (point of interest)' : 'unsupported';
-        var zoomLabel = state.zoomSupported ? (state.zoomMin.toFixed(1) + 'x-' + state.zoomMax.toFixed(1) + 'x') : 'unsupported';
-        if (state.scanDebug && debugEl) {
-            debugEl.classList.add('visible');
-            debugEl.textContent =
-                'video: ' + vw + 'x' + vh + '\n' +
-                'target(raw px): sx=' + Math.round(targetRect.sx) + ' sy=' + Math.round(targetRect.sy) +
-                ' w=' + Math.round(targetRect.sWidth) + ' h=' + Math.round(targetRect.sHeight) + '\n' +
-                'crop canvas: ' + cw + 'x' + ch + ' (x' + CROP_UPSCALE + ')\n' +
-                'sharpness: ' + sharpness.toFixed(1) + ' / threshold ' + BLUR_SCORE_THRESHOLD +
-                (sharpness < BLUR_SCORE_THRESHOLD ? '  [BLURRY]' : '  [OK]') + '\n' +
-                'decoder: ' + activeDecoderLabel + '\n' +
-                'focus: ' + focusLabel + ' | zoom: ' + zoomLabel;
-        } else if (debugEl && debugEl.classList.contains('visible') && !state.scanDebug) {
-            debugEl.classList.remove('visible');
-        }
-
-        // v68 (Part A, v11 prompt): decoder PRIORITY FLIP — native
-        // BarcodeDetector (ML-Kit-backed on Android/macOS Chrome) is tried
-        // FIRST wherever the browser supports it, falling back to ZXing only
-        // when native is unavailable (older/other browsers) or failed to
-        // init. Previously ZXing always ran first and BarcodeDetector was
-        // only ever reached when ZXing was absent — since the ZXing CDN
-        // script loads on essentially every device, native detection was
-        // permanently unreachable dead code. See initDecoders() for why both
-        // are now initialized regardless of which one ends up running.
-        if (barcodeDetector) {
-            // detect() takes any CanvasImageSource — pass the cropped canvas
-            // (v67), not the raw video, so native detection also only ever
-            // sees the target region.
-            barcodeDetector.detect(scanCanvas).then(function(codes) {
-                // v98: several codes in view (the Amazon page has up to four) -
-                // use the PICK QR if it is one of them, otherwise the first.
-                var best = pickCodeFromDetections(codes);
-                if (best) { handleRawDecode(best.rawValue, best.format); }
-            }).catch(function() {});
-            return;
-        }
-
-        if (zxingDecoder) {
+    }, 250);
+    state.scanLoop = myLoop;
+    function running() { return state.scanLoop === myLoop; }
+    function schedule() {
+        if (!running()) return;
+        if (video && typeof video.requestVideoFrameCallback === 'function') video.requestVideoFrameCallback(onFrame);
+        else requestAnimationFrame(onFrame);
+    }
+    function onFrame() {
+        if (!running()) return;
+        if (busy || !state.camStream || !video || video.readyState < 2 || !video.videoWidth) { schedule(); return; }
+        var vw = video.videoWidth, vh = video.videoHeight;
+        var engine = engineForFrame(frameNo);
+        if (engine === 'starting' || engine === 'none') { schedule(); return; }
+        busy = true; frameNo++;
+        // blur hint (v66), measured on a small middle patch every 10th frame
+        if (frameNo % 10 === 0) {
             try {
-                var lum, bmp, res;
-                if (useCanvasLum) {
-                    lum = new ZXing.HTMLCanvasElementLuminanceSource(scanCanvas);
-                } else {
-                    var imgD  = scanCtx.getImageData(0, 0, w, h);
-                    var rgba  = imgD.data;
-                    var npx   = w * h;
-                    var rgb   = new Uint8ClampedArray(npx * 3);
-                    for (var pi = 0; pi < npx; pi++) {
-                        rgb[pi * 3]     = rgba[pi * 4];
-                        rgb[pi * 3 + 1] = rgba[pi * 4 + 1];
-                        rgb[pi * 3 + 2] = rgba[pi * 4 + 2];
-                    }
-                    lum = new ZXing.RGBLuminanceSource(rgb, w, h);
-                }
-                bmp = new ZXing.BinaryBitmap(new ZXing.HybridBinarizer(lum));
-                res = zxingDecoder.decode(bmp);
-                if (res) { handleRawDecode(res.getText(), zxingFormatToKey(res.getBarcodeFormat())); return; }
-            } catch (e) {
-                // v66 (Section 2, v7 prompt): this CDN build's minified UMD
-                // reports NotFoundException's .name as a mangled class name
-                // (observed as "R"), not the literal string — checking the
-                // actual class instead of e.name is robust to that.
-                if (!(e instanceof ZXing.NotFoundException)) {
-                    console.warn('ZXing decode:', e && e.name, e && e.message);
-                }
-            }
-            return;
+                var g = _drawRegion(video, scanRegion(vw, vh, true), 360);
+                var sharp = frameSharpness(g.canvas, g.ctx);
+                var blurHintEl = document.getElementById('cam-blur-hint');
+                if (sharp < BLUR_SCORE_THRESHOLD) { blurTicks++; if (blurTicks >= 3 && blurHintEl) blurHintEl.classList.add('visible'); }
+                else { blurTicks = 0; if (blurHintEl) blurHintEl.classList.remove('visible'); }
+            } catch (e) {}
         }
-
-        if (typeof jsQR !== 'undefined' && jsQR !== null) {
-            var imgData2 = scanCtx.getImageData(0, 0, w, h);
-            var code = jsQR(imgData2.data, w, h, { inversionAttempts: 'attemptBoth' });
-            if (code && code.data) { handleRawDecode(code.data, 'qr_code'); }
-        }
-    }, 100);
+        var p;
+        try { p = decodeScanFrame(video, vw, vh, SCAN_PASSES[(frameNo - 1) % SCAN_PASSES.length], engine); } catch (e) { p = Promise.resolve([]); }   // first frame: the whole picture
+        schedule();   // ask for the next frame now; it is decoded if this one has finished
+        Promise.resolve(p).then(function (codes) {
+            busy = false;
+            if (!running()) return;
+            var best = pickCodeFromDetections(codes);   // v98: the pick QR wins
+            if (best && best.rawValue) { found++; handleRawDecode(best.rawValue, best.format); }
+        }, function () { busy = false; });
+    }
+    schedule();
 }
+// Which frame call this browser gives the scan loop (shown in the debug readout).
+function scanFrameApi(video) { return (video && typeof video.requestVideoFrameCallback === 'function') ? 'per video frame' : 'per screen frame'; }
 
 // v70 (Part A, v14 prompt): CRITICAL correctness fix — wrong scan data can
 // misdirect real warehouse stock movements. Root cause confirmed by direct
@@ -12435,6 +13990,9 @@ function zxingFormatToKey(fmt) {
 // reset) — no field populated, no vibration, no camera close.
 function handleRawDecode(value, formatKey) {
     if (!value) return;
+    // v101: the same code again within 1.5 s of being taken is ignored (the
+    // camera keeps seeing it); a new camera opening starts afresh.
+    if (_scanAccepted.v === value && Date.now() - _scanAccepted.t < 1500) return;
     if (!checkLinearBarcodeChecksum(value, formatKey)) {
         resetDecodeConsensus();
         return;
@@ -12445,9 +14003,16 @@ function handleRawDecode(value, formatKey) {
         pendingDecodeValue = value;
         pendingDecodeCount = 1;
     }
-    if (pendingDecodeCount >= 2) {
+    // v101: a QR / Data Matrix carries its own error correction - one clean
+    // read is enough. A line barcode (EAN, Code 128 ...) still needs two
+    // matching reads (the v70 misread guard).
+    var need = SCAN_MATRIX_FORMATS.test(String(formatKey || '')) ? 1 : 2;
+    if (pendingDecodeCount >= need) {
         resetDecodeConsensus();
+        _scanAccepted = { v: value, t: Date.now() };
         _lastScanFormat = formatKey || null;   // v98: read once by onCodeDetected()
+        commitPendingScanCamera();             // review B3: this camera works - remember it
+        scanBeep();
         onCodeDetected(value);
     }
 }
@@ -12505,7 +14070,7 @@ function foreignScanMessage(kind, where) {
 function pickCodeFromDetections(codes) {
     if (!codes || !codes.length) return null;
     for (var i = 0; i < codes.length; i++) {
-        if (codes[i] && /^\s*AF2\|/i.test(String(codes[i].rawValue || ''))) return codes[i];
+        if (codes[i] && /^\s*AF[23]\|/i.test(String(codes[i].rawValue || ''))) return codes[i];   // v101: AF3 too
     }
     return codes[0];
 }
@@ -12562,6 +14127,7 @@ function onCodeDetected(value) {
     processScan(value, { format: scanFmt });   // v98: barcode type goes with it
 }
 function closeCamera() {
+    _camGen++;   // review B1: any camera still on its way for this opening is now stale
     if (state.scanLoop) { clearInterval(state.scanLoop); state.scanLoop = null; }
     // v71: cancel any pending delayed torch/zoom/tap-focus re-checks so they
     // don't fire against a track that's already been stopped/torn down.
@@ -12584,6 +14150,8 @@ function closeCamera() {
     state.tapFocusMethod = null;
     var zoomCtrl = document.getElementById('cam-zoom-controls');
     if (zoomCtrl) zoomCtrl.classList.remove('visible');
+    var zoomSl = document.getElementById('cam-zoom-slider-wrap');   // v101
+    if (zoomSl) zoomSl.classList.remove('visible');
     var tapToastEl = document.getElementById('cam-tap-toast');
     if (tapToastEl) tapToastEl.classList.remove('visible');
     // v49: pop the history marker pushed on open, so the Back stack stays
@@ -13387,6 +14955,7 @@ function switchTab(tab) {
     if (tab === 'move') { try { refreshScanSessionState(); } catch (e) {} }
     if (tab === 'pick') {
         setTimeout(function() { try { document.getElementById('scan-input').focus(); } catch(e) {} }, 50);
+        if (isListingManager()) { try { loadReservedSummary(false); } catch (e) {} }   // v103
     }
     if (tab === 'settings') {
         refreshSettingsTab();
@@ -13405,6 +14974,7 @@ function switchTab(tab) {
     }
     if (tab === 'dash') {
         loadDashboard(false);
+        try { loadReservedSummary(false); } catch (e) {}   // v103
     }
     if (tab === 'db') {
         enterDbTab();   // v96
@@ -13445,10 +15015,16 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Restore session if mid-order
     var resumed = restoreSession();
-    if (resumed) {
+    if (resumed && state.pickState === 'DONE') {       // v102: the last pick is finished - show it again
+        updateGroupProgress();
+        updateSteps();
+        setStatus('&#9989; Picked and saved. Scan the next slip.', 'success');
+        renderDoneBox();
+    } else if (resumed) {
         renderOrderCard();
         updateGroupProgress();
         updateSteps();
+        try { renderDoneBox(); } catch (e) {}
         setStatus('&#128260; Session restored. Continue scanning.', 'waiting');
     } else {
         resetPick();
@@ -13568,6 +15144,81 @@ document.addEventListener('DOMContentLoaded', function() {
     <div class="dbd" id="dbd"></div>
 </div>
 <!-- v95: Admin / Supervisor PIN box for listing changes (masked, not window.prompt). -->
+<!-- v101: HELD STOCK SCREEN - every open reservation, batch > order > line -->
+<div class="hs-bg" id="hs-bg">
+  <div class="hs-box">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;">
+      <div style="font-weight:800;color:#0A1628;font-size:16px;">&#128274; Held stock</div>
+      <button class="settings-btn" style="flex:0 0 auto;min-height:40px;" onclick="closeHeldStock()">&#10005; Close</button>
+    </div>
+    <details class="hs-help" id="hs-help">
+      <summary>&#10067; What is this screen?</summary>
+      <ul>
+        <li><strong>Printing reserves stock.</strong> When pick slips are printed, their units are held for those orders, so no other order can take them.</li>
+        <li><strong>Picking removes it.</strong> Scanning the slip, the bin and the product takes the units out of stock - the hold ends there.</li>
+        <li><strong>Release only if an order was cancelled or will not be packed.</strong> Releasing puts the units back as free stock, and that slip will no longer work.</li>
+        <li><strong>Finished batches close by themselves</strong> once nothing in them is held any more.</li>
+      </ul>
+    </details>
+    <button class="settings-btn" style="width:100%;min-height:40px;margin-top:8px;" onclick="heldToReserved()">&#128203; Reserved stock &mdash; every held unit, oldest first</button>
+    <div class="settings-row" style="margin-top:8px;">
+      <input type="text" class="settings-input" id="hs-search" placeholder="Find an order, invoice, SKU or bin" autocomplete="off" oninput="renderHeldStock()" style="text-transform:uppercase">
+      <button class="settings-btn" style="flex:0 0 auto;" onclick="loadHeldStock()">&#8635; Refresh</button>
+    </div>
+    <label style="display:flex;align-items:center;gap:8px;font-size:13px;margin-top:6px;"><input type="checkbox" id="hs-show-finished" onchange="renderHeldStock()" style="width:22px;height:22px;"> Show finished batches</label>
+    <div class="move-result" id="hs-msg"></div>
+    <div id="hs-summary" style="font-size:12px;color:#6B7280;margin-top:4px;"></div>
+    <div id="hs-list"></div>
+  </div>
+</div>
+<!-- v103: RESERVED STOCK SCREEN - every open reservation line, oldest first -->
+<div class="hs-bg" id="rs-bg">
+  <div class="hs-box">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;">
+      <div style="font-weight:800;color:#0A1628;font-size:16px;">&#128203; Reserved stock</div>
+      <button class="settings-btn" style="flex:0 0 auto;min-height:40px;" onclick="closeReservedStock()">&#10005; Close</button>
+    </div>
+    <details class="hs-help" id="rs-help">
+      <summary>&#10067; What is reserved stock? When should I release it?</summary>
+      <ul>
+        <li><strong>Reserved</strong> means these units are kept aside for one order, because a pick slip was printed (Amazon bill stamping) or a bulk / Excel pick sheet was made. No other order can take them.</li>
+        <li>Picking the slip (slip, bin, product) takes the units out and ends the reservation by itself.</li>
+        <li><strong>Release</strong> a line only when it will not be picked: the order was cancelled, or the team already packed that order from other stock.</li>
+        <li><span class="hs-chip rs-flag-disp">Order already dispatched another way</span> the same order and product already left stock by another route (phone dispatch, bulk or Excel), or its Amazon order line is marked picked. Usually safe to release &mdash; check first.</li>
+        <li><span class="hs-chip rs-flag-part">Some units of this order already went out another way</span> part of the order went out by another route, but not all the reserved units. Check before releasing.</li>
+        <li><span class="hs-chip rs-flag-old">Old &ndash; check</span> held more than 2 days. Find out if the order is still coming.</li>
+        <li>All dates and times on this screen are <strong>India time (IST)</strong>.</li>
+        <li>Releasing only frees the stock in this app. It does <strong>not</strong> change or cancel anything on Amazon. The printed slip for that line stops working.</li>
+      </ul>
+    </details>
+    <button class="settings-btn" style="width:100%;min-height:40px;margin-top:8px;background:#6B7280;" onclick="reservedToHeld()">&#128274; See by printed batch (Held stock)</button>
+    <div id="rs-total" style="font-size:13px;margin-top:8px;"></div>
+    <div class="settings-row" style="margin-top:6px;">
+      <input type="text" class="settings-input" id="rs-search" placeholder="Find SKU, ASIN, order, invoice or bin" autocomplete="off" oninput="renderReservedStock()" style="text-transform:uppercase">
+      <button class="settings-btn" style="flex:0 0 auto;" onclick="loadReservedStock().then(function(){loadReservedSummary(true);})">&#8635; Refresh</button>
+    </div>
+    <div class="rs-filters">
+      <select id="rs-age" onchange="renderReservedStock()" aria-label="Age">
+        <option value="">Any age</option>
+        <option value="1">Older than 1 day</option>
+        <option value="2">Older than 2 days</option>
+        <option value="3">Older than 3 days</option>
+        <option value="7">Older than 7 days</option>
+      </select>
+      <select id="rs-channel" onchange="renderReservedStock()" aria-label="Channel"><option value="">All channels</option></select>
+    </div>
+    <div class="rs-seg">
+      <button type="button" id="rs-g-list" class="on" onclick="rsSetGroup('list')">Every line</button>
+      <button type="button" id="rs-g-sku" onclick="rsSetGroup('sku')">By SKU</button>
+      <button type="button" id="rs-g-date" onclick="rsSetGroup('date')">By date</button>
+    </div>
+    <label style="display:flex;align-items:center;gap:8px;font-size:13px;margin-top:8px;"><input type="checkbox" id="rs-all" onchange="rsTickAll(this.checked)" style="width:22px;height:22px;"> Tick every line shown</label>
+    <button class="hs-btn" id="rs-rel-sel" style="width:100%;margin-top:6px;" disabled onclick="releaseReservedSelected()">Release selected</button>
+    <button class="hs-btn grey" id="rs-rel-old" style="width:100%;margin-top:6px;" disabled onclick="releaseReservedOld()">Release all shown older than N days</button>
+    <div class="move-result" id="rs-msg"></div>
+    <div id="rs-list"></div>
+  </div>
+</div>
 <div class="emp-modal-bg" id="mgr-pin-bg">
     <div class="emp-modal">
         <h2>&#128274; Your PIN</h2>
