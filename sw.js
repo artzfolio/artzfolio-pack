@@ -58,13 +58,23 @@
 // v18 (2026-09-28): bumped for App v99 (sales channel required on Dispatch Out,
 // Amazon dispatch checked against the printed order, bulk pick template).
 // v19 (2026-09-28): bumped for App v100 (plus / minus buttons on quantity boxes).
-const CACHE_NAME = 'artzfolio-oms-shell-v19';
+// v20 (2026-09-28): bumped for App v101 (scanner overhaul). Also keeps the
+// WebAssembly barcode decoder (zxing_reader_3.1.4.js / .wasm) for offline
+// use - best effort: a missing file never stops the app shell installing.
+// v21 (2026-09-29): bumped for App v102 (pick flow, Held stock in plain words).
+// v22 (2026-09-29): bumped for App v103 (Reserved stock tile and screen).
+const CACHE_NAME = 'artzfolio-oms-shell-v22';
+const OPTIONAL_FILES = ['./zxing_reader_3.1.4.js', './zxing_reader_3.1.4.wasm'];
 const SHELL_FILES = ['./index.html', './manifest.json', './icon.svg'];
 
 self.addEventListener('install', function (event) {
   event.waitUntil(
     caches.open(CACHE_NAME).then(function (cache) {
-      return cache.addAll(SHELL_FILES);
+      return cache.addAll(SHELL_FILES).then(function () {
+        return Promise.all(OPTIONAL_FILES.map(function (f) {
+          return fetch(f).then(function (r) { if (r.ok) return cache.put(f, r); }).catch(function () {});
+        }));
+      });
     }).then(function () { return self.skipWaiting(); })
   );
 });
@@ -92,7 +102,11 @@ self.addEventListener('fetch', function (event) {
       return resp;
     }).catch(function () {
       return caches.match(event.request).then(function (cached) {
-        return cached || caches.match('./index.html');
+        if (cached) return cached;
+        // v20: only pages fall back to the app shell - a missing script or
+        // .wasm must fail plainly, never come back as the HTML page.
+        if (/\.(js|wasm)(\?|$)/.test(url)) return Response.error();
+        return caches.match('./index.html');
       });
     })
   );
