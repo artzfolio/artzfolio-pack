@@ -62,6 +62,10 @@
             Switched off -> clear message + "Switch on & continue". The database
             enforces the same rule (trigger trg_oms_require_tracked_sku), so
             nothing can slip past from any surface. -->
+    <!-- v104 (2026-09-29): RESERVED STOCK - releasing many lines is now ONE database
+         call (oms_cancel_pick_lines, update M7): one PIN check, all-or-nothing per
+         call, a result for every line; 500 lines per call. Without M7 the app
+         falls back to releasing line by line, as v103 did. -->
     <!-- v103 (2026-09-29): RESERVED STOCK. A tile on DASH and PICK: "Reserved
          stock: N units (M lines)" and how many units are held more than 2 days.
          A new screen lists every reserved line oldest first (date, weekday, time,
@@ -2959,7 +2963,7 @@ var qrcode = function() {
     </style>
 </head>
 <body>
-<div class="ver-corner" id="verCornerBadge" onclick="handleVerBadgeTap()">v103</div>
+<div class="ver-corner" id="verCornerBadge" onclick="handleVerBadgeTap()">v104</div>
 <!-- v63: Gap 2 — offline write-queue indicator. Hidden (display:none) unless
      something is actually queued or failed. Tapping it shows the queue detail
      panel (openOfflineQueuePanel()). -->
@@ -9624,6 +9628,12 @@ var _rs = { rows: [], batches: {}, olines: {}, disp: {}, loaded: false, sel: {},
 // v103 review fix 4: how long one release call may take before the app says
 // "No answer in time - it may or may not have been released" and re-checks.
 var RS_CALL_TIMEOUT_MS = 12000;
+// v104: releasing many lines = ONE call to oms_cancel_pick_lines (database update
+// M7) per 500 lines. _rs.bulkMissing is set when the database says it has no
+// such function; the app then releases line by line (the v103 way).
+var RS_BULK_FN = 'oms_cancel_pick_lines';
+var RS_BULK_MAX = 500;                 // the database refuses more than 500 at once
+var RS_BULK_TIMEOUT_MS = 45000;        // one call may handle 500 lines
 // v103 review fix 5: every date / weekday / day group is India time
 // (Asia/Kolkata, UTC+5:30, no daylight saving), whatever the phone is set to.
 var RS_IST_MS = 330 * 60000;
@@ -9931,14 +9941,57 @@ function rsClearFilters() {
 
 // ── release ────────────────────────────────────────────────────────────────
 function releaseReservedLine(resId) { _rsRelease([Number(resId)], 'this line'); }
-function releaseReservedSelected() { _rsRelease(_rsTickedShown(), 'the ticked lines'); }
+function releaseReservedSelected() { _rsRelease(_rsTickedShown(), 'the ticked lines', true); }
 function releaseReservedOld() {
     var age = Number((document.getElementById('rs-age') || {}).value || 0);
     if (!age) { rsMsg('Choose an age first (for example "older than 2 days").', 'err'); return; }
     // review fix 3: exactly the list drawn on screen (snapshot taken when it was drawn)
-    _rsRelease((_rs.shownIds || []).slice(), 'every line shown older than ' + age + (age === 1 ? ' day' : ' days'));
+    _rsRelease((_rs.shownIds || []).slice(), 'every line shown older than ' + age + (age === 1 ? ' day' : ' days'), true);
 }
-function _rsRelease(ids, what) {
+// v104: one call per chunk of up to 500 lines, chunks one after another.
+// Resolves { missing:true } when the function is not in the database (only
+// possible on the first chunk - nothing has been released then), otherwise
+// { done, failed, notTried, unknown, pinRejected }. Never throws.
+function _rsReleaseBulk(lines, pin, reason) {
+    var done = [], failed = [], notTried = [], unknown = [], pinRejected = false;
+    var chunks = _chunks(lines, RS_BULK_MAX), ci = 0;
+    function next() {
+        if (ci >= chunks.length) return Promise.resolve({ done: done, failed: failed, notTried: notTried, unknown: unknown, pinRejected: pinRejected });
+        var part = chunks[ci++], first = ci === 1;
+        if (pinRejected) { notTried = notTried.concat(part); return next(); }
+        var from = (ci - 1) * RS_BULK_MAX + 1, to = from + part.length - 1;
+        rsMsg('Releasing ' + (chunks.length > 1 ? 'lines ' + from + '&ndash;' + to + ' of ' + lines.length : _rsLines(lines.length)) + ' in one go&hellip;', '');
+        var args = { p_res_ids: part.map(function (x) { return Number(x.res_id); }), p_reason: reason, p_employee_code: sessionEmployeeCode(), p_pin: pin };
+        return withTimeout(db.rpc(RS_BULK_FN, args), RS_BULK_TIMEOUT_MS, 'Release lines').then(function (r) {
+            if (r.error) {
+                if (first && (_isMissingFunction(r.error, RS_BULK_FN) || (r.status === 404 && !r.error.code))) return { missing: true };
+                // the request never got an answer (connection dropped): unknown, not "failed"
+                if (!r.status && /fetch|network|load failed|abort/i.test(String(r.error.message || ''))) { unknown = unknown.concat(part); return next(); }
+                part.forEach(function (x) { failed.push({ x: x, why: r.error.message }); });
+                return next();
+            }
+            var d = r.data;
+            if (!d) { unknown = unknown.concat(part); return next(); }
+            if (!d.ok) {
+                if (d.error === 'ADMIN_PIN_REJECTED' || d.error === 'ADMIN_LOCKED') {
+                    forgetManagerPin(); pinRejected = true; notTried = notTried.concat(part); return next();
+                }
+                part.forEach(function (x) { failed.push({ x: x, why: d.message || d.error || 'not released' }); });
+                return next();
+            }
+            var byId = {}; (d.results || []).forEach(function (q) { byId[Number(q.res_id)] = q; });
+            part.forEach(function (x) {
+                var q = byId[Number(x.res_id)];
+                if (!q) unknown.push(x);                       // no word about this line: re-check it
+                else if (q.ok) { done.push(x); delete _rs.sel[x.res_id]; }
+                else failed.push({ x: x, why: q.message || q.error || 'not released' });
+            });
+            return next();
+        }, function () { unknown = unknown.concat(part); return next(); });   // timed out: unknown
+    }
+    return next();
+}
+function _rsRelease(ids, what, bulk) {
     if (!isListingManager()) { rsMsg('Only an Admin or Supervisor can release reserved stock.', 'err'); return Promise.resolve(); }
     if (_rs.busy) return Promise.resolve();
     if (_rsOffline()) { rsMsg(RS_OFFLINE_TEXT, 'err'); return Promise.resolve(); }
@@ -9988,7 +10041,15 @@ function _rsRelease(ids, what) {
                 return next();
             });
         }
-        return next().then(function () { return { done: done, failed: failed, notTried: notTried, unknown: unknown }; });
+        function perLine() { return next().then(function () { return { done: done, failed: failed, notTried: notTried, unknown: unknown }; }); }
+        // v104: many lines -> one database call (per 500); line by line only if
+        // the database does not have oms_cancel_pick_lines yet.
+        if (!bulk || _rs.bulkMissing) return perLine();
+        return _rsReleaseBulk(lines, pin, reason).then(function (b) {
+            if (b && b.missing) { _rs.bulkMissing = true; return perLine(); }
+            _rs.bulkMissing = false;
+            return b;
+        });
     }).catch(function (e) { rsMsg('Not released: ' + esc59(e && e.message ? e.message : e), 'err'); return null; }).then(function (res) {
         _rs.busy = false;
         if (!res) { renderReservedStock(); return; }
@@ -10018,6 +10079,7 @@ function _rsReport(res, unsure) {
         if (res.done.length) h += '&#10003; ' + _rsLines(res.done.length) + ' released (' + _rsUnits(du) + ' are free stock again). Those slips no longer work.' +
             (res.done.some(function (x) { return x._late; }) ? ' (' + res.done.filter(function (x) { return x._late; }).map(function (x) { return 'R' + esc59(x.res_id); }).join(', ') + ': no answer in time, but the refreshed list shows it released.)' : '');
         if (res.failed.length) h += (h ? '<br>' : '') + '&#10007; <strong>' + _rsLines(res.failed.length) + ' NOT released:</strong><br>' + res.failed.map(function (f) { return 'R' + esc59(f.x.res_id) + ' (' + esc59(f.x.sku_code) + '): ' + esc59(f.why); }).join('<br>');
+        if (res.pinRejected && !res.done.length) h += (h ? '<br>' : '') + '&#10007; <strong>PIN not accepted &mdash; nothing was released.</strong>';
         if (res.notTried.length) h += '<br>&#9888; ' + _rsLines(res.notTried.length) + ' not tried because the PIN was not accepted: ' + res.notTried.map(function (x) { return 'R' + esc59(x.res_id); }).join(', ') + '. Nothing was changed on them.';
         if (unsure.length) h += '<br>&#9888; <strong>No answer in time and the list could not be refreshed:</strong> ' + unsure.map(function (x) { return 'R' + esc59(x.res_id); }).join(', ') + ' may or may not have been released. Tap Refresh to check.';
         rsMsg(h, (res.failed.length || res.notTried.length || unsure.length) ? 'err' : 'ok');
