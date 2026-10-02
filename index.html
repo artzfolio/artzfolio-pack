@@ -62,6 +62,18 @@
             Switched off -> clear message + "Switch on & continue". The database
             enforces the same rule (trigger trg_oms_require_tracked_sku), so
             nothing can slip past from any surface. -->
+    <!-- v106 (2026-10-02): (1) Actions tab - scanning a different product resets the
+         bin, quantity, To-bin and bin hint, and the bin recommendation is worked out
+         for the new product only (before, the first product's bin stayed selected).
+         (2) STOCK > Bin lookup shows the answer by itself: a scan at once, an exact
+         SKU / ASIN / bin at once, typing 400 ms after the last key, or Enter.
+         (3) Suggestions under Bin lookup and Live stock: SKU, ASIN, title and bin,
+         matched anywhere (case, spaces and hyphens ignored), from one product list
+         kept in memory. (4) LOG tab: Stock history from the database ledger with
+         filters (India time), count + units, CSV. (5) Supervisor / Admin can void
+         one entry: the stock is put back exactly, the entry stays crossed out as
+         VOID (database update M8, oms_void_ledger_entry). Without M8 there is no
+         Void button and nothing else changes. -->
     <!-- v105 (2026-09-29): same as v104 built in the v104 work folder (reads both answer
          shapes of oms_cancel_pick_lines); only the version number changed, so it is not
          confused with a different v104 file. -->
@@ -2963,10 +2975,56 @@ var qrcode = function() {
         .dbd-f input{width:100%;padding:8px 9px;border:1px solid #E2E8F0;border-radius:8px;font-size:13px;box-sizing:border-box}
         .dbd-f input.changed{border-color:#1B4F8A;background:#EBF5FB}
         .dbd-ro{padding:7px 9px;border:1px dashed #E2E8F0;border-radius:8px;font-size:13px;color:#1A1A1A;background:#F8F9FB;min-height:18px;word-break:break-word}
+        /* v106: suggestions, stock history, void */
+        .sg-box{position:absolute;left:0;right:0;top:100%;z-index:300;background:#FFFFFF;border:1px solid #E2E8F0;border-radius:10px;box-shadow:0 8px 24px rgba(10,22,40,.18);max-height:340px;overflow-y:auto;margin-top:2px}
+        .sg-head{font-size:10px;font-weight:800;color:#6B7280;text-transform:uppercase;letter-spacing:.5px;padding:6px 10px 2px;background:#F8F9FB;position:sticky;top:0}
+        .sg-item{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:7px 10px;border-top:1px solid #F1F3F6;cursor:pointer}
+        .sg-item.active,.sg-item:hover{background:#EEF2F8}
+        .sg-main{min-width:0;flex:1}
+        .sg-v{font-size:13px;font-weight:700;color:#1A1A1A;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+        .sg-sub{font-size:11px;color:#6B7280;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+        .sg-q{font-size:11px;font-weight:800;color:#1B3F6B;white-space:nowrap}
+        .sg-note{padding:10px;font-size:12px;color:#6B7280}
+        .sg-box mark{background:#FFE9A8;color:inherit;padding:0 1px;border-radius:2px}
+        .lh-bar{display:flex;gap:6px;align-items:center}
+        .lh-bar select{flex:1;min-width:0}
+        .lh-pre{margin-top:6px;font-size:12px;color:#444}
+        .lh-pre input,.lh-pre select{border:1px solid #E2E8F0;border-radius:8px;padding:6px 8px;font-size:13px}
+        .lh-filters{margin-top:8px;border:1px solid #E2E8F0;border-radius:10px;padding:8px;background:#F8F9FB}
+        .lh-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px 8px}
+        .lh-grid label{display:flex;flex-direction:column;font-size:10px;font-weight:700;color:#6B7280;text-transform:uppercase;letter-spacing:.3px;min-width:0}
+        .lh-grid input,.lh-grid select{margin-top:2px;border:1px solid #E2E8F0;border-radius:8px;padding:7px 8px;font-size:13px;background:#FFFFFF;color:#1A1A1A;width:100%;min-width:0;text-transform:none;letter-spacing:0;font-weight:400}
+        .lh-wide{grid-column:1 / -1}
+        .lh-pair{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+        .lh-grid .lh-check{flex-direction:row;align-items:center;gap:6px;text-transform:none;font-size:12px;color:#1A1A1A}
+        .lh-grid .lh-check input{width:auto;margin:0}
+        .lh-actions{display:flex;gap:6px;margin-top:8px}
+        .lh-actions .settings-btn{flex:1;padding:9px 4px;font-size:12px}
+        .lh-sum{font-size:12px;color:#1A1A1A;padding:8px 0 4px;border-bottom:1px solid #E2E8F0}
+        .lh-empty{text-align:center;color:#999;font-size:12px;padding:14px 0}
+        .lh-row .log-row1{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+        .lh-name{font-size:10px;color:#6B7280}
+        .lh-id{margin-left:auto;font-size:10px;color:#6B7280}
+        .lh-q{font-weight:800}.lh-q.pos{color:#1B7A3A}.lh-q.neg{color:#B3261E}
+        .lh-badge{display:inline-block;font-size:10px;font-weight:800;padding:1px 7px;border-radius:9px}
+        .lh-badge.void{background:#FDECEA;color:#B3261E}
+        .lh-badge.rev{background:#EEF2F8;color:#1B3F6B}
+        .lh-note{font-size:10px;color:#6B7280;margin-top:2px;word-break:break-word}
+        .lh-void .log-action .lh-act,.lh-void .log-action .lh-q,.lh-void .log-meta{text-decoration:line-through;color:#9AA0A6}
+        .lh-voidinfo{font-size:11px;color:#B3261E;margin-top:3px;font-weight:600}
+        .lh-void-btn{font-size:11px;padding:3px 10px;background:#FFFFFF;color:#B3261E;border:1px solid #B3261E}
+        .void-modal{width:min(380px,94vw);max-height:90vh;overflow-y:auto}
+        .lh-vsum{font-size:12px;background:#F8F9FB;border:1px solid #E2E8F0;border-radius:8px;padding:7px 9px;margin:6px 0}
+        .lh-vplan{font-size:14px;color:#1A1A1A;margin:8px 0;line-height:1.45}
+        .lh-vkeep{font-size:12px;color:#6B7280;margin-bottom:6px}
+        .lh-vq{font-size:13px;font-weight:700;color:#0A1628}
+        .lh-vlab{display:block;font-size:11px;font-weight:700;color:#555;margin:8px 0 3px;text-transform:uppercase;letter-spacing:.4px}
+        .lh-vpair{font-size:12px;line-height:1.5;background:#EEF2F8;border:1px solid #E2E8F0;border-radius:8px;padding:7px 9px;margin:6px 0}
+        .lh-vpair.bad{background:#FDECEA;color:#B3261E;border-color:#F3C7C3;font-weight:600}
     </style>
 </head>
 <body>
-<div class="ver-corner" id="verCornerBadge" onclick="handleVerBadgeTap()">v105</div>
+<div class="ver-corner" id="verCornerBadge" onclick="handleVerBadgeTap()">v106</div>
 <!-- v63: Gap 2 — offline write-queue indicator. Hidden (display:none) unless
      something is actually queued or failed. Tapping it shows the queue detail
      panel (openOfflineQueuePanel()). -->
@@ -3452,14 +3510,14 @@ var qrcode = function() {
                  list below. -->
             <div class="settings-section" style="margin-bottom:10px;">
                 <h3 style="margin-bottom:6px;">&#128230; Bin Lookup</h3>
-                <div class="settings-info" style="margin-bottom:6px;">Type a SKU or ASIN to see every bin holding it, or a bin code to see everything in that bin. Bins are created automatically the first time you use them — there is no fixed list to be limited to.</div>
+                <div class="settings-info" style="margin-bottom:6px;">Scan or type a SKU or ASIN to see every bin holding it, or a bin code to see everything in that bin &mdash; the answer appears by itself. Type 2+ letters for suggestions (title too). Bins are created automatically the first time you use them — there is no fixed list to be limited to.</div>
                 <div class="settings-row">
-                    <input type="text" class="settings-input" id="bin-lookup-input" placeholder="SKU, ASIN, or bin code..." autocomplete="off" autocorrect="off" autocapitalize="characters" spellcheck="false" style="text-transform:uppercase" oninput="forceUpperInput(this, event)" onkeydown="if(event.key==='Enter')runBinLookup();">
+                    <input type="text" class="settings-input" id="bin-lookup-input" placeholder="SKU, ASIN, title or bin code..." autocomplete="off" autocorrect="off" autocapitalize="characters" spellcheck="false" style="text-transform:uppercase" oninput="forceUpperInput(this, event);onBinLookupInput()" onkeydown="if(event.key==='Enter'&&!event.defaultPrevented)runBinLookupNow();">
                     <!-- v49: camera scan-to-fill for quick lookup by SKU/ASIN/bin barcode -->
                     <button class="scan-cam-btn" onclick="openScannerFor('bin-lookup-input')" title="Scan SKU/ASIN/bin barcode">
                         <svg viewBox="0 0 24 24"><path d="M12 9a4 4 0 1 0 4 4 4 4 0 0 0-4-4zm0 6a2 2 0 1 1 2-2 2 2 0 0 1-2 2z"/><path d="M20 4h-2.76l-1.63-2H8.39L6.76 4H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2zm0 15H4V6h3.56L9.19 4h5.62l1.63 2H20z"/></svg>
                     </button>
-                    <button class="settings-btn" style="max-width:90px;" onclick="runBinLookup()">Search</button>
+                    <button class="settings-btn" style="max-width:90px;" onclick="runBinLookupNow()">Search</button>
                 </div>
                 <div id="bin-lookup-result"></div>
             </div>
@@ -3486,7 +3544,7 @@ var qrcode = function() {
             </div>
             <div id="full-export-progress" style="text-align:right;font-size:10px;color:#888;margin-bottom:4px;"></div>
             <div class="stock-toolbar">
-                <input type="text" class="stock-search" id="stock-search-input" placeholder="Filter by SKU, ASIN, or product name..." autocomplete="off" autocorrect="off" autocapitalize="characters" spellcheck="false" style="text-transform:uppercase" oninput="forceUpperInput(this, event);onStockSearchInput()">
+                <input type="text" class="stock-search" id="stock-search-input" placeholder="Filter by SKU, ASIN, or product name..." autocomplete="off" autocorrect="off" autocapitalize="characters" spellcheck="false" style="text-transform:uppercase" oninput="forceUpperInput(this, event);onStockSearchInput();onStockSearchTyping()">
                 <!-- v88: camera scan-to-filter, same as Bin Lookup. Scanning a
                      product's barcode fills this box and runs the filter in one
                      go -- the scanner fires the box's own 'input' event. -->
@@ -3553,6 +3611,62 @@ var qrcode = function() {
                     <button class="csv-btn" onclick="exportCSV()">&#8595; CSV</button>
                 </div>
             </div>
+            <!-- v106 (2026-10-02): STOCK HISTORY - every stock movement from the database
+                 ledger (all phones, Excel, Admin Panel), with filters, India time.
+                 Supervisor / Admin can void an entry (database update M8). -->
+            <div class="settings-section lh-section" id="lh-section">
+                <h3 style="margin-top:0;">&#128220; Stock history <span id="lh-scope" style="font-weight:600;color:#6B7280;font-size:12px;"></span></h3>
+                <div class="settings-info" style="margin-bottom:6px;">Every stock movement saved in the database, from every phone, Excel and the Admin Panel. All dates and times are India time.</div>
+                <div class="lh-bar">
+                    <select id="lh-date" class="settings-input" onchange="lhOnPresetChange()">
+                        <option value="today">Today</option>
+                        <option value="yesterday">Yesterday</option>
+                        <option value="7">Last 7 days</option>
+                        <option value="30">Last 30 days</option>
+                        <option value="50">Last 50 days</option>
+                        <option value="90">Last 90 days</option>
+                        <option value="month">This month</option>
+                        <option value="year">This year</option>
+                        <option value="day">A specific date&hellip;</option>
+                        <option value="range">From &hellip; to &hellip;</option>
+                        <option value="yearpick">A specific year&hellip;</option>
+                    </select>
+                    <button class="csv-btn" id="lh-ftoggle" onclick="toggleLhFilters()">&#9881; Filters <span id="lh-fcount"></span></button>
+                    <button class="csv-btn" onclick="runLedgerHistory()">&#8635;</button>
+                </div>
+                <div class="lh-pre" id="lh-pre-day" style="display:none;"><label>Date <input type="date" id="lh-day" onchange="runLedgerHistory()"></label></div>
+                <div class="lh-pre" id="lh-pre-range" style="display:none;"><label>From <input type="date" id="lh-from"></label> <label>To <input type="date" id="lh-to" onchange="runLedgerHistory()"></label></div>
+                <div class="lh-pre" id="lh-pre-yearpick" style="display:none;"><label>Year <select id="lh-year" onchange="runLedgerHistory()"></select></label></div>
+                <div class="lh-filters" id="lh-filters" style="display:none;">
+                    <div class="lh-grid">
+                        <label>Time from <input type="time" id="lh-tfrom"></label>
+                        <label>Time to <input type="time" id="lh-tto"></label>
+                        <label class="lh-wide">Scan batch (session) <select id="lh-session"><option value="">Any (or no) batch</option></select></label>
+                        <label class="lh-wide" id="lh-who-row">Who scanned <select id="lh-who"><option value="">Anyone</option></select></label>
+                        <span class="lh-wide lh-pair" id="lh-emp-row">
+                            <label>Employee name <input type="text" id="lh-empname" placeholder="contains&hellip;" autocomplete="off"></label>
+                            <label>Employee code <input type="text" id="lh-empcode" placeholder="e.g. EMP01" autocomplete="off" style="text-transform:uppercase"></label>
+                        </span>
+                        <label>SKU <input type="text" id="lh-sku" placeholder="contains&hellip;" autocomplete="off" style="text-transform:uppercase"></label>
+                        <label>ASIN <input type="text" id="lh-asin" placeholder="contains&hellip;" autocomplete="off" style="text-transform:uppercase"></label>
+                        <label class="lh-wide">Product title <input type="text" id="lh-title" placeholder="contains&hellip;" autocomplete="off"></label>
+                        <label>Bin <input type="text" id="lh-bin" placeholder="e.g. A12" autocomplete="off" style="text-transform:uppercase"></label>
+                        <label>Order ref <input type="text" id="lh-order" placeholder="contains&hellip;" autocomplete="off" style="text-transform:uppercase"></label>
+                        <label>Action <select id="lh-action"></select></label>
+                        <label>Channel <select id="lh-channel"></select></label>
+                        <label class="lh-wide lh-check"><input type="checkbox" id="lh-hidevoid"> Hide voided entries and their reversals</label>
+                    </div>
+                    <div class="lh-actions">
+                        <button class="settings-btn" onclick="runLedgerHistory()">&#128269; Apply</button>
+                        <button class="settings-btn" style="background:#6B7280;" onclick="clearLhFilters()">&times; Clear all</button>
+                        <button class="settings-btn" style="background:#1B7A3A;" id="lh-csv-btn" onclick="exportLedgerHistoryCSV()">&#8595; CSV</button>
+                    </div>
+                </div>
+                <div id="lh-summary"></div>
+                <ul class="log-list" id="lh-list"></ul>
+                <div id="lh-more" style="text-align:center;margin-top:6px;"></div>
+            </div>
+
             <div class="settings-notice" id="log-scope-note" style="display:none;margin-bottom:8px;">&#128100; Showing your activity only.</div>
 
             <!-- DAILY RECONCILIATION (v38) — store-wide summary, only visible to
@@ -3568,6 +3682,7 @@ var qrcode = function() {
                 <div id="reconciliation-body" class="settings-info">Loading...</div>
             </div>
 
+            <h3 style="font-size:13px;color:#1B3F6B;margin:10px 0 4px;">&#128241; This phone&rsquo;s own scan log</h3>
             <ul class="log-list" id="log-list">
                 <li style="text-align:center;color:#aaa;font-size:12px;padding:20px 0;">No scans yet</li>
             </ul>
@@ -4755,6 +4870,7 @@ function restoreUiStateLate(snap) {
         if (body && body.style.display === 'none') { try { toggleQuickAdd(); } catch (e) {} }
     }
     if (state.tab === 'move' && (f['move-sku-input'] || '').trim()) {
+        _moveFieldsSku = String(f['move-sku-input']).trim().toUpperCase();   // v106: the restored boxes belong to this product
         try { prefillMoveBin(); } catch (e) {}
     }
     if (state.tab === 'stock' && (f['bin-lookup-input'] || '').trim()) {
@@ -6560,10 +6676,34 @@ var WAREHOUSE_DEFAULT_BIN = 'A1';
 // is scanned or typed — staff can always overwrite it (e.g. New Stock landing
 // in RECEIVING rather than the SKU's normal shelf bin). Never overwrites a
 // bin the user already typed.
+// v106: the product the bin / qty / To-bin boxes were filled for. A different
+// product (scan, typing, Enter, picked from a list) clears them first, so the
+// first product's bin can never stay selected for the second one.
+var _moveFieldsSku = '';
+function resetMoveFieldsForNewSku() {
+    var binEl = document.getElementById('move-bin-input');
+    if (binEl) { binEl.value = ''; binEl.setAttribute('data-src', ''); }
+    var cfg = MOVE_MODES[moveMode] || {};
+    var qtyEl = document.getElementById('move-qty-input');
+    if (qtyEl) qtyEl.value = cfg.isCorrection ? '0' : '1';
+    var toEl = document.getElementById('move-transfer-tobin-input');
+    if (toEl) toEl.value = '';
+    var hintEl = document.getElementById('move-live-bin-hint');
+    if (hintEl) hintEl.textContent = '';
+    var liveEl = document.getElementById('move-bin-live');
+    if (liveEl) { liveEl.style.display = 'none'; liveEl.innerHTML = ''; }
+    var resEl = document.getElementById('move-result');
+    if (resEl) { resEl.textContent = ''; resEl.className = 'move-result'; }
+    _moveCardSku = null;
+    try { refreshMoveBinLists(); } catch (e) {}
+}
 function prefillMoveBin() {
     var binEl = document.getElementById('move-bin-input');
     var hintEl = document.getElementById('move-live-bin-hint');
     var skuVal = (document.getElementById('move-sku-input').value || '').trim();
+    var _skuU = skuVal.toUpperCase();                                    // v106
+    if (_skuU && _moveFieldsSku && _skuU !== _moveFieldsSku) resetMoveFieldsForNewSku();
+    if (_skuU) _moveFieldsSku = _skuU;
     if (hintEl) hintEl.textContent = '';
     var _cardSeq = ++_moveCardSeq;
     _moveLookupFor = String(skuVal || '').toUpperCase();
@@ -8301,6 +8441,7 @@ function renderMoveSkuCard(sku, typed) {
         // action was switched.
         _moveCardSeq++;
         _moveCardSku = null; _moveLookupFor = '';
+        _moveFieldsSku = '';   // v106: an empty product box belongs to no product
         refreshMoveBinLists();
         return;
     }
@@ -9755,10 +9896,24 @@ function loadReservedData() {
                     add(o);
                     (olines[o] || []).forEach(function (l) { add(l.amazon_order_no); add(l.invoice_no); });
                 });
-                var disp = {};
+                var disp = {}, dispRows = [];
                 var pl = Promise.all(_chunks(refList, 80).map(function (c) {
                     return withTimeout(db.from('oms_inventory_transactions').select('txn_id,order_id,sku_code,qty_delta,client_queue_id,created_at,txn_type').eq('txn_type', 'SCAN_OUT_ORDER').in('order_id', c), 12000, 'Dispatches').then(function (q) {
-                        ((q && q.data) || []).forEach(function (t) {
+                        dispRows = dispRows.concat((q && q.data) || []);
+                    });
+                })).then(function () {
+                    // v106 (review M4): a dispatch voided through M8 (oms_ledger_voids) did not really
+                    // go out - leave it out of "dispatched another way". No M8 yet: nothing is voided.
+                    var ids = dispRows.map(function (t) { return t.txn_id; });
+                    return Promise.all(_chunks(ids, 150).map(function (c) {
+                        return withTimeout(db.from('oms_ledger_voids').select('txn_id').in('txn_id', c), 12000, 'Voided dispatches')
+                            .then(function (q) { return (q && !q.error && q.data) || []; }).catch(function () { return []; });
+                    }));
+                }).then(function (vparts) {
+                    var voided = {};
+                    (vparts || []).forEach(function (vp) { vp.forEach(function (v) { voided[v.txn_id] = 1; }); });
+                        dispRows.forEach(function (t) {
+                            if (voided[t.txn_id]) return;
                             var o = refs[String(t.order_id || '').toUpperCase()]; if (!o) return;
                             // a slip pick of ANY reservation line (PICK|R<n>) is accounted for by that
                             // line's own reservation (PICKED), so it is not "another way"
@@ -9771,8 +9926,7 @@ function loadReservedData() {
                             e.out -= dq;
                             if (dq < 0 && (!e.last || String(t.created_at) > String(e.last))) e.last = t.created_at;
                         });
-                    });
-                })).catch(function () { return null; });
+                }).catch(function () { return null; });
                 return pl.then(function () {
                     _rs.rows = rows; _rs.batches = batches; _rs.olines = olines; _rs.disp = disp; _rs.loaded = true;
                     // forget ticks on lines that are gone
@@ -10921,12 +11075,14 @@ function renderBulkResults(results, resultEl) {
 // per-SKU "History" toggle showing the last 25 ledger entries for that SKU.
 var lastBinLookupRows = [];   // last SKU-summary rows shown, used by exportBinLookupCSV()
 
+var _binLookupSeq = 0;   // v106
 function runBinLookup() {
     var el = document.getElementById('bin-lookup-result');
     var raw = (document.getElementById('bin-lookup-input').value || '').trim().toUpperCase();
     if (!db) { el.innerHTML = '<div class="move-result err">Live database not reachable right now.</div>'; return; }
     el.innerHTML = '<div style="text-align:center;color:#aaa;font-size:12px;padding:10px 0;">Searching...</div>';
 
+    var _blSeq = ++_binLookupSeq;   // v106: a newer lookup always wins
     var q = db.from('oms_bin_stock').select('sku_code,product_name,asin,bin_code,qty_on_hand,last_movement_at').order('sku_code').order('bin_code');
     if (raw) {
         q = q.or('sku_code.eq.' + raw + ',asin.eq.' + raw + ',bin_code.eq.' + raw);
@@ -10934,6 +11090,7 @@ function runBinLookup() {
     q = q.limit(500);
 
     withTimeout(q, 10000, 'Bin lookup').then(function(res) {
+        if (_blSeq !== _binLookupSeq) return;   // v106
         if (res.error) { el.innerHTML = '<div class="move-result err">' + res.error.message + '</div>'; return; }
         var rows = res.data || [];
         if (!rows.length) {
@@ -14195,7 +14352,9 @@ function onCodeDetected(value) {
         var el = document.getElementById(target);
         if (el) {
             el.value = value;
+            _v106ScanFill = target;   // v106: Bin lookup shows a scanned code at once
             el.dispatchEvent(new Event('input', { bubbles: true }));
+            _v106ScanFill = null;
             el.dispatchEvent(new Event('blur',  { bubbles: true })); // triggers prefillMoveBin() when target is move-sku-input
             try { el.focus(); } catch (e) {}
         }
@@ -15048,6 +15207,7 @@ function switchTab(tab) {
     }
     if (tab === 'log') {
         loadReconciliation();
+        try { enterLedgerHistory(); } catch (e) {}   // v106
     }
     if (tab === 'dash') {
         loadDashboard(false);
@@ -15089,6 +15249,7 @@ document.addEventListener('DOMContentLoaded', function() {
     if (db) syncSkuCacheForOffline();
     // Load persisted log
     state.log = loadLog();
+    try { initV106Suggest(); initLedgerHistory(); } catch (e) {}   // v106
 
     // Restore session if mid-order
     var resumed = restoreSession();
@@ -15206,6 +15367,825 @@ document.addEventListener('DOMContentLoaded', function() {
         try { document.getElementById('scan-input').focus(); } catch(e) {}
     }, 100);
 });
+
+// ══ v106 (2026-10-02) ═══════════════════════════════════════════════════
+// 1. One product list in memory (LIX) for type-ahead suggestions in Bin
+//    lookup and Live stock: SKU, ASIN, product title and bin code, matched
+//    ANYWHERE in the text (case, spaces and hyphens ignored).
+// 2. Bin lookup shows its result by itself (scan: at once; typing: on an
+//    exact match at once, otherwise ~400 ms after the last key; Enter too).
+// 3. LOG tab: Stock history read from the database ledger, with filters
+//    (dates in India time, time of day, batch, person, SKU, ASIN, title, bin,
+//    action, channel, order), count + units, CSV.
+// 4. Void + reverse one entry (Supervisor / Admin PIN) through the database
+//    function oms_void_ledger_entry (update M8). If M8 is not applied the
+//    Void button simply does not appear.
+// ════════════════════════════════════════════════════════════════════════
+
+// ── 1. The product list in memory ────────────────────────────────────────
+var LIX = { loaded: false, loading: null, at: 0, skus: [], bins: [], bySku: {}, byAsin: {}, byBin: {}, error: '' };
+var LIX_MAX_AGE_MIN = 15;
+function lixNorm(s) { return String(s == null ? '' : s).toLowerCase().replace(/[\s\-]+/g, ''); }
+function loadListingIndex(force) {
+    if (LIX.loaded && !force && (Date.now() - LIX.at) < LIX_MAX_AGE_MIN * 60000) return Promise.resolve(LIX);
+    if (LIX.loading) return LIX.loading;
+    if (!db) return Promise.resolve(LIX);
+    var master = fetchAllRows(function () {
+        return db.from('oms_sku_master').select('sku_code,asin,product_name,active').order('sku_code');
+    }, 1000, 'Product list');
+    var stock = fetchAllRows(function () {
+        return db.from('oms_bin_stock').select('sku_code,bin_code,qty_on_hand').order('sku_code').order('bin_code');
+    }, 1000, 'Stock per bin').catch(function () { return { data: [], error: 'stock' }; });
+    LIX.loading = Promise.all([master, stock]).then(function (rr) {
+        var m = rr[0], s = rr[1];
+        if (!m || m.error || !m.data) throw new Error('list');
+        buildListingIndex(m.data, (s && s.data) || []);
+        LIX.error = '';
+        return LIX;
+    }).catch(function () {
+        // offline: the product cache kept on this phone for offline scanning
+        return idbTx('sku_cache', 'readonly').then(function (store) {
+            return new Promise(function (res) { var rq = store.getAll(); rq.onsuccess = function () { res(rq.result || []); }; rq.onerror = function () { res([]); }; });
+        }).then(function (rows) {
+            if (rows && rows.length && !LIX.loaded) buildListingIndex(rows, []);
+            LIX.error = rows && rows.length ? 'offline' : 'none';
+            return LIX;
+        }).catch(function () { LIX.error = 'none'; return LIX; });
+    }).then(function (x) { LIX.loading = null; return x; });
+    return LIX.loading;
+}
+function buildListingIndex(master, stockRows) {
+    var qtyBySku = {}, binsBySku = {}, byBin = {};
+    (stockRows || []).forEach(function (r) {
+        var sc = String(r.sku_code || '').toUpperCase(), bc = String(r.bin_code || '').toUpperCase(), q = Number(r.qty_on_hand) || 0;
+        if (!sc) return;
+        qtyBySku[sc] = (qtyBySku[sc] || 0) + q;
+        if (bc && q) {
+            (binsBySku[sc] = binsBySku[sc] || []).push(bc);
+            var b = byBin[bc] = byBin[bc] || { bin: bc, units: 0, skus: 0 };
+            b.units += q; b.skus += 1;
+        }
+    });
+    (BIN_LIST || []).forEach(function (b) { var bc = String(b).toUpperCase(); if (!byBin[bc]) byBin[bc] = { bin: bc, units: 0, skus: 0 }; });
+    var skus = [], bySku = {}, byAsin = {};
+    master.forEach(function (r) {
+        var sc = String(r.sku_code || '').toUpperCase(); if (!sc) return;
+        var e = { sku: sc, asin: String(r.asin || '').toUpperCase(), title: String(r.product_name || ''), active: r.active !== false,
+                  qty: qtyBySku[sc] || 0, bins: binsBySku[sc] || [] };
+        e.nSku = lixNorm(e.sku); e.nAsin = lixNorm(e.asin); e.nTitle = lixNorm(e.title);
+        skus.push(e); bySku[sc] = e; if (e.asin) byAsin[e.asin] = e;
+    });
+    var bins = Object.keys(byBin).sort().map(function (k) { var b = byBin[k]; b.nBin = lixNorm(b.bin); return b; });
+    LIX.skus = skus; LIX.bySku = bySku; LIX.byAsin = byAsin; LIX.bins = bins; LIX.byBin = byBin;
+    LIX.loaded = true; LIX.at = Date.now();
+}
+// An exact SKU, ASIN or bin code (what a scanner produces) - used to run the lookup at once.
+function lixExact(v) {
+    var u = String(v || '').trim().toUpperCase();
+    if (!u || !LIX.loaded) return null;
+    if (LIX.bySku[u]) return { kind: 'SKU', value: u };
+    if (LIX.byAsin[u]) return { kind: 'ASIN', value: u };
+    if (LIX.byBin[u]) return { kind: 'BIN', value: u };
+    return null;
+}
+var LIX_KIND_ORDER = { SKU: 0, ASIN: 1, BIN: 2, TITLE: 3 };
+// Matches anywhere; exact first, then starts-with, then contains; SKU, ASIN, bin, title.
+function lixSearch(q, limit) {
+    limit = limit || 20;
+    var nq = lixNorm(q);
+    if (nq.length < 2 || !LIX.loaded) return [];
+    var buckets = [];
+    function put(score, kind, item) {
+        var k = score * 4 + LIX_KIND_ORDER[kind];
+        var b = buckets[k] || (buckets[k] = []);
+        if (b.length < limit) b.push(item);
+    }
+    function sc(hay, i) { return i === 0 ? (hay.length === nq.length ? 0 : 1) : 2; }
+    var s = LIX.skus, i, e, p;
+    for (i = 0; i < s.length; i++) {
+        e = s[i];
+        p = e.nSku.indexOf(nq); if (p > -1) put(sc(e.nSku, p), 'SKU', { kind: 'SKU', value: e.sku, e: e });
+        if (e.nAsin) { p = e.nAsin.indexOf(nq); if (p > -1) put(sc(e.nAsin, p), 'ASIN', { kind: 'ASIN', value: e.asin, e: e }); }
+        if (e.nTitle) { p = e.nTitle.indexOf(nq); if (p > -1) put(p === 0 ? 1 : 2, 'TITLE', { kind: 'TITLE', value: e.sku, e: e }); }
+    }
+    var bl = LIX.bins;
+    for (i = 0; i < bl.length; i++) { p = bl[i].nBin.indexOf(nq); if (p > -1) put(sc(bl[i].nBin, p), 'BIN', { kind: 'BIN', value: bl[i].bin, b: bl[i] }); }
+    var out = [];
+    for (i = 0; i < buckets.length && out.length < limit; i++) {
+        if (!buckets[i]) continue;
+        for (var j = 0; j < buckets[i].length && out.length < limit; j++) out.push(buckets[i][j]);
+    }
+    return out;
+}
+// Highlight the matched part, ignoring case, spaces and hyphens like the search does.
+function lixHighlight(text, q) {
+    text = String(text == null ? '' : text);
+    var nq = lixNorm(q), map = [], norm = '';
+    for (var i = 0; i < text.length; i++) {
+        var c = text.charAt(i);
+        if (/[\s\-]/.test(c)) continue;
+        map.push(i); norm += c.toLowerCase();
+    }
+    var p = nq ? norm.indexOf(nq) : -1;
+    if (p < 0) return esc59(text);
+    var a = map[p], b = map[p + nq.length - 1] + 1;
+    return esc59(text.slice(0, a)) + '<mark>' + esc59(text.slice(a, b)) + '</mark>' + esc59(text.slice(b));
+}
+
+// ── Suggestion drop-down (one per box) ────────────────────────────────────
+var _sg = {};   // inputId -> { box, items, active, onPick }
+function attachSuggest(inputId, onPick) {
+    var inp = document.getElementById(inputId);
+    if (!inp || _sg[inputId]) return;
+    var box = document.createElement('div');
+    box.className = 'sg-box'; box.id = inputId + '-sg'; box.style.display = 'none';
+    box.setAttribute('role', 'listbox');
+    var host = inp.parentNode; host.style.position = 'relative';
+    host.appendChild(box);
+    _sg[inputId] = { box: box, items: [], active: -1, onPick: onPick, inp: inp };
+    inp.addEventListener('focus', function () { loadListingIndex(); });
+    inp.addEventListener('keydown', function (ev) {
+        var st = _sg[inputId];
+        if (!st || st.box.style.display === 'none') return;
+        if (ev.key === 'ArrowDown' || ev.key === 'ArrowUp') {
+            ev.preventDefault();
+            var n = st.items.length; if (!n) return;
+            st.active = (st.active + (ev.key === 'ArrowDown' ? 1 : n - 1)) % n;
+            sgPaintActive(inputId);
+        } else if (ev.key === 'Enter' && st.active > -1) {
+            ev.preventDefault(); ev.stopPropagation(); sgPick(inputId, st.active);
+        } else if (ev.key === 'Escape') { sgHide(inputId); }
+    }, true);
+    inp.addEventListener('blur', function () { setTimeout(function () { sgHide(inputId); }, 180); });
+    box.addEventListener('pointerdown', function (ev) { ev.preventDefault(); });   // keep the box focused while tapping
+    box.addEventListener('mousedown', function (ev) { ev.preventDefault(); });
+}
+function sgHide(inputId) { var st = _sg[inputId]; if (st) { st.box.style.display = 'none'; st.active = -1; } }
+function sgPaintActive(inputId) {
+    var st = _sg[inputId]; if (!st) return;
+    var els = st.box.querySelectorAll('.sg-item');
+    for (var i = 0; i < els.length; i++) els[i].classList.toggle('active', Number(els[i].getAttribute('data-i')) === st.active);
+}
+function sgPick(inputId, i) {
+    var st = _sg[inputId]; if (!st) return;
+    var it = st.items[i]; sgHide(inputId);
+    if (it && st.onPick) st.onPick(it);
+}
+var SG_LABEL = { SKU: 'SKU', ASIN: 'ASIN', BIN: 'Bin', TITLE: 'Title' };
+function sgRender(inputId) {
+    var st = _sg[inputId]; if (!st) return;
+    var q = String(st.inp.value || '').trim();
+    if (lixNorm(q).length < 2) { sgHide(inputId); return; }
+    if (!LIX.loaded) {
+        st.items = []; st.box.innerHTML = '<div class="sg-note">Loading the product list&hellip;</div>'; st.box.style.display = '';
+        loadListingIndex().then(function () { if (String(st.inp.value || '').trim() === q && document.activeElement === st.inp) sgRender(inputId); });
+        return;
+    }
+    var res = lixSearch(q, 20);
+    st.items = []; st.active = -1;
+    if (!res.length) { st.box.innerHTML = '<div class="sg-note">No SKU, ASIN, title or bin contains &ldquo;' + esc59(q) + '&rdquo;.</div>'; st.box.style.display = ''; return; }
+    var groups = { SKU: [], ASIN: [], BIN: [], TITLE: [] };
+    res.forEach(function (r) { groups[r.kind].push(r); });
+    var html = '';
+    ['SKU', 'ASIN', 'BIN', 'TITLE'].forEach(function (k) {
+        if (!groups[k].length) return;
+        html += '<div class="sg-head">' + SG_LABEL[k] + '</div>';
+        groups[k].forEach(function (r) {
+            var i = st.items.length; st.items.push(r);
+            var main, sub, right;
+            if (k === 'BIN') {
+                main = lixHighlight(r.b.bin, q);
+                sub = r.b.units ? r.b.skus + ' product(s)' : 'empty';
+                right = r.b.units + ' in stock';
+            } else {
+                var e = r.e;
+                main = k === 'SKU' ? lixHighlight(e.sku, q) : k === 'ASIN' ? lixHighlight(e.asin, q) : lixHighlight(e.title || '(no title)', q);
+                sub = k === 'TITLE' ? esc59(e.sku) + (e.asin ? ' &bull; ' + esc59(e.asin) : '') : esc59(e.title || '');
+                if (!e.active) sub += ' &bull; <span style="color:#9A6700;">switched off</span>';
+                right = e.qty + ' in stock';
+            }
+            html += '<div class="sg-item" role="option" data-i="' + i + '" onclick="sgPick(\'' + inputId + '\',' + i + ')">' +
+                '<div class="sg-main"><div class="sg-v">' + main + '</div>' + (sub ? '<div class="sg-sub">' + sub + '</div>' : '') + '</div>' +
+                '<div class="sg-q">' + esc59(right) + '</div></div>';
+        });
+    });
+    st.box.innerHTML = html;
+    st.box.style.display = '';
+}
+
+// ── 2. Bin lookup by itself ───────────────────────────────────────────────
+var _blTimer = null, _blLastRun = '';
+var _v106ScanFill = null;     // set by the camera scanner just before it fills a box
+function onBinLookupInput() {
+    if (_blTimer) { clearTimeout(_blTimer); _blTimer = null; }
+    var v = String(document.getElementById('bin-lookup-input').value || '').trim().toUpperCase();
+    if (_v106ScanFill === 'bin-lookup-input') {           // scanned: show it at once
+        _v106ScanFill = null; sgHide('bin-lookup-input'); runBinLookupAuto(true); return;
+    }
+    sgRender('bin-lookup-input');
+    if (!v) { _blLastRun = ''; return; }
+    if (lixExact(v)) { runBinLookupAuto(false); return; }  // an exact SKU / ASIN / bin
+    if (v.length < 2) return;
+    _blTimer = setTimeout(function () { _blTimer = null; runBinLookupAuto(false); }, 400);
+}
+function runBinLookupAuto(force) {
+    var v = String(document.getElementById('bin-lookup-input').value || '').trim().toUpperCase();
+    if (!v || (!force && v === _blLastRun)) return;
+    _blLastRun = v;
+    runBinLookup();
+}
+function runBinLookupNow() {   // Enter / Search button
+    if (_blTimer) { clearTimeout(_blTimer); _blTimer = null; }
+    sgHide('bin-lookup-input');
+    _blLastRun = String(document.getElementById('bin-lookup-input').value || '').trim().toUpperCase();
+    runBinLookup();
+}
+function onBinLookupPick(it) {
+    var el = document.getElementById('bin-lookup-input');
+    el.value = it.value;
+    runBinLookupNow();
+}
+function onStockSearchPick(it) {
+    if (it.kind === 'BIN') {
+        var bl = document.getElementById('bin-lookup-input');
+        bl.value = it.value; runBinLookupNow();
+        try { bl.scrollIntoView({ block: 'start', behavior: 'smooth' }); } catch (e) {}
+        return;
+    }
+    var el = document.getElementById('stock-search-input');
+    el.value = it.value;
+    if (stockSearchDebounceTimer) clearTimeout(stockSearchDebounceTimer);
+    stockPage = 0; loadStockTab(false);
+}
+function onStockSearchTyping() { sgRender('stock-search-input'); }
+function initV106Suggest() {
+    attachSuggest('bin-lookup-input', onBinLookupPick);
+    attachSuggest('stock-search-input', onStockSearchPick);
+}
+
+// ── 3. Stock history (LOG tab) ────────────────────────────────────────────
+var IST_MS = 330 * 60000, DAY_MS = 86400000;
+var LH_CAP = 20000, LH_PAGE = 50;
+var LH = { ids: [], rows: {}, shown: 0, voids: {}, voidsByBal: {}, emps: null, sessions: null, m8: null, busy: 0, lastQuery: null };
+var LH_ACTIONS = [
+    ['', 'Every action'],
+    ['STOCK_IN', 'Stock in (new stock)'],
+    ['DISPATCH', 'Dispatch out (sale)'],
+    ['PICK', 'Pick slip (Amazon)'],
+    ['TRANSFER', 'Transfer between bins'],
+    ['ADJUST', 'Adjust (found / lost / rejected)'],
+    ['RETURN', 'Returns'],
+    ['QC', 'QC hold / release'],
+    ['COUNT', 'Set true count / correction'],
+    ['VOID', 'Void reversals (single entry)'],
+    ['BATCH_REV', 'Batch reversals (whole batch)'],
+    ['OPENING', 'Opening balance / Excel sync']
+];
+var LH_ACTION_TYPES = {
+    STOCK_IN: ['NEW_STOCK_IN'], DISPATCH: ['SCAN_OUT_ORDER'], PICK: ['SCAN_OUT_ORDER'],
+    TRANSFER: ['BIN_TRANSFER_OUT', 'BIN_TRANSFER_IN'], ADJUST: ['ADJUSTMENT_FOUND', 'ADJUSTMENT_LOST_THEFT', 'ADJUSTMENT_REJECTED'],
+    RETURN: ['RETURN_IN', 'RETURN_WRONG_ITEM'], QC: ['QC_HOLD', 'ADJUSTMENT_QC_RELEASE'], COUNT: ['MANUAL_CORRECTION'],
+    VOID: ['MANUAL_CORRECTION'], BATCH_REV: ['MANUAL_CORRECTION'], OPENING: ['OPENING_BALANCE', 'INVENTORY_SYNC']
+};
+var LH_TYPE_LABEL = {
+    NEW_STOCK_IN: 'Stock in', SCAN_OUT_ORDER: 'Dispatch out', BIN_TRANSFER_OUT: 'Transfer out', BIN_TRANSFER_IN: 'Transfer in',
+    ADJUSTMENT_FOUND: 'Found', ADJUSTMENT_LOST_THEFT: 'Removed / lost', ADJUSTMENT_REJECTED: 'Rejected', RETURN_IN: 'Return in',
+    RETURN_WRONG_ITEM: 'Return - wrong item', QC_HOLD: 'QC hold', ADJUSTMENT_QC_RELEASE: 'QC release', MANUAL_CORRECTION: 'Correction',
+    OPENING_BALANCE: 'Opening balance', INVENTORY_SYNC: 'Excel daily sync'
+};
+var LH_VOID_NOTE_RE = /void - reverses txn #([0-9]+)/i;
+// India time helpers (India has no daylight saving: always UTC+5:30)
+function istParts(ms) { var d = new Date(ms + IST_MS); return { y: d.getUTCFullYear(), m: d.getUTCMonth() + 1, d: d.getUTCDate(), hh: d.getUTCHours(), mi: d.getUTCMinutes(), ss: d.getUTCSeconds() }; }
+function istMidnightUtc(y, m, d) { return Date.UTC(y, m - 1, d) - IST_MS; }
+var MON3 = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+function p2(n) { return (n < 10 ? '0' : '') + n; }
+function fmtIst(iso, withSec) {
+    var ms = Date.parse(iso); if (isNaN(ms)) return String(iso || '');
+    var t = istParts(ms);
+    return p2(t.d) + ' ' + MON3[t.m - 1] + ' ' + t.y + ', ' + p2(t.hh) + ':' + p2(t.mi) + (withSec ? ':' + p2(t.ss) : '');
+}
+function istDateStr(ms) { var t = istParts(ms); return t.y + '-' + p2(t.m) + '-' + p2(t.d); }
+function parseYmd(s) { var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(s || '')); return m ? istMidnightUtc(+m[1], +m[2], +m[3]) : null; }
+// The date range a preset stands for, as UTC instants [from, to).
+function lhRange(preset, now) {
+    now = now || Date.now();
+    var t = istParts(now), today = istMidnightUtc(t.y, t.m, t.d), v = function (id) { return (document.getElementById(id) || {}).value || ''; };
+    switch (preset) {
+        case 'today': return { from: today, to: today + DAY_MS, label: 'Today' };
+        case 'yesterday': return { from: today - DAY_MS, to: today, label: 'Yesterday' };
+        case '7': case '30': case '50': case '90': case '365':
+            var n = Number(preset); return { from: today - (n - 1) * DAY_MS, to: today + DAY_MS, label: 'Last ' + n + ' days' };
+        case 'month': return { from: istMidnightUtc(t.y, t.m, 1), to: (t.m === 12 ? istMidnightUtc(t.y + 1, 1, 1) : istMidnightUtc(t.y, t.m + 1, 1)), label: 'This month' };
+        case 'year': return { from: istMidnightUtc(t.y, 1, 1), to: istMidnightUtc(t.y + 1, 1, 1), label: 'This year' };
+        case 'day':
+            var d = parseYmd(v('lh-day')); if (d == null) return { error: 'Pick the date.' };
+            return { from: d, to: d + DAY_MS, label: v('lh-day') };
+        case 'range':
+            var a = parseYmd(v('lh-from')), b = parseYmd(v('lh-to'));
+            if (a == null || b == null) return { error: 'Pick both dates of the range.' };
+            if (b < a) { var x = a; a = b; b = x; }
+            return { from: a, to: b + DAY_MS, label: istDateStr(a) + ' to ' + istDateStr(b) };
+        case 'yearpick':
+            var y = Number(v('lh-year')); if (!y) return { error: 'Pick the year.' };
+            return { from: istMidnightUtc(y, 1, 1), to: istMidnightUtc(y + 1, 1, 1), label: 'Year ' + y };
+    }
+    return { from: today, to: today + DAY_MS, label: 'Today' };
+}
+function lhTimeMin(s) { var m = /^(\d{1,2}):(\d{2})/.exec(String(s || '')); return m ? (+m[1]) * 60 + (+m[2]) : null; }
+function lhInTime(iso, a, b) {   // a,b minutes of the India day; b inclusive to the minute
+    if (a == null && b == null) return true;
+    var t = istParts(Date.parse(iso)), x = t.hh * 60 + t.mi;
+    if (a == null) a = 0; if (b == null) b = 1439;
+    return a <= b ? (x >= a && x <= b) : (x >= a || x <= b);   // a later than b = across midnight
+}
+function lhVal(id) { var el = document.getElementById(id); return el ? String(el.value || '').trim() : ''; }
+function lhLogScopeOwn() {
+    try { return !!state.session && effectivePermissions().logScope === 'own'; } catch (e) { return false; }
+}
+function lhOnPresetChange() {
+    var p = lhVal('lh-date');
+    ['day', 'range', 'yearpick'].forEach(function (k) {
+        var el = document.getElementById('lh-pre-' + k); if (el) el.style.display = (p === k) ? '' : 'none';
+    });
+    if (p !== 'day' && p !== 'range' && p !== 'yearpick') runLedgerHistory();
+}
+function toggleLhFilters() {
+    var f = document.getElementById('lh-filters'); if (!f) return;
+    var open = f.style.display === 'none';
+    f.style.display = open ? '' : 'none';
+    if (open) { lhLoadLists(); loadListingIndex(); }
+}
+function lhActiveFilterCount() {
+    var n = 0;
+    ['lh-tfrom', 'lh-tto', 'lh-session', 'lh-who', 'lh-empname', 'lh-empcode', 'lh-sku', 'lh-asin', 'lh-title', 'lh-bin', 'lh-action', 'lh-channel', 'lh-order'].forEach(function (id) { if (lhVal(id)) n++; });
+    var hv = document.getElementById('lh-hidevoid'); if (hv && hv.checked) n++;
+    return n;
+}
+function clearLhFilters() {
+    ['lh-tfrom', 'lh-tto', 'lh-session', 'lh-who', 'lh-empname', 'lh-empcode', 'lh-sku', 'lh-asin', 'lh-title', 'lh-bin', 'lh-action', 'lh-channel', 'lh-order', 'lh-day', 'lh-from', 'lh-to'].forEach(function (id) {
+        var el = document.getElementById(id); if (el) el.value = '';
+    });
+    var hv = document.getElementById('lh-hidevoid'); if (hv) hv.checked = false;
+    var d = document.getElementById('lh-date'); if (d) d.value = 'today';
+    lhOnPresetChange();
+}
+function lhLoadLists() {
+    if (!db) return Promise.resolve();
+    var jobs = [];
+    if (!LH.emps) {
+        jobs.push(withTimeout(db.from('oms_employees').select('employee_code,display_name,role,active').order('employee_code'), 10000, 'People').then(function (r) {
+            if (r.error) return;
+            LH.emps = {};
+            (r.data || []).forEach(function (e) { LH.emps[String(e.employee_code).toUpperCase()] = e; });
+            var sel = document.getElementById('lh-who');
+            if (sel) {
+                var cur = sel.value;
+                sel.innerHTML = '<option value="">Anyone</option>' + Object.keys(LH.emps).sort().map(function (c) {
+                    return '<option value="' + esc59(c) + '">' + esc59(c) + ' - ' + esc59(LH.emps[c].display_name || '') + '</option>';
+                }).join('');
+                sel.value = cur;
+            }
+        }).catch(function () {}));
+    }
+    if (!LH.sessions) {
+        jobs.push(withTimeout(db.from('oms_scan_sessions').select('session_id,employee_code,status,opened_at,default_bin_code,note').order('opened_at', { ascending: false }).limit(300), 10000, 'Batches').then(function (r) {
+            if (r.error) return;
+            LH.sessions = r.data || [];
+            var sel = document.getElementById('lh-session');
+            if (sel) {
+                var cur = sel.value;
+                sel.innerHTML = '<option value="">Any (or no) batch</option>' + LH.sessions.map(function (s) {
+                    return '<option value="' + esc59(s.session_id) + '">' + esc59(fmtIst(s.opened_at)) + ' &middot; ' + esc59(s.employee_code) + ' &middot; ' +
+                        esc59(String(s.status || '').replace(/_/g, ' ').toLowerCase()) + (s.default_bin_code ? ' &middot; bin ' + esc59(s.default_bin_code) : '') +
+                        ' &middot; ' + esc59(String(s.session_id).slice(0, 8)) + '</option>';
+                }).join('');
+                sel.value = cur;
+            }
+        }).catch(function () {}));
+    }
+    var y = document.getElementById('lh-year');
+    if (y && !y.options.length) {
+        var cy = istParts(Date.now()).y, h = '';
+        for (var k = cy; k >= 2025; k--) h += '<option value="' + k + '">' + k + '</option>';
+        y.innerHTML = h;
+    }
+    return Promise.all(jobs);
+}
+// v106 review: only the voids that touch the entries found (their id range), not the whole table.
+function lhLoadVoids(minId, maxId) {
+    LH.voids = {}; LH.voidsByBal = {};
+    if (!db || minId == null) return Promise.resolve();
+    var sel = 'void_id,txn_id,balancing_txn_id,void_group,reason,voided_at,voided_by,approver_role,requested_by,qty_put_back';
+    function by(col) {
+        return fetchAllRows(function () { return db.from('oms_ledger_voids').select(sel).gte(col, minId).lte(col, maxId).order('void_id'); }, 1000, 'Voids');
+    }
+    return Promise.all([by('txn_id'), by('balancing_txn_id')]).then(function (rr) {
+        if (rr.some(function (r) { return !r || r.error; })) { LH.voidsMissing = true; return; }
+        LH.voidsMissing = false;
+        rr.forEach(function (r) { (r.data || []).forEach(function (v) { LH.voids[v.txn_id] = v; LH.voidsByBal[v.balancing_txn_id] = v; }); });
+    }).catch(function () { LH.voidsMissing = true; });
+}
+// Batch reversals: a batch reverse writes 'Session void - reverses txn #N ...' tagged with the batch,
+// so the batches in the result tell where to look. M8 voids inside a batch use the same wording plus
+// '- Entry void by', and are left to oms_ledger_voids.
+var LH_BATCH_REV_RE = /^Session void - reverses txn #([0-9]+)/;
+function lhIsBatchRevNote(n) { n = String(n || ''); return LH_BATCH_REV_RE.test(n) && n.indexOf('- Entry void by ') < 0; }
+function lhLoadBatchReversals(sessionIds) {
+    LH.brevOf = {}; LH.brevBy = {};
+    if (!db || !sessionIds.length) return Promise.resolve();
+    var chunks = [];
+    for (var i = 0; i < sessionIds.length; i += 50) chunks.push(sessionIds.slice(i, i + 50));
+    return Promise.all(chunks.map(function (c) {
+        return fetchAllRows(function () {
+            return db.from('oms_inventory_transactions').select('txn_id,note').eq('txn_type', 'MANUAL_CORRECTION').in('session_id', c).like('note', 'Session void - reverses txn #%').order('txn_id');
+        }, 1000, 'Batch reversals').then(function (r) {
+            ((r && r.data) || []).forEach(function (x) {
+                if (!lhIsBatchRevNote(x.note)) return;
+                var n = Number(LH_BATCH_REV_RE.exec(x.note)[1]); LH.brevOf[x.txn_id] = n; LH.brevBy[n] = x.txn_id;
+            });
+        });
+    })).catch(function () {});
+}
+// Is the void function there (update M8)? A call with no entry is refused
+// before any PIN check, so this never touches a PIN counter.
+function lhProbeM8() {
+    if (!db || !isListingManager()) return Promise.resolve(LH.m8);
+    if (LH.m8 !== null) return Promise.resolve(LH.m8);
+    return withTimeout(db.rpc('oms_void_ledger_entry', { p_txn_id: null, p_reason: null, p_employee_code: null, p_pin: null }), 8000, 'Void check').then(function (r) {
+        if (r && r.error) { if (r.error.code === 'PGRST202' || r.status === 404) LH.m8 = false; return LH.m8; }
+        LH.m8 = !!(r && r.data && r.data.error === 'BAD_INPUT');
+        return LH.m8;
+    }).catch(function () { return LH.m8; });
+}
+// Server-side filters (everything the ledger itself can answer).
+function lhBuildQuery(sel, r, f) {
+    var q = db.from('oms_inventory_transactions').select(sel)
+        .gte('created_at', new Date(r.from).toISOString()).lt('created_at', new Date(r.to).toISOString());
+    if (f.session) q = q.eq('session_id', f.session);
+    if (f.who) q = q.eq('employee_code', f.who);
+    if (f.empcode) q = q.ilike('employee_code', '%' + f.empcode + '%');
+    if (f.empCodes) q = q.in('employee_code', f.empCodes);
+    if (f.sku) q = q.ilike('sku_code', '%' + f.sku + '%');
+    if (f.skuList) q = q.in('sku_code', f.skuList);
+    if (f.binExact) q = q.eq('bin_code', f.binExact);
+    else if (f.bin) q = q.ilike('bin_code', '%' + f.bin + '%');
+    if (f.channel) q = q.eq('channel', f.channel);
+    if (f.order) q = q.ilike('order_id', '%' + f.order + '%');
+    if (f.action) {
+        var ty = LH_ACTION_TYPES[f.action];
+        q = ty.length === 1 ? q.eq('txn_type', ty[0]) : q.in('txn_type', ty);
+        if (f.action === 'PICK') q = q.like('client_queue_id', 'PICK|%');
+        if (f.action === 'DISPATCH') q = q.or('client_queue_id.is.null,client_queue_id.not.like.PICK|*');
+        if (f.action === 'VOID') q = q.or('note.ilike.Entry void - reverses txn #*,note.ilike.*- Entry void by *');
+        if (f.action === 'BATCH_REV') q = q.ilike('note', 'Session void - reverses txn #%').not('note', 'ilike', '%- Entry void by %');
+        if (f.action === 'COUNT') q = q.or('note.is.null,note.not.ilike.*reverses txn #*');
+    }
+    return q;
+}
+function lhReadFilters() {
+    var f = {
+        session: lhVal('lh-session'), who: lhVal('lh-who').toUpperCase(), empname: lhVal('lh-empname'), empcode: lhVal('lh-empcode').toUpperCase().replace(/[,%*()]/g, ''),
+        sku: lhVal('lh-sku').toUpperCase().replace(/[,%*()]/g, ''), asin: lhVal('lh-asin'), title: lhVal('lh-title'), bin: lhVal('lh-bin').toUpperCase().replace(/[,%*()]/g, ''),
+        action: lhVal('lh-action'), channel: lhVal('lh-channel'), order: lhVal('lh-order').toUpperCase().replace(/[,%*()]/g, ''),
+        tfrom: lhTimeMin(lhVal('lh-tfrom')), tto: lhTimeMin(lhVal('lh-tto')), hideVoid: !!(document.getElementById('lh-hidevoid') || {}).checked
+    };
+    if (lhLogScopeOwn()) { f.who = String(state.session.employee_code || '').toUpperCase(); f.empname = ''; f.empcode = ''; }
+    return f;
+}
+var _lhSeq = 0;
+function runLedgerHistory() {
+    var list = document.getElementById('lh-list'), sum = document.getElementById('lh-summary'), more = document.getElementById('lh-more');
+    if (!list) return;
+    var fc = document.getElementById('lh-fcount'); if (fc) { var n = lhActiveFilterCount(); fc.textContent = n ? '(' + n + ')' : ''; }
+    if (!db) { sum.innerHTML = '<div class="move-result err">Live database not reachable right now.</div>'; return; }
+    var r = lhRange(lhVal('lh-date') || 'today');
+    if (r.error) { sum.innerHTML = '<div class="move-result err">' + esc59(r.error) + '</div>'; return; }
+    var f = lhReadFilters();
+    var seq = ++_lhSeq;
+    sum.innerHTML = '<div class="settings-info">Searching&hellip;</div>'; list.innerHTML = ''; more.innerHTML = '';
+    var needIdx = !!(f.asin || f.title);
+    var prep = [lhProbeM8(), (f.empname ? lhLoadLists() : Promise.resolve()), (needIdx ? loadListingIndex() : Promise.resolve())];
+    Promise.all(prep).then(function () {
+        if (seq !== _lhSeq) return;
+        // resolve name / ASIN / title to codes, using the lists already on the phone
+        if (f.empname) {
+            var nm = f.empname.toLowerCase();
+            f.empCodes = Object.keys(LH.emps || {}).filter(function (c) { return String(LH.emps[c].display_name || '').toLowerCase().indexOf(nm) > -1; });
+            if (!f.empCodes.length) return lhShowNone('No person’s name contains “' + f.empname + '”.');
+        }
+        if (needIdx) {
+            if (!LIX.loaded) return lhShowNone('The product list could not be loaded, so ASIN / title cannot be searched right now.');
+            var na = lixNorm(f.asin), nt = lixNorm(f.title);
+            var hits = LIX.skus.filter(function (e) { return (!na || e.nAsin.indexOf(na) > -1) && (!nt || e.nTitle.indexOf(nt) > -1); });
+            if (!hits.length) return lhShowNone('No product has that ' + (f.asin && f.title ? 'ASIN and title' : f.asin ? 'ASIN' : 'title') + '.');
+            if (hits.length > 300) return lhShowNone(hits.length + ' products match that ' + (f.title ? 'title' : 'ASIN') + ' – type a little more so it matches 300 or fewer.');
+            f.skuList = hits.map(function (e) { return e.sku; });
+        }
+        if (f.bin && LIX.loaded && LIX.byBin[f.bin]) f.binExact = f.bin;
+        else if (f.bin && BIN_LIST && BIN_LIST.map(function (b) { return String(b).toUpperCase(); }).indexOf(f.bin) > -1) f.binExact = f.bin;
+        LH.lastQuery = { r: r, f: f };
+        // 1) slim rows (id, time, qty) for everything that matches - paged, capped
+        var all = [], capped = false;
+        function page(off) {
+            return withTimeout(lhBuildQuery('txn_id,created_at,qty_delta,session_id', r, f).order('created_at', { ascending: false }).order('txn_id', { ascending: false }).range(off, off + 999), 15000, 'Stock history').then(function (res) {
+                if (res.error) throw res.error;
+                var d = res.data || [];
+                all = all.concat(d);
+                if (d.length === 1000 && all.length < LH_CAP) return page(off + 1000);
+                if (d.length === 1000) capped = true;
+            });
+        }
+        return page(0).then(function () {
+            if (seq !== _lhSeq) return;
+            var mn = null, mx = null, sids = [], seenS = {};
+            all.forEach(function (x) {
+                if (mn == null || x.txn_id < mn) mn = x.txn_id; if (mx == null || x.txn_id > mx) mx = x.txn_id;
+                if (x.session_id && !seenS[x.session_id]) { seenS[x.session_id] = 1; sids.push(x.session_id); }
+            });
+            return Promise.all([lhLoadVoids(mn, mx), lhLoadBatchReversals(sids)]);
+        }).then(function () {
+            if (seq !== _lhSeq) return;
+            // 2) what the ledger cannot answer on its own: time of day (India), voided / batch-reversed
+            var vo = LH.voids || {}, vb = LH.voidsByBal || {}, bo = LH.brevOf || {}, bb = LH.brevBy || {};
+            var kept = all.filter(function (x) {
+                if (!lhInTime(x.created_at, f.tfrom, f.tto)) return false;
+                if (f.hideVoid && (vo[x.txn_id] || vb[x.txn_id] || bo[x.txn_id] || bb[x.txn_id])) return false;
+                return true;
+            });
+            var units = 0, inU = 0, outU = 0;
+            kept.forEach(function (x) { var q = Number(x.qty_delta) || 0; units += q; if (q > 0) inU += q; else outU -= q; });
+            LH.ids = kept.map(function (x) { return x.txn_id; }); LH.rows = {}; LH.shown = 0;
+            sum.innerHTML = '<div class="lh-sum"><strong>' + kept.length.toLocaleString('en-IN') + '</strong> entr' + (kept.length === 1 ? 'y' : 'ies') +
+                ' &bull; net <strong>' + (units > 0 ? '+' : '') + units.toLocaleString('en-IN') + '</strong> units' +
+                ' <span style="color:#6B7280;">(in +' + inU.toLocaleString('en-IN') + ', out &minus;' + outU.toLocaleString('en-IN') + ')</span>' +
+                '<div style="color:#6B7280;font-size:11px;margin-top:2px;">' + esc59(r.label) + ', India time' + (lhLogScopeOwn() ? ' &bull; your own entries only' : '') +
+                (capped ? ' &bull; <span style="color:#B3261E;font-weight:700;">only the newest ' + LH_CAP.toLocaleString('en-IN') + ' are counted &ndash; narrow the dates</span>' : '') + '</div></div>';
+            if (!kept.length) { list.innerHTML = '<li class="lh-empty">Nothing matches these filters.</li>'; return; }
+            return lhShowMore(seq);
+        });
+    }).catch(function (err) {
+        if (seq !== _lhSeq) return;
+        sum.innerHTML = '<div class="move-result err">Could not load the stock history: ' + esc59(err && err.message ? err.message : String(err)) + '</div>';
+    });
+}
+function lhShowNone(msg) {
+    LH.ids = []; LH.shown = 0;
+    document.getElementById('lh-summary').innerHTML = '<div class="lh-sum"><strong>0</strong> entries &bull; ' + esc59(msg) + '</div>';
+    document.getElementById('lh-list').innerHTML = '<li class="lh-empty">Nothing matches these filters.</li>';
+    document.getElementById('lh-more').innerHTML = '';
+}
+var LH_COLS = 'txn_id,created_at,sku_code,asin,qty_delta,txn_type,channel,order_id,bin_code,employee_code,note,entry_source,client_queue_id,session_id';
+function lhFetchFull(ids) {
+    var chunks = [];
+    for (var i = 0; i < ids.length; i += 150) chunks.push(ids.slice(i, i + 150));
+    return Promise.all(chunks.map(function (c) {
+        return withTimeout(db.from('oms_inventory_transactions').select(LH_COLS).in('txn_id', c), 15000, 'Stock history rows').then(function (r) {
+            if (r.error) throw r.error; return r.data || [];
+        });
+    })).then(function (parts) {
+        var m = {}; parts.forEach(function (p) { p.forEach(function (x) { m[x.txn_id] = x; }); });
+        return m;
+    });
+}
+function lhShowMore(seq) {
+    var ids = LH.ids.slice(LH.shown, LH.shown + LH_PAGE);
+    var more = document.getElementById('lh-more');
+    if (!ids.length) { more.innerHTML = ''; return Promise.resolve(); }
+    more.innerHTML = '<div class="settings-info">Loading&hellip;</div>';
+    var need = [lhFetchFull(ids)];
+    if (!LH.emps) need.push(lhLoadLists());
+    return Promise.all(need).then(function (res) {
+        if (seq != null && seq !== _lhSeq) return;
+        var m = res[0], html = '';
+        ids.forEach(function (id) { if (m[id]) { LH.rows[id] = m[id]; html += lhRowHtml(m[id]); } });
+        document.getElementById('lh-list').insertAdjacentHTML('beforeend', html);
+        LH.shown += ids.length;
+        var left = LH.ids.length - LH.shown;
+        more.innerHTML = left > 0 ? '<button class="csv-btn" onclick="lhShowMore()">Show ' + Math.min(left, LH_PAGE) + ' more (' + left.toLocaleString('en-IN') + ' left)</button>' : '';
+    }).catch(function (err) { more.innerHTML = '<div class="move-result err">' + esc59(err && err.message ? err.message : String(err)) + '</div>'; });
+}
+function lhIsReversalRow(x) {
+    return !!(LH.voidsByBal[x.txn_id] || (x.txn_type === 'MANUAL_CORRECTION' && LH_VOID_NOTE_RE.test(x.note || '')));
+}
+function lhCanVoid(x) {
+    if (!isListingManager() || LH.m8 !== true) return false;
+    if (LH.voids[x.txn_id] || lhIsReversalRow(x) || (LH.brevBy || {})[x.txn_id]) return false;
+    if (/^PICK\|/.test(String(x.client_queue_id || ''))) return false;
+    return true;
+}
+function lhActionLabel(x) {
+    if (x.txn_type === 'SCAN_OUT_ORDER' && /^PICK\|/.test(String(x.client_queue_id || ''))) return 'Pick slip';
+    if (x.txn_type === 'MANUAL_CORRECTION' && !LH.voidsByBal[x.txn_id] && lhIsBatchRevNote(x.note)) return 'Batch reversal';
+    if (lhIsReversalRow(x)) return 'Void reversal';
+    return LH_TYPE_LABEL[x.txn_type] || x.txn_type;
+}
+function lhRowHtml(x) {
+    var v = LH.voids[x.txn_id], bal = LH.voidsByBal[x.txn_id];
+    var q = Number(x.qty_delta) || 0;
+    var e = LH.emps && LH.emps[String(x.employee_code || '').toUpperCase()];
+    var li = LIX.loaded ? LIX.bySku[String(x.sku_code || '').toUpperCase()] : null;
+    var revOf = bal ? bal.txn_id : (x.txn_type === 'MANUAL_CORRECTION' && LH_VOID_NOTE_RE.test(x.note || '') ? Number(LH_VOID_NOTE_RE.exec(x.note)[1]) : null);
+    var meta = ['SKU ' + esc59(x.sku_code)];
+    if (li && li.title) meta.push(esc59(li.title));
+    meta.push('Bin ' + esc59(x.bin_code || '-'));
+    if (x.channel) meta.push(esc59(x.channel));
+    if (x.order_id) meta.push('Order ' + esc59(x.order_id));
+    if (x.session_id) meta.push('Batch ' + esc59(String(x.session_id).slice(0, 8)));
+    if (x.entry_source && x.entry_source !== 'APP') meta.push('from ' + esc59(x.entry_source));
+    var h = '<li class="log-item lh-row' + (v ? ' lh-void' : '') + (revOf ? ' lh-rev' : '') + '" data-txn="' + x.txn_id + '">' +
+        '<div class="log-row1"><span class="log-time">' + esc59(fmtIst(x.created_at, true)) + '</span>' +
+        '<span class="log-emp">' + esc59(x.employee_code || '-') + '</span>' +
+        (e && e.display_name ? '<span class="lh-name">' + esc59(e.display_name) + '</span>' : '') +
+        '<span class="lh-id">#' + x.txn_id + '</span></div>' +
+        '<div class="log-action"><span class="lh-act">' + esc59(lhActionLabel(x)) + '</span> <span class="lh-q ' + (q > 0 ? 'pos' : 'neg') + '">' + (q > 0 ? '+' : '') + q + '</span>' +
+        (v ? ' <span class="lh-badge void">VOID</span>' : '') +
+        (revOf ? ' <span class="lh-badge rev">Reversal of #' + revOf + '</span>' : '') +
+        ((LH.brevBy || {})[x.txn_id] ? ' <span class="lh-badge rev">Batch reversed by #' + LH.brevBy[x.txn_id] + '</span>' : '') + '</div>' +
+        '<div class="log-meta">' + meta.join(' &bull; ') + '</div>' +
+        (x.note ? '<div class="lh-note">' + esc59(x.note) + '</div>' : '') +
+        (v ? '<div class="lh-voidinfo">Voided by ' + esc59(v.voided_by) + (v.approver_role ? ' (' + esc59(String(v.approver_role).toLowerCase()) + ')' : '') +
+             ' on ' + esc59(fmtIst(v.voided_at)) + ': ' + esc59(v.reason) + ' &bull; stock put back by #' + v.balancing_txn_id + '</div>' : '') +
+        (lhCanVoid(x) ? '<div style="margin-top:4px;"><button class="csv-btn lh-void-btn" onclick="openVoidEntry(' + x.txn_id + ')">&#8617; Void</button></div>' : '') +
+        '</li>';
+    return h;
+}
+function lhCsvCell(s) { s = String(s == null ? '' : s); return /[",\r\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; }
+function exportLedgerHistoryCSV() {
+    var ids = LH.ids.slice(), btn = document.getElementById('lh-csv-btn');
+    if (!ids.length) { alert('Nothing to export - search first.'); return; }
+    if (btn) { btn.disabled = true; btn.textContent = 'Preparing…'; }
+    lhFetchFull(ids).then(function (m) {
+        var head = ['Entry #', 'Date (India)', 'Time (India)', 'Action', 'Type code', 'Qty', 'SKU', 'ASIN', 'Product title', 'Bin', 'Employee code', 'Employee name',
+                    'Channel', 'Order ref', 'Batch', 'Source', 'Note', 'Voided', 'Voided by', 'Voided at (India)', 'Void reason', 'Reversal of #'];
+        var lines = [head.join(',')];
+        ids.forEach(function (id) {
+            var x = m[id]; if (!x) return;
+            var v = LH.voids[id], bal = LH.voidsByBal[id], ms = Date.parse(x.created_at), t = istParts(ms);
+            var li = LIX.loaded ? LIX.bySku[String(x.sku_code || '').toUpperCase()] : null;
+            var e = LH.emps && LH.emps[String(x.employee_code || '').toUpperCase()];
+            var revOf = bal ? bal.txn_id : (LH_VOID_NOTE_RE.test(x.note || '') && x.txn_type === 'MANUAL_CORRECTION' ? LH_VOID_NOTE_RE.exec(x.note)[1] : '');
+            lines.push([id, istDateStr(ms), p2(t.hh) + ':' + p2(t.mi) + ':' + p2(t.ss), lhActionLabel(x), x.txn_type, x.qty_delta, x.sku_code, x.asin || (li ? li.asin : ''),
+                li ? li.title : '', x.bin_code, x.employee_code, e ? e.display_name : '', x.channel, x.order_id, x.session_id, x.entry_source, x.note,
+                v ? 'VOID' : '', v ? v.voided_by : '', v ? fmtIst(v.voided_at, true) : '', v ? v.reason : '', revOf].map(lhCsvCell).join(','));
+        });
+        var blob = new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8;' });
+        var a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = 'stock_history_' + istDateStr(Date.now()) + '.csv';
+        document.body.appendChild(a); a.click(); document.body.removeChild(a);
+        window._lhLastCsv = lines.join('\r\n');   // kept for the test suite
+    }).catch(function (err) { alert('Could not export: ' + (err && err.message ? err.message : err)); })
+      .then(function () { if (btn) { btn.disabled = false; btn.innerHTML = '&#8595; CSV'; } });
+}
+// Filter list only (never offered for a NEW sale): the dispatch drop-down's codes,
+// plus the older AMAZON code that a few early ledger rows still carry.
+var LH_CHANNELS = [['', 'Any channel'], ['ETRADE', 'Etrade'], ['COCOBLU', 'Cocoblu'], ['FLEX', 'Flex'], ['EASYSHIP', 'EasyShip'], ['SHOPIFY', 'Shopify'],
+    ['FLIPKART', 'Flipkart'], ['MYNTRA', 'Myntra'], ['DIRECT', 'Direct'], ['REFERRAL', 'Referral'], ['AMAZON', 'Amazon (older entries)']];
+function initLedgerHistory() {
+    var chs = document.getElementById('lh-channel');
+    if (chs && !chs.options.length) chs.innerHTML = LH_CHANNELS.map(function (a) { return '<option value="' + a[0] + '">' + esc59(a[1]) + '</option>'; }).join('');
+    var sel = document.getElementById('lh-action');
+    if (sel && !sel.options.length) sel.innerHTML = LH_ACTIONS.map(function (a) { return '<option value="' + a[0] + '">' + esc59(a[1]) + '</option>'; }).join('');
+    var own = lhLogScopeOwn();
+    ['lh-who-row', 'lh-emp-row'].forEach(function (id) { var el = document.getElementById(id); if (el) el.style.display = own ? 'none' : ''; });
+    var sc = document.getElementById('lh-scope'); if (sc) sc.textContent = own ? '(your own entries)' : '';
+}
+function enterLedgerHistory() {
+    initLedgerHistory();
+    if (!LH.lastQuery) runLedgerHistory();
+}
+
+// ── 4. Void + reverse one entry ───────────────────────────────────────────
+var _vd = { txn: null, row: null, step: 0, busy: false };
+var VOID_REASONS = ['Scanned twice', 'Wrong product scanned', 'Wrong bin', 'Wrong quantity', 'Test entry', 'Other'];
+function voidPlanText(x) {
+    var q = Math.abs(Number(x.qty_delta) || 0), sku = esc59(x.sku_code), bin = esc59(x.bin_code || '-');
+    if (x.txn_type === 'BIN_TRANSFER_OUT' || x.txn_type === 'BIN_TRANSFER_IN') {
+        return 'This is one half of a <strong>bin transfer</strong>. Both halves are voided together: <strong>' + q + '</strong> unit(s) of <strong>' + sku + '</strong> go back ' +
+            (x.txn_type === 'BIN_TRANSFER_OUT' ? 'into bin <strong>' + bin + '</strong> and come out of the bin they were moved to.' : 'out of bin <strong>' + bin + '</strong> and into the bin they came from.');
+    }
+    return (Number(x.qty_delta) < 0
+        ? 'Puts back <strong>+' + q + '</strong> of <strong>' + sku + '</strong> into bin <strong>' + bin + '</strong>.'
+        : 'Takes <strong>&minus;' + q + '</strong> of <strong>' + sku + '</strong> back out of bin <strong>' + bin + '</strong>.');
+}
+function openVoidEntry(txnId) {
+    var x = LH.rows[txnId];
+    if (!x) return;
+    _vd = { txn: txnId, row: x, step: 1, busy: false, pair: null };
+    var yb = document.getElementById('void-yes'); if (yb) yb.style.display = '';
+    var pb = document.getElementById('void-pair'); if (pb) { pb.innerHTML = ''; pb.className = ''; }
+    var bg = document.getElementById('void-bg'); if (!bg) return;
+    document.getElementById('void-title').textContent = 'Void entry #' + txnId;
+    document.getElementById('void-what').innerHTML =
+        '<div class="lh-vsum">' + esc59(fmtIst(x.created_at, true)) + ' &bull; ' + esc59(lhActionLabel(x)) + ' <strong>' + ((Number(x.qty_delta) > 0) ? '+' : '') + x.qty_delta + '</strong> &bull; ' +
+        esc59(x.sku_code) + ' &bull; bin ' + esc59(x.bin_code || '-') + ' &bull; by ' + esc59(x.employee_code || '-') + '</div>' +
+        '<div class="lh-vplan">' + voidPlanText(x) + '</div>' +
+        '<div class="lh-vkeep">This entry stays in the log, crossed out as <strong>VOID</strong>, with who, when and why. Nothing is deleted.</div>';
+    if (x.txn_type === 'BIN_TRANSFER_OUT' || x.txn_type === 'BIN_TRANSFER_IN') lhShowTransferPair(x);
+    var rs = document.getElementById('void-reason');
+    rs.innerHTML = '<option value="">Choose a reason&hellip;</option>' + VOID_REASONS.map(function (r) { return '<option>' + esc59(r) + '</option>'; }).join('');
+    document.getElementById('void-reason-text').value = '';
+    document.getElementById('void-approver').value = (state.session && state.session.employee_code) || '';
+    document.getElementById('void-pin').value = '';
+    document.getElementById('void-msg').innerHTML = ''; document.getElementById('void-msg').className = 'move-result';
+    voidStep(1);
+    bg.classList.add('active');
+}
+// v106 review M1: find the other half by the same strict rule the database uses, and show both
+// halves (ids, bins, qty) before the PIN. If it cannot be matched with certainty, say so and stop.
+function lhShowTransferPair(x) {
+    var yes = document.getElementById('void-yes'), box = document.getElementById('void-pair');
+    if (yes) yes.style.display = 'none';
+    if (!box) return;
+    box.className = 'lh-vpair'; box.innerHTML = 'Finding the other half of this transfer&hellip;';
+    var t = Date.parse(x.created_at), lo = new Date(t - 120000).toISOString(), hi = new Date(t + 120000).toISOString();
+    var q = db.from('oms_inventory_transactions').select(LH_COLS).eq('sku_code', x.sku_code).in('txn_type', ['BIN_TRANSFER_OUT', 'BIN_TRANSFER_IN']).gte('created_at', lo).lte('created_at', hi);
+    q = x.employee_code ? q.eq('employee_code', x.employee_code) : q.is('employee_code', null);
+    withTimeout(q, 10000, 'Transfer half').then(function (r) {
+        if (r.error) throw r.error;
+        var c = (r.data || []).filter(function (y) { return y.txn_id !== x.txn_id; });
+        var p = c.length === 1 ? c[0] : null;
+        var ok = !!p && p.txn_type !== x.txn_type && Number(p.qty_delta) === -Number(x.qty_delta) && String(p.bin_code || '') !== String(x.bin_code || '') &&
+                 ((p.txn_type === 'BIN_TRANSFER_IN') === (p.txn_id > x.txn_id));
+        if (!ok) return null;
+        var a = Math.min(p.txn_id, x.txn_id), b = Math.max(p.txn_id, x.txn_id);
+        var mid = db.from('oms_inventory_transactions').select('txn_id').eq('sku_code', x.sku_code).gt('txn_id', a).lt('txn_id', b).limit(1);
+        mid = x.employee_code ? mid.eq('employee_code', x.employee_code) : mid.is('employee_code', null);
+        return withTimeout(mid, 10000, 'Transfer check').then(function (m) { return (m.error || (m.data || []).length) ? null : p; });
+    }).then(function (p) {
+        if (_vd.row !== x) return;
+        if (!p) {
+            box.className = 'lh-vpair bad';
+            box.innerHTML = 'The other half of this transfer cannot be matched with certainty (another transfer of this product by the same person is too close in time). It cannot be voided here &ndash; ask an Admin to correct it with Adjust stock.';
+            return;
+        }
+        var o = x.txn_type === 'BIN_TRANSFER_OUT' ? x : p, i = x.txn_type === 'BIN_TRANSFER_OUT' ? p : x, q2 = Math.abs(Number(o.qty_delta) || 0);
+        _vd.pair = p;
+        box.className = 'lh-vpair';
+        box.innerHTML = '<strong>Both halves are voided together:</strong><br>#' + o.txn_id + ' out of bin <strong>' + esc59(o.bin_code) + '</strong> (&minus;' + q2 + ') &rarr; puts back <strong>+' + q2 + '</strong> into ' + esc59(o.bin_code) +
+            '<br>#' + i.txn_id + ' into bin <strong>' + esc59(i.bin_code) + '</strong> (+' + q2 + ') &rarr; takes <strong>&minus;' + q2 + '</strong> out of ' + esc59(i.bin_code);
+        if (yes) yes.style.display = '';
+    }).catch(function (err) {
+        if (_vd.row !== x) return;
+        box.className = 'lh-vpair bad'; box.textContent = 'Could not check the other half (' + (err && err.message ? err.message : err) + '). Try again.';
+    });
+}
+function voidStep(n) {
+    _vd.step = n;
+    for (var i = 1; i <= 4; i++) { var el = document.getElementById('void-step' + i); if (el) el.style.display = (i === n) ? '' : 'none'; }
+    document.getElementById('void-what').style.display = (n === 4) ? 'none' : '';
+    if (n === 3) setTimeout(function () { try { document.getElementById('void-pin').focus(); } catch (e) {} }, 60);
+}
+function voidReasonText() {
+    var r = lhVal('void-reason'), t = lhVal('void-reason-text');
+    if (!r) return '';
+    if (r === 'Other') return t;
+    return t ? r + ' - ' + t : r;
+}
+function voidNext() {
+    var msg = document.getElementById('void-msg');
+    if (_vd.step === 1) { voidStep(2); return; }
+    if (_vd.step === 2) {
+        if (!voidReasonText()) { msg.className = 'move-result err'; msg.textContent = lhVal('void-reason') === 'Other' ? 'Type the reason.' : 'Choose a reason.'; return; }
+        msg.textContent = ''; msg.className = 'move-result'; voidStep(3); return;
+    }
+}
+function closeVoid() { var bg = document.getElementById('void-bg'); if (bg) bg.classList.remove('active'); document.getElementById('void-pin').value = ''; _vd.busy = false; }
+function submitVoid() {
+    if (_vd.busy) return;
+    var msg = document.getElementById('void-msg');
+    var pin = lhVal('void-pin'), who = lhVal('void-approver').toUpperCase(), reason = voidReasonText();
+    if (!who) { msg.className = 'move-result err'; msg.textContent = 'Type the Supervisor or Admin code.'; return; }
+    if (!/^[0-9]{4}$/.test(pin)) { msg.className = 'move-result err'; msg.textContent = 'Type the 4-digit PIN.'; return; }
+    if (!db) { msg.className = 'move-result err'; msg.textContent = 'No connection to the database - nothing was changed.'; return; }
+    _vd.busy = true;
+    var btn = document.getElementById('void-go'); if (btn) btn.disabled = true;
+    msg.className = 'move-result'; msg.textContent = 'Voiding…';
+    withTimeout(db.rpc('oms_void_ledger_entry', {
+        p_txn_id: _vd.txn, p_reason: reason, p_employee_code: who, p_pin: pin,
+        p_caller_employee_code: (state.session && state.session.employee_code) || null
+    }), 15000, 'Void').then(function (r) {
+        document.getElementById('void-pin').value = '';
+        var res = document.getElementById('void-result');
+        if (r && r.error) {
+            if (r.error.code === 'PGRST202') { LH.m8 = false; res.innerHTML = '<div class="move-result err">Voiding is not switched on yet (database update M8 has not been applied). Nothing was changed.</div>'; voidStep(4); return; }
+            msg.className = 'move-result err'; msg.textContent = 'Could not void: ' + (r.error.message || 'no answer') + '. Nothing was changed.'; return;
+        }
+        var d = (r && r.data) || {};
+        if (!d.ok) {
+            if (d.error === 'ADMIN_PIN_REJECTED' || d.error === 'ADMIN_LOCKED') { msg.className = 'move-result err'; msg.textContent = d.message || 'PIN not accepted.'; return; }
+            res.innerHTML = '<div class="move-result err">' + esc59(d.message || ('Refused: ' + (d.error || 'unknown'))) + '</div>';
+            voidStep(4); return;
+        }
+        res.innerHTML = '<div class="move-result ok">&#10003; ' + esc59(d.message || 'Voided.') + '</div>';
+        voidStep(4);
+        try { logEvent(_vd.row.sku_code, 'Voided log entry #' + _vd.txn + ' (' + reason + ')'); } catch (e) {}
+        runLedgerHistory();
+    }).catch(function (err) {
+        msg.className = 'move-result err';
+        msg.textContent = 'No answer from the database (' + (err && err.message ? err.message : err) + '). Search again to see whether it was voided before trying again.';
+    }).then(function () { _vd.busy = false; if (btn) btn.disabled = false; });
+}
 </script>
 <!-- v96: bottom sheet used to pick a bin or a product type. -->
 <div class="sheet-bg" id="pick-sheet-bg" onclick="if(event.target===this)closePickSheet()">
@@ -15309,6 +16289,46 @@ document.addEventListener('DOMContentLoaded', function() {
             <button class="settings-btn" style="flex:1" onclick="mgrPinOk()">Confirm</button>
             <button class="settings-btn" style="flex:1;background:#888" onclick="mgrPinCancel()">Cancel</button>
         </div>
+    </div>
+</div>
+<!-- v106: Void + reverse one stock-history entry (Supervisor / Admin PIN, database update M8). -->
+<div class="emp-modal-bg" id="void-bg">
+    <div class="emp-modal void-modal">
+        <h2 id="void-title">Void entry</h2>
+        <div id="void-what"></div>
+        <div id="void-step1">
+            <div id="void-pair"></div>
+            <div class="lh-vq">Void this entry and put the stock back exactly?</div>
+            <div style="display:flex;gap:8px;margin-top:10px;">
+                <button class="settings-btn" style="flex:1;background:#B3261E;" id="void-yes" onclick="voidNext()">Yes, continue</button>
+                <button class="settings-btn" style="flex:1;background:#888" onclick="closeVoid()">Cancel</button>
+            </div>
+        </div>
+        <div id="void-step2" style="display:none;">
+            <label class="lh-vlab">Why? (required)</label>
+            <select id="void-reason" class="settings-input"></select>
+            <input type="text" id="void-reason-text" class="settings-input" placeholder="More detail (required for Other)" maxlength="200" autocomplete="off" style="margin-top:6px;">
+            <div style="display:flex;gap:8px;margin-top:10px;">
+                <button class="settings-btn" style="flex:1" id="void-next" onclick="voidNext()">Next</button>
+                <button class="settings-btn" style="flex:1;background:#888" onclick="closeVoid()">Cancel</button>
+            </div>
+        </div>
+        <div id="void-step3" style="display:none;">
+            <label class="lh-vlab">Supervisor or Admin code</label>
+            <input type="text" id="void-approver" class="settings-input" autocomplete="off" autocapitalize="characters" style="text-transform:uppercase">
+            <label class="lh-vlab">Their PIN</label>
+            <input type="text" inputmode="numeric" pattern="[0-9]*" maxlength="4" id="void-pin" name="oms-void-code-x" class="pin-mask" placeholder="&bull;&bull;&bull;&bull;" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" data-lpignore="true" data-1p-ignore="true" data-bwignore="true" data-form-type="other"
+                   style="width:100%;font-size:22px;letter-spacing:10px;text-align:center;padding:10px;border:1px solid #E2E8F0;border-radius:10px;" onkeydown="if(event.key==='Enter')submitVoid();">
+            <div style="display:flex;gap:8px;margin-top:10px;">
+                <button class="settings-btn" style="flex:1;background:#B3261E;" id="void-go" onclick="submitVoid()">Void now</button>
+                <button class="settings-btn" style="flex:1;background:#888" onclick="closeVoid()">Cancel</button>
+            </div>
+        </div>
+        <div id="void-step4" style="display:none;">
+            <div id="void-result"></div>
+            <button class="settings-btn" style="margin-top:10px;" onclick="closeVoid()">Close</button>
+        </div>
+        <div class="move-result" id="void-msg"></div>
     </div>
 </div>
 </body>
