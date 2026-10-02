@@ -2847,7 +2847,7 @@ tbody tr:hover{background:#f9fbfd}
     </ul>
     <div class="sidebar-footer">
       <button class="logout-btn" onclick="adminLogout()">⎋ Logout</button>
-      <div class="ver-footer">ArtzFolio Admin Panel v2.35</div>
+      <div class="ver-footer">ArtzFolio Admin Panel v2.36</div>
     </div>
   </div>
 
@@ -8130,16 +8130,18 @@ function clearEmployeeTwoFactor(code) {
 // ══════════════════ PERMISSION CHECKBOXES (v2.14, Master Prompt v17 Part C) ══════════════════
 // Same shape as the App's own ROLE_PERMISSIONS object (index.html) — kept
 // in sync by hand since this is a static-HTML pair, not a shared module.
+// v2.36 (2026-10-02): + reserved_stock - Admin and Supervisor presets ON, every
+// staff preset OFF (the founder decides per person). Matches App v107.
 var ROLE_PERMISSION_PRESETS = {
-  WAREHOUSE_STAFF:  { pick: true,  move: false, stock: false, log: true, logScope: 'own', guide: true, settings: false, dash: false, sessions: false },
-  BILLING_OPERATOR: { pick: true,  move: false, stock: true,  log: true, logScope: 'own', guide: true, settings: false, dash: false, sessions: false },
-  INVENTORY_LEAD:   { pick: true,  move: true,  stock: true,  log: true, logScope: 'all', guide: true, settings: false, dash: false, sessions: false },
-  PRODUCTION_LEAD:  { pick: false, move: false, stock: true,  log: true, logScope: 'all', guide: true, settings: false, dash: false, sessions: false },
-  ADMIN:            { pick: true,  move: true,  stock: true,  log: true, logScope: 'all', guide: true, settings: true,  dash: true, sessions: true },
+  WAREHOUSE_STAFF:  { pick: true,  move: false, stock: false, log: true, logScope: 'own', guide: true, settings: false, dash: false, sessions: false, reserved_stock: false },
+  BILLING_OPERATOR: { pick: true,  move: false, stock: true,  log: true, logScope: 'own', guide: true, settings: false, dash: false, sessions: false, reserved_stock: false },
+  INVENTORY_LEAD:   { pick: true,  move: true,  stock: true,  log: true, logScope: 'all', guide: true, settings: false, dash: false, sessions: false, reserved_stock: false },
+  PRODUCTION_LEAD:  { pick: false, move: false, stock: true,  log: true, logScope: 'all', guide: true, settings: false, dash: false, sessions: false, reserved_stock: false },
+  ADMIN:            { pick: true,  move: true,  stock: true,  log: true, logScope: 'all', guide: true, settings: true,  dash: true, sessions: true, reserved_stock: true },
   // v2.29: on the phone App a Supervisor gets the same sections as an Admin.
   // Everything a Supervisor must not reach lives in the Admin Panel and in the
   // database, not in these phone-App tick-boxes.
-  SUPERVISOR:       { pick: true,  move: true,  stock: true,  log: true, logScope: 'all', guide: true, settings: true,  dash: true, sessions: true }
+  SUPERVISOR:       { pick: true,  move: true,  stock: true,  log: true, logScope: 'all', guide: true, settings: true,  dash: true, sessions: true, reserved_stock: true }
 };
 // v2.17 (Master Prompt v21, Part 5): matches the App's own ROLE_PERMISSIONS.ADMIN
 // fix — the "off for everyone, including ADMIN" launch decision behind Scan
@@ -8160,7 +8162,9 @@ var PERMISSION_SECTIONS = [
   // for the ADMIN preset (see ROLE_PERMISSION_PRESETS.ADMIN above) — every
   // other preset is still OFF by default. Turn it on for one warehouse-staff
   // person for a week before rolling it out to the floor.
-  { key: 'sessions', label: 'Scan Sessions', help: 'Lets this person group a batch of MOVE scans into a session, review it for double-counts and missed items, then commit it or reverse the whole batch. Off by default for every role except ADMIN. Reversing a session needs the Admin Secret.' }
+  { key: 'sessions', label: 'Scan Sessions', help: 'Lets this person group a batch of MOVE scans into a session, review it for double-counts and missed items, then commit it or reverse the whole batch. Off by default for every role except ADMIN. Reversing a session needs the Admin Secret.' },
+  // v2.36 (2026-10-02): the phone App's PICK > "Reserved & held stock" sub-section.
+  { key: 'reserved_stock', label: 'Reserved & held stock (view / release)', help: 'Lets this person open PICK &rsaquo; Reserved &amp; held stock in the phone App: stock kept aside for printed slips and pick sheets, open pick lists, and releasing. Releasing still needs a Supervisor or Admin PIN. An Admin always has this; a Supervisor has it unless you untick it; everyone else only when ticked.' }
 ];
 
 function buildPermissionUIHtml(prefix) {
@@ -8172,13 +8176,13 @@ function buildPermissionUIHtml(prefix) {
         '</span>'
       : '';
     return '<div class="perm-row">' +
-      '<label><input type="checkbox" id="' + prefix + '-perm-' + s.key + '" onchange="onPermCheckboxChange(\'' + prefix + '\')"> <strong>' + s.label + '</strong></label>' + scopeRow +
+      '<label title="' + s.help.replace(/<[^>]+>/g, '').replace(/&rsaquo;/g, '>').replace(/&amp;/g, '&').replace(/"/g, '&quot;') + '"><input type="checkbox" id="' + prefix + '-perm-' + s.key + '" onchange="onPermCheckboxChange(\'' + prefix + '\')"> <strong>' + s.label.replace(/&(?![a-z#0-9]+;)/g, '&amp;') + '</strong></label>' + scopeRow +
       '<div class="perm-help">' + s.help + '</div>' +
       '</div>';
   }).join('');
 
   var infoRows = PERMISSION_SECTIONS.map(function (s) {
-    return '<tr><td>' + s.label + '</td><td>' + s.help + '</td></tr>';
+    return '<tr><td>' + s.label.replace(/&(?![a-z#0-9]+;)/g, '&amp;') + '</td><td>' + s.help + '</td></tr>';
   }).join('') + '<tr><td>Admin Panel</td><td>This website, separate from the phone App above — Dashboard, Audit Log, User Management, SKU &amp; Stock, Bins, Reports, Settings. A <strong>Full Admin</strong> can change anything. A <strong>Supervisor</strong> can run the day but cannot touch accounts, access levels or either password.</td></tr>';
 
   return '<div class="form-field" style="max-width:340px;margin-bottom:4px;">' +
@@ -8290,6 +8294,9 @@ function prefillPermissionUI(prefix, e) {
   PERMISSION_SECTIONS.forEach(function (s) {
     var el = document.getElementById(prefix + '-perm-' + s.key);
     if (el) el.checked = !!perm[s.key];
+    // v2.36: not saved yet (account set up before this box existed) = the App's own
+    // default: ticked for an Admin or Supervisor, unticked for everyone else.
+    if (el && s.key === 'reserved_stock' && perm.reserved_stock === undefined) el.checked = (e.role === 'ADMIN' || e.role === 'SUPERVISOR');
   });
   var scopeEl = document.querySelector('input[name="' + prefix + '-log-scope"][value="' + (perm.logScope || 'own') + '"]');
   if (scopeEl) scopeEl.checked = true;
