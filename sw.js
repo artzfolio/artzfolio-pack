@@ -65,7 +65,8 @@
 // v22 (2026-09-29): bumped for App v103 (Reserved stock tile and screen).
 // v23 (2026-09-29): bumped for App v104 (Reserved stock released in one database call).
 // v24 (2026-09-29): bumped for App v105 (v104 with both answer shapes of the one-call release).
-const CACHE_NAME = 'artzfolio-oms-shell-v24';
+// v25 (2026-10-02): bumped for App v106 (suggestions, auto bin lookup, stock history filters, void).
+const CACHE_NAME = 'artzfolio-oms-shell-v25';
 const OPTIONAL_FILES = ['./zxing_reader_3.1.4.js', './zxing_reader_3.1.4.wasm'];
 const SHELL_FILES = ['./index.html', './manifest.json', './icon.svg'];
 
