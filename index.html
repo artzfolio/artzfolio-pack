@@ -62,6 +62,16 @@
             Switched off -> clear message + "Switch on & continue". The database
             enforces the same rule (trigger trg_oms_require_tracked_sku), so
             nothing can slip past from any surface. -->
+    <!-- v107 (2026-10-02): (1) Void cannot be missed: a status line at the top of
+         Stock history says whether Void is available (and offers a retry if the
+         check failed - a failed check is never remembered); Void is also on the
+         rows of "This phone's own scan log", Settings > My Activity and STOCK >
+         Bin lookup > History; rows that cannot be matched offer "Find in Stock
+         history". (2) PICK has a sub-section "Reserved & held stock" (Reserved
+         stock, Held stock, open pick lists / batches, releasing). It has its own
+         access box in the Admin Panel (permissions.reserved_stock): Admin always,
+         Supervisor unless switched off, staff only when ticked. Releasing still
+         needs a Supervisor / Admin PIN. -->
     <!-- v106 (2026-10-02): (1) Actions tab - scanning a different product resets the
          bin, quantity, To-bin and bin hint, and the bin recommendation is worked out
          for the new product only (before, the first product's bin stayed selected).
@@ -3013,6 +3023,26 @@ var qrcode = function() {
         .lh-void .log-action .lh-act,.lh-void .log-action .lh-q,.lh-void .log-meta{text-decoration:line-through;color:#9AA0A6}
         .lh-voidinfo{font-size:11px;color:#B3261E;margin-top:3px;font-weight:600}
         .lh-void-btn{font-size:11px;padding:3px 10px;background:#FFFFFF;color:#B3261E;border:1px solid #B3261E}
+        /* v107: PICK > Reserved & held stock sub-section */
+        .pick-subnav{display:flex;gap:6px;margin:0 0 10px}
+        .pick-subbtn{flex:1;min-height:44px;border:1.5px solid #1B3F6B;background:#FFFFFF;color:#1B3F6B;border-radius:10px;font-size:13px;font-weight:800;padding:6px 8px;cursor:pointer}
+        .pick-subbtn.active{background:#1B3F6B;color:#FFFFFF}
+        .pick-subbtn .psn{display:inline-block;min-width:18px;font-size:11px;background:#C9A84C;color:#0A1628;border-radius:9px;padding:0 6px;margin-left:4px}
+        #pick-tab.rsv-mode > *:not(.pick-subnav):not(#pick-rsv-panel){display:none !important}
+        .rsv-intro{font-size:12px;color:#6B7280;margin:0 0 8px;line-height:1.45}
+        .rsv-big{width:100%;min-height:48px;margin-top:8px;text-align:left;padding:10px 12px}
+        .rsv-big small{display:block;font-weight:500;font-size:11px;opacity:.85;margin-top:2px}
+        .rsv-pinnote{font-size:11px;color:#6B7280;margin-top:10px;border-top:1px dashed #E2E8F0;padding-top:8px}
+        /* v107: void status line + void from the phone log, My Activity and Bin lookup history */
+        .lh-vstat{font-size:12px;border-radius:8px;padding:7px 9px;margin:0 0 8px;line-height:1.4}
+        .lh-vstat.ok{background:#EAF5EE;color:#1B7A3A;border:1px solid #BFE0CB}
+        .lh-vstat.info{background:#F8F9FB;color:#6B7280;border:1px solid #E2E8F0}
+        .lh-vstat.err{background:#FDF6E3;color:#9A6700;border:1px solid #F0DCA8}
+        .lh-vstat button{font-size:12px;padding:2px 10px;margin-left:4px;min-height:28px;border:1px solid #9A6700;background:#FFFFFF;color:#9A6700;border-radius:8px;cursor:pointer}
+        .pl-acts{margin-top:4px;display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+        .pl-void-btn{font-size:11px;padding:3px 10px;background:#FFFFFF;color:#B3261E;border:1px solid #B3261E}
+        .pl-find-btn{font-size:11px;padding:3px 10px}
+        .mgr-pin-code{width:100%;font-size:16px;text-align:center;padding:8px;border:1px solid #E2E8F0;border-radius:10px;margin-bottom:8px;text-transform:uppercase}
         .void-modal{width:min(380px,94vw);max-height:90vh;overflow-y:auto}
         .lh-vsum{font-size:12px;background:#F8F9FB;border:1px solid #E2E8F0;border-radius:8px;padding:7px 9px;margin:6px 0}
         .lh-vplan{font-size:14px;color:#1A1A1A;margin:8px 0;line-height:1.45}
@@ -3024,7 +3054,7 @@ var qrcode = function() {
     </style>
 </head>
 <body>
-<div class="ver-corner" id="verCornerBadge" onclick="handleVerBadgeTap()">v106</div>
+<div class="ver-corner" id="verCornerBadge" onclick="handleVerBadgeTap()">v107</div>
 <!-- v63: Gap 2 — offline write-queue indicator. Hidden (display:none) unless
      something is actually queued or failed. Tapping it shows the queue detail
      panel (openOfflineQueuePanel()). -->
@@ -3077,6 +3107,37 @@ var qrcode = function() {
     <!-- MAIN CONTENT -->
     <div class="content">
         <div id="pick-tab" class="tab-content active">
+            <!-- v107: PICK has two parts. "Pick" is the scanning screen; "Reserved &
+                 held stock" groups everything about units kept aside for printed
+                 slips and pick sheets. Shown only to people allowed to see it (Admin
+                 always; Supervisor unless switched off; others only when ticked in
+                 Admin Panel > User Management > Edit Access). -->
+            <div class="pick-subnav" id="pick-subnav" style="display:none;">
+                <button type="button" class="pick-subbtn active" id="pick-sub-pick" onclick="showPickSub('pick')">&#128230; Pick</button>
+                <button type="button" class="pick-subbtn" id="pick-sub-rsv" onclick="showPickSub('rsv')">&#128274; Reserved &amp; held stock<span class="psn" id="pick-sub-rsv-n" style="display:none;"></span></button>
+            </div>
+            <div id="pick-rsv-panel" style="display:none;">
+                <div class="rsv-intro">Units kept aside for printed Amazon slips, bulk pick sheets and Excel pick lists, so no other order takes them. Picking the slip uses them up. <strong>Release only what will not be picked</strong> (order cancelled, or packed from other stock).</div>
+                <div id="pick-held-btn-wrap">
+                    <!-- v103: Reserved stock tile (tap = the Reserved stock screen) -->
+                    <div id="rsv-tile-pick"></div>
+                    <button class="settings-btn rsv-big" onclick="openReservedStock()">&#128203; Reserved stock &mdash; every held unit, oldest first<small>Release one line, the ticked lines, or everything older than N days</small></button>
+                    <button class="settings-btn rsv-big" style="background:#1B3F6B;" onclick="openHeldStock()">&#128274; Held stock &mdash; by printed batch<small>See each batch, order and line; release a whole batch or one order</small></button>
+                </div>
+                <!-- v97 (moved here in v107 from the Bulk pick sheet): every batch that is
+                     still holding stock, from any source (this app's bulk sheet, Excel, or
+                     the Amazon QR stamp tool). -->
+                <div id="held-section" style="margin-top:14px;border-top:1px solid #E2E8F0;padding-top:10px;">
+                    <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;">
+                        <div style="font-weight:800;color:#0A1628;font-size:13px;">&#128221; Open pick lists (batches still holding stock)</div>
+                        <button class="settings-btn" style="flex:0 0 auto;padding:6px 10px;font-size:11px;" onclick="loadHeldBatches()">&#8635; Refresh</button>
+                    </div>
+                    <div class="settings-info" style="margin-top:4px;">Printed slips and pick sheets hold their stock until they are picked. Only batches that still hold stock are listed. <strong>Tap a batch</strong> to see each order and line, and to release stock if an order was cancelled.</div>
+                    <div class="move-result" id="held-result"></div>
+                    <div id="held-list"></div>
+                </div>
+                <div class="rsv-pinnote" id="rsv-pin-note"></div>
+            </div>
             <!-- v78: top-of-page refresh. PICK is scan-driven (each order/SKU is
                  already looked up fresh from the server at scan time, not a
                  cached list), so unlike STOCK/LOG/MOVE there's no stale on-screen
@@ -3162,12 +3223,7 @@ var qrcode = function() {
                 <button class="btn btn-reset" onclick="if(confirm('Abandon this line? It is NOT taken out of stock. Lines already saved stay saved.'))resetPick()">&#10005; Reset</button>
             </div>
             <!-- v96: BULK PICK SHEET (Admin / Supervisor) -->
-            <!-- v101: Held stock screen (Admin / Supervisor) -->
-            <div id="pick-held-btn-wrap" style="display:none;margin-top:14px;">
-                <!-- v103: Reserved stock tile (tap = the Reserved stock screen) -->
-                <div id="rsv-tile-pick"></div>
-                <button class="settings-btn" style="width:100%;min-height:44px;" onclick="openHeldStock()">&#128274; Held stock &mdash; see and release reserved lines</button>
-            </div>
+            <!-- v101 Held stock button + v103 Reserved stock tile: moved in v107 to PICK > Reserved & held stock. -->
             <div class="settings-section" id="bulkpick-section" style="margin-top:16px;display:none;">
                 <h3 style="margin-top:0;cursor:pointer;" onclick="toggleBulkPick()">&#128424; Bulk pick sheet <span style="font-size:11px;font-weight:600;color:#6B7280;">(Admin / Supervisor)</span> <span id="bulkpick-toggle">&#9660;</span></h3>
                 <div id="bulkpick-body" style="display:none;">
@@ -3204,17 +3260,9 @@ var qrcode = function() {
                         <button class="settings-btn" style="flex:1" onclick="bulkPreview(false)">&#128269; Check stock</button>
                     </div>
                     <div class="move-result" id="bulk-result"></div>
-                    <!-- v97: every batch that is still holding stock, from any source
-                         (this app's bulk sheet, Excel, or the Amazon QR stamp tool), with
-                         a way to release the whole batch or just one order. -->
-                    <div id="held-section" style="margin-top:14px;border-top:1px solid #E2E8F0;padding-top:10px;">
-                        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;">
-                            <div style="font-weight:800;color:#0A1628;font-size:13px;">&#128274; Held stock (open batches)</div>
-                            <button class="settings-btn" style="flex:0 0 auto;padding:6px 10px;font-size:11px;" onclick="loadHeldBatches()">&#8635; Refresh</button>
-                        </div>
-                        <div class="settings-info" style="margin-top:4px;">Printed slips hold their stock until they are picked. Only batches that still hold stock are listed. <strong>Tap a batch</strong> to see each order and line, and to release stock if an order was cancelled.</div>
-                        <div class="move-result" id="held-result"></div>
-                        <div id="held-list"></div>
+                    <!-- v107: the held batches list moved to PICK > Reserved & held stock. -->
+                    <div style="margin-top:14px;border-top:1px solid #E2E8F0;padding-top:10px;">
+                        <button class="settings-btn" id="bulk-goto-rsv" style="width:100%;min-height:44px;" onclick="showPickSub('rsv')">&#128274; Held stock &amp; open pick lists &rarr; PICK &rsaquo; Reserved &amp; held stock</button>
                     </div>
                 </div>
             </div>
@@ -3617,6 +3665,8 @@ var qrcode = function() {
             <div class="settings-section lh-section" id="lh-section">
                 <h3 style="margin-top:0;">&#128220; Stock history <span id="lh-scope" style="font-weight:600;color:#6B7280;font-size:12px;"></span></h3>
                 <div class="settings-info" style="margin-bottom:6px;">Every stock movement saved in the database, from every phone, Excel and the Admin Panel. All dates and times are India time.</div>
+                <!-- v107: says plainly whether this person can void, and how -->
+                <div id="lh-void-status"></div>
                 <div class="lh-bar">
                     <select id="lh-date" class="settings-input" onchange="lhOnPresetChange()">
                         <option value="today">Today</option>
@@ -4602,18 +4652,18 @@ var CH_NAME = {
 // v40: added "dash" key (Owner Dashboard tab) — true only for ADMIN. Every
 // other existing key/value on every role is unchanged.
 var ROLE_PERMISSIONS = {
-    WAREHOUSE_STAFF:  { pick:true,  move:false, stock:false, log:true, guide:true, settings:false, dash:false, sessions:false, logScope:'own' },
-    BILLING_OPERATOR: { pick:true,  move:false, stock:true,  log:true, guide:true, settings:false, dash:false, sessions:false, logScope:'own' },
-    INVENTORY_LEAD:   { pick:true,  move:true,  stock:true,  log:true, guide:true, settings:false, dash:false, sessions:false, logScope:'all' },
-    PRODUCTION_LEAD:  { pick:false, move:false, stock:true,  log:true, guide:true, settings:false, dash:false, sessions:false, logScope:'all' },
-    ADMIN:            { pick:true,  move:true,  stock:true,  log:true, guide:true, settings:true,  dash:true,  sessions:true,  logScope:'all' },
+    WAREHOUSE_STAFF:  { pick:true,  move:false, stock:false, log:true, guide:true, settings:false, dash:false, sessions:false, logScope:'own', reserved_stock:false },
+    BILLING_OPERATOR: { pick:true,  move:false, stock:true,  log:true, guide:true, settings:false, dash:false, sessions:false, logScope:'own', reserved_stock:false },
+    INVENTORY_LEAD:   { pick:true,  move:true,  stock:true,  log:true, guide:true, settings:false, dash:false, sessions:false, logScope:'all', reserved_stock:false },
+    PRODUCTION_LEAD:  { pick:false, move:false, stock:true,  log:true, guide:true, settings:false, dash:false, sessions:false, logScope:'all', reserved_stock:false },
+    ADMIN:            { pick:true,  move:true,  stock:true,  log:true, guide:true, settings:true,  dash:true,  sessions:true,  logScope:'all', reserved_stock:true },
     // v91 (2026-09-18) NEW ROLE - Supervisor. Someone who runs the day on the
     // Founder's behalf. On this phone they get exactly what an Admin gets,
     // because everything a Supervisor must NOT reach is gated separately:
     // the Employee Management block below is shown only when the role is
     // literally ADMIN, and the database refuses a Supervisor on accounts,
     // roles and the Admin Password no matter which screen asks.
-    SUPERVISOR:       { pick:true,  move:true,  stock:true,  log:true, guide:true, settings:true,  dash:true,  sessions:true,  logScope:'all' },
+    SUPERVISOR:       { pick:true,  move:true,  stock:true,  log:true, guide:true, settings:true,  dash:true,  sessions:true,  logScope:'all', reserved_stock:true },
     // v84 (2026-09-18) GAP FIX. Until now there was NO entry for CUSTOM here.
     // In the normal case that never mattered, because an employee on the
     // CUSTOM role carries an explicit per-employee permissions object from
@@ -4625,7 +4675,7 @@ var ROLE_PERMISSIONS = {
     // This entry makes that case land somewhere safe and readable instead:
     // the Guide tab only, which is read-only and gives them something to
     // look at, plus the banner in enterApp() telling them what to do.
-    CUSTOM:           { pick:false, move:false, stock:false, log:false, guide:true, settings:false, dash:false, sessions:false, logScope:'own' }
+    CUSTOM:           { pick:false, move:false, stock:false, log:false, guide:true, settings:false, dash:false, sessions:false, logScope:'own', reserved_stock:false }
 };
 // v79 (Master Prompt v21, Part 5): the "default off for everyone" launch
 // decision behind Scan Sessions (v76) is scoped to ADMIN specifically ending
@@ -6005,7 +6055,7 @@ function loadServerActivity() {
     box.innerHTML = '<div class="settings-info">Loading...</div>';
     withTimeout(
         db.from('oms_inventory_transactions')
-          .select('created_at,txn_type,qty_delta,sku_code,bin_code,note')
+          .select('txn_id,created_at,txn_type,qty_delta,sku_code,bin_code,note,client_queue_id')   // v107: + id for Void
           .eq('employee_code', empCode)
           .order('created_at', { ascending: false })
           .limit(50),
@@ -6028,10 +6078,12 @@ function loadServerActivity() {
                 '<div class="log-action">' + esc59(r.txn_type) + ' (' + esc59(qtyDisp) + ')</div>' +
                 '<div class="log-meta">SKU:' + esc59(r.sku_code) + ' &bull; Bin:' + esc59(r.bin_code) +
                 (r.note ? ' &bull; ' + esc59(r.note) : '') + '</div>' +
+                vxSlotHtml(r) +   // v107
                 '</li>';
         }
         html += '</ul>';
         box.innerHTML = html;
+        try { vxFillSlots(box, rows); } catch (e) {}   // v107
     }).catch(function (err) {
         box.innerHTML = '<div class="settings-info">Could not load from server: ' + esc59(err && err.message ? err.message : 'unknown error') + '</div>';
     });
@@ -6518,6 +6570,7 @@ function writeLedgerTxn(opts) {
             state.moveSession.scan_count = (state.moveSession.scan_count || 0) + 1;
             try { renderSessionBar(); } catch (e) {}
         }
+        try { plNoteWrite(row, res.data && res.data[0]); } catch (e) {}   // v107
         return { ok: true, row: res.data && res.data[0] };
     }).catch(function(err) {
         setDbOffline(err);
@@ -7491,8 +7544,9 @@ var _mgrPinEpoch = 0;          // bumped every time the PIN is forgotten
 var _mgrPinResolve = null;
 function forgetManagerPin() { _mgrPin.pin = null; _mgrPin.at = 0; _mgrPinEpoch++; }
 function askManagerPin(reason) {
+    var asApprover = !isListingManager();   // v107: someone else approves - never a remembered PIN
     if (_mgrPin.pin && (Date.now() - _mgrPin.at) >= PIN_REMEMBER_MINUTES * 60000) { _mgrPin.pin = null; _mgrPin.at = 0; }
-    if (_mgrPin.pin && (Date.now() - _mgrPin.at) < PIN_REMEMBER_MINUTES * 60000) {
+    if (!asApprover && _mgrPin.pin && (Date.now() - _mgrPin.at) < PIN_REMEMBER_MINUTES * 60000) {
         return Promise.resolve(_mgrPin.pin);
     }
     return new Promise(function (resolve) {
@@ -7501,16 +7555,26 @@ function askManagerPin(reason) {
         var bg = document.getElementById('mgr-pin-bg');
         var r = document.getElementById('mgr-pin-reason');
         var inp = document.getElementById('mgr-pin-input');
-        if (r) r.textContent = reason || 'Confirm this change with your own PIN.';
+        if (r) r.textContent = (reason || 'Confirm this change with your own PIN.') + (asApprover ? ' A Supervisor or Admin types their own code and PIN.' : '');
         if (inp) inp.value = '';
+        var cr = document.getElementById('mgr-pin-code-row'), ci = document.getElementById('mgr-pin-code'), tt = document.getElementById('mgr-pin-title');   // v107
+        if (cr) cr.style.display = asApprover ? '' : 'none';
+        if (ci) ci.value = '';
+        if (tt) tt.innerHTML = asApprover ? '&#128274; Supervisor / Admin approval' : '&#128274; Your PIN';
         if (bg) bg.classList.add('active');
-        setTimeout(function () { try { inp.focus(); } catch (e) {} }, 60);
+        setTimeout(function () { try { (asApprover && ci ? ci : inp).focus(); } catch (e) {} }, 60);
     });
 }
 function mgrPinOk() {
     var inp = document.getElementById('mgr-pin-input');
     var pin = String((inp && inp.value) || '').trim();
     if (!/^[0-9]{4}$/.test(pin)) { if (inp) { inp.value = ''; inp.placeholder = '4 digits'; } return; }
+    var cr = document.getElementById('mgr-pin-code-row'), ci = document.getElementById('mgr-pin-code');   // v107
+    if (cr && cr.style.display !== 'none') {
+        var code = String((ci && ci.value) || '').trim().toUpperCase();
+        if (!code) { if (ci) { ci.placeholder = 'Supervisor / Admin code needed'; ci.focus(); } return; }
+        _mgrApprover = code;
+    } else _mgrApprover = '';
     document.getElementById('mgr-pin-bg').classList.remove('active');
     if (inp) inp.value = '';
     var res = _mgrPinResolve; _mgrPinResolve = null;
@@ -7851,7 +7915,7 @@ function checkAmazonDispatch(ref, sku, binVal, qtyVal) {
                 var where = held.map(function (x) { return 'bin <strong>' + esc59(x.bin_code) + '</strong> (qty ' + Number(x.qty) + ')'; }).join(', ');
                 return { action: 'REFUSE', message: 'This order\'s stock is held in ' + where + '. Take it from ' +
                     (held.length === 1 ? 'bin <strong>' + esc59(held[0].bin_code) + '</strong> with quantity ' + Number(held[0].qty) : 'those bins, one bin at a time with that quantity') +
-                    ', or cancel the hold first (PICK &gt; Bulk pick sheet &gt; Held stock).' };
+                    ', or cancel the hold first (PICK &gt; Reserved &amp; held stock).' };
             }
             if (ordered > 0 && ev.units + qty > ordered) {
                 var left = ordered - ev.units;
@@ -8942,9 +9006,8 @@ function defaultBulkRef() {
 function applyBulkPickVisibility() {
     var sec = document.getElementById('bulkpick-section');
     if (sec) sec.style.display = isListingManager() ? '' : 'none';
-    var hb = document.getElementById('pick-held-btn-wrap');   // v101
-    if (hb) hb.style.display = isListingManager() ? '' : 'none';
-    if (isListingManager()) { try { loadReservedSummary(false); } catch (e) {} }   // v103
+    try { applyReservedAccess(); } catch (e) {}                // v107 (was: Held stock button, role only)
+    if (canReservedStock()) { try { loadReservedSummary(false); } catch (e) {} }   // v103 / v107
 }
 function onBulkFile(input) {
     var f = input && input.files && input.files[0];
@@ -9443,7 +9506,7 @@ function probeM5() {
     } catch (e) { return Promise.resolve(null); }
 }
 function openHeldStock() {
-    if (!isListingManager()) return;
+    if (!canReservedStock()) return;   // v107
     document.getElementById('hs-bg').classList.add('active');
     _hs.view = null;
     hsMsg('');
@@ -9586,7 +9649,7 @@ function loadHeldStock() {
 // same cards, holding batches only; a tap opens the full screen on that batch.
 function loadHeldCardsInto(elId) {
     var list = document.getElementById(elId);
-    if (!list || !isListingManager()) return Promise.resolve();
+    if (!list || !canReservedStock()) return Promise.resolve();   // v107
     if (!db) { list.innerHTML = '<div class="settings-info">Database not reachable right now.</div>'; return Promise.resolve(); }
     list.innerHTML = '<div style="color:#6B7280;font-size:12px;">Loading...</div>';
     return loadHeldData().then(function () {
@@ -9598,7 +9661,7 @@ function loadHeldCardsInto(elId) {
 }
 function openHeldBatch(batchId) {
     var bg = document.getElementById('hs-bg');
-    if (bg && !bg.classList.contains('active')) { if (!isListingManager()) return; bg.classList.add('active'); }
+    if (bg && !bg.classList.contains('active')) { if (!canReservedStock()) return; bg.classList.add('active'); }   // v107
     _hs.view = Number(batchId);
     hsMsg('');
     renderHeldStock();
@@ -9673,7 +9736,7 @@ function _hsCall(fn, args, reason) {
     return askManagerPin(reason).then(function (pin) {
         if (!pin) return { ok: false, cancelled: true, message: 'Cancelled - nothing was changed.' };
         var a = {}; for (var k in args) a[k] = args[k];
-        a.p_employee_code = sessionEmployeeCode(); a.p_pin = pin;
+        a.p_employee_code = pinActorCode(); a.p_pin = pin;   // v107
         return withTimeout(db.rpc(fn, a), 12000, reason).then(function (r) {
             if (r.error) return _isMissingFunction(r.error, fn) ? { ok: false, m5: true, message: 'This ' + M5_NEEDED + '.' } : { ok: false, message: r.error.message };
             var d = r.data || {};
@@ -9700,7 +9763,7 @@ function releaseHeldLine(resId) {
         if (!pin) return { ok: false, message: 'Cancelled - nothing was changed.' };
         function tryFn(i) {
             if (i >= fns.length) return Promise.resolve({ ok: false, m5: true });
-            var a = { p_res_id: args.p_res_id, p_reason: args.p_reason, p_employee_code: sessionEmployeeCode(), p_pin: pin };
+            var a = { p_res_id: args.p_res_id, p_reason: args.p_reason, p_employee_code: pinActorCode(), p_pin: pin };   // v107
             return withTimeout(db.rpc(fns[i], a), 12000, 'Release line').then(function (r) {
                 if (r.error) return _isMissingFunction(r.error, fns[i]) ? tryFn(i + 1) : { ok: false, message: r.error.message };
                 _hs.lineFns = fns.slice(i);
@@ -9834,25 +9897,27 @@ function loadReservedSummary(force) {
 }
 function renderReservedTiles() {
     var s = _rs.sum; if (!s) return;
-    var mgr = isListingManager();
+    var mgr = canReservedStock();   // v107: the access box, not the role
     var cls = s.veryOld ? 'danger' : (s.oldLines ? 'warn' : '');
     var inner = '<div class="rs-tile-main">&#128274; Reserved stock: <span class="rs-tile-num">' + _rsUnits(s.units) + '</span> (' + _rsLines(s.lines) + ')</div>' +
         (s.oldUnits ? '<div class="rs-tile-old">&#9888; ' + _rsUnits(s.oldUnits) + ' held more than ' + RS_OLD_DAYS + ' days' + (s.veryOld ? ' &mdash; some more than ' + RS_VERY_OLD_DAYS + ' days' : '') + '</div>' : (s.lines ? '<div class="rs-tile-sub">Nothing held more than ' + RS_OLD_DAYS + ' days.</div>' : '<div class="rs-tile-sub">Nothing is reserved right now.</div>')) +
         (mgr ? '<div class="rs-tile-sub">Tap to see every reserved unit and release it &#9656;</div>' : '<div class="rs-tile-sub">Only an Admin or Supervisor can open the list and release units.</div>');
     // review fix 6: each tile only for whoever may see it right now
-    var canDash = !!state.session && effectivePermissions().dash === true;
+    var canDash = !!state.session && effectivePermissions().dash === true && mgr;   // v107: only people with access see the count
     ['rsv-tile-dash', 'rsv-tile-pick'].forEach(function (id) {
         var el = document.getElementById(id); if (!el) return;
         if ((id === 'rsv-tile-dash' && !canDash) || (id === 'rsv-tile-pick' && !mgr)) { el.innerHTML = ''; return; }
         el.innerHTML = mgr
-            ? '<button type="button" class="rs-tile ' + cls + '" onclick="openReservedStock()">' + inner + '</button>'
+            ? '<button type="button" class="rs-tile ' + cls + '" onclick="' + (id === 'rsv-tile-dash' ? 'openReservedFromDash()' : 'openReservedStock()') + '">' + inner + '</button>'
             : '<div class="rs-tile ' + cls + '">' + inner + '</div>';
     });
+    var sn = document.getElementById('pick-sub-rsv-n');   // v107: units held, on the sub-section button
+    if (sn) { sn.textContent = s.units ? String(s.units) : ''; sn.style.display = (s.units && mgr) ? '' : 'none'; }
 }
 
 // ── the screen ─────────────────────────────────────────────────────────────
 function openReservedStock() {
-    if (!isListingManager()) return;
+    if (!canReservedStock()) return;   // v107
     try { closeHeldStock(); } catch (e) {}
     document.getElementById('rs-bg').classList.add('active');
     rsMsg('');
@@ -10118,7 +10183,7 @@ function _rsReleaseBulk(lines, pin, reason) {
         if (pinRejected) { notTried = notTried.concat(part); return next(); }
         var from = (ci - 1) * RS_BULK_MAX + 1, to = from + part.length - 1;
         rsMsg('Releasing ' + (chunks.length > 1 ? 'lines ' + from + '&ndash;' + to + ' of ' + lines.length : _rsLines(lines.length)) + ' in one go&hellip;', '');
-        var args = { p_res_ids: part.map(function (x) { return Number(x.res_id); }), p_reason: reason, p_employee_code: sessionEmployeeCode(), p_pin: pin };
+        var args = { p_res_ids: part.map(function (x) { return Number(x.res_id); }), p_reason: reason, p_employee_code: pinActorCode(), p_pin: pin };
         return withTimeout(db.rpc(RS_BULK_FN, args), RS_BULK_TIMEOUT_MS, 'Release lines').then(function (r) {
             if (r.error) {
                 if (first && (_isMissingFunction(r.error, RS_BULK_FN) || (r.status === 404 && !r.error.code))) return { missing: true };
@@ -10155,7 +10220,7 @@ function _rsReleaseBulk(lines, pin, reason) {
     return next();
 }
 function _rsRelease(ids, what, bulk) {
-    if (!isListingManager()) { rsMsg('Only an Admin or Supervisor can release reserved stock.', 'err'); return Promise.resolve(); }
+    if (!canReservedStock()) { rsMsg('You do not have access to Reserved &amp; held stock.', 'err'); return Promise.resolve(); }   // v107
     if (_rs.busy) return Promise.resolve();
     if (_rsOffline()) { rsMsg(RS_OFFLINE_TEXT, 'err'); return Promise.resolve(); }
     var byId = {}; _rs.rows.forEach(function (x) { byId[x.res_id] = x; });
@@ -10177,7 +10242,7 @@ function _rsRelease(ids, what, bulk) {
         var done = [], failed = [], notTried = [], unknown = [], stop = false, i = 0;
         function callOne(x, k) {
             if (k >= fns.length) return Promise.resolve({ ok: false, message: 'This database cannot release one line (needs database update M5).' });
-            var a = { p_res_id: Number(x.res_id), p_reason: reason, p_employee_code: sessionEmployeeCode(), p_pin: pin };
+            var a = { p_res_id: Number(x.res_id), p_reason: reason, p_employee_code: pinActorCode(), p_pin: pin };
             return withTimeout(db.rpc(fns[k], a), RS_CALL_TIMEOUT_MS, 'Release line').then(function (r) {
                 if (r.error) {
                     if (_isMissingFunction(r.error, fns[k])) return callOne(x, k + 1);
@@ -10233,7 +10298,7 @@ function _rsRelease(ids, what, bulk) {
             _rsReport(res, unsure);
             loadReservedSummary(true);
             try { if (_hs.loaded) loadHeldStock(); } catch (e) {}
-            try { if (document.getElementById('held-list') && isListingManager()) loadHeldCardsInto('held-list'); } catch (e) {}
+            try { if (document.getElementById('held-list') && canReservedStock()) loadHeldCardsInto('held-list'); } catch (e) {}
         });
     });
 }
@@ -10260,19 +10325,19 @@ function _rsReport(res, unsure) {
 // applyRolePermissions() (sign-in, permission refresh, role change) and logout().
 function onReservedRoleChange() {
     var sess = state.session;
-    var key = sess ? [sess.employee_code, String(sess.role || '').toUpperCase(), effectivePermissions().dash === true].join('|') : '';
+    var key = sess ? [sess.employee_code, String(sess.role || '').toUpperCase(), effectivePermissions().dash === true, canReservedStock()].join('|') : '';   // v107
     if (key === _rs.roleKey) return;
     _rs.roleKey = key;
     _rs.sel = {}; _rs.rows = []; _rs.loaded = false; _rs.shownIds = [];
-    if (!isListingManager()) { try { closeReservedStock(); } catch (e) {} }
-    var dashOk = !!sess && effectivePermissions().dash === true;
+    if (!canReservedStock()) { try { closeReservedStock(); } catch (e) {} try { closeHeldStock(); } catch (e) {} }   // v107
+    var dashOk = !!sess && effectivePermissions().dash === true && canReservedStock();   // v107
     var el = document.getElementById('rsv-tile-dash');
     if (el && !dashOk) el.innerHTML = '';
     var ep = document.getElementById('rsv-tile-pick');
-    if (ep && !isListingManager()) ep.innerHTML = '';
+    if (ep && !canReservedStock()) ep.innerHTML = '';   // v107
     if (!sess) { _rs.sum = null; _rs.sumAt = 0; return; }
     if (_rs.sum) renderReservedTiles();                       // redraw at once for the new role
-    if (dashOk || isListingManager()) loadReservedSummary(true);
+    if (dashOk || canReservedStock()) loadReservedSummary(true);   // v107
 }
 // ══ end v103 reserved stock ════════════════════════════════════════════════
 
@@ -11248,13 +11313,14 @@ function toggleSkuHistory(skuCode) {
     if (box.style.display === 'block') { box.style.display = 'none'; return; }
     box.style.display = 'block';
     box.innerHTML = '<div style="text-align:center;color:#aaa;font-size:11px;padding:6px 0;">Loading history…</div>';
-    withTimeout(db.from('oms_inventory_transactions').select('created_at,txn_type,qty_delta,bin_code,employee_code,note,entry_source').eq('sku_code', skuCode).order('created_at', { ascending: false }).limit(25), 8000, 'SKU history').then(function(res) {
+    withTimeout(db.from('oms_inventory_transactions').select('txn_id,created_at,txn_type,qty_delta,bin_code,employee_code,note,entry_source,client_queue_id').eq('sku_code', skuCode).order('created_at', { ascending: false }).limit(25), 8000, 'SKU history').then(function(res) {
         var rows = res.data || [];
         if (!rows.length) { box.innerHTML = '<div style="font-size:11px;color:#aaa;padding:4px 0;">No history found.</div>'; return; }
         var html = '<div style="border-top:1px dashed #e0e0e0;padding-top:5px;">';
-        rows.forEach(function(r) { html += fmtSkuHistoryRowHtml(r); });
+        rows.forEach(function(r) { html += fmtSkuHistoryRowHtml(r) + vxSlotHtml(r); });   // v107: + Void slot
         html += '</div>';
         box.innerHTML = html;
+        try { vxFillSlots(box, rows); } catch (e) {}   // v107
     }).catch(function(err) { box.innerHTML = '<div style="font-size:11px;color:#E74C3C;">' + String(err) + '</div>'; });
 }
 
@@ -12228,6 +12294,7 @@ function fillOrderTitle(o) {
 // product list (see the courier-barcode check below) }.
 function processScan(value, opts) {
     opts = opts || {};
+    if (_pickSub === 'rsv' && String(value || '').trim()) { try { showPickSub('pick'); } catch (e) {} }   // v107
     value = (value || '').trim();
     if (!value) return;
     document.getElementById('scan-input').value = '';
@@ -14430,12 +14497,14 @@ function logEvent(orderID, action) {
         bin:      state.bin    ? (state.bin.binID       || '') : '',
         action:   action  || ''
     };
+    try { var _rf = plTakeRefs(); if (_rf.length) entry.refs = _rf; } catch (e) {}   // v107: the database entry this row wrote
+    entry.at = Date.now();                                                         // v107
     state.log.unshift(entry);
     if (state.log.length > 500) { state.log.length = 500; }
     saveLog();
     renderLog();
     updateSettingsLogCount();
-    pushToGoogleSheets(entry);
+    pushToGoogleSheets(plSheetCopy(entry));   // v107: same fields as before
 }
 
 // ── LOG SCOPING (v37) — own-only for WAREHOUSE_STAFF / BILLING_OPERATOR ──
@@ -14498,9 +14567,11 @@ function renderLog() {
             '</div>' +
             '<div class="log-action">' + escLt(e.action || '') + '</div>' +
             meta +
+            plActionsHtml(e) +   // v107: Void / Find in Stock history
             '</li>';
     }
     ul.innerHTML = html;
+    try { plResolve(rows); } catch (e) {}   // v107
 }
 
 // ── DAILY RECONCILIATION (v38, LOG tab) ──────────────────────
@@ -15191,7 +15262,7 @@ function switchTab(tab) {
     if (tab === 'move') { try { refreshScanSessionState(); } catch (e) {} }
     if (tab === 'pick') {
         setTimeout(function() { try { document.getElementById('scan-input').focus(); } catch(e) {} }, 50);
-        if (isListingManager()) { try { loadReservedSummary(false); } catch (e) {} }   // v103
+        if (canReservedStock()) { try { loadReservedSummary(false); } catch (e) {} }   // v103 / v107
     }
     if (tab === 'settings') {
         refreshSettingsTab();
@@ -15808,14 +15879,29 @@ function lhLoadBatchReversals(sessionIds) {
 }
 // Is the void function there (update M8)? A call with no entry is refused
 // before any PIN check, so this never touches a PIN counter.
-function lhProbeM8() {
-    if (!db || !isListingManager()) return Promise.resolve(LH.m8);
-    if (LH.m8 !== null) return Promise.resolve(LH.m8);
-    return withTimeout(db.rpc('oms_void_ledger_entry', { p_txn_id: null, p_reason: null, p_employee_code: null, p_pin: null }), 8000, 'Void check').then(function (r) {
-        if (r && r.error) { if (r.error.code === 'PGRST202' || r.status === 404) LH.m8 = false; return LH.m8; }
-        LH.m8 = !!(r && r.data && r.data.error === 'BAD_INPUT');
+// v107: only a clear answer is remembered - "yes" (BAD_INPUT) or "not there" (PGRST202 / 404).
+// A timeout, no internet or an odd answer leaves it unknown, so the next open asks again,
+// and the status line offers a retry. fromRun = called by a Stock history search itself.
+function lhProbeM8(fromRun) {
+    if (!db || !isListingManager()) { try { lhRenderVoidStatus(); } catch (e) {} return Promise.resolve(LH.m8); }
+    if (LH.m8 !== null) { try { lhRenderVoidStatus(); } catch (e) {} return Promise.resolve(LH.m8); }
+    if (LH.m8Probe) return LH.m8Probe;
+    LH.m8Checking = true; LH.m8Err = '';
+    try { lhRenderVoidStatus(); } catch (e) {}
+    LH.m8Probe = withTimeout(db.rpc('oms_void_ledger_entry', { p_txn_id: null, p_reason: null, p_employee_code: null, p_pin: null }), 8000, 'Void check').then(function (r) {
+        if (r && r.error) {
+            if (r.error.code === 'PGRST202' || r.status === 404) LH.m8 = false;
+            else LH.m8Err = r.error.message || 'no answer';
+        } else if (r && r.data && r.data.error === 'BAD_INPUT') LH.m8 = true;
+        else LH.m8Err = 'unexpected answer';
         return LH.m8;
-    }).catch(function () { return LH.m8; });
+    }).catch(function (e) { LH.m8Err = (e && e.message) ? e.message : String(e); return LH.m8; }).then(function (v) {
+        LH.m8Checking = false; LH.m8Probe = null;
+        try { lhRenderVoidStatus(); } catch (e) {}
+        if (v === true && !fromRun) { try { lhAfterProbeYes(); } catch (e) {} }
+        return v;
+    });
+    return LH.m8Probe;
 }
 // Server-side filters (everything the ledger itself can answer).
 function lhBuildQuery(sel, r, f) {
@@ -15864,7 +15950,7 @@ function runLedgerHistory() {
     var seq = ++_lhSeq;
     sum.innerHTML = '<div class="settings-info">Searching&hellip;</div>'; list.innerHTML = ''; more.innerHTML = '';
     var needIdx = !!(f.asin || f.title);
-    var prep = [lhProbeM8(), (f.empname ? lhLoadLists() : Promise.resolve()), (needIdx ? loadListingIndex() : Promise.resolve())];
+    var prep = [lhProbeM8(true), (f.empname ? lhLoadLists() : Promise.resolve()), (needIdx ? loadListingIndex() : Promise.resolve())];
     Promise.all(prep).then(function () {
         if (seq !== _lhSeq) return;
         // resolve name / ASIN / title to codes, using the lists already on the phone
@@ -16052,7 +16138,9 @@ function initLedgerHistory() {
 }
 function enterLedgerHistory() {
     initLedgerHistory();
+    try { lhRenderVoidStatus(); } catch (e) {}   // v107
     if (!LH.lastQuery) runLedgerHistory();
+    else if (LH.m8 === null) lhProbeM8(false);    // v107: a failed check is asked again on every open
 }
 
 // ── 4. Void + reverse one entry ───────────────────────────────────────────
@@ -16180,12 +16268,278 @@ function submitVoid() {
         res.innerHTML = '<div class="move-result ok">&#10003; ' + esc59(d.message || 'Voided.') + '</div>';
         voidStep(4);
         try { logEvent(_vd.row.sku_code, 'Voided log entry #' + _vd.txn + ' (' + reason + ')'); } catch (e) {}
+        try { vxAfterVoid(d); } catch (e) {}   // v107: phone log, My Activity, Bin lookup history
         runLedgerHistory();
     }).catch(function (err) {
         msg.className = 'move-result err';
         msg.textContent = 'No answer from the database (' + (err && err.message ? err.message : err) + '). Search again to see whether it was voided before trying again.';
     }).then(function () { _vd.busy = false; if (btn) btn.disabled = false; });
 }
+
+// ══ v107 (2026-10-02) ══════════════════════════════════════════════════════
+// 1. RESERVED & HELD STOCK - its own sub-section in PICK, and its own access
+//    box in the Admin Panel (User Management > Edit Access).
+//    Who may SEE and OPEN it:
+//      Admin       - always.
+//      Supervisor  - yes, unless the box was switched OFF for that person
+//                    (permissions.reserved_stock === false).
+//      Everyone else - only when the box is ticked (permissions.reserved_stock === true).
+//    Seeing is not releasing: a release still needs a Supervisor or Admin PIN,
+//    and the database checks that PIN (oms_cancel_pick_line / _lines / oms_cancel_pick).
+function canReservedStock() {
+    if (!state.session) return false;
+    var r = String(state.session.role || '').toUpperCase();
+    if (r === 'ADMIN') return true;
+    var p = effectivePermissions() || {};
+    if (r === 'SUPERVISOR') return p.reserved_stock !== false;
+    return p.reserved_stock === true;
+}
+// The code sent with a release PIN: a Supervisor / Admin uses their own; anyone
+// else types the approving Supervisor's or Admin's code in the PIN box.
+var _mgrApprover = '';
+function pinActorCode() { return isListingManager() ? sessionEmployeeCode() : (_mgrApprover || ''); }
+var _pickSub = 'pick';
+function showPickSub(mode) {
+    if (mode === 'rsv' && !canReservedStock()) mode = 'pick';
+    if (mode === 'rsv' && state.tab !== 'pick') {
+        try { switchTab('pick'); } catch (e) {}
+        if (state.tab !== 'pick') return false;
+    }
+    _pickSub = mode;
+    var tab = document.getElementById('pick-tab'); if (tab) tab.classList.toggle('rsv-mode', mode === 'rsv');
+    var a = document.getElementById('pick-sub-pick'), b = document.getElementById('pick-sub-rsv');
+    if (a) a.classList.toggle('active', mode !== 'rsv');
+    if (b) b.classList.toggle('active', mode === 'rsv');
+    var pn = document.getElementById('pick-rsv-panel'); if (pn) pn.style.display = (mode === 'rsv') ? '' : 'none';
+    if (mode === 'rsv') {
+        applyReservedAccess();
+        try { loadReservedSummary(true); } catch (e) {}
+        try { loadHeldBatches(); } catch (e) {}
+        try { window.scrollTo(0, 0); } catch (e) {}
+    }
+    return true;
+}
+function applyReservedAccess() {
+    var ok = canReservedStock();
+    var sn = document.getElementById('pick-subnav'); if (sn) sn.style.display = ok ? '' : 'none';
+    var gl = document.getElementById('bulk-goto-rsv'); if (gl) gl.style.display = ok ? '' : 'none';
+    var note = document.getElementById('rsv-pin-note');
+    if (note) note.innerHTML = isListingManager()
+        ? '&#128274; Releasing asks for <strong>your own PIN</strong>.'
+        : '&#128274; You can look at everything here. To <strong>release</strong> stock, a Supervisor or Admin types their own code and PIN.';
+    if (!ok) {
+        if (_pickSub === 'rsv') showPickSub('pick');
+        var hl = document.getElementById('held-list'); if (hl) hl.innerHTML = '';
+        try { closeHeldStock(); } catch (e) {}
+        try { closeReservedStock(); } catch (e) {}
+    }
+}
+// DASH tile: opens PICK > Reserved & held stock with the Reserved stock list on top
+// (closing the list leaves you in the sub-section).
+function openReservedFromDash() {
+    if (!canReservedStock()) return;
+    if ((effectivePermissions() || {}).pick === true) showPickSub('rsv');
+    openReservedStock();
+}
+
+// 2. VOID - impossible to miss.
+//    a) a status line at the top of Stock history;
+//    b) Void on the rows of "This phone's own scan log" (matched to the database
+//       entry by the client_queue_id / txn_id saved when the entry was written),
+//       on Settings > My Activity and on STOCK > Bin lookup > History;
+//    c) "Find in Stock history" where a row cannot be matched.
+function lhRenderVoidStatus() {
+    var el = document.getElementById('lh-void-status'); if (!el) return;
+    if (!state.session) { el.innerHTML = ''; return; }
+    if (!isListingManager()) {
+        el.innerHTML = '<div class="lh-vstat info">&#128274; Only a Supervisor or Admin can void entries. If an entry is wrong, ask one of them.</div>';
+        return;
+    }
+    if (LH.m8 === true) {
+        el.innerHTML = '<div class="lh-vstat ok">&#8617; Void is available: tap <strong>Void</strong> on any entry. For older entries choose &ldquo;Last 7 days&rdquo; or more above. Void also works from <em>This phone&rsquo;s own scan log</em> below.</div>';
+    } else if (LH.m8 === false) {
+        el.innerHTML = '<div class="lh-vstat info">Void is not switched on in the database yet (database update M8). Nothing else is affected.</div>';
+    } else if (LH.m8Checking) {
+        el.innerHTML = '<div class="lh-vstat info">Checking whether Void is available&hellip;</div>';
+    } else {
+        el.innerHTML = '<div class="lh-vstat err">&#9888; Void check failed &ndash; tap <button type="button" id="lh-void-retry" onclick="lhRetryM8()">&#8635;</button>' +
+            (LH.m8Err ? ' <span style="opacity:.8;">(' + esc59(LH.m8Err) + ')</span>' : '') + '</div>';
+    }
+}
+function lhRetryM8() {
+    LH.m8 = null;
+    return lhProbeM8(false);
+}
+// Called when the probe has just answered "yes" (outside a Stock history search):
+// redraw everything that shows Void buttons.
+function lhAfterProbeYes() {
+    if (LH.lastQuery) { try { runLedgerHistory(); } catch (e) {} }
+    try { renderLog(); } catch (e) {}
+}
+
+// ── this phone's own scan log: which database entry does a row belong to? ──
+var PL = { byCq: {}, voided: {}, rev: {}, lastTry: 0 };
+var _plRefs = [];
+function plNoteWrite(row, saved) {
+    if (!row || !row.client_queue_id) return;
+    _plRefs.push({ cq: row.client_queue_id, txn: (saved && saved.txn_id) || null, t: row.txn_type, sku: row.sku_code, bin: row.bin_code, at: Date.now() });
+    if (_plRefs.length > 10) _plRefs.shift();
+}
+function plTakeRefs() {
+    var now = Date.now();
+    var r = _plRefs.filter(function (x) { return now - x.at < 20000; });
+    _plRefs = [];
+    return r.map(function (x) { return { cq: x.cq, txn: x.txn, t: x.t, sku: x.sku, bin: x.bin }; });
+}
+// The Google Sheet webhook keeps receiving exactly the fields it always did.
+function plSheetCopy(e) { var c = {}; for (var k in e) { if (k !== 'refs' && k !== 'at') c[k] = e[k]; } return c; }
+// One entry = one stock movement: one ref, or the two halves of a transfer (OUT half is used -
+// the database voids both halves together).
+function plMainRef(refs) {
+    if (!refs || !refs.length) return null;
+    if (refs.length === 1) return refs[0];
+    if (refs.length === 2 && /^BIN_TRANSFER_/.test(refs[0].t || '') && /^BIN_TRANSFER_/.test(refs[1].t || '')) {
+        return refs[0].t === 'BIN_TRANSFER_OUT' ? refs[0] : refs[1];
+    }
+    return null;
+}
+var PL_MOVE_RE = /New Stock In|Returns? In|Return \(|Found Units|Remove \/ Lost|QC Hold|QC Release|Dispatch|Transfer|Set True Count|taken out of stock|opening stock|booked as pick slip|Rejected/i;
+function plIsMovement(e) { var a = String(e.action || ''); return PL_MOVE_RE.test(a) && !/refused|NOT saved|Voided log entry/i.test(a); }
+function plCanVoid(x) {
+    if (!x || !isListingManager() || LH.m8 !== true) return false;
+    if (PL.voided[x.txn_id] || PL.rev[x.txn_id]) return false;
+    if (x.txn_type === 'MANUAL_CORRECTION' && (LH_VOID_NOTE_RE.test(x.note || '') || lhIsBatchRevNote(x.note))) return false;
+    if (/^PICK\|/.test(String(x.client_queue_id || ''))) return false;
+    return true;
+}
+function plEntryMs(e) {
+    if (e.at) return Number(e.at) || 0;
+    var t = Date.parse(e.ts || ''); return isNaN(t) ? 0 : t;
+}
+function plFindBtnHtml(sku, ms, emp) {
+    return '<button type="button" class="csv-btn pl-find-btn" data-sku="' + esc59(sku || '') + '" data-at="' + (ms || 0) + '" data-emp="' + esc59(emp || '') + '" onclick="plFind(this)">&#128269; Find in Stock history</button>';
+}
+function plActionsHtml(e) {
+    var main = plMainRef(e.refs), inner = '';
+    if (main && isListingManager()) {
+        var x = PL.byCq[main.cq];
+        if (x) {
+            if (PL.voided[x.txn_id]) inner = '<span class="lh-badge void">VOID</span> <span class="lh-id" style="margin:0;">entry #' + x.txn_id + '</span>';
+            else if (plCanVoid(x)) inner = '<button type="button" class="csv-btn pl-void-btn" data-txn="' + x.txn_id + '" onclick="openVoidFromAnywhere(' + x.txn_id + ')">&#8617; Void</button> <span class="lh-id" style="margin:0;">entry #' + x.txn_id + '</span>';
+        }
+    }
+    if (!inner && plIsMovement(e)) inner = plFindBtnHtml((main && main.sku) || e.sku || (e.orderID && e.orderID !== '—' ? e.orderID : ''), plEntryMs(e), e.empCode);
+    return inner ? '<div class="pl-acts">' + inner + '</div>' : '';
+}
+// Looks up (once) the database entries behind the rows on screen, then redraws.
+function plResolve(rows) {
+    if (!db || !isListingManager() || !rows || !rows.length) return;
+    if (LH.m8 === null && !LH.m8Checking) { lhProbeM8(false); return; }   // redraws when it answers
+    if (LH.m8 !== true) return;
+    var want = [], txns = [];
+    rows.slice(0, 100).forEach(function (e) {
+        var m = plMainRef(e.refs);
+        if (m && !(m.cq in PL.byCq)) { want.push(m.cq); if (m.txn) txns.push(m.txn); }
+    });
+    if (!want.length) return;
+    if (Date.now() - PL.lastTry < 1500) return;   // one look-up at a time
+    PL.lastTry = Date.now();
+    var chunks = []; for (var i = 0; i < want.length; i += 60) chunks.push(want.slice(i, i + 60));
+    Promise.all(chunks.map(function (c) {
+        return withTimeout(db.from('oms_inventory_transactions').select(LH_COLS).in('client_queue_id', c), 10000, 'Scan log check').then(function (r) {
+            if (r.error) throw r.error; return r.data || [];
+        });
+    })).then(function (parts) {
+        var found = {}, ids = [];
+        parts.forEach(function (p) { p.forEach(function (x) { found[x.client_queue_id] = x; ids.push(x.txn_id); }); });
+        return vxLoadVoids(ids).then(function () {
+            want.forEach(function (cq) { PL.byCq[cq] = found[cq] || null; });
+            PL.lastTry = 0;
+            renderLog();
+        });
+    }).catch(function () { PL.lastTry = Date.now() + 20000; });   // try again a little later
+}
+// Voids for a list of entries (as the voided entry, or as its balancing entry).
+function vxLoadVoids(ids) {
+    ids = (ids || []).filter(function (x) { return x != null; });
+    if (!db || !ids.length) return Promise.resolve(true);
+    var sel = 'txn_id,balancing_txn_id,voided_by,voided_at,reason';
+    return Promise.all([
+        withTimeout(db.from('oms_ledger_voids').select(sel).in('txn_id', ids), 10000, 'Voids'),
+        withTimeout(db.from('oms_ledger_voids').select(sel).in('balancing_txn_id', ids), 10000, 'Voids')
+    ]).then(function (rr) {
+        if (rr.some(function (r) { return !r || r.error; })) return false;
+        rr.forEach(function (r) { (r.data || []).forEach(function (v) { PL.voided[v.txn_id] = v; PL.rev[v.balancing_txn_id] = v; }); });
+        return true;
+    }).catch(function () { return false; });
+}
+// Void slots on Settings > My Activity and STOCK > Bin lookup > History.
+function vxSlotHtml(x) { return x && x.txn_id != null ? '<div class="pl-acts" data-vx-txn="' + x.txn_id + '"></div>' : ''; }
+function vxFillSlots(container, rows) {
+    if (!container || !rows || !rows.length || !isListingManager() || !db) return Promise.resolve();
+    return lhProbeM8(true).then(function (m8) {
+        if (m8 !== true) return;
+        return vxLoadVoids(rows.map(function (x) { return x.txn_id; })).then(function (ok) {
+            if (!ok) return;
+            rows.forEach(function (x) {
+                var slot = container.querySelector('[data-vx-txn="' + x.txn_id + '"]'); if (!slot) return;
+                if (PL.voided[x.txn_id]) slot.innerHTML = '<span class="lh-badge void">VOID</span>';
+                else if (plCanVoid(x)) slot.innerHTML = '<button type="button" class="csv-btn pl-void-btn" data-txn="' + x.txn_id + '" onclick="openVoidFromAnywhere(' + x.txn_id + ')">&#8617; Void</button>';
+            });
+        });
+    });
+}
+// Opens the usual Void box for any entry id (reads that one entry first).
+function openVoidFromAnywhere(txnId) {
+    txnId = Number(txnId);
+    if (!isListingManager()) return;
+    if (!db) { alert('No connection to the database - nothing can be voided right now.'); return; }
+    Promise.all([
+        withTimeout(db.from('oms_inventory_transactions').select(LH_COLS).eq('txn_id', txnId), 10000, 'Entry'),
+        vxLoadVoids([txnId]),
+        lhProbeM8(true)
+    ]).then(function (rr) {
+        var r = rr[0];
+        if (r.error || !(r.data || []).length) { alert('Entry #' + txnId + ' could not be read just now. Try again.'); return; }
+        if (rr[2] !== true) { alert('Void is not available right now (' + (LH.m8 === false ? 'database update M8 is not applied' : 'the check failed - try again') + ').'); return; }
+        var x = r.data[0];
+        if (PL.voided[txnId]) { alert('Entry #' + txnId + ' was already voided. Nothing to do.'); vxMarkVoided([txnId]); return; }
+        LH.rows[txnId] = x;
+        openVoidEntry(txnId);
+    }).catch(function (e) { alert('Could not open the entry: ' + (e && e.message ? e.message : e)); });
+}
+function vxMarkVoided(ids) {
+    ids.forEach(function (id) {
+        PL.voided[id] = PL.voided[id] || { txn_id: id };
+        Array.prototype.forEach.call(document.querySelectorAll('[data-vx-txn="' + id + '"]'), function (s) { s.innerHTML = '<span class="lh-badge void">VOID</span>'; });
+    });
+    try { renderLog(); } catch (e) {}
+}
+function vxAfterVoid(d) {
+    var ids = [];
+    ((d && d.voided) || []).forEach(function (v) { if (v.txn_id != null) ids.push(Number(v.txn_id)); if (v.balancing_txn_id != null) PL.rev[v.balancing_txn_id] = v; });
+    if (!ids.length && _vd && _vd.txn) ids.push(Number(_vd.txn));
+    vxMarkVoided(ids);
+}
+// "Find in Stock history": that day (India time), that product, that person.
+function plFind(btn) {
+    var sku = btn.getAttribute('data-sku') || '', at = Number(btn.getAttribute('data-at')) || 0, emp = btn.getAttribute('data-emp') || '';
+    if (state.tab !== 'log') { try { switchTab('log'); } catch (e) {} }
+    try { initLedgerHistory(); } catch (e) {}
+    ['lh-tfrom', 'lh-tto', 'lh-session', 'lh-who', 'lh-empname', 'lh-empcode', 'lh-sku', 'lh-asin', 'lh-title', 'lh-bin', 'lh-action', 'lh-channel', 'lh-order'].forEach(function (id) {
+        var el = document.getElementById(id); if (el) el.value = '';
+    });
+    var hv = document.getElementById('lh-hidevoid'); if (hv) hv.checked = false;
+    var d = document.getElementById('lh-date');
+    if (at) { d.value = 'day'; document.getElementById('lh-day').value = istDateStr(at); }
+    else d.value = '7';
+    ['day', 'range', 'yearpick'].forEach(function (k) { var el = document.getElementById('lh-pre-' + k); if (el) el.style.display = (d.value === k) ? '' : 'none'; });
+    var s = document.getElementById('lh-sku'); if (s) s.value = String(sku).toUpperCase();
+    if (emp && !lhLogScopeOwn()) { var ec = document.getElementById('lh-empcode'); if (ec) ec.value = String(emp).toUpperCase(); }
+    runLedgerHistory();
+    try { document.getElementById('lh-section').scrollIntoView({ block: 'start' }); } catch (e) {}
+}
+// ══ end v107 ═══════════════════════════════════════════════════════════════
 </script>
 <!-- v96: bottom sheet used to pick a bin or a product type. -->
 <div class="sheet-bg" id="pick-sheet-bg" onclick="if(event.target===this)closePickSheet()">
@@ -16278,8 +16632,10 @@ function submitVoid() {
 </div>
 <div class="emp-modal-bg" id="mgr-pin-bg">
     <div class="emp-modal">
-        <h2>&#128274; Your PIN</h2>
+        <h2 id="mgr-pin-title">&#128274; Your PIN</h2>
         <p id="mgr-pin-reason">Confirm this change with your own PIN.</p>
+        <!-- v107: shown only when the signed-in person is not a Supervisor / Admin -->
+        <div id="mgr-pin-code-row" style="display:none;"><input type="text" id="mgr-pin-code" class="mgr-pin-code" placeholder="Supervisor / Admin code" autocomplete="off" autocorrect="off" autocapitalize="characters" spellcheck="false" data-lpignore="true" data-1p-ignore="true" data-form-type="other" onkeydown="if(event.key==='Enter')document.getElementById('mgr-pin-input').focus();"></div>
         <!-- v97: was a password-type box - that is what made Chrome offer to save
              "ASIN + PIN" as a login. Now a masked text box (.pin-mask). -->
         <input type="text" inputmode="numeric" pattern="[0-9]*" maxlength="4" id="mgr-pin-input" name="oms-confirm-code-x" class="pin-mask" placeholder="&bull;&bull;&bull;&bull;" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" data-lpignore="true" data-1p-ignore="true" data-bwignore="true" data-form-type="other"
