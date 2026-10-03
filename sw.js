@@ -67,7 +67,10 @@
 // v24 (2026-09-29): bumped for App v105 (v104 with both answer shapes of the one-call release).
 // v25 (2026-10-02): bumped for App v106 (suggestions, auto bin lookup, stock history filters, void).
 // v26 (2026-10-02): bumped for App v107 (Void everywhere + PICK > Reserved & held stock).
-const CACHE_NAME = 'artzfolio-oms-shell-v26';
+// v27 (2026-10-03): bumped for App v108 (inner lists scroll both ways; pull-to-refresh made reliable).
+// v29 (2026-10-03): bumped for App v110 (Stock Search, held-unit lock, one-sheet Void, clearer log, double-scan guard, release reason, stock health check).
+// v30 (2026-10-03): bumped for App v111 (review fixes: bin-search names/ASIN, plain held-check messages, double-scan 15 s + remember, health card 'current', safer buttons and CSV).
+const CACHE_NAME = 'artzfolio-oms-shell-v30';
 const OPTIONAL_FILES = ['./zxing_reader_3.1.4.js', './zxing_reader_3.1.4.wasm'];
 const SHELL_FILES = ['./index.html', './manifest.json', './icon.svg'];
 
