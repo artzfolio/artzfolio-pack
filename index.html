@@ -62,6 +62,67 @@
             Switched off -> clear message + "Switch on & continue". The database
             enforces the same rule (trigger trg_oms_require_tracked_sku), so
             nothing can slip past from any surface. -->
+    <!-- v111 (2026-10-03): review fixes on top of v110 (everything from v110, v109 and v108 is kept).
+         1. Stock Search by BIN now shows the product name and ASIN on every card, and the name filter / name sort work (they were blank).
+         2. If held units cannot be checked, the message is plain: "Could not check held units (no signal or slow connection). Nothing was saved. Try again when the connection is back." Submit stays off.
+         3. If the From bin shows 0 of the product and nothing is held, the screen says "Bin X shows 0 of this product - nothing to take out."
+         4. Double-scan question: window shortened from 60 to 15 seconds; a "Yes, it is a separate unit" answer is remembered for 5 minutes
+            for that product + bin + person, so the question does not repeat.
+         5. Stock health card: held-over-stock, bin-below-zero and units-with-no-bin rows say "current" instead of a time.
+         6. Typing in the Stock Search filters no longer reloads the open History panels (they keep what they show).
+         7. "Count this bin now" opens Set True Count with the count box empty (no pre-filled 0).
+         8. SKU codes with quote marks can no longer break the buttons on the cards.
+         9. A failed search clears the CSV export; CSV text cells starting with = + - @ get a leading quote; the transfer-half wording
+            is now "other half is older/newer than the rows shown - open the full history".
+         The scanner and slip reading (parseQR), the v108 scrolling and pull-to-refresh rules, and the Admin Panel are untouched. -->
+    <!-- v110 (2026-10-03): seven changes, in plain words. Everything from v109 and v108 is kept.
+         1. STOCK > "Bin Lookup" is now called "Stock Search" ("Search by bin, SKU, ASIN, product name or title").
+            Only the name changed; the search works as before.
+         2. Stock Search results have a filter bar and a sort list: text filter, category, stock status (All / In stock /
+            Low / Out of stock / Only held for orders), quantity range, Level (High / Normal / Low / Zero), Also in other bins /
+            Only in this bin, Last moved, 8 sort orders, "Showing X of Y" and Clear filters. It works on the results already
+            on the phone, so it is instant. The CSV exports exactly what is shown. Live Stock was left alone: it already has
+            its own server-side filters and paging.
+         3. HELD-UNITS LOCK (Actions): Transfer, Dispatch Out (non-Amazon), Remove/Lost and QC Hold can only use units that are
+            FREE in the From bin = bin quantity minus units held for open pick slips. Read fresh when the bin is chosen and
+            again on Submit. + / - and a typed number are capped; Submit is off when nothing is free; if the held units cannot
+            be read the screen says "Could not check held units (no signal or slow connection) ..." and blocks. The database check stays the final guard
+            and its refusal is now shown in plain words.
+         4. VOID is one sheet: what will be reversed, the reason, the approver code and the 4-digit PIN together. "Void and
+            reverse" stays off until all of them are filled. Every Void button in the app opens this same sheet, and one
+            function (voidRpc) is the only place that calls the database, refusing to send without a PIN. The old "is Void
+            switched on?" check no longer calls the void function at all.
+         5. LOG CLARITY: every entry says what happened in plain words with an icon and a colour (transfers shown as ONE line),
+            India time, who, bins, signed quantity, balance after (only when the history starts from the newest entry), order /
+            channel / slip, note, source and entry number, void details; count differences stand out; "Show older" button; legend.
+            Used in Stock Search History, Full Detail history and as an extra line on the Stock history (LOG) screen.
+         6. DOUBLE-SCAN GUARD: adding the same product, bin and quantity again within 15 seconds (60 in v110) asks "Add one more?".
+            Releasing reserved / held lines now asks "Why are you releasing?" (required); "Stock NOT found on the shelf" opens a
+            "Count this bin now" prompt that uses the existing Set True Count screen.
+         7. STOCK HEALTH CHECK card (STOCK tab, folded away): counts and a list of flagged items, each with History and Count this bin.
+         The scanner and slip reading (parseQR), the v108 scrolling and pull-to-refresh rules, and the Admin Panel are untouched. -->
+    <!-- v109 (2026-10-03): Export Full Inventory CSV now reconciles. A new column, 'Opening Balance & Other (balancing)',
+         is added AFTER 'Net Bin Transfers' and BEFORE 'Last Updated'. It equals Qty On Hand minus the ten activity
+         columns (Total Sold ... Net Bin Transfers). Reason: the 2026-07-30 opening-stock seed (+1 per SKU, 1,032 rows) and
+         the Excel daily-sync rows had no column, so Qty On Hand exceeded the sum of the ten columns by exactly 1 on
+         1,031 of 1,051 SKUs. Stock itself is unchanged. Nothing else changed from v108. -->
+    <!-- v108 (2026-10-03): two fixes, nothing else changed.
+         1. SCROLL-UP GOT STUCK in long lists (Bin lookup > product history, and
+            any list that scrolls inside the page). CAUSE: the pull-to-refresh
+            code started a "pull" whenever the PAGE was at the top, even when the
+            finger was on an inner scrolling list, and then blocked every
+            downward drag - so the inner list could scroll down but never back
+            up. FIX: a pull now starts only when the finger is NOT on an inner
+            scrolling list, input box or pop-up, and the page itself is at the
+            top. Pop-up sheets also no longer pass their scrolling on to the page.
+         2. PULL-DOWN-TO-REFRESH made reliable: sideways drags are ignored; it
+            never runs on the camera screen, over any pop-up, while typing, or
+            on PICK / MOVE / SETTINGS while there is something unsaved (a slip
+            being picked, text typed in a box); it refreshes the current screen
+            with the same function its Refresh button uses (no page reload); one
+            refresh at a time; the indicator always clears. The phone browser's
+            own pull-to-reload is switched off so it cannot fight the app's own.
+            The offline save queue is never touched by any of this. -->
     <!-- v107 (2026-10-02): (1) Void cannot be missed: a status line at the top of
          Stock history says whether Void is available (and offers a retry if the
          check failed - a failed check is never remembered); Void is also on the
@@ -2533,6 +2594,11 @@ var qrcode = function() {
         .scan-hint{text-align:center;font-size:10px;color:#999;margin-top:5px;margin-bottom:2px}
         /* CONTENT */
         .content{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:10px 14px 90px}
+        /* v108: the phone browser's own pull-to-reload must not fight the app's pull-to-refresh,
+           and a sideways drag must not trigger the browser's back-swipe, and pop-up sheets must not pass their scrolling on to the page behind them */
+        html,body{overscroll-behavior:none}
+        .content{overscroll-behavior:none;touch-action:pan-y}
+        .sku-detail-sheet,.hs-box,.dbd,.sheet-list,.void-modal{overscroll-behavior:contain}
         /* TABS */
         .ver-corner{position:fixed;top:6px;right:8px;z-index:150;background:rgba(0,0,0,.55);color:#fff;font-size:10px;font-family:sans-serif;padding:2px 7px;border-radius:10px;pointer-events:none;letter-spacing:.3px}
         .offline-queue-badge{position:fixed;top:6px;left:8px;z-index:150;background:#1B4F8A;color:#fff;font-size:10px;font-family:sans-serif;padding:3px 9px;border-radius:10px;letter-spacing:.3px;cursor:pointer;box-shadow:0 2px 6px rgba(0,0,0,.2)}
@@ -3051,10 +3117,47 @@ var qrcode = function() {
         .lh-vlab{display:block;font-size:11px;font-weight:700;color:#555;margin:8px 0 3px;text-transform:uppercase;letter-spacing:.4px}
         .lh-vpair{font-size:12px;line-height:1.5;background:#EEF2F8;border:1px solid #E2E8F0;border-radius:8px;padding:7px 9px;margin:6px 0}
         .lh-vpair.bad{background:#FDECEA;color:#B3261E;border-color:#F3C7C3;font-weight:600}
-    </style>
+    
+/* v110 */
+.sl-bar{margin:6px 0 4px}
+.sl-r1{display:flex;gap:6px;align-items:center}.sl-r1 input{flex:1 1 auto;min-width:0}.sl-r1 select{flex:0 0 44%;min-width:0}
+.sl-r2{display:flex;gap:6px;align-items:center;margin-top:6px;flex-wrap:wrap}
+.sl-showing{flex:1 1 auto;font-size:12px;color:#444;text-align:center}
+.sl-panel{margin-top:6px;padding:8px;border:1px solid #E2E8F0;border-radius:8px;background:#F8F9FB}
+.sl-lab{display:block;font-size:11px;font-weight:700;color:#1B3F6B;margin:8px 0 3px}
+.sl-chips{display:flex;flex-wrap:wrap;gap:5px}
+.sl-chip{border:1px solid #CBD5E1;background:#fff;color:#1A1A1A;border-radius:14px;padding:6px 10px;font-size:12px;min-height:34px}
+.sl-chip.on{background:#0A1628;color:#fff;border-color:#0A1628}
+.sl-qty{display:flex;gap:6px;align-items:center}.sl-qty input{min-width:0;flex:1}
+.sl-help{font-size:11px;color:#6B7280;margin-top:8px}
+.sl-lvl{display:inline-block;font-size:10px;font-weight:700;border:1px solid;border-radius:8px;padding:1px 6px;margin-right:4px}
+.sl-warn{font-size:11px;color:#9A6700;background:#FFF8E5;border:1px solid #F0D58A;border-radius:6px;padding:5px 8px;margin:4px 0}
+.lg-wrap{border-top:1px dashed #e0e0e0;padding-top:5px}
+.lg-legend{font-size:10px;color:#6B7280;margin-bottom:4px;line-height:1.4}
+.lg-row{padding:6px 4px;border-bottom:1px solid #f1f1f1;font-size:11px;color:#333}
+.lg-row.lg-void{opacity:.65;background:#fafafa}.lg-row.lg-disc{background:#FFF8E5;border-left:3px solid #9A6700}
+.lg-top{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.lg-badge{display:inline-block;color:#fff;font-size:10px;font-weight:700;border-radius:8px;padding:2px 7px}
+.lg-q{font-weight:800;font-size:13px}.lg-q.pos{color:#1B7A3A}.lg-q.neg{color:#B3261E}
+.lg-sent{font-size:12px;margin-top:3px;color:#1A1A1A}
+.lg-meta{color:#6B7280;margin-top:2px}.lg-bal{color:#1B3F6B;margin-top:2px}
+.lg-note{margin-top:3px;color:#444;font-style:italic}.lg-note.disc{color:#7A5200;font-weight:700;font-style:normal}
+.ml-note{margin:4px 0}.ml-warn{font-size:12px;color:#7A4B00;background:#FFF3CD;border:1px solid #F0D58A;border-radius:8px;padding:8px}
+.ml-info{font-size:11px;color:#6B7280;padding:4px 2px}
+.sh-pill{display:inline-block;font-size:11px;background:#EEF2F8;border-radius:10px;padding:2px 8px;margin:2px 3px 0 0}
+.sh-pill.sev-HIGH{background:#FDE7E5;color:#B3261E}.sh-pill.sev-MEDIUM{background:#FFF3CD;color:#7A4B00}.sh-pill.sev-LOW{background:#E5F3EA;color:#1B7A3A}
+.sh-list{max-height:380px;overflow-y:auto;border:1px solid #eee;border-radius:8px;margin-top:6px}
+.sh-row{padding:8px 10px;border-bottom:1px solid #f2f2f2;font-size:12px}
+.sh-sev{font-size:10px;font-weight:800;border-radius:8px;padding:1px 6px;color:#fff;background:#6B7280}
+.sh-sev.sev-HIGH{background:#B3261E}.sh-sev.sev-MEDIUM{background:#9A6700}.sh-sev.sev-LOW{background:#1B7A3A}
+.sh-meta{color:#6B7280;font-size:11px;margin-top:2px}.sh-detail{font-size:11px;margin-top:2px;color:#444}
+.rr-opt{display:flex;gap:10px;align-items:center;padding:10px 4px;font-size:14px;border-bottom:1px solid #f1f1f1}.rr-opt input{width:22px;height:22px;flex:0 0 auto}
+.cp-item{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid #f1f1f1;font-size:13px}
+.void-modal button:disabled,#rr-go:disabled{opacity:.45}
+</style>
 </head>
 <body>
-<div class="ver-corner" id="verCornerBadge" onclick="handleVerBadgeTap()">v107</div>
+<div class="ver-corner" id="verCornerBadge" onclick="handleVerBadgeTap()">v111</div>
 <!-- v63: Gap 2 — offline write-queue indicator. Hidden (display:none) unless
      something is actually queued or failed. Tapping it shows the queue detail
      panel (openOfflineQueuePanel()). -->
@@ -3557,10 +3660,10 @@ var qrcode = function() {
                  fetch, and render, so it can't interfere with the paginated stock
                  list below. -->
             <div class="settings-section" style="margin-bottom:10px;">
-                <h3 style="margin-bottom:6px;">&#128230; Bin Lookup</h3>
-                <div class="settings-info" style="margin-bottom:6px;">Scan or type a SKU or ASIN to see every bin holding it, or a bin code to see everything in that bin &mdash; the answer appears by itself. Type 2+ letters for suggestions (title too). Bins are created automatically the first time you use them — there is no fixed list to be limited to.</div>
+                <h3 style="margin-bottom:6px;">&#128230; Stock Search</h3>
+                <div class="settings-info" style="margin-bottom:6px;"><strong>Search by bin, SKU, ASIN, product name or title.</strong> Scan or type a SKU or ASIN to see every bin holding it, or a bin code to see everything in that bin &mdash; the answer appears by itself. Type 2+ letters for suggestions (title too). Bins are created automatically the first time you use them — there is no fixed list to be limited to.</div>
                 <div class="settings-row">
-                    <input type="text" class="settings-input" id="bin-lookup-input" placeholder="SKU, ASIN, title or bin code..." autocomplete="off" autocorrect="off" autocapitalize="characters" spellcheck="false" style="text-transform:uppercase" oninput="forceUpperInput(this, event);onBinLookupInput()" onkeydown="if(event.key==='Enter'&&!event.defaultPrevented)runBinLookupNow();">
+                    <input type="text" class="settings-input" id="bin-lookup-input" placeholder="Bin, SKU, ASIN, product name or title..." autocomplete="off" autocorrect="off" autocapitalize="characters" spellcheck="false" style="text-transform:uppercase" oninput="forceUpperInput(this, event);onBinLookupInput()" onkeydown="if(event.key==='Enter'&&!event.defaultPrevented)runBinLookupNow();">
                     <!-- v49: camera scan-to-fill for quick lookup by SKU/ASIN/bin barcode -->
                     <button class="scan-cam-btn" onclick="openScannerFor('bin-lookup-input')" title="Scan SKU/ASIN/bin barcode">
                         <svg viewBox="0 0 24 24"><path d="M12 9a4 4 0 1 0 4 4 4 4 0 0 0-4-4zm0 6a2 2 0 1 1 2-2 2 2 0 0 1-2 2z"/><path d="M20 4h-2.76l-1.63-2H8.39L6.76 4H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2zm0 15H4V6h3.56L9.19 4h5.62l1.63 2H20z"/></svg>
@@ -3568,6 +3671,16 @@ var qrcode = function() {
                     <button class="settings-btn" style="max-width:90px;" onclick="runBinLookupNow()">Search</button>
                 </div>
                 <div id="bin-lookup-result"></div>
+            </div>
+            <!-- v110: Stock health check - folded away; reads oms_stock_health_flags -->
+            <div class="settings-section" id="sh-card" style="margin-bottom:10px;">
+                <h3 style="margin:0;cursor:pointer;" onclick="shToggle()">&#9877; Stock health check <span id="sh-arrow" style="font-size:12px;">&#9662;</span></h3>
+                <div id="sh-body" style="display:none;">
+                    <div class="settings-info" style="margin:6px 0;">Things worth a look: <strong>possible double scan</strong> = the same quantity added to the same bin twice within seconds; <strong>held more than in stock</strong> = more units reserved for pick slips than the bin holds; <strong>bin below zero</strong> = a bin shows a negative count; <strong>units with no proper bin</strong> = stock in no bin or a placeholder. Tap <em>History</em> to see what happened, or <em>Count this bin</em> to correct it by counting.</div>
+                    <div style="text-align:right;"><button class="csv-btn" onclick="shLoad()">&#8635; Refresh</button></div>
+                    <div id="sh-summary"></div>
+                    <div id="sh-list" class="sh-list"></div>
+                </div>
             </div>
 
             <div class="cam-error-banner" id="low-stock-banner" style="margin-bottom:10px;cursor:pointer;" onclick="jumpToLowStock()" title="Tap to view these SKUs"><strong id="low-stock-banner-text">&#9888; 0 SKUs at or below reorder point</strong></div>
@@ -6508,7 +6621,7 @@ function buildLedgerTxnRow(opts, emp) {
                     ? state.moveSession.session_id : null
     };
 }
-function writeLedgerTxn(opts) {
+function writeLedgerTxn_v109(opts) {
     // opts: { skuCode, asin, qtyDelta, txnType, channel, orderId, binCode, note }
     var emp = loadEmployee();
     // v63: Gap 2 — no live connection at all queues the write instead of
@@ -7103,7 +7216,7 @@ function refreshQtyStepper(inputId) {
 // product shown on the card. Counting (Set True Count) and stock coming in
 // have no upper limit here. Typing a bigger number is still possible - the
 // database refuses a removal the bin cannot cover, exactly as before.
-function moveQtyMax() {
+function moveQtyMax_v109() {
     var cfg = MOVE_MODES[moveMode] || {};
     if (cfg.isCorrection || moveBinRole('from') !== 'OUT') return null;
     var binEl = document.getElementById('move-bin-input');
@@ -7227,7 +7340,7 @@ function setMoveMode(mode) {
     loadBinList();
     armScanInputNoKeyboard('move-sku-input');
 }
-function submitMoveTransaction() {
+function submitMoveTransaction_v109() {
     // v51: double-submit guard — submitMoveTransaction() makes a chained
     // async call (SKU lookup, then the actual ledger insert), and without
     // this guard a double-tap on Submit or a scanner-gun Enter firing twice
@@ -8328,7 +8441,7 @@ function loadQuickAddTypeOptions() {
         return TYPE_LIST;
     }).catch(function() { return TYPE_LIST; });
 }
-function submitQuickAdd() {
+function submitQuickAdd_v109() {
     // v95: an Admin/Supervisor action, confirmed by their own PIN in the
     // database (oms_admin_create_listing). The listing is created switched ON.
     // Opening stock still goes through writeLedgerTxn(), the one ledger writer.
@@ -8676,7 +8789,7 @@ function fillBinDatalist(listId, choices) {
 // Rebuilds both Actions-tab lists. Called when the product changes, the action
 // changes, the bin list loads, and after every save (the save clears the
 // product box, which runs renderMoveSkuCard(null, '')).
-function refreshMoveBinLists() {
+function refreshMoveBinLists_v109() {
     var binEl = document.getElementById('move-bin-input');
     if (!binEl) return;
     if (binEl.getAttribute('list') !== 'move-bin-list-live') binEl.setAttribute('list', 'move-bin-list-live');
@@ -9312,11 +9425,11 @@ function renderBulkResult() {
     }
     bulkMsg(html, (d.committed || already) ? 'ok' : '');
 }
-function cancelBulkBatch(batchId) {
+function cancelBulkBatch_v109(batchId) {
     if (!confirm('Cancel batch ' + batchId + '?\n\nEvery line not picked yet is released back to free stock. Lines already picked stay picked.')) return;
     askManagerPin('Cancel batch ' + batchId + '?').then(function (pin) {
         if (!pin) return { ok: false, cancelled: true, message: 'Cancelled - nothing was changed.' };
-        return withTimeout(db.rpc('oms_cancel_pick', { p_batch_id: batchId, p_reason: 'Cancelled from the app',
+        return withTimeout(db.rpc('oms_cancel_pick', { p_batch_id: batchId, p_reason: 'Cancelled from the app' + relSuffix(),
                                                        p_employee_code: sessionEmployeeCode(), p_pin: pin }), 12000, 'Cancel batch')
             .then(function (r) {
                 if (r.error) return { ok: false, message: r.error.message };
@@ -9326,7 +9439,7 @@ function cancelBulkBatch(batchId) {
             });
     }).catch(function (e) { return { ok: false, message: String(e && e.message ? e.message : e) }; }).then(function (d) {
         if (!d || !d.ok) { bulkMsg('Not cancelled: ' + esc59((d && d.message) || 'unknown reason'), 'err'); return; }
-        bulkMsg('&#10003; Batch ' + batchId + ' cancelled - ' + (d.cancelled || 0) + ' line(s) released.', 'ok');
+        bulkMsg('&#10003; Batch ' + batchId + ' cancelled - ' + (d.cancelled || 0) + ' line(s) released.', 'ok'); relAfter();
         // v97: this can now be any batch from the Held stock list, so only
         // forget the sheet on screen if it is the batch that was cancelled.
         if (_bulk.result && Number(_bulk.result.batch_id) === Number(batchId)) _bulk.result = null;
@@ -9427,7 +9540,7 @@ function renderHeldBatches(per) {
 // NOT sent: oms_cancel_pick closes the whole batch whenever it is given one.
 // The order number is checked against this batch first, so a typing slip
 // cannot release some other order.
-function cancelHeldOrder(batchId, typed) {
+function cancelHeldOrder_v109(batchId, typed) {
     var known = _held.orders[batchId] || {};
     var ord = (typed !== undefined) ? typed : prompt('Cancel which order in batch ' + batchId + '?\n\nType or paste the order number exactly as on the slip.');
     if (ord === null || ord === undefined) return;
@@ -9437,7 +9550,7 @@ function cancelHeldOrder(batchId, typed) {
     if (!confirm('Cancel order ' + ord + '?\n\n' + known[ord] + ' unpicked line(s) are released back to free stock. Lines already picked stay picked.')) return;
     askManagerPin('Cancel order ' + ord + '?').then(function (pin) {
         if (!pin) return { ok: false, cancelled: true, message: 'Cancelled - nothing was changed.' };
-        return withTimeout(db.rpc('oms_cancel_pick', { p_order_id: ord, p_reason: 'Order cancelled from the app (batch ' + batchId + ')',
+        return withTimeout(db.rpc('oms_cancel_pick', { p_order_id: ord, p_reason: 'Order cancelled from the app (batch ' + batchId + ')' + relSuffix(),
                                                        p_employee_code: sessionEmployeeCode(), p_pin: pin }), 12000, 'Cancel order')
             .then(function (r) {
                 if (r.error) return { ok: false, message: r.error.message };
@@ -9448,7 +9561,7 @@ function cancelHeldOrder(batchId, typed) {
     }).catch(function (e) { return { ok: false, message: String(e && e.message ? e.message : e) }; }).then(function (d) {
         if (!d || !d.ok) { heldMsg('Not cancelled: ' + esc59((d && d.message) || 'unknown reason'), 'err'); return; }
         heldMsg('&#10003; Order ' + esc59(ord) + ' cancelled - ' + (d.cancelled || 0) + ' line(s) released.', 'ok');
-        logEvent('ORDER ' + ord, 'Held order cancelled (batch ' + batchId + ')');
+        logEvent('ORDER ' + ord, 'Held order cancelled (batch ' + batchId + ')'); relAfter();
         loadHeldBatches();
     });
 }
@@ -9750,13 +9863,13 @@ function _hsAfterRelease() {
     loadHeldStock();
     try { if (document.getElementById('held-list')) loadHeldCardsInto('held-list'); } catch (e) {}
 }
-function releaseHeldLine(resId) {
+function releaseHeldLine_v109(resId) {
     var x = null;
     _hs.rows.forEach(function (r) { if (Number(r.res_id) === Number(resId) && r.status === 'OPEN') x = r; });
     if (!x) { hsMsg('That line is no longer held - tap Refresh.', 'err'); return; }
     if (!confirm('Release this line?\n\n' + x.qty + ' x ' + x.sku_code + ' in bin ' + x.bin_code + ' (order ' + x.order_id + ') go back to free stock.\nThe printed slip for this line will no longer work.')) return;
     var fns = (_hs.lineFns && _hs.lineFns.length) ? _hs.lineFns.slice() : HS_LINE_FNS.slice();
-    var args = { p_res_id: Number(resId), p_reason: 'Released from the app (Held stock)' };
+    var args = { p_res_id: Number(resId), p_reason: 'Released from the app (Held stock)' + relSuffix() };
     // asks for the PIN once, then tries oms_cancel_pick_line and, if the
     // database does not have it, oms_cancel_reservation.
     askManagerPin('Release line R' + resId + '?').then(function (pin) {
@@ -9778,31 +9891,31 @@ function releaseHeldLine(resId) {
         if (!d || !d.ok) { hsMsg('Not released: ' + esc59((d && d.message) || 'unknown reason'), 'err'); return; }
         _hs.m5 = true;
         hsMsg('&#10003; Line R' + resId + ' released - ' + x.qty + ' x ' + esc59(x.sku_code) + ' is free stock again. That slip will no longer work.', 'ok');
-        logEvent('R' + resId, 'Held line released');
+        logEvent('R' + resId, 'Held line released'); relAfter();
         _hsAfterRelease();
     });
 }
-function releaseHeldOrder(orderId) {
+function releaseHeldOrder_v109(orderId) {
     orderId = String(orderId || '').toUpperCase();
     var n = _hs.rows.filter(function (r) { return r.status === 'OPEN' && String(r.order_id || '').toUpperCase() === orderId; }).length;
     if (!n) { hsMsg('Order ' + esc59(orderId) + ' has nothing held - tap Refresh.', 'err'); return; }
     if (!confirm('Release the rest of order ' + orderId + '?\n\nEvery unit still held for this order goes back to free stock - ' + n + ' held line(s) shown here, plus any in other batches for the same order. Their printed slips will no longer work. Lines already picked stay picked.')) return;
-    _hsCall('oms_cancel_pick', { p_order_id: orderId, p_reason: 'Order released from the app (Held stock)' }, 'Release order ' + orderId + '?').then(function (d) {
+    _hsCall('oms_cancel_pick', { p_order_id: orderId, p_reason: 'Order released from the app (Held stock)' + relSuffix() }, 'Release order ' + orderId + '?').then(function (d) {
         if (!d || !d.ok) { hsMsg('Not released: ' + esc59((d && d.message) || 'unknown reason'), 'err'); return; }
         hsMsg('&#10003; Order ' + esc59(orderId) + ': ' + (d.cancelled || 0) + ' line(s) released - that stock is free again.', 'ok');
-        logEvent('ORDER ' + orderId, 'Held order released');
+        logEvent('ORDER ' + orderId, 'Held order released'); relAfter();
         _hsAfterRelease();
     });
 }
-function releaseHeldBatch(batchId) {
+function releaseHeldBatch_v109(batchId) {
     var n = _hs.rows.filter(function (r) { return r.status === 'OPEN' && Number(r.batch_id) === Number(batchId); }).length;
     if (!n) { hsMsg('This batch holds nothing any more - tap Refresh.', 'err'); return; }
     var b = _hs.batches[batchId] || {};
     if (!confirm('Release EVERYTHING still held in this batch?\n\n' + (b.label || ('Batch ' + batchId)) + '\n' + n + ' held line(s) go back to free stock. Those printed slips will no longer work. Lines already picked stay picked.')) return;
-    _hsCall('oms_cancel_pick', { p_batch_id: Number(batchId), p_reason: 'Batch released from the app (Held stock)' }, 'Release batch ' + (b.label || batchId) + '?').then(function (d) {
+    _hsCall('oms_cancel_pick', { p_batch_id: Number(batchId), p_reason: 'Batch released from the app (Held stock)' + relSuffix() }, 'Release batch ' + (b.label || batchId) + '?').then(function (d) {
         if (!d || !d.ok) { hsMsg('Not released: ' + esc59((d && d.message) || 'unknown reason'), 'err'); return; }
         hsMsg('&#10003; ' + (d.cancelled || 0) + ' line(s) released - that stock is free again.', 'ok');
-        logEvent('BATCH ' + batchId, 'Held batch released');
+        logEvent('BATCH ' + batchId, 'Held batch released'); relAfter();
         _hsAfterRelease();
     });
 }
@@ -10219,7 +10332,7 @@ function _rsReleaseBulk(lines, pin, reason) {
     }
     return next();
 }
-function _rsRelease(ids, what, bulk) {
+function _rsRelease_v109(ids, what, bulk) {
     if (!canReservedStock()) { rsMsg('You do not have access to Reserved &amp; held stock.', 'err'); return Promise.resolve(); }   // v107
     if (_rs.busy) return Promise.resolve();
     if (_rsOffline()) { rsMsg(RS_OFFLINE_TEXT, 'err'); return Promise.resolve(); }
@@ -10235,7 +10348,7 @@ function _rsRelease(ids, what, bulk) {
         '\n\nThese units go back to free stock. The printed slips for these lines will stop working: ' + slipTxt +
         '.\nThis does not change anything on Amazon.')) return Promise.resolve();
     _rs.busy = true; renderReservedStock();
-    var reason = 'Released from the app (Reserved stock)';
+    var reason = 'Released from the app (Reserved stock)' + relSuffix();
     var fns = (_hs.lineFns && _hs.lineFns.length) ? _hs.lineFns.slice() : HS_LINE_FNS.slice();
     return askManagerPin('Release ' + _rsLines(lines.length) + ' (' + _rsUnits(units) + ')?').then(function (pin) {
         if (!pin) { rsMsg('Cancelled - nothing was changed.', ''); return null; }
@@ -10813,6 +10926,12 @@ function exportFullInventoryCSV() {
                         total_qc_released: act.total_qc_released != null ? act.total_qc_released : 0,
                         total_manual_correction: act.total_manual_correction != null ? act.total_manual_correction : 0,
                         net_bin_transfers: act.net_bin_transfers != null ? act.net_bin_transfers : 0,
+                        // v109: balancing column = Qty On Hand minus the ten activity columns, so the sheet always adds up.
+                        opening_and_other: (Number(qty) || 0) - (
+                            (Number(act.total_sold) || 0) + (Number(act.total_returned) || 0) + (Number(act.total_new_stock_in) || 0) +
+                            (Number(act.total_lost_theft) || 0) + (Number(act.total_found) || 0) + (Number(act.total_rejected_damaged) || 0) +
+                            (Number(act.total_qc_hold_net) || 0) + (Number(act.total_qc_released) || 0) +
+                            (Number(act.total_manual_correction) || 0) + (Number(act.net_bin_transfers) || 0)),
                         last_updated: r.last_movement_at || ''
                     });
                 });
@@ -10832,7 +10951,7 @@ function exportFullInventoryCSV() {
         var header = ['SKU Code', 'ASIN', 'Product Name', 'Product Type', 'Set Size', 'Default Bin', 'Active',
             'Qty On Hand', 'Stock Status', 'Bin Count', 'Bin Breakdown (Live)', 'MRP', 'Cost Price', 'Reorder Threshold',
             'Total Sold', 'Total Returned', 'Total New Stock In', 'Total Lost/Theft', 'Total Found', 'Total Rejected/Damaged',
-            'Total QC Hold (Net)', 'Total QC Released', 'Total Manual Correction', 'Net Bin Transfers', 'Last Updated'];
+            'Total QC Hold (Net)', 'Total QC Released', 'Total Manual Correction', 'Net Bin Transfers', 'Opening Balance & Other (balancing)', 'Last Updated'];
         var lines = [header.join(',')];
         function q(v) { return '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"'; }
         accumulated.forEach(function(r) {
@@ -10841,6 +10960,7 @@ function exportFullInventoryCSV() {
                 r.qty_on_hand, r.stock_status, r.bin_count, q(r.bin_breakdown), r.mrp, r.cost_price, r.reorder_threshold,
                 r.total_sold, r.total_returned, r.total_new_stock_in, r.total_lost_theft, r.total_found, r.total_rejected_damaged,
                 r.total_qc_hold_net, r.total_qc_released, r.total_manual_correction, r.net_bin_transfers,
+                r.opening_and_other,
                 r.last_updated
             ].join(','));
         });
@@ -11141,7 +11261,7 @@ function renderBulkResults(results, resultEl) {
 var lastBinLookupRows = [];   // last SKU-summary rows shown, used by exportBinLookupCSV()
 
 var _binLookupSeq = 0;   // v106
-function runBinLookup() {
+function runBinLookup_v109() {
     var el = document.getElementById('bin-lookup-result');
     var raw = (document.getElementById('bin-lookup-input').value || '').trim().toUpperCase();
     if (!db) { el.innerHTML = '<div class="move-result err">Live database not reachable right now.</div>'; return; }
@@ -11307,7 +11427,7 @@ function fmtSkuHistoryRowHtml(r) {
 // the SKU's Bin Lookup card. Reads oms_inventory_transactions directly
 // (already the permanent, append-only source of truth every other feature
 // in this app reads from) — no new table needed.
-function toggleSkuHistory(skuCode) {
+function toggleSkuHistory_v109(skuCode) {
     var box = document.getElementById('sku-history-' + cssId(skuCode));
     if (!box) return;
     if (box.style.display === 'block') { box.style.display = 'none'; return; }
@@ -11440,7 +11560,7 @@ function renderSkuDetailSheet(r, bin) {
 // more" button that widens the same query's LIMIT by 25 each press) instead
 // of a second, differently-shaped history query -- same table, same columns,
 // same row formatter (fmtSkuHistoryRowHtml).
-function renderSkuDetailHistory(skuCode) {
+function renderSkuDetailHistory_v109(skuCode) {
     var body = document.getElementById('sku-detail-history-body');
     var moreEl = document.getElementById('sku-detail-history-more');
     if (!body) return;
@@ -11470,7 +11590,7 @@ function jumpToLowStock() {
 
 // v52: CSV export of whatever the Bin Lookup currently shows — one row per
 // SKU+bin combination, with the same detail columns as the on-screen cards.
-function exportBinLookupCSV() {
+function exportBinLookupCSV_v109() {
     if (!lastBinLookupRows.length) { alert('Nothing to export — run a search first.'); return; }
     var rows = ['SKU,ASIN,Product Name,Bin,Qty in Bin,Total Qty (all bins),Last Updated'];
     lastBinLookupRows.forEach(function(g) {
@@ -15166,7 +15286,7 @@ function loadDashboard(manualRefresh) {
 // deliberately excluded, same reasoning as its missing tap-refresh button:
 // 100% static content, nothing to refresh, a gesture there would mislead.
 var PTR_THRESHOLD = 72; // px of pull before release triggers a refresh — tune on a real device
-var ptr = { pulling: false, startY: 0, indicatorEl: null };
+var ptr = { pulling: false, startY: 0, startX: 0, decided: false, busy: false, indicatorEl: null };
 var PTR_REFRESH_FNS = {
     pick:     function () { refreshPickTab(); },
     move:     function () { refreshMoveTab(); },
@@ -15175,51 +15295,131 @@ var PTR_REFRESH_FNS = {
     settings: function () { refreshSettingsTab(); renderAdminPanel(); },
     dash:     function () { loadDashboard(true); }
 };
+// v108: every pop-up / full-screen layer in the app. While any of these is showing,
+// a pull must never start (and never refresh whatever is behind it).
+var PTR_BLOCKING_LAYERS = [
+    '.sku-detail-overlay.open', '.cam-overlay.active', '.emp-modal-bg.active', '.hs-bg.active',
+    '.dbd-bg.active', '.sheet-bg.active'
+];
+function ptrLayerOpen() {
+    try {
+        if (state.camStream) return true;   // scanner running
+        for (var i = 0; i < PTR_BLOCKING_LAYERS.length; i++) {
+            if (document.querySelector(PTR_BLOCKING_LAYERS[i])) return true;
+        }
+    } catch (e) {}
+    return false;
+}
+// v108: true when the screen holds something the person has not saved yet, which a
+// refresh would wipe or overwrite. PICK: a slip in progress, a finished pick still
+// showing, or text in the scan box. MOVE: anything typed in a box. Any screen: a box
+// the person has typed something into and is still in.
+function ptrHasUnsaved(tab) {
+    try {
+        var ae = document.activeElement;
+        if (ae && /^(INPUT|TEXTAREA|SELECT)$/.test(ae.tagName) && ae.type !== 'button' && ae.type !== 'checkbox' && ae.type !== 'radio') {
+            // boxes are often focused on purpose (the PICK scan box always is) - an empty one holds nothing to lose
+            if (ae.value && ae.value !== ae.defaultValue) return true;
+        }
+        if (tab === 'pick') {
+            var si = document.getElementById('scan-input');
+            if (state.pickState && state.pickState !== 'IDLE') return true;
+            if (state.order || state.lastPick) return true;
+            if (si && si.value) return true;
+        }
+        if (tab === 'move') {
+            var box = document.getElementById('move-tab');
+            if (box) {
+                var els = box.querySelectorAll('input,textarea');
+                for (var i = 0; i < els.length; i++) {
+                    var t = (els[i].type || 'text').toLowerCase();
+                    if (t === 'button' || t === 'checkbox' || t === 'radio' || t === 'hidden') continue;
+                    if (els[i].value && els[i].value !== els[i].defaultValue) return true;   // the Quantity box starts as 1: that is not typing
+                }
+            }
+        }
+    } catch (e) { return true; }   // if in doubt, do not refresh
+    return false;
+}
+// v108: is the finger on something that scrolls by itself (an inner list), an input
+// box, or a pop-up? Then the gesture belongs to that thing, never to pull-to-refresh.
+function ptrTouchBelongsToInner(target, containerEl) {
+    var el = target;
+    if (el && el.nodeType === 3) el = el.parentElement;
+    if (el && el.closest && el.closest('input,textarea,select,[contenteditable="true"],.sku-detail-overlay,.cam-overlay,.emp-modal-bg,.hs-bg,.dbd-bg,.sheet-bg')) return true;
+    while (el && el !== containerEl && el !== document.body) {
+        var cs = window.getComputedStyle(el);
+        if (/(auto|scroll)/.test(cs.overflowY) && el.scrollHeight > el.clientHeight + 1) return true;
+        if (/(auto|scroll)/.test(cs.overflowX) && el.scrollWidth > el.clientWidth + 1) return true;
+        el = el.parentElement;
+    }
+    return false;
+}
 function initPullToRefresh(containerEl, getActiveTab) {
     if (!containerEl) return;
     var ind = document.createElement('div');
     ind.className = 'ptr-indicator';
     ind.style.cssText = 'height:0;overflow:hidden;display:flex;align-items:center;justify-content:center;font-size:13px;color:#666;transition:height .15s ease;';
     containerEl.insertBefore(ind, containerEl.firstChild);
+    var failSafe = null;
+    function clearInd() {
+        ind.style.height = '0px';
+        ind.textContent = '';
+        if (failSafe) { clearTimeout(failSafe); failSafe = null; }
+    }
+    function cancelPull() { ptr.pulling = false; ptr.decided = false; clearInd(); }
     containerEl.addEventListener('touchstart', function (e) {
+        ptr.pulling = false; ptr.decided = false;
+        if (ptr.busy) return;                                   // one refresh at a time
         var tab = getActiveTab();
-        if (tab === 'guide' || !PTR_REFRESH_FNS[tab]) { ptr.pulling = false; return; }
-        // Round-1 audit fix: #sku-detail-overlay/#sku-detail-sheet is a DOM
-        // descendant of .content (it lives inside the STOCK tab markup)
-        // despite rendering as a fixed overlay with its own independent
-        // scroll -- without this guard, a swipe inside that sheet bubbled up
-        // and stole the gesture from the sheet's own scrolling.
-        if (e.target.closest && e.target.closest('.sku-detail-overlay')) { ptr.pulling = false; return; }
-        if (containerEl.scrollTop > 0 || e.touches.length !== 1) { ptr.pulling = false; return; }
+        if (tab === 'guide' || !PTR_REFRESH_FNS[tab]) return;
+        if (e.touches.length !== 1) return;
+        if (containerEl.scrollTop > 0 || document.documentElement.scrollTop > 0) return;   // the page itself must be at the top
+        if (ptrLayerOpen()) return;                             // scanner or any pop-up is showing
+        if (ptrTouchBelongsToInner(e.target, containerEl)) return;   // inner list / input / pop-up owns this touch
+        if (ptrHasUnsaved(tab)) return;                         // never wipe something unsaved
         ptr.pulling = true;
         ptr.startY = e.touches[0].clientY;
+        ptr.startX = e.touches[0].clientX;
     }, { passive: true });
     containerEl.addEventListener('touchmove', function (e) {
         if (!ptr.pulling) return;
+        if (e.touches.length !== 1 || containerEl.scrollTop > 0 || ptrLayerOpen()) { cancelPull(); return; }
         var dy = e.touches[0].clientY - ptr.startY;
-        if (dy <= 0) { ind.style.height = '0px'; ind.textContent = ''; return; }
-        if (containerEl.scrollTop > 0) { ptr.pulling = false; ind.style.height = '0px'; ind.textContent = ''; return; }
-        e.preventDefault(); // own the drag while genuinely pulling from the top
+        var dx = e.touches[0].clientX - ptr.startX;
+        if (!ptr.decided) {
+            // decide once, after a few pixels, what kind of drag this is
+            if (Math.abs(dx) < 8 && Math.abs(dy) < 8) return;
+            if (dy <= 0 || Math.abs(dx) > Math.abs(dy)) { cancelPull(); return; }   // up or sideways: not ours
+            ptr.decided = true;
+        }
+        if (dy <= 0) { cancelPull(); return; }
+        if (e.cancelable) e.preventDefault();   // own the drag only while genuinely pulling down from the top
         var dist = Math.min(dy * 0.5, PTR_THRESHOLD * 1.6);
         ind.style.height = dist + 'px';
         ind.textContent = dist >= PTR_THRESHOLD ? '⬇️ Release to refresh' : '⬇️ Pull to refresh';
     }, { passive: false });
     containerEl.addEventListener('touchend', function () {
         if (!ptr.pulling) return;
-        ptr.pulling = false;
         var height = parseFloat(ind.style.height) || 0;
-        ind.style.height = '0px';
-        ind.textContent = '';
-        if (height >= PTR_THRESHOLD) {
-            var fn = PTR_REFRESH_FNS[getActiveTab()];
-            if (fn) fn();
-        }
+        var go = ptr.decided && height >= PTR_THRESHOLD && !ptr.busy;
+        ptr.pulling = false; ptr.decided = false;
+        if (!go) { clearInd(); return; }
+        var tab = getActiveTab();
+        var fn = PTR_REFRESH_FNS[tab];
+        // re-check at release time: a pop-up or unsaved entry may have appeared mid-pull
+        if (!fn || ptrLayerOpen() || ptrHasUnsaved(tab)) { clearInd(); return; }
+        ptr.busy = true;
+        ind.textContent = '⏳ Refreshing...';
+        ind.style.height = (PTR_THRESHOLD * 0.6) + 'px';
+        try { fn(); } catch (err) { console.warn('pull-to-refresh failed', err); }
+        // the same function as the screen's own Refresh button is used (no page reload); show
+        // "Refreshing" briefly, then always clear the bar and allow the next pull
+        failSafe = setTimeout(function () { clearInd(); ptr.busy = false; }, 900);
     }, { passive: true });
-    containerEl.addEventListener('touchcancel', function () {
-        ptr.pulling = false;
-        ind.style.height = '0px';
-        ind.textContent = '';
-    }, { passive: true });
+    containerEl.addEventListener('touchcancel', function () { cancelPull(); }, { passive: true });
+    // never leave the bar stuck if the app is sent to the background mid-pull
+    document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'hidden') { cancelPull(); } });
 }
 
 function switchTab(tab) {
@@ -15888,11 +16088,11 @@ function lhProbeM8(fromRun) {
     if (LH.m8Probe) return LH.m8Probe;
     LH.m8Checking = true; LH.m8Err = '';
     try { lhRenderVoidStatus(); } catch (e) {}
-    LH.m8Probe = withTimeout(db.rpc('oms_void_ledger_entry', { p_txn_id: null, p_reason: null, p_employee_code: null, p_pin: null }), 8000, 'Void check').then(function (r) {
+    LH.m8Probe = withTimeout(db.from('oms_ledger_voids').select('txn_id').limit(1), 8000, 'Void check').then(function (r) {
         if (r && r.error) {
-            if (r.error.code === 'PGRST202' || r.status === 404) LH.m8 = false;
+            if (r.error.code === 'PGRST205' || r.error.code === '42P01' || r.status === 404) LH.m8 = false;
             else LH.m8Err = r.error.message || 'no answer';
-        } else if (r && r.data && r.data.error === 'BAD_INPUT') LH.m8 = true;
+        } else if (r && !r.error) LH.m8 = true;   // v110: the void table is there (no call to the void function, so no PIN is ever needed to check)
         else LH.m8Err = 'unexpected answer';
         return LH.m8;
     }).catch(function (e) { LH.m8Err = (e && e.message) ? e.message : String(e); return LH.m8; }).then(function (v) {
@@ -16043,7 +16243,7 @@ function lhShowMore(seq) {
     return Promise.all(need).then(function (res) {
         if (seq != null && seq !== _lhSeq) return;
         var m = res[0], html = '';
-        ids.forEach(function (id) { if (m[id]) { LH.rows[id] = m[id]; html += lhRowHtml(m[id]); } });
+        html += lgLogPageHtml(ids, m);
         document.getElementById('lh-list').insertAdjacentHTML('beforeend', html);
         LH.shown += ids.length;
         var left = LH.ids.length - LH.shown;
@@ -16065,7 +16265,7 @@ function lhActionLabel(x) {
     if (lhIsReversalRow(x)) return 'Void reversal';
     return LH_TYPE_LABEL[x.txn_type] || x.txn_type;
 }
-function lhRowHtml(x) {
+function lhRowHtml_v109(x) {
     var v = LH.voids[x.txn_id], bal = LH.voidsByBal[x.txn_id];
     var q = Number(x.qty_delta) || 0;
     var e = LH.emps && LH.emps[String(x.employee_code || '').toUpperCase()];
@@ -16183,7 +16383,7 @@ function openVoidEntry(txnId) {
 // halves (ids, bins, qty) before the PIN. If it cannot be matched with certainty, say so and stop.
 function lhShowTransferPair(x) {
     var yes = document.getElementById('void-yes'), box = document.getElementById('void-pair');
-    if (yes) yes.style.display = 'none';
+    voidGate();
     if (!box) return;
     box.className = 'lh-vpair'; box.innerHTML = 'Finding the other half of this transfer&hellip;';
     var t = Date.parse(x.created_at), lo = new Date(t - 120000).toISOString(), hi = new Date(t + 120000).toISOString();
@@ -16212,17 +16412,11 @@ function lhShowTransferPair(x) {
         box.className = 'lh-vpair';
         box.innerHTML = '<strong>Both halves are voided together:</strong><br>#' + o.txn_id + ' out of bin <strong>' + esc59(o.bin_code) + '</strong> (&minus;' + q2 + ') &rarr; puts back <strong>+' + q2 + '</strong> into ' + esc59(o.bin_code) +
             '<br>#' + i.txn_id + ' into bin <strong>' + esc59(i.bin_code) + '</strong> (+' + q2 + ') &rarr; takes <strong>&minus;' + q2 + '</strong> out of ' + esc59(i.bin_code);
-        if (yes) yes.style.display = '';
+        voidGate();
     }).catch(function (err) {
         if (_vd.row !== x) return;
         box.className = 'lh-vpair bad'; box.textContent = 'Could not check the other half (' + (err && err.message ? err.message : err) + '). Try again.';
     });
-}
-function voidStep(n) {
-    _vd.step = n;
-    for (var i = 1; i <= 4; i++) { var el = document.getElementById('void-step' + i); if (el) el.style.display = (i === n) ? '' : 'none'; }
-    document.getElementById('void-what').style.display = (n === 4) ? 'none' : '';
-    if (n === 3) setTimeout(function () { try { document.getElementById('void-pin').focus(); } catch (e) {} }, 60);
 }
 function voidReasonText() {
     var r = lhVal('void-reason'), t = lhVal('void-reason-text');
@@ -16230,52 +16424,6 @@ function voidReasonText() {
     if (r === 'Other') return t;
     return t ? r + ' - ' + t : r;
 }
-function voidNext() {
-    var msg = document.getElementById('void-msg');
-    if (_vd.step === 1) { voidStep(2); return; }
-    if (_vd.step === 2) {
-        if (!voidReasonText()) { msg.className = 'move-result err'; msg.textContent = lhVal('void-reason') === 'Other' ? 'Type the reason.' : 'Choose a reason.'; return; }
-        msg.textContent = ''; msg.className = 'move-result'; voidStep(3); return;
-    }
-}
-function closeVoid() { var bg = document.getElementById('void-bg'); if (bg) bg.classList.remove('active'); document.getElementById('void-pin').value = ''; _vd.busy = false; }
-function submitVoid() {
-    if (_vd.busy) return;
-    var msg = document.getElementById('void-msg');
-    var pin = lhVal('void-pin'), who = lhVal('void-approver').toUpperCase(), reason = voidReasonText();
-    if (!who) { msg.className = 'move-result err'; msg.textContent = 'Type the Supervisor or Admin code.'; return; }
-    if (!/^[0-9]{4}$/.test(pin)) { msg.className = 'move-result err'; msg.textContent = 'Type the 4-digit PIN.'; return; }
-    if (!db) { msg.className = 'move-result err'; msg.textContent = 'No connection to the database - nothing was changed.'; return; }
-    _vd.busy = true;
-    var btn = document.getElementById('void-go'); if (btn) btn.disabled = true;
-    msg.className = 'move-result'; msg.textContent = 'Voiding…';
-    withTimeout(db.rpc('oms_void_ledger_entry', {
-        p_txn_id: _vd.txn, p_reason: reason, p_employee_code: who, p_pin: pin,
-        p_caller_employee_code: (state.session && state.session.employee_code) || null
-    }), 15000, 'Void').then(function (r) {
-        document.getElementById('void-pin').value = '';
-        var res = document.getElementById('void-result');
-        if (r && r.error) {
-            if (r.error.code === 'PGRST202') { LH.m8 = false; res.innerHTML = '<div class="move-result err">Voiding is not switched on yet (database update M8 has not been applied). Nothing was changed.</div>'; voidStep(4); return; }
-            msg.className = 'move-result err'; msg.textContent = 'Could not void: ' + (r.error.message || 'no answer') + '. Nothing was changed.'; return;
-        }
-        var d = (r && r.data) || {};
-        if (!d.ok) {
-            if (d.error === 'ADMIN_PIN_REJECTED' || d.error === 'ADMIN_LOCKED') { msg.className = 'move-result err'; msg.textContent = d.message || 'PIN not accepted.'; return; }
-            res.innerHTML = '<div class="move-result err">' + esc59(d.message || ('Refused: ' + (d.error || 'unknown'))) + '</div>';
-            voidStep(4); return;
-        }
-        res.innerHTML = '<div class="move-result ok">&#10003; ' + esc59(d.message || 'Voided.') + '</div>';
-        voidStep(4);
-        try { logEvent(_vd.row.sku_code, 'Voided log entry #' + _vd.txn + ' (' + reason + ')'); } catch (e) {}
-        try { vxAfterVoid(d); } catch (e) {}   // v107: phone log, My Activity, Bin lookup history
-        runLedgerHistory();
-    }).catch(function (err) {
-        msg.className = 'move-result err';
-        msg.textContent = 'No answer from the database (' + (err && err.message ? err.message : err) + '). Search again to see whether it was voided before trying again.';
-    }).then(function () { _vd.busy = false; if (btn) btn.disabled = false; });
-}
-
 // ══ v107 (2026-10-02) ══════════════════════════════════════════════════════
 // 1. RESERVED & HELD STOCK - its own sub-section in PICK, and its own access
 //    box in the Admin Panel (User Management > Edit Access).
@@ -16540,6 +16688,1063 @@ function plFind(btn) {
     try { document.getElementById('lh-section').scrollIntoView({ block: 'start' }); } catch (e) {}
 }
 // ══ end v107 ═══════════════════════════════════════════════════════════════
+
+// ══ v110 (2026-10-03) ═══════════════════════════════════════════════════════
+// Seven founder requests, all in plain words in the change block at the top of
+// this file. Everything below is NEW code; the few old functions it replaces
+// were renamed with the suffix _v109 and are no longer called.
+// ═════════════════════════════════════════════════════════════════════════════
+function v110Num(n) { n = Number(n); return isFinite(n) ? n : 0; }
+function v110El(id) { return document.getElementById(id); }
+// v111: a value that goes inside onclick="f('...')": escape for the JS string AND for the double-quoted HTML attribute.
+function v110Js(s) {
+    return String(s == null ? '' : s).replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/[\r\n]+/g, ' ')
+        .replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+var V110_MINUS = '&minus;';
+function v110Sg(q) { q = v110Num(q); return q > 0 ? '+' + q : (q < 0 ? V110_MINUS + Math.abs(q) : '0'); }
+
+// ── 1 + 2. STOCK SEARCH (was "Bin Lookup"): result list with filters and sort ──
+// The list is loaded once per search; every filter and sort below works on the
+// rows already on the phone (instant, no new database call). A new search term
+// starts with clean filters; the same search keeps its filters.
+var SL = { raw: '', isBin: false, groups: [], shown: [], heldFail: false, f: null, panelOpen: false, openHist: {}, histHtml: {} };
+var SL_SORTS = [['sku', 'SKU A &rarr; Z'], ['name', 'Product name A &rarr; Z'], ['qty_desc', 'Quantity high &rarr; low'], ['qty_asc', 'Quantity low &rarr; high'],
+                ['move_new', 'Last movement newest first'], ['move_old', 'Last movement oldest first'], ['held_desc', 'Held units high &rarr; low'], ['total_desc', 'Total in all bins high &rarr; low']];
+function slDefaultF() { return { text: '', cat: '', status: 'ALL', qmin: '', qmax: '', level: 'ALL', where: 'ANY', upd: 'ANY', sort: 'sku' }; }
+// The quantity the filters talk about: units in the searched bin (bin search) or the SKU total.
+function slQty(g) { return SL.isBin ? g.qBin : g.total; }
+function slHeld(g) { return SL.isBin ? g.heldBin : g.heldTotal; }
+function slMove(g) { return SL.isBin ? g.moveBin : g.moveAny; }
+// Level tiers: High = more than 2 x reorder threshold (when one exists), Low = at or below it,
+// Zero = nothing in the bin / SKU, Normal = everything else (also SKUs with no threshold).
+function slLevel(g) {
+    var q = slQty(g), t = g.total, thr = g.thr;
+    if (q <= 0 || t <= 0) return 'ZERO';
+    if (thr > 0 && t <= thr) return 'LOW';
+    if (thr > 0 && t > 2 * thr) return 'HIGH';
+    return 'NORMAL';
+}
+var SL_LEVEL_WORDS = { HIGH: 'High', NORMAL: 'Normal', LOW: 'Low', ZERO: 'Zero' };
+function slPass(g, f) {
+    var q = slQty(g), held = slHeld(g);
+    if (f.text) {
+        var hay = (String(g.product_name || '') + ' ' + g.sku_code + ' ' + String(g.asin || '') + ' ' + String(g.type || '')).toLowerCase();
+        var toks = f.text.toLowerCase().split(/\s+/).filter(Boolean);
+        for (var i = 0; i < toks.length; i++) { if (hay.indexOf(toks[i]) < 0) return false; }
+    }
+    if (f.cat && (g.type || '(no category)') !== f.cat) return false;
+    if (f.status === 'IN' && !(q > 0 && g.total > 0)) return false;
+    if (f.status === 'LOW' && !(g.thr > 0 && g.total <= g.thr)) return false;
+    if (f.status === 'OUT' && !(q <= 0 || g.total <= 0)) return false;
+    if (f.status === 'HELD' && !(held > 0 && q - held <= 0)) return false;
+    if (f.qmin !== '' && q < Number(f.qmin)) return false;
+    if (f.qmax !== '' && q > Number(f.qmax)) return false;
+    if (f.level !== 'ALL' && slLevel(g) !== f.level) return false;
+    if (SL.isBin) {
+        if (f.where === 'OTHER' && !g.others.length) return false;
+        if (f.where === 'ONLY' && g.others.length) return false;
+    }
+    if (f.upd !== 'ANY') {
+        var t = Date.parse(slMove(g) || ''), age = isNaN(t) ? Infinity : (Date.now() - t);
+        if (f.upd === 'TODAY' && !(!isNaN(t) && istDateStr(t) === istDateStr(Date.now()))) return false;
+        if (f.upd === '7D' && !(age <= 7 * 86400000)) return false;
+        if (f.upd === 'STALE' && !(age > 30 * 86400000)) return false;
+    }
+    return true;
+}
+function slCmp(sort) {
+    var tm = function (g) { var t = Date.parse(slMove(g) || ''); return isNaN(t) ? 0 : t; };
+    var nm = function (g) { return String(g.product_name || '').toLowerCase(); };
+    var skuCmp = function (a, b) { return a.sku_code < b.sku_code ? -1 : (a.sku_code > b.sku_code ? 1 : 0); };
+    return function (a, b) {
+        var r = 0;
+        if (sort === 'name') r = nm(a).localeCompare(nm(b));
+        else if (sort === 'qty_desc') r = slQty(b) - slQty(a);
+        else if (sort === 'qty_asc') r = slQty(a) - slQty(b);
+        else if (sort === 'move_new') r = tm(b) - tm(a);
+        else if (sort === 'move_old') r = tm(a) - tm(b);
+        else if (sort === 'held_desc') r = slHeld(b) - slHeld(a);
+        else if (sort === 'total_desc') r = b.total - a.total;
+        return r || skuCmp(a, b);
+    };
+}
+function slFilterCount() {
+    var f = SL.f, n = 0;
+    if (f.text) n++; if (f.cat) n++; if (f.status !== 'ALL') n++; if (f.qmin !== '' || f.qmax !== '') n++;
+    if (f.level !== 'ALL') n++; if (f.where !== 'ANY') n++; if (f.upd !== 'ANY') n++;
+    return n;
+}
+function slChipsHtml(key, items) {
+    return items.map(function (it) {
+        return '<button type="button" class="sl-chip' + (SL.f[key] === it[0] ? ' on' : '') + '" data-k="' + key + '" data-v="' + it[0] + '" onclick="slSet(\'' + key + '\',\'' + it[0] + '\')">' + it[1] + '</button>';
+    }).join('');
+}
+function slBarHtml() {
+    var cats = {}, f = SL.f;
+    SL.groups.forEach(function (g) { cats[g.type || '(no category)'] = 1; });
+    var catOpts = '<option value="">All categories</option>' + Object.keys(cats).sort().map(function (c) {
+        return '<option value="' + esc59(c) + '"' + (f.cat === c ? ' selected' : '') + '>' + esc59(c) + '</option>';
+    }).join('');
+    var sortOpts = SL_SORTS.map(function (s) { return '<option value="' + s[0] + '"' + (f.sort === s[0] ? ' selected' : '') + '>' + s[1] + '</option>'; }).join('');
+    var qlab = SL.isBin ? 'Quantity in this bin' : 'Quantity (total)';
+    return '<div class="sl-bar" id="sl-bar">' +
+        '<div class="sl-r1"><input type="text" id="sl-text" class="settings-input" placeholder="Filter these results: name, title, SKU, ASIN" autocomplete="off" autocorrect="off" spellcheck="false" value="' + esc59(f.text) + '" oninput="slOnText(this.value)">' +
+        '<select id="sl-sort" class="settings-input" aria-label="Sort" onchange="slSet(\'sort\', this.value)">' + sortOpts + '</select></div>' +
+        '<div class="sl-r2"><button type="button" id="sl-toggle" class="csv-btn" onclick="slTogglePanel()">Filters <span id="sl-fcount"></span> <span id="sl-arrow">&#9662;</span></button>' +
+        '<span id="sl-showing" class="sl-showing"></span><button type="button" class="csv-btn" onclick="slClear()">Clear filters</button></div>' +
+        '<div id="sl-panel" class="sl-panel" style="display:' + (SL.panelOpen ? 'block' : 'none') + ';">' +
+        '<label class="sl-lab">Category</label><select id="sl-cat" class="settings-input" onchange="slSet(\'cat\', this.value)">' + catOpts + '</select>' +
+        '<label class="sl-lab">Stock status</label><div class="sl-chips" id="sl-status">' + slChipsHtml('status', [['ALL', 'All'], ['IN', 'In stock'], ['LOW', 'Low (at or below reorder level)'], ['OUT', 'Out of stock'], ['HELD', 'Only held for orders']]) + '</div>' +
+        '<label class="sl-lab">' + qlab + '</label><div class="sl-qty"><input type="number" inputmode="numeric" min="0" id="sl-qmin" class="settings-input" placeholder="min" value="' + esc59(f.qmin) + '" oninput="slOnQty()"><span>to</span><input type="number" inputmode="numeric" min="0" id="sl-qmax" class="settings-input" placeholder="max" value="' + esc59(f.qmax) + '" oninput="slOnQty()"></div>' +
+        '<label class="sl-lab">Level (High = more than 2 &times; reorder level)</label><div class="sl-chips" id="sl-level">' + slChipsHtml('level', [['ALL', 'All'], ['HIGH', 'High'], ['NORMAL', 'Normal'], ['LOW', 'Low'], ['ZERO', 'Zero']]) + '</div>' +
+        (SL.isBin ? '<label class="sl-lab">Other bins</label><div class="sl-chips" id="sl-where">' + slChipsHtml('where', [['ANY', 'Any'], ['OTHER', 'Also in other bins'], ['ONLY', 'Only in this bin']]) + '</div>' : '') +
+        '<label class="sl-lab">Last moved</label><select id="sl-upd" class="settings-input" onchange="slSet(\'upd\', this.value)">' +
+        [['ANY', 'Any time'], ['TODAY', 'Today'], ['7D', 'Last 7 days'], ['STALE', 'Older than 30 days (stale)']].map(function (o) { return '<option value="' + o[0] + '"' + (f.upd === o[0] ? ' selected' : '') + '>' + o[1] + '</option>'; }).join('') + '</select>' +
+        '<div class="sl-help">Low counts a product at or below its reorder level (zero included). Out of stock = nothing in the bin or none anywhere. Held = reserved for printed pick slips.</div>' +
+        '</div></div>';
+}
+var _slTextTimer = null;
+function slOnText(v) { SL.f.text = String(v || '').trim(); if (_slTextTimer) clearTimeout(_slTextTimer); _slTextTimer = setTimeout(function () { _slTextTimer = null; slApply(); }, 120); }
+function slOnQty() {
+    var a = v110El('sl-qmin'), b = v110El('sl-qmax');
+    SL.f.qmin = a && a.value !== '' ? String(Math.max(0, parseInt(a.value, 10) || 0)) : '';
+    SL.f.qmax = b && b.value !== '' ? String(Math.max(0, parseInt(b.value, 10) || 0)) : '';
+    slApply();
+}
+function slSet(k, v) {
+    SL.f[k] = v;
+    var wrap = v110El('sl-' + k);
+    if (wrap && wrap.classList && wrap.classList.contains('sl-chips')) {
+        Array.prototype.forEach.call(wrap.querySelectorAll('.sl-chip'), function (b) { b.classList.toggle('on', b.getAttribute('data-v') === v); });
+    }
+    slApply();
+}
+function slTogglePanel() {
+    SL.panelOpen = !SL.panelOpen;
+    var p = v110El('sl-panel'); if (p) p.style.display = SL.panelOpen ? 'block' : 'none';
+    var a = v110El('sl-arrow'); if (a) a.innerHTML = SL.panelOpen ? '&#9652;' : '&#9662;';
+}
+function slClear() {
+    SL.f = slDefaultF();
+    var bar = v110El('sl-bar');
+    if (bar) { bar.outerHTML = slBarHtml(); }
+    slApply();
+}
+function slCardHtml(g) {
+    var q = slQty(g), held = slHeld(g), lvl = slLevel(g);
+    var lvCls = { HIGH: '#1B7A3A', NORMAL: '#1B4F8A', LOW: '#9A6700', ZERO: '#B3261E' }[lvl];
+    var bd = g.bd || {};
+    var badges = [['Sold', bd.total_sold, '#E74C3C'], ['Returned', bd.total_returned, '#27AE60'], ['New Stock', bd.total_new_stock_in, '#27AE60'], ['Lost/Removed', bd.total_lost_theft, '#E74C3C'],
+        ['Found', bd.total_found, '#27AE60'], ['Rejected/Damaged', bd.total_rejected_damaged, '#E74C3C'], ['QC Hold', bd.total_qc_hold_net, '#F39C12'], ['QC Released', bd.total_qc_released, '#27AE60'],
+        ['Manual Correction', bd.total_manual_correction, '#1B4F8A']].filter(function (b) { return b[1]; });
+    var badgeHtml = badges.map(function (b) {
+        return '<span style="font-size:10px;background:#f7f9fc;border:1px solid #e0e5ee;color:' + b[2] + ';padding:2px 6px;border-radius:8px;margin:2px 3px 0 0;display:inline-block;">' + b[0] + ': ' + (b[1] > 0 ? '+' : '') + b[1] + '</span>';
+    }).join('');
+    var binsHtml = g.bins.map(function (b) {
+        var mine = SL.isBin && String(b.bin_code || '').toUpperCase() === SL.raw;
+        return '<div style="display:flex;justify-content:space-between;padding:3px 0;font-size:11px;color:#555;' + (mine ? 'font-weight:700;' : '') + '"><span style="background:' + (mine ? '#E8F0FB' : '#f0f2f5') + ';padding:2px 7px;border-radius:8px;">' + esc59(b.bin_code || 'RECEIVING') + (mine ? ' (this bin)' : '') + '</span>' +
+            '<span><span style="font-weight:700;">' + b.qty_on_hand + '</span>' + (b.held ? ' <span style="color:#9A6700;font-weight:600;">(' + b.held + ' held)</span>' : '') + '</span></div>';
+    }).join('');
+    var sk = esc59(g.sku_code).replace(/&#39;/g, "\\'");
+    var skJs = v110Js(g.sku_code);
+    return '<div class="sl-card" data-sku="' + esc59(g.sku_code) + '" style="padding:8px 10px;border-bottom:1px solid #f2f2f2;">' +
+        '<div style="display:flex;justify-content:space-between;align-items:flex-start;">' +
+        '<div style="min-width:0;"><div class="stock-sku">' + esc59(g.sku_code) + '</div>' +
+        '<div class="stock-asin">' + esc59(g.product_name || '') + '</div>' +
+        '<div style="font-size:10px;color:#888;margin-top:2px;">ASIN: ' + esc59(g.asin || '—') + (g.type ? ' &bull; ' + esc59(g.type) : '') + ' &bull; Updated: ' + fmtRelTime(slMove(g)) + '</div></div>' +
+        '<div class="stock-qty" style="text-align:right;">' + q + '<div style="font-size:9px;color:#999;font-weight:400;">' + (SL.isBin ? 'in ' + esc59(SL.raw) : 'total') + '</div>' +
+        (SL.isBin ? '<div style="font-size:9px;color:#999;font-weight:400;">all bins ' + g.total + '</div>' : '') + '</div></div>' +
+        '<div style="margin-top:4px;"><span class="sl-lvl" style="color:' + lvCls + ';border-color:' + lvCls + ';">' + SL_LEVEL_WORDS[lvl] + (g.thr > 0 ? ' (reorder at ' + g.thr + ')' : '') + '</span>' +
+        (held > 0 ? ' <span class="sl-lvl" style="color:#9A6700;border-color:#9A6700;">' + held + ' held for orders' + (q - held >= 0 ? ', ' + (q - held) + ' free' : '') + '</span>' : '') + '</div>' +
+        (badgeHtml ? ('<div style="margin-top:5px;">' + badgeHtml + '</div>') : '') +
+        '<div style="margin-top:6px;">' + binsHtml + '</div>' +
+        '<div style="margin-top:5px;">' +
+        '<button class="csv-btn" style="font-size:10px;padding:3px 8px;" onclick="toggleSkuHistory(\'' + skJs + '\')">History &#9662;</button> ' +
+        '<button class="csv-btn" style="font-size:10px;padding:3px 8px;" onclick="openSkuDetail(\'' + skJs + '\')">Full Detail</button></div>' +
+        '<div id="sku-history-' + cssId(g.sku_code) + '" style="display:none;margin-top:6px;"></div></div>';
+}
+function slApply() {
+    var box = v110El('sl-list'); if (!box) return;
+    var list = SL.groups.filter(function (g) { return slPass(g, SL.f); }).sort(slCmp(SL.f.sort));
+    SL.shown = list; lastBinLookupRows = list;   // the CSV exports exactly what is shown
+    // v111: keep what each open History panel shows, so a filter keystroke does not reload it
+    Object.keys(SL.openHist).forEach(function (sku) {
+        var ob = v110El('sku-history-' + cssId(sku));
+        if (ob && SL.openHist[sku] && ob.innerHTML && ob.innerHTML.indexOf('lg-wrap') > -1) SL.histHtml[sku] = ob.innerHTML;
+    });
+    box.innerHTML = list.length ? list.map(slCardHtml).join('') :
+        '<div style="text-align:center;color:#888;font-size:12px;padding:14px 8px;">Nothing matches these filters. <button type="button" class="csv-btn" onclick="slClear()">Clear filters</button></div>';
+    var sh = v110El('sl-showing'); if (sh) sh.textContent = 'Showing ' + list.length + ' of ' + SL.groups.length;
+    var fc = v110El('sl-fcount'); var n = slFilterCount(); if (fc) fc.textContent = n ? '(' + n + ')' : '';
+    // histories the person had open stay open
+    Object.keys(SL.openHist).forEach(function (sku) {
+        var hb = v110El('sku-history-' + cssId(sku));
+        if (hb && SL.openHist[sku]) {
+            hb.style.display = 'block';
+            if (SL.histHtml[sku]) hb.innerHTML = SL.histHtml[sku];       // v111: panel already has its content - no reload
+            else lgView(sku, hb, null, 'sh:' + sku);                      // empty panel: fetch
+        }
+    });
+}
+function slFetchHeld(skus, errors) {
+    var chunks = _chunks(skus, 100);
+    return Promise.all(chunks.map(function (c) {
+        return withTimeout(db.from('oms_pick_reservations').select('sku_code,bin_code,qty').eq('status', 'OPEN').in('sku_code', c), 10000, 'Held units').then(function (r) {
+            if (r.error) { errors.push('held'); return null; }
+            return r.data || [];
+        }).catch(function () { errors.push('held'); return null; });
+    })).then(function (parts) { var all = []; parts.forEach(function (p) { if (p) all = all.concat(p); }); return all; });
+}
+function runBinLookup() {
+    var el = v110El('bin-lookup-result');
+    var raw = (v110El('bin-lookup-input').value || '').trim().toUpperCase();
+    if (!db) { el.innerHTML = '<div class="move-result err">Live database not reachable right now.</div>'; return; }
+    el.innerHTML = '<div style="text-align:center;color:#aaa;font-size:12px;padding:10px 0;">Searching...</div>';
+    lastBinLookupRows = []; SL.groups = []; SL.shown = [];   // v111: a failed search must not leave the old list to export
+    var seq = ++_binLookupSeq;
+    var q = db.from('oms_bin_stock').select('sku_code,product_name,asin,bin_code,qty_on_hand,last_movement_at').order('sku_code').order('bin_code');
+    if (raw) q = q.or('sku_code.eq.' + raw + ',asin.eq.' + raw + ',bin_code.eq.' + raw);
+    q = q.limit(500);
+    withTimeout(q, 10000, 'Stock search').then(function (res) {
+        if (seq !== _binLookupSeq) return;
+        if (res.error) { lastBinLookupRows = []; SL.groups = []; SL.shown = []; el.innerHTML = '<div class="move-result err">' + esc59(res.error.message) + '</div>'; return; }
+        var rows = res.data || [];
+        if (!rows.length) {
+            el.innerHTML = '<div style="text-align:center;color:#aaa;font-size:12px;padding:10px 0;">' + (raw ? ('No stock found for "' + esc59(raw) + '".') : 'No bin stock recorded yet.') + '</div>';
+            lastBinLookupRows = []; SL.groups = []; SL.shown = [];
+            return;
+        }
+        var isBin = false;
+        if (raw) {
+            isBin = true;
+            for (var j = 0; j < rows.length; j++) { if ((rows[j].bin_code || '').toUpperCase() !== raw) { isBin = false; break; } }
+        }
+        var skuOrder = [], seen = {};
+        rows.forEach(function (r) { if (!seen[r.sku_code]) { seen[r.sku_code] = 1; skuOrder.push(r.sku_code); } });
+        var errs = [];
+        return Promise.all([
+            fetchInChunks('oms_sku_activity_breakdown', 'sku_code,total_sold,total_returned,total_new_stock_in,total_lost_theft,total_found,total_rejected_damaged,total_qc_hold_net,total_qc_released,total_manual_correction', skuOrder, 150, 8000, 'Activity breakdown', errs),
+            fetchInChunks('oms_sku_master', 'sku_code,product_name,asin,product_type,reorder_threshold', skuOrder, 150, 8000, 'Product details', errs),
+            slFetchHeld(skuOrder, errs),
+            isBin ? fetchInChunks('oms_bin_stock', 'sku_code,bin_code,qty_on_hand,last_movement_at', skuOrder, 50, 10000, 'All bins', errs) : Promise.resolve(null)
+        ]).then(function (parts) {
+            if (seq !== _binLookupSeq) return;
+            var bdMap = {}, mMap = {}, heldBy = {};
+            parts[0].forEach(function (b) { bdMap[b.sku_code] = b; });
+            parts[1].forEach(function (m) { mMap[m.sku_code] = m; });
+            SL.heldFail = errs.indexOf('held') > -1;
+            (parts[2] || []).forEach(function (h) { var k = h.sku_code + '|' + String(h.bin_code || '').toUpperCase(); heldBy[k] = (heldBy[k] || 0) + v110Num(h.qty); });
+            var src = (isBin && parts[3] && parts[3].length) ? parts[3] : rows;
+            var by = {};
+            src.forEach(function (r) {
+                var g = by[r.sku_code];
+                if (!g) { g = by[r.sku_code] = { sku_code: r.sku_code, product_name: r.product_name, asin: r.asin, bins: [], total: 0, qBin: 0, heldBin: 0, heldTotal: 0, moveBin: null, moveAny: null, others: [] }; }
+                if (!g.product_name && r.product_name) g.product_name = r.product_name;
+                var bc = String(r.bin_code || '').toUpperCase(), qty = v110Num(r.qty_on_hand), hd = heldBy[r.sku_code + '|' + bc] || 0;
+                g.bins.push({ bin_code: r.bin_code, qty_on_hand: qty, last_movement_at: r.last_movement_at, held: hd });
+                g.total += qty; g.heldTotal += hd;
+                if (r.last_movement_at && (!g.moveAny || r.last_movement_at > g.moveAny)) g.moveAny = r.last_movement_at;
+                if (isBin && bc === raw) { g.qBin += qty; g.heldBin += hd; g.moveBin = r.last_movement_at; }
+                else if (isBin && qty > 0) g.others.push(r.bin_code);
+            });
+            var groups = skuOrder.map(function (s) {
+                var g = by[s]; if (!g) return null;
+                var m = mMap[s] || {};
+                if (!g.product_name && m.product_name) g.product_name = m.product_name; if (!g.asin && m.asin) g.asin = m.asin;
+                g.type = m.product_type || ''; g.thr = v110Num(m.reorder_threshold); g.bd = bdMap[s] || null;
+                return g;
+            }).filter(Boolean);
+            if (SL.raw !== raw || SL.isBin !== isBin || !SL.f) { SL.f = slDefaultF(); SL.panelOpen = false; SL.openHist = {}; }
+            SL.raw = raw; SL.isBin = isBin; SL.groups = groups; SL.histHtml = {};
+            var html = '';
+            if (isBin) {
+                html += '<div id="bin-summary-header" style="padding:8px 10px;background:#f0f2f5;border-radius:8px;margin:4px 0 8px;font-size:11px;color:#444;">Loading bin summary…</div>';
+                withTimeout(db.from('oms_bin_usage_summary').select('distinct_sku_count,total_units_in_bin,last_movement_at').eq('bin_code', raw).maybeSingle(), 8000, 'Bin summary').then(function (bres) {
+                    var bs = bres && bres.data, hdr = v110El('bin-summary-header');
+                    if (hdr) hdr.innerHTML = bs ? ('<strong>Bin ' + esc59(raw) + ':</strong> ' + bs.distinct_sku_count + ' SKU(s) &bull; ' + bs.total_units_in_bin + ' total units &bull; last movement ' + fmtRelTime(bs.last_movement_at)) : ('<strong>Bin ' + esc59(raw) + '</strong>');
+                }).catch(function () {});
+            }
+            if (SL.heldFail) html += '<div class="sl-warn">Held units could not be read just now, so held numbers show as 0.</div>';
+            html += slBarHtml();
+            html += '<div id="sl-list" style="max-height:420px;overflow-y:auto;border:1px solid #eee;border-radius:8px;margin-top:4px;"></div>';
+            if (rows.length === 500) html += '<div style="text-align:center;color:#888;font-size:10px;padding:4px 0;">Showing first 500 matches — search a specific SKU or bin to narrow this down.</div>';
+            html += '<div style="text-align:right;margin-top:6px;"><button class="csv-btn" onclick="exportBinLookupCSV()">&#8595; Export CSV (what is shown)</button></div>';
+            el.innerHTML = html;
+            slApply();
+        });
+    }).catch(function (err) {
+        if (seq === _binLookupSeq) { lastBinLookupRows = []; SL.groups = []; SL.shown = []; }
+        el.innerHTML = '<div class="move-result err">' + esc59(String(err && err.message ? err.message : err)) + '</div>';
+    });
+}
+// CSV of exactly the rows now shown (after filters and sort): one line per SKU + bin.
+function exportBinLookupCSV() {
+    var list = SL.shown && SL.shown.length ? SL.shown : lastBinLookupRows;
+    if (!list || !list.length) { alert('Nothing to export — run a search first.'); return; }
+    var cell = function (s) { s = String(s == null ? '' : s); if (/^[=+\-@\t\r]/.test(s)) s = "'" + s; return /[",\r\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
+    var rows = ['SKU,ASIN,Product Name,Bin,Qty in Bin,Total Qty (all bins),Last Updated,Category,Held for orders (this bin),Free (this bin),Reorder level'];
+    list.forEach(function (g) {
+        g.bins.forEach(function (b) {
+            rows.push([cell(g.sku_code), cell(g.asin || ''), cell(g.product_name || ''), cell(b.bin_code || ''), b.qty_on_hand, g.total, cell(g.last || b.last_movement_at || g.moveAny || ''),
+                cell(g.type || ''), b.held || 0, Math.max(0, v110Num(b.qty_on_hand) - (b.held || 0)), g.thr || ''].join(','));
+        });
+    });
+    var blob = new Blob([rows.join('\r\n')], { type: 'text/csv;charset=utf-8;' });
+    var url = URL.createObjectURL(blob), a = document.createElement('a');
+    a.href = url; a.download = 'stock_search_export_' + new Date().toISOString().slice(0, 10) + '.csv';
+    document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
+}
+
+// ── 5. LOG CLARITY: one plain-words description of every ledger entry ──────────
+// Used by the per-SKU History panel (Stock Search), the SKU Full Detail history and,
+// as an extra sentence line, the Stock history (LOG tab) rows.
+var LG = {};          // per view: { limit }
+var LG_SRC = { APP: 'App', EXCEL: 'Excel', ADMIN_PANEL: 'Admin Panel', STAMP: 'Stamp tool', BULK: 'Bulk upload' };
+var LG_KIND = {   // icon, colour, short label
+    IN: ['&#128229;', '#1B7A3A', 'Stock in'], OUT: ['&#128228;', '#B3261E', 'Out'], MOVE: ['&#8646;', '#1B4F8A', 'Transfer'],
+    COUNT: ['&#9878;', '#9A6700', 'Count correction'], SYS: ['&#9881;', '#6B7280', 'System'], VOID: ['&#128683;', '#6B7280', 'Void'], REV: ['&#8617;', '#6B7280', 'Reversal'],
+    PICK: ['&#128203;', '#B3261E', 'Pick slip'], RET: ['&#8617;', '#1B7A3A', 'Return'], QC: ['&#128295;', '#9A6700', 'QC']
+};
+var LG_DISC_RE = /recount|re-count|count|not found|missing|short|discrep|mismatch|wrong qty|difference/i;
+function lgWho(x) {
+    var c = String(x.employee_code || '').toUpperCase(), e = LH.emps && LH.emps[c];
+    return c ? (c + (e && e.display_name ? ' (' + e.display_name + ')' : '')) : 'unknown';
+}
+function lgSlipRef(x) { var m = /^PICK\|(R[0-9]+)/.exec(String(x.client_queue_id || '')); return m ? m[1] : ''; }
+// What kind of entry is it, and what does it say, in plain words.
+function lgInfo(x, ctx) {
+    ctx = ctx || {};
+    var q = Number(x.qty_delta) || 0, a = Math.abs(q), bin = x.bin_code || 'no bin', t = x.txn_type, slip = lgSlipRef(x);
+    var revOf = (ctx.revOf && ctx.revOf[x.txn_id]) || (t === 'MANUAL_CORRECTION' && LH_VOID_NOTE_RE.test(x.note || '') ? Number(LH_VOID_NOTE_RE.exec(x.note)[1]) : null);
+    var k, s;
+    if (revOf) { k = 'REV'; s = 'Reversal of entry #' + revOf + ': ' + v110Sg(q) + ' in bin ' + esc59(bin) + ' (a Void put the stock back)'; }
+    else if (t === 'MANUAL_CORRECTION' && lhIsBatchRevNote(x.note)) { k = 'REV'; s = 'Whole-batch reversal: ' + v110Sg(q) + ' in bin ' + esc59(bin); }
+    else if (t === 'NEW_STOCK_IN') { k = 'IN'; s = 'New stock +' + a + ' into bin ' + esc59(bin); }
+    else if (t === 'SCAN_OUT_ORDER') {
+        var bits = [];
+        if (x.order_id) bits.push('order ' + esc59(x.order_id));
+        if (x.channel) bits.push(esc59(x.channel));
+        if (slip) bits.push('slip ' + esc59(slip));
+        k = slip ? 'PICK' : 'OUT';
+        s = (slip ? 'Picked from pick slip' : 'Dispatched') + (bits.length ? ' (' + bits.join(' / ') + ')' : '') + ' ' + V110_MINUS + a + ' from bin ' + esc59(bin);
+    }
+    else if (t === 'BIN_TRANSFER_OUT') { k = 'MOVE'; s = 'Transfer out: ' + a + ' unit(s) left bin ' + esc59(bin) + ' (other half is older/newer than the rows shown \u2014 open the full history)'; }
+    else if (t === 'BIN_TRANSFER_IN') { k = 'MOVE'; s = 'Transfer in: ' + a + ' unit(s) arrived in bin ' + esc59(bin) + ' (other half is older/newer than the rows shown \u2014 open the full history)'; }
+    else if (t === 'ADJUSTMENT_FOUND') { k = 'IN'; s = 'Found +' + a + ' in bin ' + esc59(bin); }
+    else if (t === 'ADJUSTMENT_LOST_THEFT') { k = 'OUT'; s = 'Lost / theft ' + V110_MINUS + a + ' from bin ' + esc59(bin); }
+    else if (t === 'ADJUSTMENT_REJECTED') { k = 'OUT'; s = 'Rejected / damaged ' + V110_MINUS + a + ' from bin ' + esc59(bin); }
+    else if (t === 'RETURN_IN') { k = 'RET'; s = 'Return +' + a + ' into bin ' + esc59(bin); }
+    else if (t === 'RETURN_WRONG_ITEM') { k = 'RET'; s = 'Return (wrong item) ' + v110Sg(q) + ' in bin ' + esc59(bin); }
+    else if (t === 'QC_HOLD') { k = 'QC'; s = 'QC hold ' + v110Sg(q) + ' in bin ' + esc59(bin) + ' (set aside, not sellable)'; }
+    else if (t === 'ADJUSTMENT_QC_RELEASE') { k = 'QC'; s = 'QC release ' + v110Sg(q) + ' in bin ' + esc59(bin) + ' (sellable again)'; }
+    else if (t === 'MANUAL_CORRECTION') { k = 'COUNT'; s = 'Count correction (manual) ' + v110Sg(q) + ' in bin ' + esc59(bin); }
+    else if (t === 'OPENING_BALANCE') { k = 'SYS'; s = 'Opening stock seed ' + v110Sg(q) + ' in bin ' + esc59(bin) + ' (starting figure, not a real movement)'; }
+    else if (t === 'INVENTORY_SYNC') { k = 'SYS'; s = 'Excel daily sync ' + v110Sg(q) + ' in bin ' + esc59(bin); }
+    else { k = 'SYS'; s = esc59(String(t || 'Entry')) + ' ' + v110Sg(q) + ' in bin ' + esc59(bin); }
+    var kind = LG_KIND[k];
+    var label = (t === 'SCAN_OUT_ORDER' && !slip) ? 'Dispatched' : (t === 'NEW_STOCK_IN' ? 'Stock in' : (t === 'ADJUSTMENT_FOUND' ? 'Found' : (t === 'ADJUSTMENT_LOST_THEFT' ? 'Lost / theft' : (t === 'ADJUSTMENT_REJECTED' ? 'Rejected' : (k === 'QC' ? 'QC' : kind[2])))));
+    var disc = (k === 'COUNT') || (!!x.note && LG_DISC_RE.test(x.note) && t !== 'SCAN_OUT_ORDER' && t !== 'NEW_STOCK_IN');
+    return { k: k, icon: kind[0], color: kind[1], label: label, sentence: s, disc: disc, revOf: revOf, slip: slip };
+}
+// Pair the two halves of a bin transfer (newest-first list). The display rule is the same idea
+// the database uses: same person, opposite types, equal and opposite qty, within 2 minutes,
+// nothing else by that person for that product in between. Anything that does not match
+// stays as two clearly labelled single lines.
+function lgPairRows(rows) {
+    var items = [], used = {};
+    rows.forEach(function (x, i) {
+        if (used[x.txn_id]) return;
+        if (x.txn_type === 'BIN_TRANSFER_IN' || x.txn_type === 'BIN_TRANSFER_OUT') {
+            var want = x.txn_type === 'BIN_TRANSFER_IN' ? 'BIN_TRANSFER_OUT' : 'BIN_TRANSFER_IN', cand = [];
+            rows.forEach(function (y) {
+                if (y.txn_id === x.txn_id || used[y.txn_id] || y.txn_type !== want || y.sku_code !== x.sku_code) return;
+                if (String(y.employee_code || '') !== String(x.employee_code || '')) return;
+                if (Number(y.qty_delta) !== -Number(x.qty_delta)) return;
+                if (Math.abs(Date.parse(y.created_at) - Date.parse(x.created_at)) > 120000) return;
+                if (String(y.bin_code || '') === String(x.bin_code || '')) return;
+                if ((y.txn_type === 'BIN_TRANSFER_IN') !== (y.txn_id > x.txn_id)) return;
+                cand.push(y);
+            });
+            if (cand.length === 1) {
+                var p = cand[0], lo = Math.min(p.txn_id, x.txn_id), hi = Math.max(p.txn_id, x.txn_id);
+                var between = rows.some(function (z) { return z.txn_id > lo && z.txn_id < hi && z.sku_code === x.sku_code && String(z.employee_code || '') === String(x.employee_code || ''); });
+                if (!between) {
+                    used[x.txn_id] = 1; used[p.txn_id] = 1;
+                    var o = x.txn_type === 'BIN_TRANSFER_OUT' ? x : p, n = x.txn_type === 'BIN_TRANSFER_OUT' ? p : x;
+                    items.push({ pair: true, out: o, inn: n, x: n });
+                    return;
+                }
+            }
+        }
+        used[x.txn_id] = 1;
+        items.push({ pair: false, x: x });
+    });
+    return items;
+}
+function lgSourceTxt(x) { var s = String(x.entry_source || 'APP').toUpperCase(); return LG_SRC[s] || x.entry_source || 'App'; }
+// ctx: { voids:{txn->void}, rev:{balancingTxn->void}, bal:{txn_id->{bin,sku}} | null, complete:bool }
+function lgItemHtml(it, ctx) {
+    var x = it.x, v = ctx.voids && ctx.voids[x.txn_id], vo = it.pair ? (ctx.voids[it.out.txn_id] || ctx.voids[it.inn.txn_id]) : v;
+    var revOf = {}; Object.keys(ctx.rev || {}).forEach(function (b) { revOf[b] = ctx.rev[b].txn_id; });
+    var info, sent, ids, balHtml = '', note = x.note, mainTxn = x.txn_id;
+    if (it.pair) {
+        var q = Math.abs(Number(it.out.qty_delta) || 0);
+        info = { k: 'MOVE', icon: LG_KIND.MOVE[0], color: LG_KIND.MOVE[1], label: 'Transfer', disc: false };
+        sent = 'Transfer: ' + q + ' unit' + (q === 1 ? '' : 's') + ' moved from bin <strong>' + esc59(it.out.bin_code) + '</strong> to bin <strong>' + esc59(it.inn.bin_code) + '</strong>';
+        ids = '#' + it.out.txn_id + ' out + #' + it.inn.txn_id + ' in'; mainTxn = it.out.txn_id;
+        if (ctx.bal && ctx.bal[it.out.txn_id] && ctx.bal[it.inn.txn_id]) {
+            balHtml = 'Balance after: bin ' + esc59(it.out.bin_code) + ' = <strong>' + ctx.bal[it.out.txn_id].bin + '</strong>, bin ' + esc59(it.inn.bin_code) + ' = <strong>' + ctx.bal[it.inn.txn_id].bin + '</strong>, SKU total = <strong>' + ctx.bal[it.inn.txn_id].sku + '</strong> (unchanged)';
+        }
+    } else {
+        info = lgInfo(x, { revOf: revOf }); sent = info.sentence; ids = '#' + x.txn_id;
+        if (ctx.bal && ctx.bal[x.txn_id]) balHtml = 'Balance after: bin ' + esc59(x.bin_code || '-') + ' = <strong>' + ctx.bal[x.txn_id].bin + '</strong>, SKU total = <strong>' + ctx.bal[x.txn_id].sku + '</strong>';
+    }
+    var qtyShow = it.pair ? '' : '<span class="lg-q ' + (Number(x.qty_delta) > 0 ? 'pos' : 'neg') + '">' + v110Sg(x.qty_delta) + '</span>';
+    var other = [];
+    if (!it.pair) {
+        if (x.order_id && info.k !== 'PICK' && info.k !== 'OUT') other.push('Order ' + esc59(x.order_id));
+        if (x.channel && info.k !== 'PICK' && info.k !== 'OUT') other.push(esc59(x.channel));
+    }
+    var h = '<div class="lg-row' + (vo ? ' lg-void' : '') + (info.disc ? ' lg-disc' : '') + '" data-txn="' + mainTxn + '">' +
+        '<div class="lg-top"><span class="lg-badge" style="background:' + info.color + ';">' + info.icon + ' ' + esc59(info.label) + '</span>' + qtyShow +
+        (vo ? '<span class="lh-badge void">VOID</span>' : '') + (info.revOf ? '<span class="lh-badge rev">Reversal of #' + info.revOf + '</span>' : '') + '</div>' +
+        '<div class="lg-sent">' + sent + '</div>' +
+        '<div class="lg-meta">' + esc59(fmtIst(x.created_at, true)) + ' &bull; ' + esc59(lgWho(x)) + ' &bull; ' + ids + ' &bull; ' + esc59(lgSourceTxt(x)) + (other.length ? ' &bull; ' + other.join(' &bull; ') : '') + '</div>' +
+        (balHtml ? '<div class="lg-bal">' + balHtml + '</div>' : '') +
+        (note ? '<div class="lg-note' + (info.disc ? ' disc' : '') + '">' + (info.disc ? '&#9888; ' : '') + esc59(note) + '</div>' : '') +
+        (vo ? '<div class="lh-voidinfo">Voided by ' + esc59(vo.voided_by || '') + (vo.approver_role ? ' (' + esc59(String(vo.approver_role).toLowerCase()) + ')' : '') + (vo.voided_at ? ' on ' + esc59(fmtIst(vo.voided_at)) : '') + ': ' + esc59(vo.reason || '') + '</div>' : '') +
+        vxSlotHtml({ txn_id: mainTxn }) + '</div>';
+    return h;
+}
+// History for one product: newest first, "Show older" adds 25 more.
+function lgView(sku, box, more, key) {
+    if (!box) return;
+    var st = LG[key] = LG[key] || { limit: 25 };
+    if (more) st.limit += 25;
+    var limit = st.limit;
+    box.innerHTML = '<div style="text-align:center;color:#aaa;font-size:11px;padding:6px 0;">Loading history&hellip;</div>';
+    if (!db) { box.innerHTML = '<div style="font-size:11px;color:#E74C3C;">No connection to the database.</div>'; return; }
+    var skuU = String(sku).toUpperCase();
+    var pRows = withTimeout(db.from('oms_inventory_transactions').select(LH_COLS).eq('sku_code', sku).order('created_at', { ascending: false }).order('txn_id', { ascending: false }).limit(limit), 10000, 'SKU history');
+    var pVoid = withTimeout(db.from('oms_ledger_voids').select('void_id,txn_id,balancing_txn_id,reason,voided_at,voided_by,approver_role').eq('sku_code', sku).limit(1000), 8000, 'Voids').then(function (r) { return r; }, function () { return { error: { message: 'x' } }; });
+    Promise.all([pRows, pVoid, (LH.emps ? Promise.resolve() : lhLoadLists())]).then(function (rr) {
+        var res = rr[0];
+        if (res.error) throw res.error;
+        var rows = res.data || [];
+        if (!rows.length) { box.innerHTML = '<div style="font-size:11px;color:#aaa;padding:4px 0;">No history found.</div>'; return; }
+        var voids = {}, rev = {};
+        if (!rr[1].error) (rr[1].data || []).forEach(function (v) { voids[v.txn_id] = v; rev[v.balancing_txn_id] = v; PL.voided[v.txn_id] = v; PL.rev[v.balancing_txn_id] = v; });
+        // balance after each entry: today's bin stock minus every NEWER entry. Exact only when the list
+        // starts at the very newest entry and nothing arrived while loading - checked below.
+        return Promise.all([
+            withTimeout(db.from('oms_bin_stock').select('bin_code,qty_on_hand').eq('sku_code', sku), 8000, 'Bin stock').then(function (r) { return r; }, function () { return { error: { message: 'x' } }; }),
+            withTimeout(db.from('oms_inventory_transactions').select('txn_id').eq('sku_code', sku).order('txn_id', { ascending: false }).limit(1), 8000, 'Newest entry').then(function (r) { return r; }, function () { return { error: { message: 'x' } }; })
+        ]).then(function (b) {
+            var maxId = null; rows.forEach(function (x) { if (maxId == null || x.txn_id > maxId) maxId = x.txn_id; });
+            var complete = !b[0].error && !b[1].error && (b[1].data || []).length && b[1].data[0].txn_id === maxId;
+            var bal = null;
+            if (complete) {
+                var cur = {}, tot = 0;
+                (b[0].data || []).forEach(function (r) { var k = String(r.bin_code || '').toUpperCase(); cur[k] = (cur[k] || 0) + (Number(r.qty_on_hand) || 0); tot += Number(r.qty_on_hand) || 0; });
+                bal = {};
+                var ordered = rows.slice().sort(function (p, q) { return q.txn_id - p.txn_id; });
+                ordered.forEach(function (x) {
+                    var k = String(x.bin_code || '').toUpperCase(), d = Number(x.qty_delta) || 0;
+                    bal[x.txn_id] = { bin: cur[k] || 0, sku: tot };
+                    cur[k] = (cur[k] || 0) - d; tot -= d;
+                });
+            }
+            var items = lgPairRows(rows), ctx = { voids: voids, rev: rev, bal: bal, complete: complete };
+            var html = '<div class="lg-wrap"><div class="lg-legend">Legend: <span style="color:#1B7A3A">green = stock in / return</span> &middot; <span style="color:#B3261E">red = stock out</span> &middot; <span style="color:#1B4F8A">blue = bin transfer</span> &middot; <span style="color:#9A6700">amber = count / QC</span> &middot; grey = system / void. Times are India time.' +
+                (bal ? ' &ldquo;Balance after&rdquo; = stock right after that entry.' : ' <em>Balance after is not shown: the list did not start from the newest entry or could not be checked.</em>') + '</div>';
+            items.forEach(function (it) { html += lgItemHtml(it, ctx); });
+            if (rows.length === limit) html += '<div style="text-align:center;margin-top:6px;"><button class="csv-btn" style="font-size:11px;" onclick="lgMore(this)" data-sku="' + esc59(sku) + '" data-key="' + esc59(key) + '">Show older (25 more)</button></div>';
+            html += '</div>';
+            box.innerHTML = html;
+            try { vxFillSlots(box, rows); } catch (e) {}
+        });
+    }).catch(function (err) { box.innerHTML = '<div style="font-size:11px;color:#E74C3C;">' + esc59(err && err.message ? err.message : String(err)) + '</div>'; });
+}
+function lgMore(btn) {
+    var key = btn.getAttribute('data-key'), sku = btn.getAttribute('data-sku');
+    var box = btn.closest('.lg-wrap'); box = box ? box.parentNode : null;
+    lgView(sku, box, true, key);
+}
+// Search-card History button and the Full Detail history now use lgView.
+function toggleSkuHistory(skuCode) {
+    var box = v110El('sku-history-' + cssId(skuCode));
+    if (!box) return;
+    if (box.style.display === 'block') { box.style.display = 'none'; SL.openHist[skuCode] = false; delete SL.histHtml[skuCode]; return; }
+    box.style.display = 'block'; SL.openHist[skuCode] = true;
+    lgView(skuCode, box, false, 'sh:' + skuCode);
+}
+function renderSkuDetailHistory(skuCode) {
+    var body = v110El('sku-detail-history-body'), moreEl = v110El('sku-detail-history-more');
+    if (!body) return;
+    if (moreEl) moreEl.innerHTML = '';
+    LG['sd:' + skuCode] = { limit: skuDetailHistoryLimit[skuCode] || 25 };
+    lgView(skuCode, body, false, 'sd:' + skuCode);
+}
+// Stock history (LOG tab): a plain-words line under the time/who line, and transfer halves
+// shown as ONE line when they pair up inside the page that was just loaded.
+function lhRowHtml(x) {
+    var h = lhRowHtml_v109(x), info = lgInfo(x, {});
+    var sent = '<div class="lg-sent"><span class="lg-badge" style="background:' + info.color + ';">' + info.icon + ' ' + esc59(info.label) + '</span> ' + info.sentence + '</div>';
+    var i = h.indexOf('<div class="log-action">');
+    if (i > -1) h = h.slice(0, i) + sent + h.slice(i);
+    if (info.disc && x.note) h = h.replace('<div class="lh-note">', '<div class="lh-note lg-note disc">&#9888; ');
+    return h;
+}
+function lgLogPageHtml(ids, m) {
+    var rows = [];
+    ids.forEach(function (id) { if (m[id]) { LH.rows[id] = m[id]; rows.push(m[id]); } });
+    var html = '';
+    lgPairRows(rows).forEach(function (it) {
+        if (!it.pair) { html += lhRowHtml(it.x); return; }
+        var o = it.out, n = it.inn, q = Math.abs(Number(o.qty_delta) || 0);
+        var vo = LH.voids[o.txn_id] || LH.voids[n.txn_id];
+        var e = LH.emps && LH.emps[String(o.employee_code || '').toUpperCase()];
+        var li = LIX.loaded ? LIX.bySku[String(o.sku_code || '').toUpperCase()] : null;
+        html += '<li class="log-item lh-row lg-pair' + (vo ? ' lh-void' : '') + '" data-txn="' + o.txn_id + '">' +
+            '<div class="log-row1"><span class="log-time">' + esc59(fmtIst(n.created_at, true)) + '</span><span class="log-emp">' + esc59(o.employee_code || '-') + '</span>' +
+            (e && e.display_name ? '<span class="lh-name">' + esc59(e.display_name) + '</span>' : '') + '<span class="lh-id">#' + o.txn_id + ' + #' + n.txn_id + '</span></div>' +
+            '<div class="lg-sent"><span class="lg-badge" style="background:' + LG_KIND.MOVE[1] + ';">' + LG_KIND.MOVE[0] + ' Transfer</span> ' + q + ' unit' + (q === 1 ? '' : 's') + ' of <strong>' + esc59(o.sku_code) + '</strong> moved from bin <strong>' + esc59(o.bin_code) + '</strong> to bin <strong>' + esc59(n.bin_code) + '</strong>' + (vo ? ' <span class="lh-badge void">VOID</span>' : '') + '</div>' +
+            '<div class="log-meta">SKU ' + esc59(o.sku_code) + (li && li.title ? ' &bull; ' + esc59(li.title) : '') + ' &bull; ' + esc59(lgSourceTxt(o)) + (o.session_id ? ' &bull; Batch ' + esc59(String(o.session_id).slice(0, 8)) : '') + '</div>' +
+            (o.note || n.note ? '<div class="lh-note">' + esc59(o.note || n.note) + '</div>' : '') +
+            (vo ? '<div class="lh-voidinfo">Voided by ' + esc59(vo.voided_by) + ' on ' + esc59(fmtIst(vo.voided_at)) + ': ' + esc59(vo.reason) + '</div>' : '') +
+            (!vo && lhCanVoid(o) && lhCanVoid(n) ? '<div style="margin-top:4px;"><button class="csv-btn lh-void-btn" onclick="openVoidEntry(' + o.txn_id + ')">&#8617; Void</button></div>' : '') + '</li>';
+    });
+    return html;
+}
+
+// ── 4. VOID: one sheet, nothing is sent until reason + approver code + 4-digit PIN are all filled ──
+// Every Void button (Stock history, Stock Search history, Full Detail history, phone scan log,
+// SET > My Activity, Bin lookup history) ends in openVoidEntry() -> this one sheet -> submitVoid()
+// -> voidRpc(). voidRpc is the ONLY place in the app that calls oms_void_ledger_entry, and it
+// refuses to send anything without a reason, an approver code and a 4-digit PIN.
+function voidRpc(args) {
+    var pin = String((args && args.p_pin) || ''), who = String((args && args.p_employee_code) || '').trim();
+    if (!db || !args || !args.p_txn_id || !String(args.p_reason || '').trim() || !who || !/^[0-9]{4}$/.test(pin)) {
+        return Promise.reject(new Error('A reason, the approver code and the 4-digit PIN are all needed before anything is sent.'));
+    }
+    return db.rpc('oms_void_ledger_entry', args);
+}
+function voidStep(n) {
+    _vd.step = n;
+    var s1 = v110El('void-step1'), s4 = v110El('void-step4'), w = v110El('void-what');
+    if (s1) s1.style.display = (n === 4) ? 'none' : '';
+    if (s4) s4.style.display = (n === 4) ? '' : 'none';
+    if (w) w.style.display = (n === 4) ? 'none' : '';
+    if (n !== 4) voidGate();
+}
+// The one confirm button: off until everything is filled (and, for a transfer, until the other half is matched).
+function voidGate() {
+    var btn = v110El('void-go'); if (!btn) return false;
+    var isTr = !!(_vd.row && (_vd.row.txn_type === 'BIN_TRANSFER_OUT' || _vd.row.txn_type === 'BIN_TRANSFER_IN'));
+    var ok = !!_vd.txn && !!voidReasonText() && !!lhVal('void-approver') && /^[0-9]{4}$/.test(lhVal('void-pin')) && !_vd.busy && (!isTr || !!_vd.pair);
+    btn.disabled = !ok;
+    var hint = v110El('void-need');
+    if (hint) {
+        var miss = [];
+        if (!voidReasonText()) miss.push(lhVal('void-reason') === 'Other' ? 'type the reason' : 'choose a reason');
+        if (!lhVal('void-approver')) miss.push('approver code');
+        if (!/^[0-9]{4}$/.test(lhVal('void-pin'))) miss.push('4-digit PIN');
+        if (isTr && !_vd.pair) miss.push('wait for the other half of the transfer to be matched');
+        hint.textContent = miss.length ? 'Still needed: ' + miss.join(', ') + '.' : '';
+    }
+    return ok;
+}
+function closeVoid() { var bg = v110El('void-bg'); if (bg) bg.classList.remove('active'); var p = v110El('void-pin'); if (p) p.value = ''; _vd.busy = false; }
+function submitVoid() {
+    if (_vd.busy) return;
+    var msg = v110El('void-msg');
+    var pin = lhVal('void-pin'), who = lhVal('void-approver').toUpperCase(), reason = voidReasonText();
+    if (!reason) { msg.className = 'move-result err'; msg.textContent = lhVal('void-reason') === 'Other' ? 'Type the reason.' : 'Choose a reason.'; return; }
+    if (!who) { msg.className = 'move-result err'; msg.textContent = 'Type the Supervisor or Admin code.'; return; }
+    if (!/^[0-9]{4}$/.test(pin)) { msg.className = 'move-result err'; msg.textContent = 'Type the 4-digit PIN.'; return; }
+    if (!db) { msg.className = 'move-result err'; msg.textContent = 'No connection to the database - nothing was changed.'; return; }
+    if (_vd.row && (_vd.row.txn_type === 'BIN_TRANSFER_OUT' || _vd.row.txn_type === 'BIN_TRANSFER_IN') && !_vd.pair) { voidGate(); return; }
+    _vd.busy = true;
+    var btn = v110El('void-go'); if (btn) btn.disabled = true;
+    msg.className = 'move-result'; msg.textContent = 'Voiding…';
+    voidRpc({
+        p_txn_id: _vd.txn, p_reason: reason, p_employee_code: who, p_pin: pin,
+        p_caller_employee_code: (state.session && state.session.employee_code) || null
+    }).then(function (r) {
+        v110El('void-pin').value = '';
+        var res = v110El('void-result');
+        if (r && r.error) {
+            if (r.error.code === 'PGRST202') { LH.m8 = false; res.innerHTML = '<div class="move-result err">Voiding is not switched on yet (database update M8 has not been applied). Nothing was changed.</div>'; voidStep(4); return; }
+            msg.className = 'move-result err'; msg.textContent = 'Could not void: ' + (r.error.message || 'no answer') + '. Nothing was changed.'; return;
+        }
+        var d = (r && r.data) || {};
+        if (!d.ok) {
+            if (d.error === 'ADMIN_PIN_REJECTED' || d.error === 'ADMIN_LOCKED') { msg.className = 'move-result err'; msg.textContent = d.message || 'PIN not accepted.'; return; }
+            res.innerHTML = '<div class="move-result err">' + esc59(d.message || ('Refused: ' + (d.error || 'unknown'))) + '</div>';
+            voidStep(4); return;
+        }
+        res.innerHTML = '<div class="move-result ok">&#10003; ' + esc59(d.message || 'Voided.') + '</div>';
+        voidStep(4);
+        try { logEvent(_vd.row.sku_code, 'Voided log entry #' + _vd.txn + ' (' + reason + ')'); } catch (e) {}
+        try { vxAfterVoid(d); } catch (e) {}
+        runLedgerHistory();
+    }).catch(function (err) {
+        msg.className = 'move-result err';
+        msg.textContent = (err && /needed before anything is sent/.test(err.message || '')) ? err.message : 'No answer from the database (' + (err && err.message ? err.message : err) + '). Search again to see whether it was voided before trying again.';
+    }).then(function () { _vd.busy = false; voidGate(); });
+}
+
+// ── 3. HELD-UNITS LOCK on the Actions tab ───────────────────────────────────────
+// Transfer, Dispatch Out (non-Amazon), Remove/Lost and QC Hold all share moveQtyMax(), the
+// stepper limit. The limit is now: units in the From bin MINUS units held for OPEN pick slips
+// in that bin, both read fresh from the database when the bin is chosen and again on Submit.
+// Not covered: Dispatch Out for an Amazon channel (it may legitimately use the held units of
+// its own order - the database decides), and "Rejected", which has no Actions pill.
+// The database trigger stays the final guard; its refusal is now shown in plain words.
+var ML_FAIL_MSG = 'Could not check held units (no signal or slow connection). Nothing was saved. Try again when the connection is back.';
+var ML = { sku: '', bin: '', binQty: null, held: 0, free: null, ok: false, failed: false, offline: false, pending: false, seq: 0, block: false, timer: null };
+function mlApplies() {
+    var cfg = MOVE_MODES[moveMode] || {};
+    if (cfg.isTransfer || moveMode === 'ADJUSTMENT_LOST_THEFT' || moveMode === 'QC_HOLD') return true;
+    if (moveMode === 'SCAN_OUT_ORDER') { var ch = (v110El('move-channel-input') || {}).value || ''; return !isAmazonChannel(ch); }
+    return false;
+}
+function mlBin() { var b = v110El('move-bin-input'); return b ? String(b.value || '').trim().toUpperCase() : ''; }
+function mlSku() { return (_moveCardSku && _moveCardSku.sku_code) ? String(_moveCardSku.sku_code).toUpperCase() : ''; }
+function mlSame() { return ML.ok && ML.sku === mlSku() && ML.bin === mlBin(); }
+function mlVerb() { return (MOVE_MODES[moveMode] || {}).isTransfer ? 'move' : 'take out'; }
+function mlText() {
+    if (!ML.ok || ML.held <= 0) return '';
+    var f = Math.max(0, ML.free);
+    return 'Bin ' + ML.bin + ' holds ' + ML.binQty + ', ' + ML.held + (ML.held === 1 ? ' is' : ' are') + ' held for printed pick slips. ' +
+        (f > 0 ? 'You can ' + mlVerb() + ' only ' + f + '.' : 'Nothing is free to ' + mlVerb() + '.') +
+        ' To ' + mlVerb() + ' more, first release the held lines (PICK > Reserved & held stock) — needs a Supervisor/Admin PIN';
+}
+function mlFetch(sku, bin) {
+    return Promise.all([
+        withTimeout(db.from('oms_bin_stock').select('qty_on_hand').eq('sku_code', sku).eq('bin_code', bin), 8000, 'Bin stock'),
+        withTimeout(db.from('oms_pick_reservations').select('res_id,qty').eq('sku_code', sku).eq('bin_code', bin).eq('status', 'OPEN'), 8000, 'Held units')
+    ]).then(function (rr) {
+        if (!rr[0] || rr[0].error || !rr[1] || rr[1].error) return { ok: false };
+        var q = 0, h = 0;
+        (rr[0].data || []).forEach(function (r) { q += Number(r.qty_on_hand) || 0; });
+        (rr[1].data || []).forEach(function (r) { h += Number(r.qty) || 0; });
+        return { ok: true, binQty: Math.max(0, q), held: h, free: Math.max(0, q - h) };
+    }).catch(function () { return { ok: false }; });
+}
+function mlRefresh() {
+    var seq = ++ML.seq, sku = mlSku(), bin = mlBin();
+    try { dsgPrefetch(); } catch (e) {}
+    ML.ok = false; ML.failed = false; ML.offline = false; ML.pending = false;
+    if (!mlApplies() || !sku || !bin) { ML.sku = sku; ML.bin = bin; mlUi(); return Promise.resolve(); }
+    if (!db) { ML.sku = sku; ML.bin = bin; ML.offline = true; mlUi(); return Promise.resolve(); }
+    ML.pending = true; mlUi();
+    return mlFetch(sku, bin).then(function (r) {
+        if (seq !== ML.seq) return;
+        ML.pending = false; ML.sku = sku; ML.bin = bin;
+        if (!r.ok) { ML.failed = true; ML.ok = false; }
+        else { ML.ok = true; ML.binQty = r.binQty; ML.held = r.held; ML.free = r.free; }
+        mlUi();
+        try { refreshQtyStepper('move-qty-input'); } catch (e) {}
+        mlCapTyped();
+    });
+}
+function mlRefreshSoon() { if (ML.timer) clearTimeout(ML.timer); ML.timer = setTimeout(function () { ML.timer = null; mlRefresh(); }, 250); }
+function mlCapTyped() {
+    if (!mlApplies() || !mlSame() || ML.free < 1) return;
+    var el = v110El('move-qty-input'), v = parseInt(el.value, 10);
+    if (!isNaN(v) && v > ML.free) { el.value = String(ML.free); try { el.dispatchEvent(new Event('input', { bubbles: true })); } catch (e) {} mlUi(true); }
+}
+function mlUi(capped) {
+    var note = v110El('move-held-note'), btn = v110El('move-submit-btn');
+    var applies = mlApplies() && !!mlSku() && !!mlBin();
+    ML.block = !!(applies && db && (ML.failed || (mlSame() && ML.free <= 0)));
+    if (note) {
+        var h = '';
+        if (applies && ML.failed) h = '<div class="ml-warn" style="display:block;">' + ML_FAIL_MSG + ' <button type="button" class="csv-btn" onclick="mlRefresh()">Try again</button></div>';
+        else if (applies && ML.offline) h = '<div class="ml-info">Offline: held units cannot be checked. A queued entry is checked by the database when it syncs, and is refused there if it would use units held for pick slips.</div>';
+        else if (applies && ML.pending) h = '<div class="ml-info">Checking held units&hellip;</div>';
+        else if (applies && mlSame() && ML.free <= 0 && ML.held <= 0) h = '<div class="ml-warn" style="display:block;">Bin ' + esc59(ML.bin) + ' shows 0 of this product \u2014 nothing to ' + mlVerb() + '.</div>';
+        else if (applies && mlSame() && ML.held > 0) {
+            h = '<div class="ml-warn">' + esc59(mlText()) + (capped ? ' (The number was lowered to ' + ML.free + '.)' : '') + '<div style="margin-top:6px;"><button type="button" class="csv-btn" onclick="mlSeeHeld()">See held lines for this product</button></div></div>';
+        }
+        note.innerHTML = h; note.style.display = h ? '' : 'none';
+    }
+    if (btn) { if (ML.block) btn.disabled = true; else if (btn.getAttribute('data-ml') === '1') btn.disabled = false; btn.setAttribute('data-ml', ML.block ? '1' : ''); }
+}
+function mlSeeHeld() {
+    if (!canReservedStock()) { alert('Ask a Supervisor to open PICK > Reserved & held stock for this product (' + mlSku() + ', bin ' + mlBin() + ') and release the held lines.'); return; }
+    openReservedStock();
+    var s = v110El('rs-search'); if (s) s.value = mlSku();
+    try { renderReservedStock(); } catch (e) {}
+}
+function moveQtyMax() {
+    var base = moveQtyMax_v109();
+    if (!mlApplies() || !mlSame()) return base;
+    var f = Math.max(0, ML.free), cap = base ? Math.min(base.max, f) : f;
+    return { max: cap, note: ML.held > 0 ? mlText() : (base ? base.note : '') };
+}
+function refreshMoveBinLists() { refreshMoveBinLists_v109(); try { mlRefresh(); } catch (e) {}  }
+// Submit: ask the database again, right now, before the old save code runs.
+function submitMoveTransaction() {
+    var btn = v110El('move-submit-btn');
+    if (btn && btn.disabled) return;
+    var resEl = v110El('move-result');
+    var go = function () { dsgThenSubmit(); };
+    if (!mlApplies() || !db) { go(); return; }
+    var typed = String((v110El('move-sku-input').value || '')).trim(), bin = mlBin(), qty = parseInt(v110El('move-qty-input').value, 10);
+    if (!typed || !bin) { go(); return; }   // the old checks explain what is missing
+    if (btn) btn.disabled = true;
+    resEl.className = 'move-result'; resEl.textContent = 'Checking held units...';
+    resolveSkuOrAsin(typed).then(function (sku) {
+        if (!sku) { if (btn) btn.disabled = false; go(); return; }
+        return mlFetch(String(sku.sku_code).toUpperCase(), bin).then(function (r) {
+            ML.sku = String(sku.sku_code).toUpperCase(); ML.bin = bin;
+            if (!r.ok) {
+                ML.ok = false; ML.failed = true; mlUi();
+                resEl.className = 'move-result err'; resEl.textContent = ML_FAIL_MSG;
+                return;
+            }
+            ML.ok = true; ML.failed = false; ML.binQty = r.binQty; ML.held = r.held; ML.free = r.free;
+            mlUi(); try { refreshQtyStepper('move-qty-input'); } catch (e) {}
+            if (r.free <= 0 && r.held > 0) { resEl.className = 'move-result err'; resEl.textContent = mlText() + '. Nothing was saved.'; return; }
+            if (r.free <= 0) { resEl.className = 'move-result err'; resEl.textContent = 'Bin ' + bin + ' shows 0 of this product \u2014 nothing to ' + mlVerb() + '.'; return; }
+            if (!isNaN(qty) && qty > r.free && r.held > 0) {
+                mlCapTyped();
+                resEl.className = 'move-result err'; resEl.textContent = mlText() + ' The quantity was lowered to ' + r.free + ' — check it and press Submit again.';
+                if (btn) btn.disabled = false;
+                return;
+            }
+            if (btn) btn.disabled = false;
+            go();
+        });
+    }).catch(function () {
+        ML.failed = true; mlUi();
+        resEl.className = 'move-result err'; resEl.textContent = ML_FAIL_MSG;
+    });
+}
+// The database's own refusal, in plain words.
+function plainDbRefusal(msg) {
+    var m = /Cannot remove (\d+) unit\(s\) of (\S+) from bin (\S+)[^0-9]+(\d+) of the (\d+) unit\(s\) there are reserved.*?so only (\d+) can be taken/.exec(String(msg || ''));
+    if (m) return 'Bin ' + m[3] + ' holds ' + m[5] + ', ' + m[4] + ' are held for printed pick slips. Only ' + m[6] + ' can be taken now (you asked for ' + m[1] + '). To take more, first release the held lines (PICK > Reserved & held stock) — needs a Supervisor/Admin PIN.';
+    return msg;
+}
+function writeLedgerTxn(opts) {
+    return writeLedgerTxn_v109(opts).then(function (res) {
+        if (res && res.ok === false && res.reason) res.reason = plainDbRefusal(res.reason);
+        try { if (res && res.ok) dsgRecord(opts); } catch (e) {}
+        return res;
+    });
+}
+
+// ── 6a. DOUBLE-SCAN GUARD on stock-in screens ───────────────────────────────────
+// Same person + same product + same bin + same quantity within 15 seconds asks first (v111: was 60). A "Yes, separate unit" answer is remembered 5 minutes per person + product + bin.
+// Checked against a short in-memory list of this phone's own saves, plus the newest ledger row
+// for that product and bin (read in the background when the bin is chosen, so the Submit button
+// is never made to wait). A different product, bin or quantity never asks.
+var DSG = { recent: [], db: null, bypass: false, ask: null, yes: {} };
+var DSG_MS = 15000, DSG_YES_MS = 300000, DSG_TYPES = ['NEW_STOCK_IN', 'RETURN_IN', 'ADJUSTMENT_FOUND', 'ADJUSTMENT_QC_RELEASE'];
+function dsgEmp() { var e = loadEmployee(); return e && e.code ? String(e.code).toUpperCase() : ''; }
+function dsgRecord(opts) {
+    if (!opts || DSG_TYPES.indexOf(opts.txnType) < 0 || !(Number(opts.qtyDelta) > 0)) return;
+    var now = Date.now();
+    DSG.recent = DSG.recent.filter(function (r) { return now - r.at < DSG_MS; });
+    DSG.recent.push({ emp: dsgEmp(), sku: String(opts.skuCode || '').toUpperCase(), asin: String(opts.asin || '').toUpperCase(), bin: String(opts.binCode || '').toUpperCase(), qty: Number(opts.qtyDelta), at: now });
+}
+function dsgPrefetch() {
+    DSG.db = null;
+    if (!db || DSG_TYPES.indexOf(moveMode) < 0) return;
+    var sku = mlSku(), bin = mlBin(); if (!sku || !bin) return;
+    var key = sku + '|' + bin;
+    withTimeout(db.from('oms_inventory_transactions').select('txn_id,created_at,qty_delta,employee_code,txn_type').eq('sku_code', sku).eq('bin_code', bin).order('created_at', { ascending: false }).limit(1), 6000, 'Latest entry').then(function (r) {
+        if (r && !r.error) DSG.db = { key: key, row: (r.data || [])[0] || null, at: Date.now() };
+    }).catch(function () {});
+}
+// Returns { secs, qty, bin } of a matching earlier entry, or null.
+function dsgMatch(keys, bin, qty) {
+    var now = Date.now(), emp = dsgEmp(), hit = null;
+    // v111: "Yes, it is a separate unit" was answered for this person + product + bin in the last 5 minutes: do not ask again
+    for (var yi = 0; yi < keys.length; yi++) { var yt = DSG.yes[emp + '|' + keys[yi] + '|' + bin]; if (yt && now - yt < DSG_YES_MS) return null; }
+    DSG.recent.forEach(function (r) {
+        if (now - r.at < DSG_MS && r.emp === emp && r.bin === bin && r.qty === qty && (keys.indexOf(r.sku) > -1 || (r.asin && keys.indexOf(r.asin) > -1))) hit = { secs: Math.round((now - r.at) / 1000), qty: qty, bin: bin };
+    });
+    if (hit) return hit;
+    var d = DSG.db;
+    if (d && d.row && keys.indexOf(String(d.key.split('|')[0])) > -1 && d.key.split('|')[1] === bin && String(d.row.employee_code || '').toUpperCase() === emp &&
+        Number(d.row.qty_delta) === qty && DSG_TYPES.indexOf(d.row.txn_type) > -1) {
+        var age = now - Date.parse(d.row.created_at);
+        if (age >= 0 && age < DSG_MS) return { secs: Math.round(age / 1000), qty: qty, bin: bin };
+    }
+    return null;
+}
+function dsgRemember(keys, bin) {
+    var now = Date.now(), emp = dsgEmp();
+    Object.keys(DSG.yes).forEach(function (k) { if (now - DSG.yes[k] >= DSG_YES_MS) delete DSG.yes[k]; });
+    (keys || []).forEach(function (k) { if (k) DSG.yes[emp + '|' + String(k).toUpperCase() + '|' + bin] = now; });
+}
+function dsgAsk(m) {
+    return new Promise(function (resolve) {
+        DSG.ask = resolve;
+        var t = v110El('ds-text');
+        if (t) t.textContent = 'You added ' + m.qty + ' of this to ' + m.bin + ' ' + m.secs + ' second' + (m.secs === 1 ? '' : 's') + ' ago. Add ' + (m.qty === 1 ? 'one more' : m.qty + ' more') + '?';
+        var bg = v110El('ds-bg'); if (bg) bg.classList.add('active');
+    });
+}
+function dsgAnswer(yes) {
+    var bg = v110El('ds-bg'); if (bg) bg.classList.remove('active');
+    var r = DSG.ask; DSG.ask = null; if (r) r(!!yes);
+}
+function dsgThenSubmit() {
+    if (DSG_TYPES.indexOf(moveMode) < 0 || DSG.bypass) { submitMoveTransaction_v109(); return; }
+    var typed = String(v110El('move-sku-input').value || '').trim().toUpperCase(), bin = mlBin(), qty = parseInt(v110El('move-qty-input').value, 10);
+    var keys = [typed]; if (_moveCardSku && String(_moveCardSku.sku_code || '').toUpperCase() === typed || (_moveCardSku && String(_moveCardSku.asin || '').toUpperCase() === typed)) keys.push(String(_moveCardSku.sku_code).toUpperCase());
+    var m = (typed && bin && qty > 0) ? dsgMatch(keys, bin, qty) : null;
+    if (!m) { submitMoveTransaction_v109(); return; }
+    dsgAsk(m).then(function (yes) {
+        var res = v110El('move-result');
+        if (!yes) { res.className = 'move-result'; res.textContent = 'Cancelled — nothing was added.'; return; }
+        dsgRemember(keys, bin);
+        DSG.bypass = true; try { submitMoveTransaction_v109(); } finally { DSG.bypass = false; }
+    });
+}
+function submitQuickAdd() {
+    var btn = v110El('qa-submit-btn'); if (btn && btn.disabled) return;
+    var sku = String(v110El('qa-sku-input').value || '').trim().toUpperCase(), asin = String(v110El('qa-asin-input').value || '').trim().toUpperCase();
+    var bin = String(v110El('qa-bin-input').value || '').trim().toUpperCase(), qty = parseInt(v110El('qa-qty-input').value, 10);
+    var qkeys = [sku, asin].filter(Boolean);
+    var m = (sku && bin && qty > 0) ? dsgMatch(qkeys, bin, qty) : null;
+    if (!m) { submitQuickAdd_v109(); return; }
+    dsgAsk(m).then(function (yes) {
+        if (!yes) { var r = v110El('qa-result'); r.className = 'move-result'; r.textContent = 'Cancelled — nothing was added.'; return; }
+        dsgRemember(qkeys, bin);
+        submitQuickAdd_v109();
+    });
+}
+// keep a held-lock block alive when the old save code re-enables Submit at the end of a try
+function v110InitMove() {
+    var q = v110El('move-qty-limit');
+    if (q && !v110El('move-held-note')) {
+        var d = document.createElement('div'); d.id = 'move-held-note'; d.style.display = 'none'; d.className = 'ml-note';
+        q.parentNode.insertBefore(d, q.nextSibling);
+    }
+    var qty = v110El('move-qty-input');
+    if (qty) ['input', 'change', 'blur'].forEach(function (ev) { qty.addEventListener(ev, function () { mlCapTyped(); }); });
+    var bin = v110El('move-bin-input');
+    if (bin) ['input', 'change'].forEach(function (ev) { bin.addEventListener(ev, mlRefreshSoon); });
+    var ch = v110El('move-channel-input');
+    if (ch) ch.addEventListener('change', function () { mlRefresh(); });
+    var btn = v110El('move-submit-btn');
+    if (btn && window.MutationObserver) new MutationObserver(function () { if (ML.block && !btn.disabled) btn.disabled = true; }).observe(btn, { attributes: true, attributeFilter: ['disabled'] });
+}
+if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', v110InitMove); else v110InitMove();
+
+// ── 6b. RELEASE REASON (required) + recount prompt ─────────────────────────────
+// Every release of reserved / held lines (one line, ticked lines, all older than N days,
+// rest of an order, a whole batch, bulk-sheet batch cancel) first asks "Why are you releasing?".
+// The answer is added to the reason text sent to the database (p_reason), as before.
+// "Stock NOT found on the shelf" opens a "Count this bin now" prompt after the release works.
+// The count itself is the existing Set True Count flow - no new ledger writer.
+var RR = { resolve: null, suffix: '', code: '', pairs: [] };
+var RR_LABEL = { ORDER: 'Order cancelled/changed', NOTFOUND: 'Stock NOT found on the shelf (recount)', MISTAKE: 'Printed by mistake', OTHER: 'Other' };
+function relSuffix() { return RR.suffix || ''; }
+function askReleaseReason(what) {
+    return new Promise(function (resolve) {
+        if (RR.resolve) { try { RR.resolve(null); } catch (e) {} }
+        RR.resolve = resolve;
+        var t = v110El('rr-what'); if (t) t.textContent = what ? ('Releasing ' + what + '.') : '';
+        Array.prototype.forEach.call(document.querySelectorAll('input[name="rr-opt"]'), function (r) { r.checked = false; });
+        var o = v110El('rr-other'); if (o) { o.value = ''; o.style.display = 'none'; }
+        rrGate();
+        var bg = v110El('rr-bg'); if (bg) bg.classList.add('active');
+    });
+}
+function rrChoice() { var c = document.querySelector('input[name="rr-opt"]:checked'); return c ? c.value : ''; }
+function rrGate() {
+    var c = rrChoice(), o = v110El('rr-other'), b = v110El('rr-go');
+    if (o) o.style.display = c === 'OTHER' ? '' : 'none';
+    var ok = !!c && (c !== 'OTHER' || String((o && o.value) || '').trim().length >= 3);
+    if (b) b.disabled = !ok;
+}
+function rrOk() {
+    var c = rrChoice(); if (!c) return;
+    var o = String((v110El('rr-other') || {}).value || '').trim();
+    if (c === 'OTHER' && o.length < 3) return;
+    var text = c === 'OTHER' ? 'Other: ' + o.slice(0, 120) : RR_LABEL[c];
+    var bg = v110El('rr-bg'); if (bg) bg.classList.remove('active');
+    var r = RR.resolve; RR.resolve = null; if (r) r({ code: c, text: text });
+}
+function rrCancel() {
+    var bg = v110El('rr-bg'); if (bg) bg.classList.remove('active');
+    var r = RR.resolve; RR.resolve = null; if (r) r(null);
+}
+// Ask, remember the answer for the release call that follows. pairsP = [{sku,bin}] or a Promise of it.
+function relGate(what, pairsP) {
+    RR.suffix = ''; RR.code = ''; RR.pairs = [];
+    return askReleaseReason(what).then(function (a) {
+        if (!a) return false;
+        RR.suffix = ' - Reason: ' + a.text; RR.code = a.code;
+        return Promise.resolve(pairsP).then(function (p) { RR.pairs = p || []; return true; }, function () { RR.pairs = []; return true; });
+    });
+}
+function relPairsFrom(rows) {
+    var seen = {}, out = [];
+    (rows || []).forEach(function (r) {
+        var k = String(r.sku_code) + '|' + String(r.bin_code || '');
+        if (!seen[k]) { seen[k] = 1; out.push({ sku: r.sku_code, bin: r.bin_code || '' }); }
+    });
+    return out;
+}
+function relOpenRows(pred) { return (_hs.rows || []).filter(function (r) { return r.status === 'OPEN' && pred(r); }); }
+function relQueryPairs(col, val) {
+    if (!db) return Promise.resolve([]);
+    return withTimeout(db.from('oms_pick_reservations').select('sku_code,bin_code').eq('status', 'OPEN').eq(col, val).limit(500), 8000, 'Held lines').then(function (r) { return r.error ? [] : relPairsFrom(r.data); }, function () { return []; });
+}
+function relAfter() {
+    var pairs = RR.pairs || [], code = RR.code; RR.pairs = []; RR.code = '';
+    if (code === 'NOTFOUND') openCountPrompt(pairs);
+}
+function releaseHeldLine(resId) {
+    relGate('this line', relPairsFrom(relOpenRows(function (r) { return Number(r.res_id) === Number(resId); }))).then(function (ok) { if (ok) releaseHeldLine_v109(resId); });
+}
+function releaseHeldOrder(orderId) {
+    var o = String(orderId || '').toUpperCase();
+    relGate('the rest of order ' + o, relPairsFrom(relOpenRows(function (r) { return String(r.order_id || '').toUpperCase() === o; }))).then(function (ok) { if (ok) releaseHeldOrder_v109(orderId); });
+}
+function releaseHeldBatch(batchId) {
+    relGate('everything still held in this batch', relPairsFrom(relOpenRows(function (r) { return Number(r.batch_id) === Number(batchId); }))).then(function (ok) { if (ok) releaseHeldBatch_v109(batchId); });
+}
+function cancelBulkBatch(batchId) {
+    relGate('every unpicked line of batch ' + batchId, relQueryPairs('batch_id', Number(batchId))).then(function (ok) { if (ok) cancelBulkBatch_v109(batchId); });
+}
+function cancelHeldOrder(batchId, typed) {
+    var ord = (typed !== undefined) ? typed : prompt('Cancel which order in batch ' + batchId + '?\n\nType or paste the order number exactly as on the slip.');
+    if (ord === null || ord === undefined) return;
+    var o = String(ord).trim().toUpperCase(); if (!o) return;
+    relGate('order ' + o, relPairsFrom(relOpenRows(function (r) { return String(r.order_id || '').toUpperCase() === o && Number(r.batch_id) === Number(batchId); }))).then(function (ok) { if (ok) cancelHeldOrder_v109(batchId, o); });
+}
+function _rsRelease(ids, what, bulk) {
+    var byId = {}; (_rs.rows || []).forEach(function (x) { byId[x.res_id] = x; });
+    var lines = ids.map(function (i) { return byId[i]; }).filter(Boolean);
+    if (!lines.length || _rs.busy || !canReservedStock()) return _rsRelease_v109(ids, what, bulk);   // the old code gives its own message
+    return relGate(what, relPairsFrom(lines)).then(function (ok) {
+        if (!ok) return;
+        var idList = lines.map(function (x) { return x.res_id; }), wasPairs = RR.pairs.slice(), code = RR.code;
+        return _rsRelease_v109(ids, what, bulk).then(function () {
+            // which of these lines are really gone from the open list now?
+            var open = {}; (_rs.rows || []).forEach(function (x) { open[x.res_id] = 1; });
+            var gone = lines.filter(function (x) { return !open[x.res_id]; });
+            RR.pairs = gone.length ? relPairsFrom(gone) : [];
+            if (code === 'NOTFOUND' && gone.length) { RR.code = 'NOTFOUND'; relAfter(); }
+        });
+    });
+}
+// Count prompt: one button per product + bin that was just released as "not found".
+function openCountPrompt(pairs) {
+    var box = v110El('cp-list'), bg = v110El('cp-bg'); if (!box || !bg) return;
+    if (!pairs || !pairs.length) {
+        box.innerHTML = '<div class="settings-info">Open <strong>Actions &rarr; Set True Count</strong> and count the bin(s) where the stock was not found.</div>';
+    } else {
+        box.innerHTML = pairs.slice(0, 12).map(function (p) {
+            return '<div class="cp-item"><div><strong>' + esc59(p.sku) + '</strong><br><span style="color:#6B7280;">bin ' + esc59(p.bin || '-') + '</span></div>' +
+                '<button type="button" class="settings-btn" style="flex:0 0 auto;min-height:40px;" data-sku="' + esc59(p.sku) + '" data-bin="' + esc59(p.bin) + '" onclick="v110CountBin(this.getAttribute(\'data-sku\'), this.getAttribute(\'data-bin\'))">Count this bin now</button></div>';
+        }).join('') + (pairs.length > 12 ? '<div class="settings-info">&hellip;and ' + (pairs.length - 12) + ' more. Count them from Actions &rarr; Set True Count.</div>' : '');
+    }
+    bg.classList.add('active');
+}
+function closeCountPrompt() { var bg = v110El('cp-bg'); if (bg) bg.classList.remove('active'); }
+// Opens the existing Set True Count screen for this product, with the bin filled in.
+function v110CountBin(sku, bin) {
+    closeCountPrompt();
+    try { closeReservedStock(); } catch (e) {}
+    try { closeHeldStock(); } catch (e) {}
+    try { closeSkuDetail(); } catch (e) {}
+    try { switchTab('move'); } catch (e) {}
+    if (state.tab !== 'move') { alert('Ask someone who can open the Actions tab to count bin ' + (bin || '') + ' for ' + sku + ' (Actions > Set True Count).'); return; }
+    setMoveMode('MANUAL_CORRECTION');
+    v110El('move-sku-input').value = sku;
+    prefillMoveBin();
+    var tries = 0;
+    (function wait() {
+        if (_moveCardSku && String(_moveCardSku.sku_code).toUpperCase() === String(sku).toUpperCase()) {
+            var b = v110El('move-bin-input');
+            if (bin) { b.value = bin; markMoveBinTouched(); try { b.dispatchEvent(new Event('input', { bubbles: true })); } catch (e) {} refreshMoveBinLists(); }
+            try { var cq = v110El('move-qty-input'); cq.value = ''; try { refreshQtyStepper('move-qty-input'); } catch (e2) {} cq.focus(); } catch (e) {}   // v111: no pre-filled 0
+            return;
+        }
+        if (++tries < 40) setTimeout(wait, 120);
+        else if (bin) { var b2 = v110El('move-bin-input'); b2.value = bin; markMoveBinTouched(); try { v110El('move-qty-input').value = ''; } catch (e3) {} }
+    })();
+}
+
+// ── 7. STOCK HEALTH CHECK card (STOCK tab) ──────────────────────────────────────
+var SH = { open: false, rows: [], total: 0, byFlag: {}, bySev: {}, names: {}, loading: false, err: '', at: '' };
+var SH_FLAGS = {
+    DUP_STOCK_IN: ['Possible double scan', 'The same quantity was added to the same bin again a few seconds after an earlier entry. Check whether it was scanned twice.'],
+    HELD_OVER_STOCK: ['Held more than in stock', 'More units are held for printed pick slips than the bin holds.'],
+    NEGATIVE_BIN: ['Bin below zero', 'A bin shows less than zero units. Count it and correct it.'],
+    UNBINNED_UNITS: ['Units with no proper bin', 'Stock sits in no bin or in a placeholder bin.']
+};
+var SH_STATE_FLAGS = { HELD_OVER_STOCK: 1, NEGATIVE_BIN: 1, UNBINNED_UNITS: 1 };   // v111: describe how things are NOW, not an event time
+var SH_SEV_RANK = { HIGH: 0, MEDIUM: 1, LOW: 2 };
+function shFlagName(c) { return (SH_FLAGS[c] || [String(c || 'Other').replace(/_/g, ' ').toLowerCase()])[0]; }
+function shToggle() {
+    SH.open = !SH.open;
+    var b = v110El('sh-body'); if (b) b.style.display = SH.open ? '' : 'none';
+    var a = v110El('sh-arrow'); if (a) a.innerHTML = SH.open ? '&#9652;' : '&#9662;';
+    if (SH.open && !SH.at && !SH.loading) shLoad();
+}
+function shCount(q) { return withTimeout(q, 10000, 'Health count').then(function (r) { return r.error ? null : (r.count == null ? 0 : r.count); }, function () { return null; }); }
+function shLoad() {
+    var box = v110El('sh-list'), sum = v110El('sh-summary');
+    if (!box) return Promise.resolve();
+    if (!db) { sum.innerHTML = '<div class="move-result err">Live database not reachable right now.</div>'; return Promise.resolve(); }
+    SH.loading = true; sum.innerHTML = '<div class="settings-info">Checking&hellip;</div>'; box.innerHTML = '';
+    var flags = Object.keys(SH_FLAGS), sevs = ['HIGH', 'MEDIUM', 'LOW'];
+    var head = function () { return db.from('oms_stock_health_flags').select('flag_code', { count: 'exact', head: true }); };
+    var jobs = [shCount(head())];
+    flags.forEach(function (f) { jobs.push(shCount(head().eq('flag_code', f))); });
+    sevs.forEach(function (s) { jobs.push(shCount(head().eq('severity', s))); });
+    var cols = 'flag_code,severity,sku_code,bin_code,qty,event_at,txn_id,employee_code,detail';
+    var lists = sevs.map(function (s) { return withTimeout(db.from('oms_stock_health_flags').select(cols).eq('severity', s).order('event_at', { ascending: false }).limit(200), 12000, 'Health list'); });
+    lists.push(withTimeout(db.from('oms_stock_health_flags').select(cols).not('severity', 'in', '(HIGH,MEDIUM,LOW)').order('event_at', { ascending: false }).limit(200), 12000, 'Health list'));
+    return Promise.all([Promise.all(jobs), Promise.all(lists.map(function (p) { return p.then(function (r) { return r; }, function () { return { error: { message: 'timeout' } }; }); })), (LH.emps ? Promise.resolve() : lhLoadLists())]).then(function (rr) {
+        var c = rr[0], failed = c.some(function (x) { return x == null; }) || rr[1].some(function (r) { return r.error; });
+        if (failed) throw new Error('Some of the health check could not be read. Tap Refresh to try again.');
+        SH.total = c[0]; SH.byFlag = {}; SH.bySev = {};
+        flags.forEach(function (f, i) { SH.byFlag[f] = c[1 + i]; });
+        sevs.forEach(function (s, i) { SH.bySev[s] = c[1 + flags.length + i]; });
+        var rows = []; rr[1].forEach(function (r) { rows = rows.concat(r.data || []); });
+        rows.sort(function (a, b) { var ra = SH_SEV_RANK[a.severity], rb = SH_SEV_RANK[b.severity]; ra = ra == null ? 9 : ra; rb = rb == null ? 9 : rb; return (ra - rb) || (Date.parse(b.event_at || '') || 0) - (Date.parse(a.event_at || '') || 0); });
+        SH.rows = rows.slice(0, 200);
+        var skus = []; var seen = {}; SH.rows.forEach(function (r) { if (r.sku_code && !seen[r.sku_code]) { seen[r.sku_code] = 1; skus.push(r.sku_code); } });
+        var errs = [];
+        return fetchInChunks('oms_sku_master', 'sku_code,product_name', skus, 150, 8000, 'Product names', errs).then(function (nm) {
+            SH.names = {}; nm.forEach(function (n) { SH.names[n.sku_code] = n.product_name; });
+            SH.at = new Date().toISOString(); SH.err = '';
+        });
+    }).catch(function (e) { SH.err = e && e.message ? e.message : String(e); }).then(function () { SH.loading = false; shRender(); });
+}
+function shRender() {
+    var box = v110El('sh-list'), sum = v110El('sh-summary'); if (!box || !sum) return;
+    if (SH.err) { sum.innerHTML = '<div class="move-result err">' + esc59(SH.err) + '</div>'; box.innerHTML = ''; return; }
+    var parts = Object.keys(SH.byFlag).map(function (f) { return '<span class="sh-pill">' + esc59(shFlagName(f)) + ': <strong>' + Number(SH.byFlag[f]).toLocaleString('en-IN') + '</strong></span>'; });
+    var sev = ['HIGH', 'MEDIUM', 'LOW'].map(function (s) { return '<span class="sh-pill sev-' + s + '">' + s.charAt(0) + s.slice(1).toLowerCase() + ': <strong>' + Number(SH.bySev[s]).toLocaleString('en-IN') + '</strong></span>'; });
+    sum.innerHTML = '<div><strong>' + Number(SH.total).toLocaleString('en-IN') + '</strong> flag' + (SH.total === 1 ? '' : 's') + ' in total</div><div style="margin-top:4px;">' + parts.join(' ') + '</div><div style="margin-top:4px;">' + sev.join(' ') + '</div>' +
+        '<div style="color:#6B7280;font-size:11px;margin-top:4px;">Checked ' + esc59(fmtIst(SH.at)) + ' India time. Showing ' + SH.rows.length + ' of ' + Number(SH.total).toLocaleString('en-IN') + ' (most serious first, then newest; at most 200).</div>';
+    if (!SH.rows.length) { box.innerHTML = '<div class="lh-empty" style="padding:10px;">Nothing flagged. &#10003;</div>'; return; }
+    box.innerHTML = SH.rows.map(function (r, i) {
+        var e = LH.emps && LH.emps[String(r.employee_code || '').toUpperCase()];
+        var skuJs = v110Js(r.sku_code || '');
+        return '<div class="sh-row"><div class="sh-top"><span class="sh-sev sev-' + esc59(r.severity) + '">' + esc59(r.severity) + '</span> <strong>' + esc59(shFlagName(r.flag_code)) + '</strong></div>' +
+            '<div><strong>' + esc59(r.sku_code || '') + '</strong>' + (SH.names[r.sku_code] ? ' &mdash; ' + esc59(SH.names[r.sku_code]) : '') + '</div>' +
+            '<div class="sh-meta">Bin ' + esc59(r.bin_code || '-') + (r.qty != null ? ' &bull; qty ' + esc59(r.qty) : '') + ' &bull; ' + esc59((SH_STATE_FLAGS[r.flag_code] || (!r.txn_id && r.flag_code !== 'DUP_STOCK_IN')) ? 'current' : (r.event_at ? fmtIst(r.event_at) : 'time unknown')) + ' &bull; ' + (r.employee_code ? esc59(r.employee_code) + (e && e.display_name ? ' (' + esc59(e.display_name) + ')' : '') : 'who: unknown') + (r.txn_id ? ' &bull; entry #' + esc59(r.txn_id) : '') + '</div>' +
+            (r.detail ? '<div class="sh-detail">' + esc59(r.detail) + '</div>' : '') +
+            '<div style="margin-top:4px;"><button type="button" class="csv-btn" onclick="openSkuDetail(\'' + skuJs + '\')">History</button> ' +
+            '<button type="button" class="csv-btn" data-sku="' + esc59(r.sku_code || '') + '" data-bin="' + esc59(r.bin_code || '') + '" onclick="v110CountBin(this.getAttribute(\'data-sku\'), this.getAttribute(\'data-bin\'))">Count this bin</button></div></div>';
+    }).join('');
+}
+// ══ end v110 ═══════════════════════════════════════════════════════════════
 </script>
 <!-- v96: bottom sheet used to pick a bin or a product type. -->
 <div class="sheet-bg" id="pick-sheet-bg" onclick="if(event.target===this)closePickSheet()">
@@ -16647,36 +17852,24 @@ function plFind(btn) {
         </div>
     </div>
 </div>
-<!-- v106: Void + reverse one stock-history entry (Supervisor / Admin PIN, database update M8). -->
+<!-- v110: Void + reverse one entry: ONE sheet - plan, reason, approver code and PIN together (database update M8). -->
 <div class="emp-modal-bg" id="void-bg">
     <div class="emp-modal void-modal">
         <h2 id="void-title">Void entry</h2>
         <div id="void-what"></div>
         <div id="void-step1">
             <div id="void-pair"></div>
-            <div class="lh-vq">Void this entry and put the stock back exactly?</div>
-            <div style="display:flex;gap:8px;margin-top:10px;">
-                <button class="settings-btn" style="flex:1;background:#B3261E;" id="void-yes" onclick="voidNext()">Yes, continue</button>
-                <button class="settings-btn" style="flex:1;background:#888" onclick="closeVoid()">Cancel</button>
-            </div>
-        </div>
-        <div id="void-step2" style="display:none;">
             <label class="lh-vlab">Why? (required)</label>
-            <select id="void-reason" class="settings-input"></select>
-            <input type="text" id="void-reason-text" class="settings-input" placeholder="More detail (required for Other)" maxlength="200" autocomplete="off" style="margin-top:6px;">
-            <div style="display:flex;gap:8px;margin-top:10px;">
-                <button class="settings-btn" style="flex:1" id="void-next" onclick="voidNext()">Next</button>
-                <button class="settings-btn" style="flex:1;background:#888" onclick="closeVoid()">Cancel</button>
-            </div>
-        </div>
-        <div id="void-step3" style="display:none;">
+            <select id="void-reason" class="settings-input" onchange="voidGate()"></select>
+            <input type="text" id="void-reason-text" class="settings-input" placeholder="More detail (required for Other)" maxlength="200" autocomplete="off" style="margin-top:6px;" oninput="voidGate()">
             <label class="lh-vlab">Supervisor or Admin code</label>
-            <input type="text" id="void-approver" class="settings-input" autocomplete="off" autocapitalize="characters" style="text-transform:uppercase">
+            <input type="text" id="void-approver" class="settings-input" autocomplete="off" autocapitalize="characters" style="text-transform:uppercase" oninput="voidGate()">
             <label class="lh-vlab">Their PIN</label>
             <input type="text" inputmode="numeric" pattern="[0-9]*" maxlength="4" id="void-pin" name="oms-void-code-x" class="pin-mask" placeholder="&bull;&bull;&bull;&bull;" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" data-lpignore="true" data-1p-ignore="true" data-bwignore="true" data-form-type="other"
-                   style="width:100%;font-size:22px;letter-spacing:10px;text-align:center;padding:10px;border:1px solid #E2E8F0;border-radius:10px;" onkeydown="if(event.key==='Enter')submitVoid();">
+                   style="width:100%;font-size:22px;letter-spacing:10px;text-align:center;padding:10px;border:1px solid #E2E8F0;border-radius:10px;" oninput="voidGate()" onkeydown="if(event.key==='Enter'&&voidGate())submitVoid();">
+            <div id="void-need" class="lh-vkeep"></div>
             <div style="display:flex;gap:8px;margin-top:10px;">
-                <button class="settings-btn" style="flex:1;background:#B3261E;" id="void-go" onclick="submitVoid()">Void now</button>
+                <button class="settings-btn" style="flex:1;background:#B3261E;" id="void-go" disabled onclick="submitVoid()">Void and reverse</button>
                 <button class="settings-btn" style="flex:1;background:#888" onclick="closeVoid()">Cancel</button>
             </div>
         </div>
@@ -16685,6 +17878,42 @@ function plFind(btn) {
             <button class="settings-btn" style="margin-top:10px;" onclick="closeVoid()">Close</button>
         </div>
         <div class="move-result" id="void-msg"></div>
+    </div>
+</div>
+<!-- v110: why are you releasing? (required) -->
+<div class="emp-modal-bg" id="rr-bg">
+    <div class="emp-modal">
+        <h2>Why are you releasing?</h2>
+        <p id="rr-what" style="font-size:12px;color:#6B7280;"></p>
+        <label class="rr-opt"><input type="radio" name="rr-opt" value="ORDER" onchange="rrGate()"> Order cancelled/changed</label>
+        <label class="rr-opt"><input type="radio" name="rr-opt" value="NOTFOUND" onchange="rrGate()"> Stock NOT found on the shelf (recount)</label>
+        <label class="rr-opt"><input type="radio" name="rr-opt" value="MISTAKE" onchange="rrGate()"> Printed by mistake</label>
+        <label class="rr-opt"><input type="radio" name="rr-opt" value="OTHER" onchange="rrGate()"> Other (type reason)</label>
+        <input type="text" id="rr-other" class="settings-input" placeholder="Type the reason (at least 3 letters)" maxlength="120" autocomplete="off" style="display:none;margin-top:6px;" oninput="rrGate()">
+        <div style="display:flex;gap:8px;margin-top:12px;">
+            <button class="settings-btn" style="flex:1" id="rr-go" disabled onclick="rrOk()">Continue</button>
+            <button class="settings-btn" style="flex:1;background:#888" onclick="rrCancel()">Cancel</button>
+        </div>
+    </div>
+</div>
+<!-- v110: count this bin now (after "stock not found") -->
+<div class="emp-modal-bg" id="cp-bg">
+    <div class="emp-modal">
+        <h2>Count this bin now</h2>
+        <p style="font-size:13px;">You said the stock was not on the shelf. Count the bin now so the stock figure is corrected.</p>
+        <div id="cp-list"></div>
+        <button class="settings-btn" style="margin-top:10px;background:#888" onclick="closeCountPrompt()">Not now</button>
+    </div>
+</div>
+<!-- v110: double-scan question -->
+<div class="emp-modal-bg" id="ds-bg">
+    <div class="emp-modal">
+        <h2>Add it again?</h2>
+        <p id="ds-text" style="font-size:14px;"></p>
+        <div style="display:flex;gap:8px;margin-top:12px;">
+            <button class="settings-btn" style="flex:1" onclick="dsgAnswer(true)">Yes, add another</button>
+            <button class="settings-btn" style="flex:1;background:#888" onclick="dsgAnswer(false)">No, cancel</button>
+        </div>
     </div>
 </div>
 </body>
