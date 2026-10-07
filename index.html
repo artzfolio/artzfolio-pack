@@ -62,6 +62,23 @@
             Switched off -> clear message + "Switch on & continue". The database
             enforces the same rule (trigger trg_oms_require_tracked_sku), so
             nothing can slip past from any surface. -->
+    <!-- v113 (2026-10-07): fixes from an independent review of v112 (everything from v112 and earlier is kept).
+         (a) Tapping a SKU link inside a table row opened the SKU page twice (link + row) - the link now stops the tap there.
+         (b) Export Full Inventory always has the same columns (the 8 forecast columns are blank when the forecast cannot be read); notes and any failed lookups show in an on-screen message that stays until dismissed.
+         (c) The phone's Back button / gesture closes the SKU page instead of leaving the app.
+         (d) No dependency on units_2025 (M11 v3 no longer exposes it): "Annual equivalent" is shown; basis "2025" reads "2025 history"; the Orders total is labelled "Order lines".
+         (e) Sales reads page in a fully stable order (asin and bin added) so paging cannot drop or repeat a row. -->
+    <!-- v112 (2026-10-07): analytics and a fuller inventory export (everything from v111 and earlier is kept).
+         1. DASH has a sub-menu: Overview (unchanged) | Sales | Inventory | Forecast | Production. Permission key "analytics"
+            (Admin always; Supervisor yes unless switched off; everyone else only when ticked in the Admin Panel v2.37).
+         2. Sales, Forecast and the "since tracking" figures read the M11 views (oms_sales_daily, oms_sku_reserved, oms_sku_forecast).
+            If M11 is not applied the screens say: "Analytics are not switched on yet. Ask the Admin to apply database step M11."
+            A read that fails is shown as an error, never as zeros. Results are added up on the phone and kept for 5 minutes (Refresh button).
+         3. SKU page: tap any SKU / ASIN in Stock Search, Sales, Inventory, Forecast, Production or Reserved stock. Deep links: ?sku=... or ?asin=...
+         4. Export Full Inventory keeps every old column and adds: as-of time, reserved units (read live from open reservations at export time),
+            net available (negative shown and flagged), reserved lines, stock value at MRP, bins (BIN:QTY), and - when M11 is applied - sold 7d / 30d,
+            average per day, days of cover, ABC tier, make now, quantity to make, last sale date. If reserved stock cannot be read, nothing is exported.
+         Nothing else changed: slip reading (parseQR), scanning, the v108 scrolling and pull-to-refresh rules, Void, and the Admin Panel logic are untouched. -->
     <!-- v111 (2026-10-03): review fixes on top of v110 (everything from v110, v109 and v108 is kept).
          1. Stock Search by BIN now shows the product name and ASIN on every card, and the name filter / name sort work (they were blank).
          2. If held units cannot be checked, the message is plain: "Could not check held units (no signal or slow connection). Nothing was saved. Try again when the connection is back." Submit stays off.
@@ -3154,10 +3171,75 @@ var qrcode = function() {
 .rr-opt{display:flex;gap:10px;align-items:center;padding:10px 4px;font-size:14px;border-bottom:1px solid #f1f1f1}.rr-opt input{width:22px;height:22px;flex:0 0 auto}
 .cp-item{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid #f1f1f1;font-size:13px}
 .void-modal button:disabled,#rr-go:disabled{opacity:.45}
+/* ═══ v112 (2026-10-07): DASH analytics + SKU page ═══ */
+.a12-subnav{display:flex;gap:6px;flex-wrap:wrap;margin:0 0 10px}
+.a12-sn{flex:1 1 auto;font-size:12px;font-weight:700;padding:7px 10px;border-radius:20px;border:1px solid #ccd6e2;background:#fff;color:#334;touch-action:manipulation}
+.a12-sn.active{background:#1B4F8A;border-color:#1B4F8A;color:#fff}
+.a12-head{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:4px;font-size:15px;color:#0A1628}
+.a12-sub{font-size:11px;color:#6B7280;margin:2px 0 6px;line-height:1.4}
+.a12-msg{font-size:12px;border:1px solid #dce4f0;background:#f4f7fb;border-radius:10px;padding:10px;margin:8px 0;line-height:1.45}
+.a12-msg.warn{background:#FFF8E6;border-color:#f0d9a0;color:#7a5a00}
+.a12-msg.err{background:#FDEDEC;border-color:#f0b8b2;color:#8a1c14}
+.a12-card{background:#fff;border:1px solid #E2E8F0;border-radius:12px;padding:10px;margin:10px 0}
+.a12-card h4{margin:0 0 4px;font-size:13px;color:#0A1628}
+.a12-kpis{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:8px 0}
+.a12-kpi{background:linear-gradient(135deg,#eef2f8,#e4ebf5);border:1px solid #dce4f0;border-radius:12px;padding:10px 8px;text-align:center;min-width:0}
+.a12-kpi.warn{background:linear-gradient(135deg,#fef6e6,#fdecc8);border-color:#f0d9a0}
+.a12-kpi.bad{background:linear-gradient(135deg,#fdedec,#fbdad7);border-color:#f0b8b2}
+.a12-kv{font-size:18px;font-weight:800;color:#1B4F8A;line-height:1.2;overflow-wrap:anywhere}
+.a12-kpi.warn .a12-kv{color:#d68910}.a12-kpi.bad .a12-kv{color:#c0392b}
+.a12-kl{font-size:10px;color:#666;text-transform:uppercase;font-weight:700;margin-top:3px;letter-spacing:.3px}
+.a12-ks{font-size:10px;color:#888;margin-top:2px}
+.a12-chips{display:flex;gap:6px;flex-wrap:wrap;margin:6px 0}
+.a12-chip{font-size:11.5px;font-weight:700;padding:6px 11px;border-radius:20px;border:1px solid #ccd6e2;background:#fff;color:#556;touch-action:manipulation}
+.a12-chip.on{background:#1B4F8A;border-color:#1B4F8A;color:#fff}
+.a12-row{display:flex;gap:8px;margin:6px 0}
+.a12-row label,.a12-grid label{display:flex;flex-direction:column;font-size:10.5px;font-weight:700;color:#556;gap:3px;min-width:0;flex:1}
+.a12-row input,.a12-grid input[type=text],.a12-grid input[type=date],.a12-grid select,.a12-row select{font-size:13px;padding:7px;border:1px solid #ccd6e2;border-radius:8px;width:100%;box-sizing:border-box;background:#fff;min-width:0}
+.a12-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px}
+.a12-filt{border:1px solid #E2E8F0;border-radius:10px;padding:8px 10px;margin:6px 0;background:#fafbfd}
+.a12-filt summary{font-size:12px;font-weight:700;color:#1B4F8A;cursor:pointer}
+.a12-tw{overflow-x:auto;-webkit-overflow-scrolling:touch;max-width:100%}
+.a12-t{border-collapse:collapse;width:100%;font-size:11.5px}
+.a12-t th{background:#0A1628;color:#fff;font-size:10.5px;text-align:left;padding:6px 6px;white-space:nowrap;position:sticky;top:0}
+.a12-t th.n,.a12-t td.n{text-align:right}
+.a12-t td{padding:6px;border-bottom:1px solid #eef1f6;vertical-align:top}
+.a12-t tbody tr:nth-child(even){background:#F8F9FB}
+.a12-t td small{color:#6B7280;font-size:10px}
+.a12-lnk{color:#1B4F8A;font-weight:800;text-decoration:underline;cursor:pointer}
+.a12-li{display:flex;gap:8px;align-items:center;justify-content:space-between;padding:7px 2px;border-bottom:1px solid #f1f1f1;font-size:12px;cursor:pointer}
+.a12-lt{min-width:0;flex:1;overflow-wrap:anywhere}.a12-lt small{color:#6B7280}
+.a12-lv{font-weight:800;color:#1B4F8A;white-space:nowrap}
+.a12-rk{width:20px;text-align:center;color:#6B7280;font-weight:700}
+.a12-bars{display:flex;align-items:flex-end;gap:1px;height:90px;margin-top:6px;border-bottom:1px solid #ccd6e2}
+.a12-bar{flex:1;height:100%;display:flex;align-items:flex-end;min-width:1px}
+.a12-bar i{display:block;width:100%;border-radius:2px 2px 0 0}
+.a12-bax{display:flex;justify-content:space-between;font-size:9.5px;color:#6B7280;margin-top:2px;gap:4px}
+.a12-pcbar{display:inline-block;width:40px;height:6px;background:#E2E8F0;border-radius:3px;vertical-align:middle;overflow:hidden}
+.a12-pcbar i{display:block;height:100%;background:#1B4F8A}
+.a12-pill{display:inline-block;font-size:10.5px;background:#f0f4fa;border:1px solid #dce4f0;border-radius:10px;padding:2px 8px;margin:2px 2px 0 0}
+.a12-pill.ok{background:#E8F6EC;border-color:#b6dfc2;color:#1B7A3A}.a12-pill.warn{background:#FFF8E6;border-color:#f0d9a0;color:#9A6700}.a12-pill.bad{background:#FDEDEC;border-color:#f0b8b2;color:#B3261E}
+.a12-flag{font-size:9.5px;background:#FDEDEC;color:#B3261E;border-radius:8px;padding:1px 5px}
+.a12-mk{font-size:10px;font-weight:800;border-radius:8px;padding:2px 7px;white-space:nowrap}
+.a12-mk.y{background:#FDECC8;color:#9A6700}.a12-mk.n{background:#E8F6EC;color:#1B7A3A}.a12-mk.d{background:#eceff4;color:#556}
+.a12-how{border:1px solid #dce4f0;background:#f7f9fc;border-radius:10px;padding:8px 10px;margin:8px 0;font-size:12px}
+.a12-how summary{font-weight:700;color:#1B4F8A;cursor:pointer}
+.a12-how ul{margin:4px 0 4px 16px;padding:0}.a12-how li{margin:3px 0}
+.a12-how-in{font-size:11.5px;background:#f7f9fc;border:1px dashed #ccd6e2;border-radius:8px;padding:8px;margin-top:8px;line-height:1.6}
+.a12-i{color:#9A6700;cursor:help}
+body.a12-lock{overflow:hidden}
+.a12-skupage{display:none;position:fixed;inset:0;z-index:180;background:#F4F6FA;flex-direction:column;overscroll-behavior:contain;touch-action:pan-y}
+.a12-skupage.open{display:flex}
+.a12-sphead{display:flex;align-items:center;gap:10px;padding:10px 14px;background:#0A1628;color:#fff;flex:0 0 auto}
+.a12-sphead button{background:#C9A84C;color:#0A1628;border:0;border-radius:18px;font-weight:800;font-size:13px;padding:7px 14px;touch-action:manipulation}
+.a12-sphead div{font-weight:800;font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.a12-spbody{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:4px 12px calc(30px + env(safe-area-inset-bottom,0px));overscroll-behavior:contain}
 </style>
 </head>
 <body>
-<div class="ver-corner" id="verCornerBadge" onclick="handleVerBadgeTap()">v111</div>
+<div class="ver-corner" id="verCornerBadge" onclick="handleVerBadgeTap()">v113</div>
+<!-- v112: the full-screen SKU page (opened by a12OpenSku) -->
+<div class="a12-skupage" id="a12-skupage"><div class="a12-sphead"><button type="button" onclick="a12CloseSku()">&larr; Back</button><div id="a12-sp-title"></div></div><div class="a12-spbody" id="a12-sp-body"></div></div>
 <!-- v63: Gap 2 — offline write-queue indicator. Hidden (display:none) unless
      something is actually queued or failed. Tapping it shows the queue detail
      panel (openOfflineQueuePanel()). -->
@@ -3932,6 +4014,9 @@ var qrcode = function() {
             </div>
         </div>
         <div id="dash-tab" class="tab-content">
+<div id="a12-subnav" class="a12-subnav" style="display:none"></div>
+<div id="a12-views" style="display:none"><div id="a12-view"></div></div>
+<div id="a12-overview">
             <div class="db-offline-banner" id="dash-offline-banner">&#9888; Live database not reachable right now. Dashboard data cannot be loaded until this reconnects.</div>
             <div class="cam-error-banner" id="dash-low-stock-banner" style="margin-bottom:10px;"><strong id="dash-low-stock-text">&#9888; 0 SKUs at or below reorder point</strong></div>
             <div class="cam-error-banner" id="dash-negative-stock-banner" style="margin-bottom:10px;">
@@ -4015,7 +4100,8 @@ var qrcode = function() {
                 <div id="dash-staff-14d"><div class="settings-info">Loading...</div></div>
                 <div class="settings-notice">Active hours are estimated from scan activity, not shift records &mdash; use as a rough guide, not a precise measure.</div>
             </div>
-        </div>
+        </div><!-- /a12-overview -->
+</div>
 
         <!-- GUIDE TAB -->
         <div id="guide-tab" class="tab-content">
@@ -4765,18 +4851,18 @@ var CH_NAME = {
 // v40: added "dash" key (Owner Dashboard tab) — true only for ADMIN. Every
 // other existing key/value on every role is unchanged.
 var ROLE_PERMISSIONS = {
-    WAREHOUSE_STAFF:  { pick:true,  move:false, stock:false, log:true, guide:true, settings:false, dash:false, sessions:false, logScope:'own', reserved_stock:false },
-    BILLING_OPERATOR: { pick:true,  move:false, stock:true,  log:true, guide:true, settings:false, dash:false, sessions:false, logScope:'own', reserved_stock:false },
-    INVENTORY_LEAD:   { pick:true,  move:true,  stock:true,  log:true, guide:true, settings:false, dash:false, sessions:false, logScope:'all', reserved_stock:false },
-    PRODUCTION_LEAD:  { pick:false, move:false, stock:true,  log:true, guide:true, settings:false, dash:false, sessions:false, logScope:'all', reserved_stock:false },
-    ADMIN:            { pick:true,  move:true,  stock:true,  log:true, guide:true, settings:true,  dash:true,  sessions:true,  logScope:'all', reserved_stock:true },
+    WAREHOUSE_STAFF:  { pick:true,  move:false, stock:false, log:true, guide:true, settings:false, dash:false, sessions:false, logScope:'own', reserved_stock:false, analytics:false },
+    BILLING_OPERATOR: { pick:true,  move:false, stock:true,  log:true, guide:true, settings:false, dash:false, sessions:false, logScope:'own', reserved_stock:false, analytics:false },
+    INVENTORY_LEAD:   { pick:true,  move:true,  stock:true,  log:true, guide:true, settings:false, dash:false, sessions:false, logScope:'all', reserved_stock:false, analytics:false },
+    PRODUCTION_LEAD:  { pick:false, move:false, stock:true,  log:true, guide:true, settings:false, dash:false, sessions:false, logScope:'all', reserved_stock:false, analytics:false },
+    ADMIN:            { pick:true,  move:true,  stock:true,  log:true, guide:true, settings:true,  dash:true,  sessions:true,  logScope:'all', reserved_stock:true, analytics:true },
     // v91 (2026-09-18) NEW ROLE - Supervisor. Someone who runs the day on the
     // Founder's behalf. On this phone they get exactly what an Admin gets,
     // because everything a Supervisor must NOT reach is gated separately:
     // the Employee Management block below is shown only when the role is
     // literally ADMIN, and the database refuses a Supervisor on accounts,
     // roles and the Admin Password no matter which screen asks.
-    SUPERVISOR:       { pick:true,  move:true,  stock:true,  log:true, guide:true, settings:true,  dash:true,  sessions:true,  logScope:'all', reserved_stock:true },
+    SUPERVISOR:       { pick:true,  move:true,  stock:true,  log:true, guide:true, settings:true,  dash:true,  sessions:true,  logScope:'all', reserved_stock:true, analytics:true },
     // v84 (2026-09-18) GAP FIX. Until now there was NO entry for CUSTOM here.
     // In the normal case that never mattered, because an employee on the
     // CUSTOM role carries an explicit per-employee permissions object from
@@ -4788,7 +4874,7 @@ var ROLE_PERMISSIONS = {
     // This entry makes that case land somewhere safe and readable instead:
     // the Guide tab only, which is read-only and gives them something to
     // look at, plus the banner in enterApp() telling them what to do.
-    CUSTOM:           { pick:false, move:false, stock:false, log:false, guide:true, settings:false, dash:false, sessions:false, logScope:'own', reserved_stock:false }
+    CUSTOM:           { pick:false, move:false, stock:false, log:false, guide:true, settings:false, dash:false, sessions:false, logScope:'own', reserved_stock:false, analytics:false }
 };
 // v79 (Master Prompt v21, Part 5): the "default off for everyone" launch
 // decision behind Scan Sessions (v76) is scoped to ADMIN specifically ending
@@ -5907,6 +5993,8 @@ function applyRolePermissions() {
         if (perm[key]) btn.classList.remove('tab-hidden');
         else btn.classList.add('tab-hidden');
     }
+    try { if (canAnalytics()) { var dtb = document.getElementById('tab-dash'); if (dtb) dtb.classList.remove('tab-hidden'); } } catch (e) {}   // v112: analytics opens DASH
+    try { a12Deep(); } catch (e) {}   // v112: ?sku= / ?asin= link
     applyListingManagerVisibility();   // v95
     try { applyBulkPickVisibility(); } catch (e) {}          // v96
     try { onReservedRoleChange(); } catch (e) {}             // v103
@@ -10182,7 +10270,7 @@ function _rsLineHtml(x) {
     var h = '<div class="rs-line' + (f.dispatched ? ' disp' : ((f.old || f.partial) ? ' old' : '')) + '" data-res="' + Number(x.res_id) + '">' +
         '<label class="rs-tick"><input type="checkbox" ' + (ticked ? 'checked ' : '') + 'onchange="rsTick(' + Number(x.res_id) + ', this.checked)"></label>' +
         '<div class="rs-body">' +
-        '<div><strong>' + esc59(x.sku_code) + '</strong> &times; <strong>' + esc59(x.qty) + '</strong> &middot; bin <strong>' + esc59(x.bin_code || '-') + '</strong>' +
+        '<div><strong><a class="a12-lnk" onclick="a12OpenSku(\'' + v110Js(x.sku_code) + '\')">' + esc59(x.sku_code) + '</a></strong> &times; <strong>' + esc59(x.qty) + '</strong> &middot; bin <strong>' + esc59(x.bin_code || '-') + '</strong>' +
         (x.asin ? ' <span class="rs-dim">ASIN ' + esc59(x.asin) + '</span>' : '') + '</div>' +
         '<div class="rs-dim">Order <strong style="color:#1A1A1A;">' + esc59(x.order_id || '-') + '</strong>' +
         (inf.invoice_no ? ' &middot; invoice ' + esc59(inf.invoice_no) : '') +
@@ -10871,6 +10959,7 @@ function renderStockList() {
 function exportFullInventoryCSV() {
     if (!db) { alert('Live database not reachable right now.'); return; }
     var progEl = document.getElementById('full-export-progress');
+    try { a12ExpNote([]); } catch (e) {}   // v113: clear the previous export's note
     var PAGE = 1000;
     var CAP = 20000;
     var accumulated = [];
@@ -10946,41 +11035,60 @@ function exportFullInventoryCSV() {
         });
     }
 
-    fetchPage(0).then(function() {
+    // v112: reserved stock, bins and (if M11 is applied) the forecast are read FIRST, fresh, at export time.
+    var X = null;
+    a12ExportPrep(progEl).then(function (px) { if (!px) return 'STOP'; X = px; return fetchPage(0); }).then(function(stopped) {
+        if (stopped === 'STOP') return;
         if (!accumulated.length) { progEl.textContent = ''; alert('No live stock to export.'); return; }
         var header = ['SKU Code', 'ASIN', 'Product Name', 'Product Type', 'Set Size', 'Default Bin', 'Active',
             'Qty On Hand', 'Stock Status', 'Bin Count', 'Bin Breakdown (Live)', 'MRP', 'Cost Price', 'Reorder Threshold',
             'Total Sold', 'Total Returned', 'Total New Stock In', 'Total Lost/Theft', 'Total Found', 'Total Rejected/Damaged',
             'Total QC Hold (Net)', 'Total QC Released', 'Total Manual Correction', 'Net Bin Transfers', 'Opening Balance & Other (balancing)', 'Last Updated'];
-        var lines = [header.join(',')];
-        function q(v) { return '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"'; }
-        accumulated.forEach(function(r) {
-            lines.push([
-                r.sku_code, r.asin, q(r.product_name), r.product_type, r.set_size, r.default_bin, r.active,
-                r.qty_on_hand, r.stock_status, r.bin_count, q(r.bin_breakdown), r.mrp, r.cost_price, r.reorder_threshold,
+        // v112: added after the old columns (Product Type, ASIN and MRP are already above, so they are not repeated)
+        header = header.concat(['As Of (India time)', 'Reserved Units', 'Net Available', 'Net Available Flag', 'Reserved Lines', 'Stock Value at MRP (INR)', 'Bins (BIN:QTY)']);
+        header = header.concat(['Sold 7d', 'Sold 30d', 'Avg Daily', 'Days of Cover', 'ABC Tier', 'Make Now', 'Qty To Make', 'Last Sale Date']);   // v113: always present (blank when the forecast cannot be read)
+        var csvRows = accumulated.map(function(r) {
+            var rv = X.res[r.sku_code] || { u: 0, l: 0 }, net = (Number(r.qty_on_hand) || 0) - rv.u;
+            var mrpN = (r.mrp === '' || r.mrp == null) ? null : Number(r.mrp);
+            var row = [
+                r.sku_code, r.asin, r.product_name, r.product_type, r.set_size, r.default_bin, r.active,
+                r.qty_on_hand, r.stock_status, r.bin_count, r.bin_breakdown, r.mrp, r.cost_price, r.reorder_threshold,
                 r.total_sold, r.total_returned, r.total_new_stock_in, r.total_lost_theft, r.total_found, r.total_rejected_damaged,
                 r.total_qc_hold_net, r.total_qc_released, r.total_manual_correction, r.net_bin_transfers,
                 r.opening_and_other,
-                r.last_updated
-            ].join(','));
+                r.last_updated,
+                X.asOf, rv.u, net, net < 0 ? 'OVER-RESERVED (reserved is more than on hand)' : '', rv.l,
+                (Number(r.qty_on_hand) > 0 && mrpN != null && isFinite(mrpN)) ? Math.round(Number(r.qty_on_hand) * mrpN * 100) / 100 : (mrpN == null ? '' : 0),
+                X.bins[r.sku_code] || ''
+            ];
+            var f = X.fc ? X.fc[r.sku_code] : null;
+            row = row.concat(f ? [f.sold_7, f.sold_30, f.avg_daily, f.days_of_cover == null ? '' : f.days_of_cover, f.tier, f.make_now, f.qty_to_make, f.last_sale_date || ''] : ['', '', '', '', '', '', '', '']);
+            return row;
         });
-        var blob = new Blob([lines.join('\r\n')], { type: 'text/csv;charset=utf-8;' });
+        var _inExp = 0; accumulated.forEach(function(r) { _inExp += (X.res[r.sku_code] || { u: 0 }).u; });
+        if (X.resTotal - _inExp > 0) X.note += ' Note: ' + (X.resTotal - _inExp) + ' reserved unit(s) belong to products that have no stock row, so they are not listed in the file.';
+        var lines = [a12CsvText(header, csvRows)];
+        window._a12LastCsv = lines[0];   // kept for the test suite
+        var blob = new Blob(['\uFEFF' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8;' });
         var url = URL.createObjectURL(blob);
         var a = document.createElement('a');
         a.href = url;
-        a.download = 'artzfolio_full_inventory_' + new Date().toISOString().slice(0, 10) + '.csv';
+        a.download = 'artzfolio_full_inventory_' + a12Today() + '.csv';
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
+        // v113: notes stay on screen until dismissed (the CSV itself stays clean: same columns every time).
+        var notes = [];
+        if (X.note) notes.push(X.note.trim());
         if (joinErrors.length) {
             var uniqueErrs = joinErrors.filter(function(e, i) { return joinErrors.indexOf(e) === i; });
             console.warn('Export Full Inventory: ' + uniqueErrs.length + ' chunk error(s):', uniqueErrs);
-            progEl.textContent = 'Done — ' + accumulated.length + ' rows exported, but ' + joinErrors.length + ' lookup(s) failed (some product/bin detail may be blank). See browser console for detail — try exporting again.';
-        } else {
-            progEl.textContent = 'Done — ' + accumulated.length + ' rows exported.';
-            setTimeout(function() { progEl.textContent = ''; }, 6000);
+            notes.push(joinErrors.length + ' lookup(s) failed, so some product or bin detail may be blank: ' + uniqueErrs.slice(0, 3).join(' | ') + (uniqueErrs.length > 3 ? ' ...' : '') + ' Try exporting again.');
         }
+        a12ExpNote(notes);
+        progEl.textContent = 'Done — ' + accumulated.length + ' rows exported, as of ' + X.asOf + '.' + (notes.length ? ' See the note below.' : '');
+        if (!notes.length) setTimeout(function() { progEl.textContent = ''; }, 6000);
     }).catch(function(err) {
         progEl.textContent = 'Export failed: ' + (err && err.message ? err.message : String(err));
     });
@@ -15293,13 +15401,13 @@ var PTR_REFRESH_FNS = {
     stock:    function () { loadStockTab(true); },
     log:      function () { refreshLogTab(); },
     settings: function () { refreshSettingsTab(); renderAdminPanel(); },
-    dash:     function () { loadDashboard(true); }
+    dash:     function () { a12Refresh(); }   // v112: refreshes whichever DASH view is showing
 };
 // v108: every pop-up / full-screen layer in the app. While any of these is showing,
 // a pull must never start (and never refresh whatever is behind it).
 var PTR_BLOCKING_LAYERS = [
     '.sku-detail-overlay.open', '.cam-overlay.active', '.emp-modal-bg.active', '.hs-bg.active',
-    '.dbd-bg.active', '.sheet-bg.active'
+    '.dbd-bg.active', '.sheet-bg.active', '.a12-skupage.open'
 ];
 function ptrLayerOpen() {
     try {
@@ -15431,7 +15539,7 @@ function switchTab(tab) {
     if (state.session) {
         var permCheck = effectivePermissions();
         // v96: the DATABASE tab is not a stored permission - it follows the role.
-        var allowedTab = (tab === 'db') ? isListingManager() : (permCheck[tab] === true);
+        var allowedTab = (tab === 'db') ? isListingManager() : ((tab === 'dash') ? (permCheck.dash === true || canAnalytics()) : (permCheck[tab] === true));   // v112: DASH also opens for the analytics permission
         if (!allowedTab) {
             console.warn('Role ' + state.session.role + ' cannot access tab: ' + tab);
             return;
@@ -15481,8 +15589,11 @@ function switchTab(tab) {
         try { enterLedgerHistory(); } catch (e) {}   // v106
     }
     if (tab === 'dash') {
-        loadDashboard(false);
-        try { loadReservedSummary(false); } catch (e) {}   // v103
+        try { a12OnEnterDash(); } catch (e) {}   // v112: sub-menu
+        if (A12.sub === 'overview') {
+            loadDashboard(false);
+            try { loadReservedSummary(false); } catch (e) {}   // v103
+        }
     }
     if (tab === 'db') {
         enterDbTab();   // v96
@@ -16850,7 +16961,7 @@ function slCardHtml(g) {
     var skJs = v110Js(g.sku_code);
     return '<div class="sl-card" data-sku="' + esc59(g.sku_code) + '" style="padding:8px 10px;border-bottom:1px solid #f2f2f2;">' +
         '<div style="display:flex;justify-content:space-between;align-items:flex-start;">' +
-        '<div style="min-width:0;"><div class="stock-sku">' + esc59(g.sku_code) + '</div>' +
+        '<div style="min-width:0;"><div class="stock-sku" style="cursor:pointer;text-decoration:underline;" onclick="a12OpenSku(\'' + skJs + '\')">' + esc59(g.sku_code) + '</div>' +
         '<div class="stock-asin">' + esc59(g.product_name || '') + '</div>' +
         '<div style="font-size:10px;color:#888;margin-top:2px;">ASIN: ' + esc59(g.asin || '—') + (g.type ? ' &bull; ' + esc59(g.type) : '') + ' &bull; Updated: ' + fmtRelTime(slMove(g)) + '</div></div>' +
         '<div class="stock-qty" style="text-align:right;">' + q + '<div style="font-size:9px;color:#999;font-weight:400;">' + (SL.isBin ? 'in ' + esc59(SL.raw) : 'total') + '</div>' +
@@ -16861,7 +16972,8 @@ function slCardHtml(g) {
         '<div style="margin-top:6px;">' + binsHtml + '</div>' +
         '<div style="margin-top:5px;">' +
         '<button class="csv-btn" style="font-size:10px;padding:3px 8px;" onclick="toggleSkuHistory(\'' + skJs + '\')">History &#9662;</button> ' +
-        '<button class="csv-btn" style="font-size:10px;padding:3px 8px;" onclick="openSkuDetail(\'' + skJs + '\')">Full Detail</button></div>' +
+        '<button class="csv-btn" style="font-size:10px;padding:3px 8px;" onclick="openSkuDetail(\'' + skJs + '\')">Full Detail</button> ' +
+        '<button class="csv-btn" style="font-size:10px;padding:3px 8px;" onclick="a12OpenSku(\'' + skJs + '\')">SKU page</button></div>' +
         '<div id="sku-history-' + cssId(g.sku_code) + '" style="display:none;margin-top:6px;"></div></div>';
 }
 function slApply() {
@@ -17745,6 +17857,948 @@ function shRender() {
     }).join('');
 }
 // ══ end v110 ═══════════════════════════════════════════════════════════════
+// ══════════════════════════════════════════════════════════════════════════════
+// v112 (2026-10-07) ANALYTICS: DASH > Sales | Inventory | Forecast | Production,
+// the SKU page, and the richer Export Full Inventory.
+//   * Read-only. Nothing here writes to the database.
+//   * Sales / Forecast need database step M11 (views oms_sales_daily, oms_sku_reserved,
+//     oms_sku_forecast). If M11 is not applied the screens say so in plain words.
+//   * A read that fails is shown as an error - never as zeros.
+//   * Everything is added up on the phone from pages of 1,000 rows, kept in memory for 5 minutes.
+//   * Permission key: analytics (Admin always; Supervisor yes unless explicitly false; others only when true).
+// ══════════════════════════════════════════════════════════════════════════════
+var A12_TTL = 300000;
+var A12_M11_MSG = 'Analytics are not switched on yet. Ask the Admin to apply database step M11.';
+var A12_TRACK_NOTE = 'Sales history starts 2026-09-21, so run rates use a short window.';
+var A12 = { sub: 'overview', cache: {}, inflight: {}, S: {}, T: {}, csv: {}, R: {}, ctlBuilt: '' };
+
+function a12$(id) { return document.getElementById(id); }
+function a12E(s) { return esc59(s == null ? '' : s); }
+function a12N(n) { n = Number(n); return isFinite(n) ? n.toLocaleString('en-IN', { maximumFractionDigits: 0 }) : '-'; }
+function a12N1(n) { n = Number(n); return isFinite(n) ? n.toLocaleString('en-IN', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) : '-'; }
+function a12Rs(n) { n = Number(n); return isFinite(n) ? '&#8377;' + Math.round(n).toLocaleString('en-IN') : '-'; }
+function a12RsTxt(n) { n = Number(n); return isFinite(n) ? '₹' + Math.round(n).toLocaleString('en-IN') : ''; }
+function a12Pc(p) { return isFinite(p) ? (Math.round(p * 10) / 10).toLocaleString('en-IN', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + '%' : '-'; }
+function a12Today() { return istDateStr(Date.now()); }
+function a12YmdMs(s) { var p = String(s).split('-'); return Date.UTC(+p[0], +p[1] - 1, +p[2]); }
+function a12AddDays(ymd, n) { var d = new Date(a12YmdMs(ymd) + n * DAY_MS); return d.getUTCFullYear() + '-' + p2(d.getUTCMonth() + 1) + '-' + p2(d.getUTCDate()); }
+function a12DiffDays(a, b) { return Math.round((a12YmdMs(b) - a12YmdMs(a)) / DAY_MS); }
+function a12Monday(ymd) { var dow = new Date(a12YmdMs(ymd)).getUTCDay(); return a12AddDays(ymd, -((dow + 6) % 7)); }
+function a12AsOf(at) { return 'As of ' + fmtIst(new Date(at || Date.now()).toISOString()) + ' India time'; }
+function a12Num(v) { v = Number(v); return isFinite(v) ? v : 0; }
+function a12Up(s) { return String(s == null ? '' : s).toUpperCase(); }
+
+// ── permission: analytics ────────────────────────────────────────────────────
+function canAnalytics() {
+    if (!state.session) return false;
+    var r = String(state.session.role || '').toUpperCase();
+    if (r === 'ADMIN') return true;
+    var p = effectivePermissions() || {};
+    if (r === 'SUPERVISOR') return p.analytics !== false;
+    return p.analytics === true;
+}
+function a12CanOverview() { return (effectivePermissions() || {}).dash === true; }
+
+// ── database reads (paged 1000 per page; never throw: always {ok, data|msg, missing}) ───────
+function a12IsMissing(r) {
+    var e = r && r.error; if (!e) return false;
+    var t = [e.code, e.message, e.details, e.hint].join(' ');
+    return r.status === 404 || /PGRST20[0-9]|42P01|does not exist|could not find the table|schema cache/i.test(t);
+}
+var A12_DS = {
+    sales:    { m11: 1, t: 'oms_sales_daily', c: 'sku_code,asin,sale_date,channel,bin_code,units,orders', o: ['sale_date', 'sku_code', 'asin', 'channel', 'bin_code'], l: 'Sales' },
+    forecast: { m11: 1, t: 'oms_sku_forecast', c: 'sku_code,asin,product_name,product_type,mrp,on_hand,reserved_units,available,sold_7,sold_30,sold_all,last_sale_date,last_movement_at,returned_units,days_hist,avg_daily,basis,annual_equiv,tier,reorder_point,reorder_qty,days_of_cover,make_now,qty_to_make', o: ['sku_code'], l: 'Forecast' },
+    master:   { t: 'oms_sku_master', c: 'sku_code,asin,product_name,product_type,mrp,active,reorder_threshold', o: ['sku_code'], l: 'Product list' },
+    stock:    { t: 'oms_current_stock', c: 'sku_code,asin,qty_on_hand,last_movement_at', o: ['sku_code'], l: 'Stock' },
+    bins:     { t: 'oms_bin_stock', c: 'sku_code,bin_code,qty_on_hand,last_movement_at', o: ['sku_code', 'bin_code'], l: 'Bin stock' },
+    resv:     { t: 'oms_pick_reservations', c: 'res_id,sku_code,asin,bin_code,qty,order_id,channel,created_at', o: ['res_id'], l: 'Reserved stock', f: function (q) { return q.eq('status', 'OPEN'); } },
+    flags:    { t: 'oms_stock_health_flags', c: 'flag_code,severity,sku_code,bin_code,qty,event_at,txn_id,detail', o: ['flag_code', 'sku_code', 'txn_id', 'bin_code'], l: 'Stock health flags' },
+    returns:  { t: 'oms_inventory_transactions', c: 'txn_id,sku_code,bin_code,qty_delta,created_at', o: ['txn_id'], l: 'Returns', f: function (q) { return q.eq('txn_type', 'RETURN_IN'); } }
+};
+function a12Page(def, extra) {
+    var all = [], size = 1000;
+    function pg(from) {
+        var q = db.from(def.t).select(def.c);
+        if (def.f) q = def.f(q);
+        if (extra) q = extra(q);
+        def.o.forEach(function (c) { q = q.order(c, { ascending: true }); });
+        return withTimeout(q.range(from, from + size - 1), 25000, def.l).then(function (r) {
+            if (r.error) { var e = new Error(r.error.message || 'unknown problem'); e.missing = a12IsMissing(r); throw e; }
+            var g = r.data || [];
+            all = all.concat(g);
+            if (g.length === size && all.length < 60000) return pg(from + size);
+            if (g.length === size) { var c = new Error('More than 60,000 rows - too many to add up on the phone.'); throw c; }
+            return all;
+        });
+    }
+    return pg(0);
+}
+// one dataset, cached 5 minutes. Resolves {ok:true,data,at} or {ok:false,missing,msg,key}.
+function a12Ds(key, force) {
+    var def = A12_DS[key], c = A12.cache[key];
+    if (!force && c && Date.now() - c.at < A12_TTL) return Promise.resolve(c);
+    if (A12.inflight[key]) return A12.inflight[key];
+    if (!db) return Promise.resolve({ ok: false, key: key, msg: 'The live database is not reachable right now.' });
+    var p = a12Page(def).then(function (rows) {
+        var r = { ok: true, key: key, data: rows, at: Date.now() };
+        A12.cache[key] = r; return r;
+    }, function (e) {
+        return { ok: false, key: key, missing: !!e.missing && !!def.m11, msg: a12Err(e) };
+    }).then(function (r) { delete A12.inflight[key]; return r; });
+    A12.inflight[key] = p;
+    return p;
+}
+function a12Err(e) { return String((e && e.message) || e || 'unknown problem'); }
+function a12Many(keys, force) {
+    return Promise.all(keys.map(function (k) { return a12Ds(k, force); })).then(function (rs) {
+        var m = {}; keys.forEach(function (k, i) { m[k] = rs[i]; }); return m;
+    });
+}
+function a12Clear() { A12.cache = {}; }
+function a12Oldest(m, keys) { var t = Date.now(); keys.forEach(function (k) { if (m[k] && m[k].ok && m[k].at < t) t = m[k].at; }); return t; }
+
+// ── small UI helpers ─────────────────────────────────────────────────────────
+function a12Fail(r, what) {
+    if (r && r.missing) return '<div class="a12-msg warn"><strong>' + a12E(A12_M11_MSG) + '</strong></div>';
+    return '<div class="a12-msg err"><strong>Could not read ' + a12E(what || (r && r.key) || 'the data') + '.</strong> ' + a12E(r && r.msg) +
+        '<br>Nothing is shown, rather than numbers that might be wrong. <button class="csv-btn" onclick="a12Refresh()">Try again</button></div>';
+}
+function a12Kpis(list) {
+    return '<div class="a12-kpis">' + list.map(function (k) {
+        return '<div class="a12-kpi' + (k[2] ? ' ' + k[2] : '') + '"><div class="a12-kv">' + k[1] + '</div><div class="a12-kl">' + k[0] + '</div>' + (k[3] ? '<div class="a12-ks">' + k[3] + '</div>' : '') + '</div>';
+    }).join('') + '</div>';
+}
+function a12Card(title, body, sub) {
+    return '<div class="a12-card"><h4>' + title + '</h4>' + (sub ? '<div class="a12-sub">' + sub + '</div>' : '') + body + '</div>';
+}
+function a12Bars(items, color) {
+    if (!items.length) return '<div class="a12-sub">Nothing to draw.</div>';
+    var mx = 1; items.forEach(function (i) { if (i.v > mx) mx = i.v; });
+    var peak = items.reduce(function (a, b) { return b.v > a.v ? b : a; }, items[0]);
+    return '<div class="a12-bars">' + items.map(function (i) {
+        return '<div class="a12-bar" title="' + a12E(i.l + ': ' + a12N(i.v)) + '"><i style="height:' + Math.max(i.v > 0 ? 2 : 0, Math.round(i.v / mx * 100)) + '%;background:' + (color || '#1B4F8A') + ';"></i></div>';
+    }).join('') + '</div><div class="a12-bax"><span>' + a12E(items[0].l) + '</span><span>peak ' + a12E(peak.l) + ': ' + a12N(peak.v) + '</span><span>' + a12E(items[items.length - 1].l) + '</span></div>';
+}
+function a12Share(p) { return '<span class="a12-pcbar"><i style="width:' + Math.max(0, Math.min(100, p)) + '%"></i></span> ' + a12Pc(p); }
+function a12SkuLink(code, label) {
+    return '<a class="a12-lnk" onclick="event.stopPropagation();a12OpenSku(\'' + v110Js(code) + '\')">' + a12E(label == null ? code : label) + '</a>';
+}
+function a12Opts(list, cur, allLabel) {
+    return '<option value="">' + a12E(allLabel) + '</option>' + list.map(function (v) { return '<option value="' + a12E(v) + '"' + (v === cur ? ' selected' : '') + '>' + a12E(v) + '</option>'; }).join('');
+}
+function a12Uniq(arr) { var s = {}, o = []; arr.forEach(function (v) { if (v != null && v !== '' && !s[v]) { s[v] = 1; o.push(v); } }); return o.sort(); }
+// generic sortable table. cols: [{k,l,n(number),f(row)->html,v(row)->sort value}]
+function a12Tbl(view, cols, rows, opt) {
+    opt = opt || {};
+    var T = A12.T[view] = A12.T[view] || { sort: opt.sort || cols[0].k, dir: opt.dir || -1, show: 50 };
+    var col = cols.filter(function (c) { return c.k === T.sort; })[0] || cols[0];
+    var sv = function (r) { var v = col.v ? col.v(r) : r[col.k]; return v == null ? (col.n ? -Infinity : '') : v; };
+    var sorted = rows.slice().sort(function (a, b) {
+        var x = sv(a), y = sv(b);
+        if (col.n) { x = Number(x); y = Number(y); return T.dir * ((x > y) - (x < y)) || String(a._id || '').localeCompare(String(b._id || '')); }
+        return T.dir * String(x).localeCompare(String(y), 'en', { numeric: true });
+    });
+    var shown = sorted.slice(0, T.show);
+    var h = '<div class="a12-tw"><table class="a12-t"><thead><tr>' + cols.map(function (c) {
+        var arrow = c.k === T.sort ? (T.dir < 0 ? ' &#9660;' : ' &#9650;') : '';
+        return '<th class="' + (c.n ? 'n' : '') + '" onclick="a12SortBy(\'' + view + '\',\'' + c.k + '\')">' + c.l + arrow + '</th>';
+    }).join('') + '</tr></thead><tbody>' + shown.map(function (r) {
+        return '<tr' + (opt.click ? ' onclick="' + opt.click(r) + '"' : '') + '>' + cols.map(function (c) { return '<td class="' + (c.n ? 'n' : '') + '">' + c.f(r) + '</td>'; }).join('') + '</tr>';
+    }).join('') + '</tbody></table></div>';
+    if (!rows.length) h = '<div class="a12-sub">Nothing matches.</div>';
+    if (rows.length > shown.length) h += '<div style="text-align:center;margin:6px 0;"><button class="csv-btn" onclick="a12More(\'' + view + '\')">Show 50 more (' + a12N(rows.length - shown.length) + ' left)</button></div>';
+    else if (rows.length) h += '<div class="a12-sub" style="text-align:center;">Showing all ' + a12N(rows.length) + '</div>';
+    return h;
+}
+function a12SortBy(view, k) {
+    var T = A12.T[view]; if (!T) return;
+    if (T.sort === k) T.dir = -T.dir; else { T.sort = k; T.dir = -1; }
+    T.show = 50; if (A12.R[view]) A12.R[view]();
+}
+function a12More(view) { var T = A12.T[view]; if (T) { T.show += 50; if (A12.R[view]) A12.R[view](); } }
+
+// ── CSV (cells that start with = + - @ get a leading quote; numbers stay numbers) ───────
+function a12CsvCell(v) {
+    if (v == null) return '';
+    if (typeof v === 'number') return isFinite(v) ? String(v) : '';
+    var s = String(v);
+    if (/^[=+\-@\t\r]/.test(s)) s = "'" + s;
+    return /[",\r\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+}
+function a12CsvText(head, rows) {
+    var lines = [head.map(a12CsvCell).join(',')];
+    rows.forEach(function (r) { lines.push(r.map(a12CsvCell).join(',')); });
+    return lines.join('\r\n');
+}
+function a12Save(name, text) {
+    window._a12LastCsv = text; window._a12LastCsvName = name;
+    try {
+        var blob = new Blob(['﻿' + text], { type: 'text/csv;charset=utf-8;' });
+        var a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name;
+        document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    } catch (e) {}
+}
+function a12Dl(view) {
+    var c = A12.csv[view];
+    if (!c || !c.rows.length) { alert('Nothing to export yet.'); return; }
+    a12Save('artzfolio_' + view + '_' + a12Today() + '.csv', a12CsvText(c.head, c.rows));
+}
+
+// ── DASH sub-navigation ──────────────────────────────────────────────────────
+var A12_SUBS = [['overview', 'Overview'], ['sales', 'Sales'], ['inventory', 'Inventory'], ['forecast', 'Forecast'], ['production', 'Production']];
+function a12BuildNav() {
+    var nav = a12$('a12-subnav'); if (!nav) return;
+    var an = canAnalytics(), ov = a12CanOverview();
+    nav.innerHTML = A12_SUBS.filter(function (s) { return s[0] === 'overview' ? ov : an; }).map(function (s) {
+        return '<button type="button" class="a12-sn' + (A12.sub === s[0] ? ' active' : '') + '" onclick="a12Sub(\'' + s[0] + '\')">' + s[1] + '</button>';
+    }).join('');
+    nav.style.display = an ? '' : 'none';
+}
+function a12Sub(name) {
+    var an = canAnalytics(), ov = a12CanOverview();
+    if (name === 'overview' && !ov) name = an ? 'sales' : 'overview';
+    if (name !== 'overview' && !an) name = 'overview';
+    A12.sub = name;
+    var o = a12$('a12-overview'), v = a12$('a12-views');
+    if (o) o.style.display = (name === 'overview') ? '' : 'none';
+    if (v) v.style.display = (name === 'overview') ? 'none' : '';
+    a12BuildNav();
+    if (name === 'overview') { if (ov) { try { loadDashboard(false); loadReservedSummary(false); } catch (e) {} } return; }
+    try { window.scrollTo(0, 0); } catch (e) {}
+    a12Enter(name, false);
+}
+// called from switchTab('dash')
+function a12OnEnterDash() {
+    var an = canAnalytics(), ov = a12CanOverview();
+    if (!an) A12.sub = 'overview';
+    else if (!ov && A12.sub === 'overview') A12.sub = 'sales';
+    a12BuildNav();
+    var o = a12$('a12-overview'), v = a12$('a12-views');
+    if (o) o.style.display = (A12.sub === 'overview') ? '' : 'none';
+    if (v) v.style.display = (A12.sub === 'overview') ? 'none' : '';
+    if (A12.sub !== 'overview') a12Enter(A12.sub, false);
+}
+function a12Refresh() {
+    if (A12.sub === 'overview') { try { loadDashboard(true); loadReservedSummary(true); } catch (e) {} return; }
+    a12Clear(); a12Enter(A12.sub, true);
+}
+function a12Enter(view, force) {
+    var box = a12$('a12-view'); if (!box) return;
+    box.innerHTML = '<div class="a12-head"><b id="a12-title"></b><button class="csv-btn" onclick="a12Refresh()">&#8635; Refresh</button></div>' +
+        '<div class="a12-sub" id="a12-asof"></div><div id="a12-ctl"></div><div id="a12-res"><div class="a12-msg">Loading&hellip; (reading the database in pages of 1,000 rows)</div></div>';
+    A12.ctlBuilt = '';
+    var f = { sales: a12LoadSales, inventory: a12LoadInventory, forecast: a12LoadForecast, production: a12LoadProduction }[view];
+    if (f) f(!!force);
+}
+
+
+// ══ SALES ════════════════════════════════════════════════════════════════════
+var A12_GROUPS = [['day', 'Day'], ['week', 'Week'], ['month', 'Month'], ['sku', 'SKU'], ['asin', 'ASIN'], ['category', 'Category'], ['channel', 'Channel'], ['bin', 'Bin']];
+var A12_PRESETS = [['today', 'Today'], ['yesterday', 'Yesterday'], ['7d', '7 days'], ['30d', '30 days'], ['month', 'This month'], ['custom', 'Custom range']];
+function a12SalesS() {
+    if (!A12.S.sales) A12.S.sales = { preset: '30d', from: '', to: '', channel: '', ptype: '', tier: '', bin: '', q: '', group: 'sku' };
+    return A12.S.sales;
+}
+function a12PresetRange(S) {
+    var t = a12Today();
+    if (S.preset === 'today') return [t, t];
+    if (S.preset === 'yesterday') { var y = a12AddDays(t, -1); return [y, y]; }
+    if (S.preset === '7d') return [a12AddDays(t, -6), t];
+    if (S.preset === '30d') return [a12AddDays(t, -29), t];
+    if (S.preset === 'month') return [t.slice(0, 8) + '01', t];
+    var f = S.from || t, to = S.to || t; if (f > to) { var x = f; f = to; to = x; }
+    return [f, to];
+}
+function a12LoadSales(force) {
+    a12$('a12-title').innerHTML = '&#128200; Sales';
+    a12Many(['sales', 'master', 'forecast'], force).then(function (m) {
+        if (A12.sub !== 'sales') return;
+        if (!m.sales.ok) { a12$('a12-res').innerHTML = a12Fail(m.sales, 'sales'); return; }
+        var fcMap = {}, msMap = {}, notes = [];
+        if (m.forecast.ok) m.forecast.data.forEach(function (r) { fcMap[r.sku_code] = r; }); else notes.push('ABC tier could not be read (' + a12Err(m.forecast.msg) + '), so the tier filter and the not-selling list are unavailable.');
+        if (m.master.ok) m.master.data.forEach(function (r) { msMap[r.sku_code] = r; }); else notes.push('The product list could not be read (' + a12Err(m.master.msg) + '), so categories, names and values are unavailable.');
+        A12.sales = { rows: m.sales.data, fc: fcMap, ms: msMap, hasFc: m.forecast.ok, hasMs: m.master.ok, notes: notes, at: a12Oldest(m, ['sales', 'master', 'forecast']) };
+        a12$('a12-asof').textContent = a12AsOf(A12.sales.at) + '. ' + A12_TRACK_NOTE;
+        a12SalesCtl(); a12SalesRender();
+    });
+}
+function a12SalesCtl() {
+    var S = a12SalesS(), D = A12.sales, rg = a12PresetRange(S);
+    var chans = a12Uniq(D.rows.map(function (r) { return r.channel; })), bins = a12Uniq(D.rows.map(function (r) { return r.bin_code; }));
+    var types = D.hasMs ? a12Uniq(D.rows.map(function (r) { return (D.ms[r.sku_code] || {}).product_type || '(none)'; })) : [];
+    var h = '<div class="a12-chips">' + A12_PRESETS.map(function (p) { return '<button type="button" class="a12-chip' + (S.preset === p[0] ? ' on' : '') + '" onclick="a12SalesSet(\'preset\',\'' + p[0] + '\')">' + p[1] + '</button>'; }).join('') + '</div>';
+    h += '<div class="a12-row" id="a12-custom" style="display:' + (S.preset === 'custom' ? 'flex' : 'none') + ';"><label>From<input type="date" id="a12-s-from" value="' + rg[0] + '" onchange="a12SalesSet(\'from\',this.value)"></label><label>To<input type="date" id="a12-s-to" value="' + rg[1] + '" onchange="a12SalesSet(\'to\',this.value)"></label></div>';
+    h += '<details class="a12-filt"><summary>&#128269; Filters &amp; grouping <span id="a12-fcount"></span></summary><div class="a12-grid">' +
+        '<label>Channel<select onchange="a12SalesSet(\'channel\',this.value)">' + a12Opts(chans, S.channel, 'All channels') + '</select></label>' +
+        '<label>Category<select ' + (D.hasMs ? '' : 'disabled ') + 'onchange="a12SalesSet(\'ptype\',this.value)">' + a12Opts(types, S.ptype, 'All categories') + '</select></label>' +
+        '<label>ABC tier<select ' + (D.hasFc ? '' : 'disabled ') + 'onchange="a12SalesSet(\'tier\',this.value)">' + a12Opts(['A', 'B', 'C', 'DEAD'], S.tier, 'All tiers') + '</select></label>' +
+        '<label>Bin<select onchange="a12SalesSet(\'bin\',this.value)">' + a12Opts(bins, S.bin, 'All bins') + '</select></label>' +
+        '<label style="grid-column:1/-1;">Search SKU, ASIN or title<input type="text" id="a12-s-q" value="' + a12E(S.q) + '" autocomplete="off" autocapitalize="characters" oninput="a12SalesSetQ(this.value)"></label>' +
+        '<label style="grid-column:1/-1;">Group by<select onchange="a12SalesSet(\'group\',this.value)">' + A12_GROUPS.map(function (g) { return '<option value="' + g[0] + '"' + (S.group === g[0] ? ' selected' : '') + '>' + g[1] + '</option>'; }).join('') + '</select></label>' +
+        '</div><div style="margin-top:6px;"><button class="csv-btn" onclick="a12SalesReset()">Clear filters</button></div></details>';
+    a12$('a12-ctl').innerHTML = h;
+}
+function a12SalesSet(k, v) {
+    var S = a12SalesS(); S[k] = v;
+    if (k === 'preset' || k === 'from' || k === 'to') {
+        if (k === 'from' || k === 'to') S.preset = 'custom';
+        if (k === 'preset' && v !== 'custom') { var r = a12PresetRange(S); S.from = r[0]; S.to = r[1]; }
+        if (k === 'preset' && v === 'custom' && !S.from) { var r2 = a12PresetRange({ preset: '7d' }); S.from = r2[0]; S.to = r2[1]; }
+        a12SalesCtl();
+    }
+    var T = A12.T.sales; if (T) { T.show = 50; if (k === 'group') { T.sort = 'units'; T.dir = -1; } }
+    a12SalesRender();
+}
+var _a12qT = null;
+function a12SalesSetQ(v) { a12SalesS().q = a12Up(v).trim(); clearTimeout(_a12qT); _a12qT = setTimeout(a12SalesRender, 250); }
+function a12SalesReset() { var S = a12SalesS(); S.channel = S.ptype = S.tier = S.bin = S.q = ''; S.group = 'sku'; a12SalesCtl(); a12SalesRender(); }
+function a12SalesFilter(skipChanBin) {
+    var S = a12SalesS(), D = A12.sales, rg = a12PresetRange(S), out = [];
+    D.rows.forEach(function (r) {
+        if (r.sale_date < rg[0] || r.sale_date > rg[1]) return;
+        if (!skipChanBin && S.channel && r.channel !== S.channel) return;
+        if (!skipChanBin && S.bin && r.bin_code !== S.bin) return;
+        var m = D.ms[r.sku_code] || {};
+        if (S.ptype && (m.product_type || '(none)') !== S.ptype) return;
+        if (S.tier && (D.fc[r.sku_code] || {}).tier !== S.tier) return;
+        if (S.q && (a12Up(r.sku_code + ' ' + (r.asin || m.asin || '') + ' ' + (m.product_name || '')).indexOf(S.q) < 0)) return;
+        out.push(r);
+    });
+    return out;
+}
+function a12GroupKey(g, r, D) {
+    var m = D.ms[r.sku_code] || {};
+    switch (g) {
+        case 'day': return r.sale_date;
+        case 'week': return a12Monday(r.sale_date);
+        case 'month': return r.sale_date.slice(0, 7);
+        case 'sku': return r.sku_code;
+        case 'asin': return r.asin || m.asin || '(no ASIN)';
+        case 'category': return m.product_type || '(none)';
+        case 'channel': return r.channel;
+        default: return r.bin_code;
+    }
+}
+function a12SalesRender() {
+    var S = a12SalesS(), D = A12.sales, res = a12$('a12-res'); if (!D || !res) return;
+    var rg = a12PresetRange(S), rows = a12SalesFilter(false);
+    var fcnt = ['channel', 'ptype', 'tier', 'bin', 'q'].filter(function (k) { return S[k]; }).length;
+    var fe = a12$('a12-fcount'); if (fe) fe.textContent = fcnt ? '(' + fcnt + ' on)' : '';
+    var first = null; D.rows.forEach(function (r) { if (!first || r.sale_date < first) first = r.sale_date; });
+    var today = a12Today(), effFrom = (first && rg[0] < first) ? first : rg[0], effTo = rg[1] > today ? today : rg[1];
+    var effDays = Math.max(1, a12DiffDays(effFrom, effTo) + 1);
+    var units = 0, orders = 0, skus = {}, byDay = {}, bySku = {}, byCat = {};
+    rows.forEach(function (r) {
+        var u = a12Num(r.units), m = D.ms[r.sku_code] || {}; units += u; orders += a12Num(r.orders);
+        if (u > 0) skus[r.sku_code] = 1;
+        byDay[r.sale_date] = (byDay[r.sale_date] || 0) + u;
+        var s = bySku[r.sku_code] = bySku[r.sku_code] || { sku: r.sku_code, units: 0, asin: r.asin || m.asin || '', name: m.product_name || '' }; s.units += u;
+    });
+    var best = null; Object.keys(byDay).forEach(function (d) { if (!best || byDay[d] > byDay[best]) best = d; });
+    var h = '';
+    D.notes.forEach(function (n) { h += '<div class="a12-msg warn">' + a12E(n) + '</div>'; });
+    h += '<div class="a12-sub">' + a12E(rg[0]) + ' to ' + a12E(rg[1]) + ' (India dates). ' + (effFrom !== rg[0] || effTo !== rg[1] ? 'Days counted for the average: ' + a12E(effFrom) + ' to ' + a12E(effTo) + ' (sales tracking started ' + a12E(first) + '). ' : '') + '</div>';
+    h += a12Kpis([['Units sold', a12N(units)], ['Order lines<span class="a12-i" title="Added up per product line: an order with two products counts twice."> *</span>', a12N(orders)], ['Active SKUs', a12N(Object.keys(skus).length)],
+        ['Average per day', a12N1(units / effDays), '', effDays + ' day' + (effDays === 1 ? '' : 's')], ['Best day', best ? a12N(byDay[best]) : '-', '', best ? a12E(best) : 'no sales']]);
+    // trend
+    var wk = a12DiffDays(effFrom, effTo) + 1 > 92, items = [];
+    if (wk) { var bw = {}; Object.keys(byDay).forEach(function (d) { var k = a12Monday(d); bw[k] = (bw[k] || 0) + byDay[d]; }); for (var w = a12Monday(effFrom); w <= effTo; w = a12AddDays(w, 7)) items.push({ l: 'week of ' + w, v: bw[w] || 0 }); }
+    else for (var d = effFrom; d <= effTo; d = a12AddDays(d, 1)) items.push({ l: d, v: byDay[d] || 0 });
+    h += a12Card('Daily trend' + (wk ? ' (weekly bars - range is long)' : ''), a12Bars(items));
+    // group table
+    var gk = S.group, G = {};
+    rows.forEach(function (r) {
+        var k = a12GroupKey(gk, r, D), g = G[k] = G[k] || { key: k, units: 0, orders: 0, skuSet: {}, value: 0, noMrp: 0, _id: k }, m = D.ms[r.sku_code] || {}, u = a12Num(r.units);
+        g.units += u; g.orders += a12Num(r.orders); if (u > 0) g.skuSet[r.sku_code] = 1;
+        if (m.mrp != null && m.mrp !== '') g.value += u * a12Num(m.mrp); else g.noMrp += u;
+    });
+    var glist = Object.keys(G).map(function (k) { var g = G[k]; g.skus = Object.keys(g.skuSet).length; g.share = units ? g.units / units * 100 : 0; return g; });
+    var valTot = 0, noMrpTot = 0; glist.forEach(function (g) { valTot += g.value; noMrpTot += g.noMrp; });
+    var gl = (A12_GROUPS.filter(function (x) { return x[0] === gk; })[0] || [])[1];
+    var clickable = (gk === 'sku' || gk === 'asin');
+    var cols = [{ k: 'key', l: gl, f: function (g) { return clickable ? a12SkuLink(g.key) : a12E(g.key); }, v: function (g) { return g.key; } },
+        { k: 'units', l: 'Units', n: 1, f: function (g) { return a12N(g.units); } }, { k: 'orders', l: 'Order lines', n: 1, f: function (g) { return a12N(g.orders); } },
+        { k: 'skus', l: 'SKUs', n: 1, f: function (g) { return a12N(g.skus); } }, { k: 'value', l: 'Value (MRP)', n: 1, f: function (g) { return a12Rs(g.value); } },
+        { k: 'share', l: 'Share', n: 1, f: function (g) { return a12Share(g.share); } }];
+    var T = A12.T.sales = A12.T.sales || { sort: 'units', dir: -1, show: 50 };
+    if (['key', 'units', 'orders', 'skus', 'value', 'share'].indexOf(T.sort) < 0) T.sort = 'units';
+    var tbl = a12Tbl('sales', cols, glist, { click: function (g) { return clickable ? "a12OpenSku('" + v110Js(g.key) + "')" : ''; } });
+    h += a12Card('Sales by ' + a12E(gl.toLowerCase()), tbl, 'Value = units x MRP' + (noMrpTot ? ' (' + a12N(noMrpTot) + ' units have no MRP and add nothing).' : '.') + ' Total value ' + a12Rs(valTot) + '. <button class="csv-btn" onclick="a12Dl(\'sales\')">&#8595; CSV</button>');
+    A12.csv.sales = { head: [gl, 'Units', 'Order lines', 'SKUs', 'Value at MRP (INR)', 'Share %', 'From', 'To'], rows: glist.sort(function (a, b) { return b.units - a.units; }).map(function (g) { return [g.key, g.units, g.orders, g.skus, Math.round(g.value), Math.round(g.share * 10) / 10, rg[0], rg[1]]; }) };
+    // top movers
+    var sl = Object.keys(bySku).map(function (k) { return bySku[k]; }).sort(function (a, b) { return b.units - a.units || (a.sku < b.sku ? -1 : 1); });
+    h += a12Card('Top movers (top 10 by units)', sl.slice(0, 10).map(function (s, i) {
+        return '<div class="a12-li" onclick="a12OpenSku(\'' + v110Js(s.sku) + '\')"><span class="a12-rk">' + (i + 1) + '</span><span class="a12-lt"><b>' + a12E(s.sku) + '</b><br><small>' + a12E(s.name) + '</small></span><span class="a12-lv">' + a12N(s.units) + '</span></div>';
+    }).join('') || '<div class="a12-sub">No sales in this range.</div>');
+    // not selling
+    if (D.hasFc) {
+        var soldSet = {}; a12SalesFilter(true).forEach(function (r) { if (a12Num(r.units) > 0) soldSet[r.sku_code] = 1; });
+        var ns = [];
+        Object.keys(D.fc).forEach(function (k) {
+            var f = D.fc[k], m = D.ms[k] || {};
+            if (a12Num(f.on_hand) <= 0 || soldSet[k]) return;
+            if (S.ptype && (f.product_type || m.product_type || '(none)') !== S.ptype) return;
+            if (S.tier && f.tier !== S.tier) return;
+            if (S.q && a12Up(k + ' ' + (f.asin || '') + ' ' + (f.product_name || '')).indexOf(S.q) < 0) return;
+            ns.push(f);
+        });
+        ns.sort(function (a, b) { return b.on_hand - a.on_hand; });
+        var tied = 0; ns.forEach(function (f) { tied += a12Num(f.on_hand); });
+        h += a12Card('Not selling in this range (stock on hand, zero sales)', '<div class="a12-sub"><b>' + a12N(ns.length) + '</b> SKUs, <b>' + a12N(tied) + '</b> units on the shelf. Top 20 by stock:</div>' +
+            ns.slice(0, 20).map(function (f) { return '<div class="a12-li" onclick="a12OpenSku(\'' + v110Js(f.sku_code) + '\')"><span class="a12-lt"><b>' + a12E(f.sku_code) + '</b><br><small>' + a12E(f.product_name) + ' &bull; tier ' + a12E(f.tier) + '</small></span><span class="a12-lv">' + a12N(f.on_hand) + '</span></div>'; }).join(''),
+            'Channel and bin filters are ignored here (a product that sold anywhere is not "not selling").');
+    }
+    // pareto / ABC
+    if (sl.length && units > 0) {
+        var cum = 0, n80 = 0; sl.forEach(function (s) { if (cum < units * 0.8) { cum += s.units; n80++; } });
+        var top20n = Math.max(1, Math.ceil(sl.length * 0.2)), top20u = 0; sl.slice(0, top20n).forEach(function (s) { top20u += s.units; });
+        var tiers = {}; sl.forEach(function (s) { var t = D.hasFc ? ((D.fc[s.sku] || {}).tier || 'none') : 'n/a'; var o = tiers[t] = tiers[t] || { n: 0, u: 0 }; o.n++; o.u += s.units; });
+        h += a12Card('Pareto / ABC share', '<div class="a12-sub"><b>' + a12N(n80) + '</b> of ' + a12N(sl.length) + ' selling SKUs make 80% of the units. The top 20% of SKUs (' + a12N(top20n) + ') make <b>' + a12Pc(top20u / units * 100) + '</b>.</div>' +
+            '<table class="a12-t"><thead><tr><th>Tier</th><th class="n">SKUs sold</th><th class="n">Units</th><th class="n">Share</th></tr></thead><tbody>' + ['A', 'B', 'C', 'DEAD', 'none', 'n/a'].filter(function (t) { return tiers[t]; }).map(function (t) { return '<tr><td>' + a12E(t) + '</td><td class="n">' + a12N(tiers[t].n) + '</td><td class="n">' + a12N(tiers[t].u) + '</td><td class="n">' + a12Share(tiers[t].u / units * 100) + '</td></tr>'; }).join('') + '</tbody></table>');
+    }
+    // category breakup
+    if (D.hasMs) {
+        var cat = {}; rows.forEach(function (r) { var t = (D.ms[r.sku_code] || {}).product_type || '(none)', c = cat[t] = cat[t] || { t: t, u: 0, v: 0 }; var u = a12Num(r.units); c.u += u; c.v += u * a12Num((D.ms[r.sku_code] || {}).mrp); });
+        var cl = Object.keys(cat).map(function (k) { return cat[k]; }).sort(function (a, b) { return b.u - a.u; });
+        h += a12Card('Category breakup', '<table class="a12-t"><thead><tr><th>Category</th><th class="n">Units (volume)</th><th class="n">Value (MRP)</th><th class="n">Share of units</th></tr></thead><tbody>' +
+            cl.map(function (c) { return '<tr><td>' + a12E(c.t) + '</td><td class="n">' + a12N(c.u) + '</td><td class="n">' + a12Rs(c.v) + '</td><td class="n">' + a12Share(units ? c.u / units * 100 : 0) + '</td></tr>'; }).join('') + '</tbody></table>');
+    }
+    res.innerHTML = h;
+}
+A12.R.sales = a12SalesRender;
+
+
+// ══ INVENTORY ════════════════════════════════════════════════════════════════
+function a12Items(m) {
+    var it = {}, list = [];
+    function mk(s) { return it[s] = it[s] || { sku: s, asin: '', name: '', type: '', mrp: null, thr: 0, onHand: 0, reserved: 0, resLines: 0, bins: [], lastMove: '', active: true, tier: '', fc: null, _id: s }; }
+    m.master.data.forEach(function (r) { var x = mk(r.sku_code); x.asin = r.asin || ''; x.name = r.product_name || ''; x.type = r.product_type || ''; x.mrp = (r.mrp == null || r.mrp === '') ? null : Number(r.mrp); x.thr = a12Num(r.reorder_threshold); x.active = r.active !== false; });
+    m.stock.data.forEach(function (r) { var x = mk(r.sku_code); x.onHand = a12Num(r.qty_on_hand); x.lastMove = r.last_movement_at || ''; if (!x.asin) x.asin = r.asin || ''; });
+    m.bins.data.forEach(function (r) { mk(r.sku_code).bins.push({ bin: r.bin_code || 'RECEIVING', qty: a12Num(r.qty_on_hand) }); });
+    m.resv.data.forEach(function (r) { var x = mk(r.sku_code); x.reserved += a12Num(r.qty); x.resLines++; });
+    if (m.forecast && m.forecast.ok) m.forecast.data.forEach(function (r) { var x = mk(r.sku_code); x.fc = r; x.tier = r.tier || ''; if (!x.name) x.name = r.product_name || ''; if (!x.type) x.type = r.product_type || ''; });
+    Object.keys(it).forEach(function (k) {
+        var x = it[k]; if (!x.active && x.onHand === 0) return;
+        x.avail = x.onHand - x.reserved;
+        x.status = x.onHand < 0 ? 'NEG' : (x.onHand === 0 ? 'OUT' : (x.thr > 0 && x.onHand <= x.thr ? 'LOW' : 'IN'));
+        x.value = x.onHand > 0 && x.mrp != null ? x.onHand * x.mrp : 0;
+        x.binText = x.bins.filter(function (b) { return b.qty !== 0; }).sort(function (a, b) { return b.qty - a.qty; }).map(function (b) { return b.bin + ':' + b.qty; }).join(' | ');
+        list.push(x);
+    });
+    return list;
+}
+function a12InvS() { if (!A12.S.inv) A12.S.inv = { q: '', type: '', tier: '', status: '', bin: '' }; return A12.S.inv; }
+function a12LoadInventory(force) {
+    a12$('a12-title').innerHTML = '&#128230; Inventory';
+    a12Many(['master', 'stock', 'bins', 'resv', 'forecast', 'returns', 'flags'], force).then(function (m) {
+        if (A12.sub !== 'inventory') return;
+        var need = ['master', 'stock', 'bins', 'resv'];
+        for (var i = 0; i < need.length; i++) if (!m[need[i]].ok) { a12$('a12-res').innerHTML = a12Fail(m[need[i]], A12_DS[need[i]].l.toLowerCase()); return; }
+        A12.inv = { m: m, items: a12Items(m), at: a12Oldest(m, need.concat(['forecast', 'returns', 'flags'])) };
+        a12$('a12-asof').textContent = a12AsOf(A12.inv.at) + '. Value is at MRP: cost price is not readable by the app.';
+        a12InvCtl(); a12InvRender();
+    });
+}
+function a12InvCtl() {
+    var S = a12InvS(), D = A12.inv, hasFc = D.m.forecast.ok;
+    var types = a12Uniq(D.items.map(function (x) { return x.type || '(none)'; })), bins = a12Uniq(D.m.bins.data.map(function (r) { return r.bin_code || 'RECEIVING'; }));
+    a12$('a12-ctl').innerHTML = '<details class="a12-filt"><summary>&#128269; Filters <span id="a12-fcount"></span></summary><div class="a12-grid">' +
+        '<label>Category<select onchange="a12InvSet(\'type\',this.value)">' + a12Opts(types, S.type, 'All categories') + '</select></label>' +
+        '<label>ABC tier<select ' + (hasFc ? '' : 'disabled ') + 'onchange="a12InvSet(\'tier\',this.value)">' + a12Opts(['A', 'B', 'C', 'DEAD'], S.tier, 'All tiers') + '</select></label>' +
+        '<label>Stock level<select onchange="a12InvSet(\'status\',this.value)"><option value="">All</option>' + [['IN', 'In stock'], ['OUT', 'Out of stock'], ['LOW', 'Low (at or below reorder level)'], ['NEG', 'Negative']].map(function (o) { return '<option value="' + o[0] + '"' + (S.status === o[0] ? ' selected' : '') + '>' + o[1] + '</option>'; }).join('') + '</select></label>' +
+        '<label>Bin<select onchange="a12InvSet(\'bin\',this.value)">' + a12Opts(bins, S.bin, 'All bins') + '</select></label>' +
+        '<label style="grid-column:1/-1;">Search SKU, ASIN or title<input type="text" value="' + a12E(S.q) + '" autocomplete="off" autocapitalize="characters" oninput="a12InvSetQ(this.value)"></label></div>' +
+        '<div style="margin-top:6px;"><button class="csv-btn" onclick="a12InvReset()">Clear filters</button></div></details>';
+}
+function a12InvSet(k, v) { a12InvS()[k] = v; var T = A12.T.inv; if (T) T.show = 50; a12InvRender(); }
+var _a12iT = null;
+function a12InvSetQ(v) { a12InvS().q = a12Up(v).trim(); clearTimeout(_a12iT); _a12iT = setTimeout(a12InvRender, 250); }
+function a12InvReset() { var S = a12InvS(); S.q = S.type = S.tier = S.status = S.bin = ''; a12InvCtl(); a12InvRender(); }
+function a12InvFilter() {
+    var S = a12InvS();
+    return A12.inv.items.filter(function (x) {
+        if (S.type && (x.type || '(none)') !== S.type) return false;
+        if (S.tier && x.tier !== S.tier) return false;
+        if (S.status && x.status !== S.status && !(S.status === 'IN' && x.status === 'LOW')) return false;
+        if (S.bin && !x.bins.some(function (b) { return b.bin === S.bin && b.qty !== 0; })) return false;
+        if (S.q && a12Up(x.sku + ' ' + x.asin + ' ' + x.name).indexOf(S.q) < 0) return false;
+        return true;
+    });
+}
+function a12AgeDays(x) {
+    var f = x.fc || {}, ref = f.last_sale_date ? f.last_sale_date : (x.lastMove ? istDateStr(Date.parse(x.lastMove)) : '');
+    return ref ? Math.max(0, a12DiffDays(ref, a12Today())) : null;
+}
+function a12Stuck(items) { return items.filter(function (x) { return x.onHand > 0 && x.fc && a12Num(x.fc.sold_30) === 0; }); }
+function a12InvRender() {
+    var S = a12InvS(), D = A12.inv, res = a12$('a12-res'); if (!D || !res) return;
+    var items = a12InvFilter(), fcnt = ['type', 'tier', 'status', 'bin', 'q'].filter(function (k) { return S[k]; }).length;
+    var fe = a12$('a12-fcount'); if (fe) fe.textContent = fcnt ? '(' + fcnt + ' on)' : '';
+    var hasFc = D.m.forecast.ok, h = '';
+    var tot = 0, rsv = 0, inS = 0, outS = 0, low = 0, neg = 0, val = 0, noMrp = 0;
+    items.forEach(function (x) { tot += x.onHand; rsv += x.reserved; if (x.onHand > 0) inS++; else outS++; if (x.status === 'LOW') low++; if (x.onHand < 0) neg++; val += x.value; if (x.onHand > 0 && x.mrp == null) noMrp++; });
+    if (!hasFc) h += '<div class="a12-msg warn">' + (D.m.forecast.missing ? a12E(A12_M11_MSG) + ' ABC tiers and stuck stock need it; everything else below works.' : 'ABC tiers and stuck stock could not be read (' + a12E(D.m.forecast.msg) + ').') + '</div>';
+    h += a12Kpis([['Units on hand', a12N(tot)], ['Reserved (open slips)', a12N(rsv)], ['Available', a12N(tot - rsv), (tot - rsv) < 0 ? 'bad' : ''], ['SKUs in stock', a12N(inS)], ['SKUs out of stock', a12N(outS)],
+        ['Low stock', a12N(low), low ? 'warn' : ''], ['Negative stock', a12N(neg), neg ? 'bad' : ''], ['Value at MRP', a12Rs(val), '', noMrp ? a12N(noMrp) + ' in-stock SKUs have no MRP' : 'cost not readable by app']]);
+    // main table
+    var cols = [{ k: 'sku', l: 'SKU', f: function (x) { return a12SkuLink(x.sku) + '<br><small>' + a12E(x.name) + '</small>'; }, v: function (x) { return x.sku; } },
+        { k: 'onHand', l: 'On hand', n: 1, f: function (x) { return a12N(x.onHand); } }, { k: 'reserved', l: 'Reserved', n: 1, f: function (x) { return a12N(x.reserved); } },
+        { k: 'avail', l: 'Available', n: 1, f: function (x) { return '<span' + (x.avail < 0 ? ' style="color:#B3261E;font-weight:700;"' : '') + '>' + a12N(x.avail) + '</span>'; } },
+        { k: 'type', l: 'Category', f: function (x) { return a12E(x.type); } }, { k: 'tier', l: 'Tier', f: function (x) { return a12E(x.tier || '-'); } },
+        { k: 'value', l: 'Value (MRP)', n: 1, f: function (x) { return x.mrp == null ? '-' : a12Rs(x.value); } },
+        { k: 'binText', l: 'Bins', f: function (x) { return '<small>' + a12E(x.binText) + '</small>'; } }];
+    if (!A12.T.inv) A12.T.inv = { sort: 'onHand', dir: -1, show: 50 };
+    h += a12Card('SKUs (' + a12N(items.length) + ')', a12Tbl('inv', cols, items, { click: function (x) { return "a12OpenSku('" + v110Js(x.sku) + "')"; } }), '<button class="csv-btn" onclick="a12Dl(\'inventory\')">&#8595; CSV</button>');
+    A12.csv.inventory = { head: ['SKU', 'ASIN', 'Product', 'Category', 'ABC tier', 'On hand', 'Reserved', 'Available', 'Stock level', 'MRP', 'Value at MRP', 'Bins (BIN:QTY)', 'Last movement (India)'],
+        rows: items.map(function (x) { return [x.sku, x.asin, x.name, x.type, x.tier, x.onHand, x.reserved, x.avail, x.status, x.mrp == null ? '' : x.mrp, x.mrp == null ? '' : x.value, x.binText, x.lastMove ? fmtIst(x.lastMove) : '']; }) };
+    // by category
+    var cat = {}; items.forEach(function (x) { var t = x.type || '(none)', c = cat[t] = cat[t] || { t: t, n: 0, u: 0, r: 0, v: 0, o: 0 }; c.n++; c.u += x.onHand; c.r += x.reserved; c.v += x.value; if (x.onHand <= 0) c.o++; });
+    var cl = Object.keys(cat).map(function (k) { return cat[k]; }).sort(function (a, b) { return b.u - a.u; });
+    h += a12Card('By category', '<div class="a12-tw"><table class="a12-t"><thead><tr><th>Category</th><th class="n">SKUs</th><th class="n">Units</th><th class="n">Reserved</th><th class="n">Out of stock</th><th class="n">Value (MRP)</th><th class="n">Share</th></tr></thead><tbody>' +
+        cl.map(function (c) { return '<tr><td>' + a12E(c.t) + '</td><td class="n">' + a12N(c.n) + '</td><td class="n">' + a12N(c.u) + '</td><td class="n">' + a12N(c.r) + '</td><td class="n">' + a12N(c.o) + '</td><td class="n">' + a12Rs(c.v) + '</td><td class="n">' + a12Share(tot > 0 ? c.u / tot * 100 : 0) + '</td></tr>'; }).join('') + '</tbody></table></div>');
+    // by tier
+    if (hasFc) {
+        var tr = {}; items.forEach(function (x) { var t = x.tier || 'none', c = tr[t] = tr[t] || { n: 0, u: 0, v: 0 }; c.n++; c.u += x.onHand; c.v += x.value; });
+        h += a12Card('By ABC tier', '<table class="a12-t"><thead><tr><th>Tier</th><th class="n">SKUs</th><th class="n">Units</th><th class="n">Value (MRP)</th><th class="n">Share</th></tr></thead><tbody>' +
+            ['A', 'B', 'C', 'DEAD', 'none'].filter(function (t) { return tr[t]; }).map(function (t) { return '<tr><td>' + a12E(t) + '</td><td class="n">' + a12N(tr[t].n) + '</td><td class="n">' + a12N(tr[t].u) + '</td><td class="n">' + a12Rs(tr[t].v) + '</td><td class="n">' + a12Share(tot > 0 ? tr[t].u / tot * 100 : 0) + '</td></tr>'; }).join('') + '</tbody></table>',
+            'Tier is by the yearly-equivalent sales rate (A 365 or more, B 200 or more, DEAD 100 or less).');
+    }
+    // bins
+    var bu = {}; D.m.bins.data.forEach(function (r) { var b = r.bin_code || 'RECEIVING', o = bu[b] = bu[b] || { b: b, u: 0, n: 0, neg: 0 }; var q = a12Num(r.qty_on_hand); o.u += q; if (q > 0) o.n++; if (q < 0) o.neg++; });
+    var bl = Object.keys(bu).map(function (k) { return bu[k]; }).sort(function (a, b) { return b.u - a.u; }), btot = 0; bl.forEach(function (b) { btot += b.u; });
+    h += a12Card('Bin utilisation (' + a12N(bl.length) + ' bins)', '<div class="a12-sub">Whole warehouse; filters above do not apply. Top 25 by units.</div><div class="a12-tw"><table class="a12-t"><thead><tr><th>Bin</th><th class="n">SKUs</th><th class="n">Units</th><th class="n">Share</th></tr></thead><tbody>' +
+        bl.slice(0, 25).map(function (b) { return '<tr><td>' + a12E(b.b) + (b.neg ? ' <span class="a12-flag">' + b.neg + ' below zero</span>' : '') + '</td><td class="n">' + a12N(b.n) + '</td><td class="n">' + a12N(b.u) + '</td><td class="n">' + a12Share(btot > 0 ? b.u / btot * 100 : 0) + '</td></tr>'; }).join('') + '</tbody></table></div>');
+    // stuck stock
+    if (hasFc) {
+        var st = a12Stuck(items), bk = [['Up to 30 days', 0, 30], ['31 to 60 days', 31, 60], ['61 to 90 days', 61, 90], ['Over 90 days', 91, 99999], ['Not known', -1, -1]], bt = {};
+        st.forEach(function (x) { var a = a12AgeDays(x), k = bk.filter(function (b) { return a == null ? b[1] === -1 : (a >= b[1] && a <= b[2]); })[0][0], o = bt[k] = bt[k] || { n: 0, u: 0, v: 0 }; o.n++; o.u += x.onHand; o.v += x.value; });
+        var su = 0, sv = 0; st.forEach(function (x) { su += x.onHand; sv += x.value; });
+        st.sort(function (a, b) { return b.onHand - a.onHand; });
+        h += a12Card('Stuck / dead stock (stock on hand, no sale in 30 days)', '<div class="a12-sub"><b>' + a12N(st.length) + '</b> SKUs, <b>' + a12N(su) + '</b> units, <b>' + a12Rs(sv) + '</b> at MRP. Age = days since the last sale (or the last movement if there was no sale). Sales are tracked only since 2026-09-21.</div>' +
+            '<table class="a12-t"><thead><tr><th>Age</th><th class="n">SKUs</th><th class="n">Units</th><th class="n">Value</th></tr></thead><tbody>' + bk.filter(function (b) { return bt[b[0]]; }).map(function (b) { return '<tr><td>' + b[0] + '</td><td class="n">' + a12N(bt[b[0]].n) + '</td><td class="n">' + a12N(bt[b[0]].u) + '</td><td class="n">' + a12Rs(bt[b[0]].v) + '</td></tr>'; }).join('') + '</tbody></table>' +
+            st.slice(0, 15).map(function (x) { var a = a12AgeDays(x); return '<div class="a12-li" onclick="a12OpenSku(\'' + v110Js(x.sku) + '\')"><span class="a12-lt"><b>' + a12E(x.sku) + '</b><br><small>' + a12E(x.name) + ' &bull; ' + (a == null ? 'age not known' : a + ' days') + '</small></span><span class="a12-lv">' + a12N(x.onHand) + '</span></div>'; }).join(''));
+    }
+    // returns
+    if (D.m.returns.ok) {
+        var rb = {}, rs = {}, ru = 0; D.m.returns.data.forEach(function (r) { var q = a12Num(r.qty_delta); ru += q; var b = r.bin_code || 'RECEIVING'; rb[b] = (rb[b] || 0) + q; rs[r.sku_code] = (rs[r.sku_code] || 0) + q; });
+        h += a12Card('Returns', '<div class="a12-sub"><b>' + a12N(ru) + '</b> units received back as returns (RETURN_IN in the ledger, all time). Bins that received them:</div>' +
+            (Object.keys(rb).sort(function (a, b) { return rb[b] - rb[a]; }).map(function (b) { return '<span class="a12-pill">' + a12E(b) + ': <b>' + a12N(rb[b]) + '</b></span>'; }).join(' ') || '<div class="a12-sub">No returns recorded.</div>') +
+            Object.keys(rs).sort(function (a, b) { return rs[b] - rs[a]; }).slice(0, 15).map(function (k) { return '<div class="a12-li" onclick="a12OpenSku(\'' + v110Js(k) + '\')"><span class="a12-lt"><b>' + a12E(k) + '</b></span><span class="a12-lv">' + a12N(rs[k]) + '</span></div>'; }).join(''),
+            'Where they were put when they came back. Stock may have been moved since, so check the SKU page for the live bins.');
+    } else h += a12Card('Returns', a12Fail(D.m.returns, 'returns'));
+    // flags
+    if (D.m.flags.ok) {
+        var fl = D.m.flags.data, byF = {}; fl.forEach(function (f) { byF[f.flag_code] = (byF[f.flag_code] || 0) + 1; });
+        var sev = { HIGH: 0, MEDIUM: 1, LOW: 2 }, top = fl.slice().sort(function (a, b) { return (sev[a.severity] == null ? 3 : sev[a.severity]) - (sev[b.severity] == null ? 3 : sev[b.severity]); }).slice(0, 25);
+        h += a12Card('Stock health flags (' + a12N(fl.length) + ')', Object.keys(byF).map(function (c) { return '<span class="a12-pill">' + a12E(c) + ': <b>' + a12N(byF[c]) + '</b></span>'; }).join(' ') +
+            top.map(function (f) { return '<div class="a12-li" onclick="a12OpenSku(\'' + v110Js(f.sku_code) + '\')"><span class="a12-lt"><b>' + a12E(f.sku_code) + '</b> <small>' + a12E(f.flag_code) + ' &bull; ' + a12E(f.severity) + (f.bin_code ? ' &bull; bin ' + a12E(f.bin_code) : '') + '</small><br><small>' + a12E(f.detail) + '</small></span><span class="a12-lv">' + a12E(f.qty) + '</span></div>'; }).join('') || '<div class="a12-sub">No flags.</div>',
+            'Most serious first. Same checks as the Stock health card in Stock Search.');
+    } else h += a12Card('Stock health flags', a12Fail(D.m.flags, 'stock health flags'));
+    res.innerHTML = h;
+}
+A12.R.inv = a12InvRender;
+
+
+// ══ FORECAST ═════════════════════════════════════════════════════════════════
+var A12_TIER_RANK = { A: 0, B: 1, C: 2, DEAD: 3 };
+function a12FcS() { if (!A12.S.fc) A12.S.fc = { level: 'sku', q: '', type: '', tier: '', make: '', basis: '', low7: false }; return A12.S.fc; }
+function a12FcBase(m) {
+    var ms = {}; if (m.master.ok) m.master.data.forEach(function (r) { ms[r.sku_code] = r; });
+    return m.forecast.data.map(function (f) {
+        var x = {}; Object.keys(f).forEach(function (k) { x[k] = f[k]; });
+        ['on_hand', 'reserved_units', 'available', 'sold_7', 'sold_30', 'sold_all', 'avg_daily', 'annual_equiv', 'reorder_point', 'reorder_qty', 'qty_to_make', 'days_hist', 'returned_units'].forEach(function (k) { x[k] = a12Num(x[k]); });
+        x.days_of_cover = (f.days_of_cover == null) ? null : Number(f.days_of_cover);
+        x.product_type = x.product_type || (ms[f.sku_code] || {}).product_type || '';
+        x.key = f.sku_code; x._id = f.sku_code; x.skuCount = 1;
+        return x;
+    });
+}
+function a12FcAsin(rows) {
+    var g = {};
+    rows.forEach(function (r) {
+        var k = r.asin || r.sku_code, o = g[k];
+        if (!o) { o = g[k] = { key: k, asin: r.asin || '', sku_code: k, _id: k, product_name: r.product_name, product_type: r.product_type, skuCount: 0, on_hand: 0, reserved_units: 0, available: 0, sold_7: 0, sold_30: 0, sold_all: 0, avg_daily: 0, annual_equiv: 0, reorder_point: 0, reorder_qty: 0, qty_to_make: 0, days_hist: 0, tier: r.tier, basis: 'NONE', make_now: 'ON DEMAND', last_sale_date: null, skus: [] }; }
+        o.skuCount++; o.skus.push(r.sku_code);
+        ['on_hand', 'reserved_units', 'available', 'sold_7', 'sold_30', 'sold_all', 'avg_daily', 'annual_equiv', 'reorder_point', 'reorder_qty', 'qty_to_make'].forEach(function (f) { o[f] += r[f]; });
+        o.days_hist = Math.max(o.days_hist, r.days_hist);
+        if ((A12_TIER_RANK[r.tier] == null ? 9 : A12_TIER_RANK[r.tier]) < (A12_TIER_RANK[o.tier] == null ? 9 : A12_TIER_RANK[o.tier])) o.tier = r.tier;
+        if (r.basis === 'RECENT' || (r.basis === '2025' && o.basis === 'NONE')) o.basis = r.basis;
+        if (r.make_now === 'YES - MAKE') o.make_now = 'YES - MAKE'; else if (r.make_now === 'NO' && o.make_now !== 'YES - MAKE') o.make_now = 'NO';
+        if (r.last_sale_date && (!o.last_sale_date || r.last_sale_date > o.last_sale_date)) o.last_sale_date = r.last_sale_date;
+    });
+    return Object.keys(g).map(function (k) { var o = g[k]; o.days_of_cover = o.avg_daily > 0 ? Math.round(o.available / o.avg_daily * 10) / 10 : null; if (o.skuCount > 1) o.product_name += ' (+' + (o.skuCount - 1) + ' more SKU' + (o.skuCount > 2 ? 's' : '') + ')'; return o; });
+}
+function a12LoadForecast(force) {
+    a12$('a12-title').innerHTML = '&#128302; Forecast';
+    a12Many(['forecast', 'master'], force).then(function (m) {
+        if (A12.sub !== 'forecast') return;
+        if (!m.forecast.ok) { a12$('a12-res').innerHTML = a12Fail(m.forecast, 'the forecast'); return; }
+        A12.fc = { m: m, base: a12FcBase(m), at: a12Oldest(m, ['forecast', 'master']) };
+        a12$('a12-asof').textContent = a12AsOf(A12.fc.at) + '. ' + A12_TRACK_NOTE;
+        a12FcCtl(); a12FcRender();
+    });
+}
+function a12FcCtl() {
+    var S = a12FcS(), D = A12.fc, types = a12Uniq(D.base.map(function (r) { return r.product_type || '(none)'; }));
+    a12$('a12-ctl').innerHTML = '<div class="a12-chips"><button type="button" class="a12-chip' + (S.level === 'sku' ? ' on' : '') + '" onclick="a12FcSet(\'level\',\'sku\')">Company level (per SKU)</button><button type="button" class="a12-chip' + (S.level === 'asin' ? ' on' : '') + '" onclick="a12FcSet(\'level\',\'asin\')">Listing level (per ASIN)</button></div>' +
+        '<details class="a12-filt"><summary>&#128269; Filters <span id="a12-fcount"></span></summary><div class="a12-grid">' +
+        '<label>Category<select onchange="a12FcSet(\'type\',this.value)">' + a12Opts(types, S.type, 'All categories') + '</select></label>' +
+        '<label>ABC tier<select onchange="a12FcSet(\'tier\',this.value)">' + a12Opts(['A', 'B', 'C', 'DEAD'], S.tier, 'All tiers') + '</select></label>' +
+        '<label>Make now?<select onchange="a12FcSet(\'make\',this.value)"><option value="">All</option>' + [['YES - MAKE', 'Yes - make'], ['NO', 'No'], ['ON DEMAND', 'On demand']].map(function (o) { return '<option value="' + o[0] + '"' + (S.make === o[0] ? ' selected' : '') + '>' + o[1] + '</option>'; }).join('') + '</select></label>' +
+        '<label>Run rate from<select onchange="a12FcSet(\'basis\',this.value)"><option value="">All</option>' + ['RECENT', '2025', 'NONE'].map(function (o) { return '<option value="' + o + '"' + (S.basis === o ? ' selected' : '') + '>' + (o === '2025' ? '2025 history' : o) + '</option>'; }).join('') + '</select></label>' +
+        '<label style="grid-column:1/-1;">Search SKU, ASIN or title<input type="text" value="' + a12E(S.q) + '" autocomplete="off" autocapitalize="characters" oninput="a12FcSetQ(this.value)"></label>' +
+        '<label style="grid-column:1/-1;flex-direction:row;gap:8px;align-items:center;"><input type="checkbox" ' + (S.low7 ? 'checked ' : '') + 'onchange="a12FcSet(\'low7\',this.checked)"> Only under 7 days of cover</label></div>' +
+        '<div style="margin-top:6px;"><button class="csv-btn" onclick="a12FcReset()">Clear filters</button></div></details>';
+}
+function a12FcSet(k, v) { a12FcS()[k] = v; var T = A12.T.fc; if (T) T.show = 50; if (k === 'level') a12FcCtl(); a12FcRender(); }
+var _a12fT = null;
+function a12FcSetQ(v) { a12FcS().q = a12Up(v).trim(); clearTimeout(_a12fT); _a12fT = setTimeout(a12FcRender, 250); }
+function a12FcReset() { var S = a12FcS(); S.q = S.type = S.tier = S.make = S.basis = ''; S.low7 = false; a12FcCtl(); a12FcRender(); }
+function a12FcBasisLbl(r) { return r.basis === 'RECENT' ? 'RECENT (' + a12N(r.days_hist) + ' d)' : (r.basis === '2025' ? '2025 history' : 'none'); }
+function a12FcRender() {
+    var S = a12FcS(), D = A12.fc, res = a12$('a12-res'); if (!D || !res) return;
+    var all = D.base, rows = S.level === 'asin' ? a12FcAsin(all) : all;
+    var fcnt = ['type', 'tier', 'make', 'basis', 'q'].filter(function (k) { return S[k]; }).length + (S.low7 ? 1 : 0), fe = a12$('a12-fcount'); if (fe) fe.textContent = fcnt ? '(' + fcnt + ' on)' : '';
+    var mk = 0, mu = 0, l7 = 0, dd = 0;
+    all.forEach(function (r) { if (r.make_now === 'YES - MAKE') { mk++; mu += r.qty_to_make; } if (r.tier !== 'DEAD' && r.days_of_cover != null && r.days_of_cover < 7) l7++; if (r.tier === 'DEAD' && r.on_hand > 0) dd += r.on_hand; });
+    var list = rows.filter(function (r) {
+        if (S.type && (r.product_type || '(none)') !== S.type) return false;
+        if (S.tier && r.tier !== S.tier) return false;
+        if (S.make && r.make_now !== S.make) return false;
+        if (S.basis && r.basis !== S.basis) return false;
+        if (S.low7 && !(r.days_of_cover != null && r.days_of_cover < 7)) return false;
+        if (S.q && a12Up(r.sku_code + ' ' + (r.asin || '') + ' ' + (r.product_name || '')).indexOf(S.q) < 0) return false;
+        return true;
+    });
+    var h = a12Kpis([['SKUs to make now', a12N(mk), mk ? 'warn' : ''], ['Units to make', a12N(mu), mu ? 'warn' : ''], ['SKUs under 7 days cover', a12N(l7), l7 ? 'bad' : '', 'not counting ON DEMAND'], ['Dead stock units', a12N(dd), '', 'tier DEAD with stock']]);
+    h += '<div class="a12-sub">The four boxes above are for the whole company (all ' + a12N(all.length) + ' SKUs), whatever the filters say.</div>';
+    h += '<details class="a12-how"><summary>How this is calculated</summary><div>' +
+        '<p>Mirrors the Excel Settings sheet (read-only here).</p><ul>' +
+        '<li>Selling days in a year: <b>313</b>. Supplier lead time: <b>10 days</b>.</li>' +
+        '<li>Run rate (average per day): units sold in the last 30 days divided by the days tracked so far. While fewer than 28 days are tracked, the larger of that and the 2025 history rate (2025 units divided by 313) is used; later, if a SKU had no recent sale, the 2025 history rate. Else zero.</li>' +
+        '<li>Yearly equivalent = run rate x 313. <b>Tier A</b>: 365 or more. <b>Tier B</b>: 200 or more. <b>Tier C</b>: above 100. <b>DEAD</b>: 100 or less (made on demand).</li>' +
+        '<li>Safety days: <b>A 12, B 6, C 4</b>. Cover weeks to make: <b>A 6, B 3, C 2</b>.</li>' +
+        '<li>Reorder point = run rate x (lead 10 + safety days), rounded up.</li>' +
+        '<li>Make now = <b>YES</b> when available stock (on hand minus reserved) is at or below the reorder point. DEAD is ON DEMAND.</li>' +
+        '<li>Quantity to make = run rate x 7 x cover weeks, rounded up (only when make now is YES).</li>' +
+        '<li>Days of cover = available stock divided by run rate.</li></ul>' +
+        '<p><b>Short history:</b> sales tracking started 2026-09-21, so run rates use a short window (days tracked: ' + a12N(all.length ? all[0].days_hist : 0) + '). Treat them as early signals.</p></div></details>';
+    var cols = [{ k: 'key', l: S.level === 'asin' ? 'ASIN' : 'SKU', f: function (r) { return a12SkuLink(r.key) + '<br><small>' + a12E(r.product_name) + '</small>'; }, v: function (r) { return r.key; } },
+        { k: 'tier', l: 'Tier', f: function (r) { return a12E(r.tier); } },
+        { k: 'avail', l: 'Available', n: 1, v: function (r) { return r.available; }, f: function (r) { return a12N(r.available); } },
+        { k: 'avg_daily', l: 'Run rate/day', n: 1, f: function (r) { return a12N1(r.avg_daily) + '<br><small>' + a12E(a12FcBasisLbl(r)) + '</small>'; } },
+        { k: 'days_of_cover', l: 'Days cover', n: 1, f: function (r) { return r.days_of_cover == null ? '-' : a12N1(r.days_of_cover); } },
+        { k: 'reorder_point', l: 'Reorder point', n: 1, f: function (r) { return a12N(r.reorder_point); } },
+        { k: 'reorder_qty', l: 'Reorder qty', n: 1, f: function (r) { return a12N(r.reorder_qty); } },
+        { k: 'make_now', l: 'Make now', f: function (r) { return '<span class="a12-mk ' + (r.make_now === 'YES - MAKE' ? 'y' : (r.make_now === 'NO' ? 'n' : 'd')) + '">' + a12E(r.make_now) + '</span>'; } },
+        { k: 'qty_to_make', l: 'Qty to make', n: 1, f: function (r) { return r.qty_to_make ? '<b>' + a12N(r.qty_to_make) + '</b>' : '0'; } }];
+    if (!A12.T.fc) A12.T.fc = { sort: 'qty_to_make', dir: -1, show: 50 };
+    h += a12Card((S.level === 'asin' ? 'Listings (ASIN)' : 'SKUs') + ' (' + a12N(list.length) + ')', a12Tbl('fc', cols, list, { click: function (r) { return "a12OpenSku('" + v110Js(r.key) + "')"; } }),
+        (S.level === 'asin' ? 'Per listing: stock, run rate and quantities of its SKUs added together. ' : '') + '<button class="csv-btn" onclick="a12Dl(\'forecast\')">&#8595; CSV</button>');
+    A12.csv.forecast = { head: [S.level === 'asin' ? 'ASIN' : 'SKU', 'ASIN', 'Product', 'Category', 'ABC tier', 'On hand', 'Reserved', 'Available', 'Sold 7d', 'Sold 30d', 'Run rate per day', 'Run rate basis', 'Days tracked', 'Days of cover', 'Reorder point', 'Reorder qty', 'Make now', 'Qty to make', 'Last sale date'],
+        rows: list.map(function (r) { return [r.key, r.asin || '', r.product_name, r.product_type, r.tier, r.on_hand, r.reserved_units, r.available, r.sold_7, r.sold_30, r.avg_daily, r.basis, r.days_hist, r.days_of_cover == null ? '' : r.days_of_cover, r.reorder_point, r.reorder_qty, r.make_now, r.qty_to_make, r.last_sale_date || '']; }) };
+    res.innerHTML = h;
+}
+A12.R.fc = a12FcRender;
+
+// ══ PRODUCTION ═══════════════════════════════════════════════════════════════
+function a12PrS() { if (!A12.S.pr) A12.S.pr = { q: '', type: '' }; return A12.S.pr; }
+function a12LoadProduction(force) {
+    a12$('a12-title').innerHTML = '&#127981; What to send to production';
+    a12Many(['forecast', 'master', 'bins', 'stock'], force).then(function (m) {
+        if (A12.sub !== 'production') return;
+        if (!m.forecast.ok) { a12$('a12-res').innerHTML = a12Fail(m.forecast, 'the forecast'); return; }
+        var bins = {}; if (m.bins.ok) m.bins.data.forEach(function (b) { if (a12Num(b.qty_on_hand) !== 0) (bins[b.sku_code] = bins[b.sku_code] || []).push({ bin: b.bin_code || 'RECEIVING', qty: a12Num(b.qty_on_hand) }); });
+        A12.pr = { m: m, base: a12FcBase(m), bins: bins, binsOk: m.bins.ok, at: a12Oldest(m, ['forecast', 'master', 'bins']) };
+        a12$('a12-asof').textContent = a12AsOf(A12.pr.at) + '. ' + A12_TRACK_NOTE;
+        a12PrCtl(); a12PrRender();
+    });
+}
+function a12PrCtl() {
+    var S = a12PrS(), types = a12Uniq(A12.pr.base.map(function (r) { return r.product_type || '(none)'; }));
+    a12$('a12-ctl').innerHTML = '<div class="a12-grid"><label>Product type<select onchange="a12PrSet(\'type\',this.value)">' + a12Opts(types, S.type, 'All product types') + '</select></label>' +
+        '<label>Search<input type="text" value="' + a12E(S.q) + '" autocomplete="off" autocapitalize="characters" oninput="a12PrSetQ(this.value)"></label></div>';
+}
+function a12PrSet(k, v) { a12PrS()[k] = v; a12PrRender(); }
+var _a12pT = null;
+function a12PrSetQ(v) { a12PrS().q = a12Up(v).trim(); clearTimeout(_a12pT); _a12pT = setTimeout(a12PrRender, 250); }
+function a12PrBins(sku) { var b = (A12.pr.bins[sku] || []).sort(function (a, b) { return b.qty - a.qty; }); return A12.pr.binsOk ? (b.map(function (x) { return x.bin + ':' + x.qty; }).join(' | ') || 'none') : 'not read'; }
+function a12PrRender() {
+    var S = a12PrS(), D = A12.pr, res = a12$('a12-res'); if (!D || !res) return;
+    var rows = D.base.filter(function (r) {
+        if (S.type && (r.product_type || '(none)') !== S.type) return false;
+        if (S.q && a12Up(r.sku_code + ' ' + (r.asin || '') + ' ' + (r.product_name || '')).indexOf(S.q) < 0) return false;
+        return true;
+    });
+    var make = rows.filter(function (r) { return r.make_now === 'YES - MAKE'; }).sort(function (a, b) {
+        var ca = a.days_of_cover == null ? 1e9 : a.days_of_cover, cb = b.days_of_cover == null ? 1e9 : b.days_of_cover;
+        return (ca - cb) || ((A12_TIER_RANK[a.tier] == null ? 9 : A12_TIER_RANK[a.tier]) - (A12_TIER_RANK[b.tier] == null ? 9 : A12_TIER_RANK[b.tier])) || (a.sku_code < b.sku_code ? -1 : 1);
+    });
+    var mu = 0; make.forEach(function (r) { mu += r.qty_to_make; });
+    var dem = rows.filter(function (r) { return r.make_now === 'ON DEMAND'; }).sort(function (a, b) { return b.on_hand - a.on_hand; });
+    var cov = rows.filter(function (r) { return r.make_now === 'NO'; }).sort(function (a, b) { return (b.days_of_cover == null ? 1e9 : b.days_of_cover) - (a.days_of_cover == null ? 1e9 : a.days_of_cover); });
+    var stuck = rows.filter(function (r) { return r.on_hand > 0 && r.sold_30 === 0; }).sort(function (a, b) { return b.on_hand - a.on_hand; });
+    var demU = 0, stU = 0; dem.forEach(function (r) { demU += Math.max(0, r.on_hand); }); stuck.forEach(function (r) { stU += r.on_hand; });
+    var h = '<div class="a12-msg">There is no factory or work-in-progress data in the database yet, so no shop-floor status is shown. This page only says <b>what the numbers suggest sending to production</b>.</div>';
+    if (!D.binsOk) h += '<div class="a12-msg warn">Bins could not be read (' + a12E(D.m.bins.msg) + '), so the bins column says "not read".</div>';
+    h += a12Kpis([['SKUs to make now', a12N(make.length), make.length ? 'warn' : ''], ['Units to make', a12N(mu), mu ? 'warn' : ''], ['On demand (DEAD tier)', a12N(dem.length), '', a12N(demU) + ' units on hand'], ['Stuck stock', a12N(stuck.length), '', a12N(stU) + ' units']]);
+    var byT = {}; make.forEach(function (r) { var t = r.product_type || '(none)', o = byT[t] = byT[t] || { n: 0, u: 0 }; o.n++; o.u += r.qty_to_make; });
+    var mcols = [{ k: 'rk', l: '#', n: 1, f: function (r) { return r._rk; } }, { k: 'sku_code', l: 'SKU', f: function (r) { return a12SkuLink(r.sku_code) + '<br><small>' + a12E(r.product_name) + '</small>'; } },
+        { k: 'product_type', l: 'Type', f: function (r) { return a12E(r.product_type); } }, { k: 'tier', l: 'Tier', f: function (r) { return a12E(r.tier); } },
+        { k: 'available', l: 'Available', n: 1, f: function (r) { return a12N(r.available); } }, { k: 'days_of_cover', l: 'Days cover', n: 1, f: function (r) { return r.days_of_cover == null ? '-' : a12N1(r.days_of_cover); } },
+        { k: 'qty_to_make', l: 'Qty to make', n: 1, f: function (r) { return '<b>' + a12N(r.qty_to_make) + '</b>'; } }, { k: 'bins', l: 'Bins', f: function (r) { return '<small>' + a12E(a12PrBins(r.sku_code)) + '</small>'; } }];
+    make.forEach(function (r, i) { r._rk = i + 1; });
+    var mt = '<div class="a12-sub">Most urgent first: fewest days of cover, tier A before B before C when tied. Quantities follow the Forecast rules. Tap a row for the SKU page.</div><div class="a12-tw"><table class="a12-t"><thead><tr>' + mcols.map(function (c) { return '<th class="' + (c.n ? 'n' : '') + '">' + c.l + '</th>'; }).join('') + '</tr></thead><tbody>' +
+        make.slice(0, A12.T.prMake ? A12.T.prMake.show : 50).map(function (r) { return '<tr onclick="a12OpenSku(\'' + v110Js(r.sku_code) + '\')">' + mcols.map(function (c) { return '<td class="' + (c.n ? 'n' : '') + '">' + c.f(r) + '</td>'; }).join('') + '</tr>'; }).join('') + '</tbody></table></div>';
+    if (!make.length) mt = '<div class="a12-sub">Nothing needs making right now.</div>';
+    var tShow = A12.T.prMake ? A12.T.prMake.show : 50;
+    if (make.length > tShow) mt += '<div style="text-align:center;margin:6px 0;"><button class="csv-btn" onclick="a12PrMore()">Show 50 more (' + a12N(make.length - tShow) + ' left)</button></div>';
+    h += a12Card('Make now (' + a12N(make.length) + ' SKUs, ' + a12N(mu) + ' units)', mt, '<button class="csv-btn" onclick="a12Dl(\'production\')">&#8595; CSV (all lists)</button>' +
+        (Object.keys(byT).length ? '<br>' + Object.keys(byT).sort(function (a, b) { return byT[b].u - byT[a].u; }).map(function (t) { return '<span class="a12-pill">' + a12E(t) + ': <b>' + a12N(byT[t].u) + '</b> units / ' + byT[t].n + ' SKUs</span>'; }).join(' ') : ''));
+    var lst = function (arr, valLbl, f) { return arr.slice(0, 20).map(function (r) { return '<div class="a12-li" onclick="a12OpenSku(\'' + v110Js(r.sku_code) + '\')"><span class="a12-lt"><b>' + a12E(r.sku_code) + '</b><br><small>' + a12E(r.product_name) + ' &bull; tier ' + a12E(r.tier) + '</small></span><span class="a12-lv">' + f(r) + '</span></div>'; }).join('') + (arr.length > 20 ? '<div class="a12-sub">Showing 20 of ' + a12N(arr.length) + ' - the CSV has them all.</div>' : ''); };
+    h += a12Card('Not sent to production: on demand (' + a12N(dem.length) + ')', '<div class="a12-sub">Tier DEAD (100 a year or less): made only when an order comes. Number = units on hand.</div>' + lst(dem, 'On hand', function (r) { return a12N(r.on_hand); }));
+    h += a12Card('Not sent to production: well covered (' + a12N(cov.length) + ')', '<div class="a12-sub">Available stock is above the reorder point. Most days of cover first; number = days of cover.</div>' + lst(cov, 'Cover', function (r) { return r.days_of_cover == null ? '-' : a12N1(r.days_of_cover); }));
+    h += a12Card('Stuck inventory (' + a12N(stuck.length) + ' SKUs, ' + a12N(stU) + ' units)', '<div class="a12-sub">Stock on hand but no sale in the last 30 days. Number = units on hand.</div>' + lst(stuck, 'On hand', function (r) { return a12N(r.on_hand); }));
+    var head = ['List', 'Rank', 'SKU', 'ASIN', 'Product', 'Product type', 'ABC tier', 'On hand', 'Available', 'Days of cover', 'Qty to make', 'Bins (BIN:QTY)'], out = [];
+    var add = function (nm, arr) { arr.forEach(function (r, i) { out.push([nm, i + 1, r.sku_code, r.asin || '', r.product_name, r.product_type, r.tier, r.on_hand, r.available, r.days_of_cover == null ? '' : r.days_of_cover, r.qty_to_make, a12PrBins(r.sku_code)]); }); };
+    add('MAKE NOW', make); add('ON DEMAND', dem); add('WELL COVERED', cov); add('STUCK', stuck);
+    A12.csv.production = { head: head, rows: out };
+    res.innerHTML = h;
+}
+function a12PrMore() { var T = A12.T.prMake = A12.T.prMake || { show: 50 }; T.show += 50; a12PrRender(); }
+A12.R.pr = a12PrRender;
+
+
+// ══ SKU PAGE (the "encyclopedia" of one product) ═════════════════════════════
+var A12_SS = { A: 12, B: 6, C: 4 }, A12_CW = { A: 6, B: 3, C: 2 };
+function a12SpQ(def, build) { return a12Page(def, build).then(function (rows) { return { ok: true, data: rows }; }, function (e) { return { ok: false, msg: a12Err(e), missing: !!e.missing && !!def.m11 }; }); }
+function a12OpenSku(code) {
+    code = String(code == null ? '' : code).trim();
+    if (!code) return;
+    if (!canAnalytics()) { try { openSkuDetail(code); } catch (e) {} return; }
+    var pg = a12$('a12-skupage'); if (!pg) return;
+    if (!pg.classList.contains('open')) a12SkuHistPush();
+    pg.classList.add('open'); document.body.classList.add('a12-lock');
+    a12$('a12-sp-title').textContent = code;
+    var body = a12$('a12-sp-body'); body.scrollTop = 0; pg.scrollTop = 0;
+    body.innerHTML = '<div class="a12-msg">Loading&hellip;</div>';
+    if (!db) { body.innerHTML = '<div class="a12-msg err">The live database is not reachable right now.</div>'; return; }
+    var cols = 'sku_code,asin,product_name,product_type,mrp,active,reorder_threshold,default_bin,set_size,lead_time_days';
+    var one = function (col) { return withTimeout(db.from('oms_sku_master').select(cols).eq(col, code).limit(25), 15000, 'Product'); };
+    one('sku_code').then(function (r) {
+        if (r.error) throw new Error(r.error.message);
+        if ((r.data || []).length) return r.data;
+        return one('asin').then(function (r2) { if (r2.error) throw new Error(r2.error.message); return r2.data || []; });
+    }).then(function (rows) {
+        if (!rows.length) { body.innerHTML = '<div class="a12-msg err">No product found for "' + a12E(code) + '". Check the SKU or ASIN.</div>'; return; }
+        if (rows.length > 1) {
+            body.innerHTML = '<div class="a12-card"><h4>' + rows.length + ' SKUs share ASIN ' + a12E(code) + '</h4><div class="a12-sub">Choose one:</div>' +
+                rows.map(function (m) { return '<div class="a12-li" onclick="a12OpenSku(\'' + v110Js(m.sku_code) + '\')"><span class="a12-lt"><b>' + a12E(m.sku_code) + '</b><br><small>' + a12E(m.product_name) + '</small></span><span class="a12-lv">&rsaquo;</span></div>'; }).join('') + '</div>';
+            return;
+        }
+        a12SpRender(rows[0]);
+    }).catch(function (e) { body.innerHTML = '<div class="a12-msg err"><strong>Could not open this product.</strong> ' + a12E(a12Err(e)) + '<br>Nothing is shown, rather than numbers that might be wrong.</div>'; });
+}
+// v113: Back button / gesture. Opening the SKU page pushes ONE history entry (not again when another SKU
+// is opened inside it); Back pops it and the page closes instead of the app. The camera uses its own entry.
+var A12_SKU_MARK = 'omsA12Sku';
+function a12SkuHistPush() {
+    try {
+        if (history.state && history.state[A12_SKU_MARK]) return;
+        var m = {}; m[A12_SKU_MARK] = true; history.pushState(m, '', location.href);
+    } catch (e) {}
+}
+function a12SkuHide() {
+    var pg = a12$('a12-skupage'); if (pg) pg.classList.remove('open');
+    document.body.classList.remove('a12-lock');
+}
+function a12CloseSku() {
+    var viaHist = false;
+    try { viaHist = !!(history.state && history.state[A12_SKU_MARK]); } catch (e) {}
+    if (viaHist) {
+        try { history.back(); } catch (e) { viaHist = false; }
+        // popstate closes the page; if it somehow does not fire, close it anyway
+        setTimeout(function () { var pg = a12$('a12-skupage'); if (pg && pg.classList.contains('open') && !(history.state && history.state[A12_SKU_MARK])) a12SkuHide(); }, 400);
+        if (viaHist) return;
+    }
+    a12SkuHide();
+}
+window.addEventListener('popstate', function () {
+    var pg = a12$('a12-skupage');
+    if (pg && pg.classList.contains('open') && !(history.state && history.state[A12_SKU_MARK])) a12SkuHide();
+});
+function a12SpBox(id, title) { return '<div class="a12-card" id="a12-sp-' + id + '"><h4>' + title + '</h4><div class="a12-sub">Loading&hellip;</div></div>'; }
+function a12SpSet(id, title, html, sub) { var el = a12$('a12-sp-' + id); if (el) el.innerHTML = '<h4>' + title + '</h4>' + (sub ? '<div class="a12-sub">' + sub + '</div>' : '') + html; }
+function a12SpErr(id, title, r, what) { a12SpSet(id, title, a12Fail(r, what)); }
+function a12SpRender(m) {
+    var sku = m.sku_code, S = A12.sp = { m: m, sku: sku, orders: [], oFilt: { from: '', to: '', status: '', channel: '' } };
+    a12$('a12-sp-title').textContent = sku;
+    var body = a12$('a12-sp-body');
+    body.innerHTML =
+        '<div class="a12-card" id="a12-sp-head"><div style="font-weight:800;font-size:15px;color:#0A1628;">' + a12E(m.product_name || sku) + '</div>' +
+        '<div class="a12-sub">SKU <b>' + a12E(sku) + '</b> &bull; ASIN <b>' + a12E(m.asin || '-') + '</b> &bull; ' + a12E(m.product_type || 'no type') + ' &bull; MRP <b>' + (m.mrp == null ? '-' : a12Rs(m.mrp)) + '</b>' + (m.set_size ? ' &bull; set of ' + a12E(m.set_size) : '') + '</div>' +
+        '<div id="a12-sp-chips" style="margin-top:6px;">' + (m.active === false ? '<span class="a12-pill bad">Switched OFF</span>' : '<span class="a12-pill">Switched ON</span>') + '</div>' +
+        '<div class="a12-sub" id="a12-sp-asof"></div></div>' +
+        a12SpBox('stock', '&#128230; Stock') + a12SpBox('sales', '&#128200; Sales') + a12SpBox('rec', '&#127981; Run rate, cover and what to make') +
+        a12SpBox('orders', '&#129534; Order lines &amp; invoices') + a12SpBox('hist', '&#128200; Sales history (date / channel / bin)') +
+        '<div class="a12-card" id="a12-sp-ledger"><h4>&#128221; Ledger history</h4><div id="a12-sp-ledgerbox"></div></div>' +
+        a12SpBox('ret', '&#8617; Returns') + a12SpBox('rsv', '&#128274; Reservations') + a12SpBox('flags', '&#9888; Stock health flags');
+    var at = Date.now(); a12$('a12-sp-asof').textContent = a12AsOf(at) + '.';
+    var ds = function (key, extra) { return a12SpQ(A12_DS[key], function (q) { return q.eq('sku_code', sku); }); };
+    var stockDef = { t: 'oms_current_stock', c: 'sku_code,qty_on_hand,last_movement_at', o: ['sku_code'], l: 'Stock' };
+    var pStock = a12SpQ(stockDef, function (q) { return q.eq('sku_code', sku); }), pBins = ds('bins'), pRsv = ds('resv'), pSales = ds('sales'), pFc = ds('forecast'), pFlags = ds('flags'), pRet = ds('returns');
+    var ordDef = { t: 'oms_order_lines', c: 'line_id,channel,invoice_no,line_no,amazon_order_no,order_date,sku_code,asin,qty_ordered,qty_in_stock,qty_mto,status,reserved,created_at', o: ['line_id'], l: 'Order lines' };
+    var pOrd = a12SpQ(ordDef, function (q) { return q.eq('sku_code', sku); });
+    // stock + reservations
+    Promise.all([pStock, pBins, pRsv]).then(function (r) {
+        var st = r[0], bn = r[1], rs = r[2];
+        if (!st.ok) { a12SpErr('stock', '&#128230; Stock', st, 'stock'); }
+        else if (!bn.ok) { a12SpErr('stock', '&#128230; Stock', bn, 'bin stock'); }
+        else if (!rs.ok) { a12SpErr('stock', '&#128230; Stock', rs, 'reserved stock'); }
+        else {
+            var onHand = st.data.length ? a12Num(st.data[0].qty_on_hand) : 0, held = 0, byBin = {};
+            rs.data.forEach(function (x) { held += a12Num(x.qty); var b = x.bin_code || 'RECEIVING'; byBin[b] = (byBin[b] || 0) + a12Num(x.qty); });
+            S.onHand = onHand; S.held = held; S.heldLines = rs.data.length;
+            var bins = bn.data.filter(function (b) { return a12Num(b.qty_on_hand) !== 0; }).sort(function (a, b) { return b.qty_on_hand - a.qty_on_hand; });
+            var chips = (onHand < 0 ? '<span class="a12-pill bad">Negative stock</span> ' : (onHand === 0 ? '<span class="a12-pill bad">Out of stock</span> ' : (m.reorder_threshold > 0 && onHand <= m.reorder_threshold ? '<span class="a12-pill warn">Low stock</span> ' : '<span class="a12-pill ok">In stock</span> '))) + (held ? '<span class="a12-pill warn">' + held + ' held for orders</span>' : '');
+            var ch = a12$('a12-sp-chips'); if (ch) ch.innerHTML += ' ' + chips;
+            a12SpSet('stock', '&#128230; Stock', a12Kpis([['On hand', a12N(onHand), onHand <= 0 ? 'bad' : ''], ['Reserved', a12N(held)], ['Available', a12N(onHand - held), onHand - held < 0 ? 'bad' : ''], ['Held lines', a12N(rs.data.length)]]) +
+                '<table class="a12-t"><thead><tr><th>Bin</th><th class="n">Quantity</th><th class="n">Held</th><th class="n">Free units</th></tr></thead><tbody>' +
+                (bins.map(function (b) { var bc = b.bin_code || 'RECEIVING', hd = byBin[bc] || 0; return '<tr><td>' + a12E(bc) + '</td><td class="n">' + a12N(b.qty_on_hand) + '</td><td class="n">' + a12N(hd) + '</td><td class="n">' + a12N(Math.max(0, a12Num(b.qty_on_hand) - hd)) + '</td></tr>'; }).join('') || '<tr><td colspan="4">No stock in any bin.</td></tr>') + '</tbody></table>',
+                st.data.length && st.data[0].last_movement_at ? 'Last movement ' + a12E(fmtIst(st.data[0].last_movement_at)) + ' India time.' : '');
+            a12SpSet('rsv', '&#128274; Reservations', rs.data.length ? '<div class="a12-tw"><table class="a12-t"><thead><tr><th>Slip</th><th>Order</th><th>Channel</th><th>Bin</th><th class="n">Qty</th><th>Reserved</th></tr></thead><tbody>' + rs.data.map(function (x) { return '<tr><td>R' + a12E(x.res_id) + '</td><td>' + a12E(x.order_id) + '</td><td>' + a12E(x.channel) + '</td><td>' + a12E(x.bin_code) + '</td><td class="n">' + a12N(x.qty) + '</td><td>' + a12E(fmtIst(x.created_at)) + '</td></tr>'; }).join('') + '</tbody></table></div>' : '<div class="a12-sub">Nothing is reserved for this product.</div>', 'Open reservations (printed slips and pick sheets not yet picked or released). Release them from PICK &rsaquo; Reserved &amp; held stock.');
+        }
+        if (!rs.ok) a12SpErr('rsv', '&#128274; Reservations', rs, 'reservations');
+    });
+    // sales
+    pSales.then(function (r) {
+        if (!r.ok) { a12SpErr('sales', '&#128200; Sales', r, 'sales'); a12SpErr('hist', '&#128200; Sales history (date / channel / bin)', r, 'sales'); return; }
+        var rows = r.data, t = a12Today(), sum = function (f) { var u = 0; rows.forEach(function (x) { if (f(x.sale_date)) u += a12Num(x.units); }); return u; }, first = null;
+        rows.forEach(function (x) { if (!first || x.sale_date < first) first = x.sale_date; });
+        S.sales = rows;
+        a12SpSet('sales', '&#128200; Sales', a12Kpis([['Today', a12N(sum(function (d) { return d === t; }))], ['Yesterday', a12N(sum(function (d) { return d === a12AddDays(t, -1); })), '', a12E(a12AddDays(t, -1))], ['Day before', a12N(sum(function (d) { return d === a12AddDays(t, -2); })), '', a12E(a12AddDays(t, -2))],
+            ['Last 7 days', a12N(sum(function (d) { return d >= a12AddDays(t, -6); }))], ['Last 30 days', a12N(sum(function (d) { return d >= a12AddDays(t, -29); }))], ['Since tracking', a12N(sum(function () { return true; })), '', first ? 'from ' + a12E(first) : 'no sales yet']]),
+            'Units sold, net of voids, India dates. ' + A12_TRACK_NOTE);
+        var T = A12.T.sph = A12.T.sph || { sort: 'sale_date', dir: -1, show: 30 };
+        A12.R.sph = function () { a12SpHist(); }; a12SpHist();
+    });
+    // forecast / recommendation
+    pFc.then(function (r) {
+        if (!r.ok) { a12SpErr('rec', '&#127981; Run rate, cover and what to make', r, 'the forecast'); return; }
+        var f = r.data[0];
+        if (!f) { a12SpSet('rec', '&#127981; Run rate, cover and what to make', '<div class="a12-sub">This SKU is not in the forecast (it is switched off).</div>'); return; }
+        S.fc = f;
+        var tier = f.tier, ss = A12_SS[tier], cw = A12_CW[tier], av = a12Num(f.avg_daily), lead = 10;
+        var ch = a12$('a12-sp-chips'); if (ch) ch.innerHTML += ' <span class="a12-pill">Tier ' + a12E(tier) + '</span> <span class="a12-mk ' + (f.make_now === 'YES - MAKE' ? 'y' : (f.make_now === 'NO' ? 'n' : 'd')) + '">' + a12E(f.make_now) + '</span>';
+        a12SpSet('rec', '&#127981; Run rate, cover and what to make',
+            a12Kpis([['Run rate per day', a12N1(av), '', a12E(f.basis === 'RECENT' ? 'RECENT: last 30d / ' + f.days_hist + ' days tracked' : (f.basis === '2025' ? '2025 history / 313' : 'no sales'))], ['Days of cover', f.days_of_cover == null ? '-' : a12N1(f.days_of_cover)], ['Reorder point', a12N(f.reorder_point)], ['Reorder qty', a12N(f.reorder_qty)], ['Make now', a12E(f.make_now), f.make_now === 'YES - MAKE' ? 'warn' : ''], ['Qty to make', a12N(f.qty_to_make), f.qty_to_make ? 'warn' : '']]) +
+            '<div class="a12-how-in"><b>How it was worked out</b><br>Yearly equivalent = ' + a12N1(av) + ' x 313 = <b>' + a12N(f.annual_equiv) + '</b> &rarr; tier <b>' + a12E(tier) + '</b> (A &ge; 365, B &ge; 200, DEAD &le; 100).<br>' +
+            (ss ? 'Reorder point = ' + a12N1(av) + ' x (lead ' + lead + ' + safety ' + ss + ') = <b>' + a12N(f.reorder_point) + '</b>.<br>Available now = on hand ' + a12N(f.on_hand) + ' - reserved ' + a12N(f.reserved_units) + ' = <b>' + a12N(f.available) + '</b>' + (f.make_now === 'YES - MAKE' ? ', at or below the reorder point, so make.' : ', above the reorder point, so no need yet.') + '<br>Quantity to make = ' + a12N1(av) + ' x 7 x ' + cw + ' weeks = <b>' + a12N(f.reorder_qty) + '</b> (only when make now is YES).'
+                : 'Tier DEAD (100 a year or less): not planned, made on demand.') + '</div>',
+            A12_TRACK_NOTE + ' Sold in 7 days: ' + a12N(f.sold_7) + ', 30 days: ' + a12N(f.sold_30) + ', annual equivalent: ' + a12N(f.annual_equiv) + '.');
+    });
+    // order lines
+    pOrd.then(function (r) {
+        if (!r.ok) { a12SpErr('orders', '&#129534; Order lines &amp; invoices', r, 'order lines'); return; }
+        S.orders = r.data.slice().sort(function (a, b) { return String(b.order_date || b.created_at || '').localeCompare(String(a.order_date || a.created_at || '')); });
+        a12SpOrders(true);
+    });
+    // returns
+    pRet.then(function (r) {
+        if (!r.ok) { a12SpErr('ret', '&#8617; Returns', r, 'returns'); return; }
+        var u = 0, bb = {}; r.data.forEach(function (x) { u += a12Num(x.qty_delta); var b = x.bin_code || 'RECEIVING'; bb[b] = (bb[b] || 0) + a12Num(x.qty_delta); });
+        a12SpSet('ret', '&#8617; Returns', r.data.length ? '<div class="a12-sub"><b>' + a12N(u) + '</b> units received back in ' + r.data.length + ' entr' + (r.data.length === 1 ? 'y' : 'ies') + '. Put into: ' + Object.keys(bb).map(function (b) { return '<span class="a12-pill">' + a12E(b) + ': <b>' + a12N(bb[b]) + '</b></span>'; }).join(' ') + '</div>' : '<div class="a12-sub">No returns recorded for this product.</div>', 'From the ledger (RETURN_IN). The stock may have moved since; the live bins are in the Stock card.');
+    });
+    // flags
+    pFlags.then(function (r) {
+        if (!r.ok) { a12SpErr('flags', '&#9888; Stock health flags', r, 'stock health flags'); return; }
+        a12SpSet('flags', '&#9888; Stock health flags', r.data.length ? r.data.map(function (f) { return '<div class="a12-li"><span class="a12-lt"><b>' + a12E(f.flag_code) + '</b> &bull; ' + a12E(f.severity) + (f.bin_code ? ' &bull; bin ' + a12E(f.bin_code) : '') + '<br><small>' + a12E(f.detail) + '</small></span><span class="a12-lv">' + a12E(f.qty) + '</span></div>'; }).join('') : '<div class="a12-sub">&#10003; No flags for this product.</div>');
+    });
+    // ledger (existing history view: legend, balance after, Void)
+    try { lgView(sku, a12$('a12-sp-ledgerbox'), null, 'a12:' + sku); } catch (e) { a12$('a12-sp-ledgerbox').innerHTML = '<div class="a12-msg err">The ledger history could not be shown: ' + a12E(a12Err(e)) + '</div>'; }
+}
+function a12SpHist() {
+    var S = A12.sp; if (!S || !S.sales) return;
+    var cols = [{ k: 'sale_date', l: 'Date', f: function (x) { return a12E(x.sale_date); } }, { k: 'channel', l: 'Channel', f: function (x) { return a12E(x.channel); } }, { k: 'bin_code', l: 'Bin', f: function (x) { return a12E(x.bin_code); } },
+        { k: 'units', l: 'Units', n: 1, f: function (x) { return a12N(x.units); } }, { k: 'orders', l: 'Orders', n: 1, f: function (x) { return a12N(x.orders); } }];
+    var rows = S.sales.map(function (x, i) { x._id = i; return x; });
+    a12SpSet('hist', '&#128200; Sales history (date / channel / bin)', rows.length ? a12Tbl('sph', cols, rows) : '<div class="a12-sub">No sales recorded for this product yet.</div>');
+}
+function a12SpOrders(rebuild) {
+    var S = A12.sp; if (!S) return;
+    var F = S.oFilt, chans = a12Uniq(S.orders.map(function (o) { return o.channel; })), sts = a12Uniq(S.orders.map(function (o) { return o.status; }));
+    var list = S.orders.filter(function (o) {
+        var d = String(o.order_date || '').slice(0, 10);
+        if (F.from && d < F.from) return false; if (F.to && d > F.to) return false;
+        if (F.status && o.status !== F.status) return false; if (F.channel && o.channel !== F.channel) return false; return true;
+    });
+    var qty = 0; list.forEach(function (o) { qty += a12Num(o.qty_ordered); });
+    var filt = '<div class="a12-grid" style="margin-bottom:6px;"><label>From<input type="date" value="' + a12E(F.from) + '" onchange="a12SpOF(\'from\',this.value)"></label><label>To<input type="date" value="' + a12E(F.to) + '" onchange="a12SpOF(\'to\',this.value)"></label>' +
+        '<label>Status<select onchange="a12SpOF(\'status\',this.value)">' + a12Opts(sts, F.status, 'Any status') + '</select></label><label>Channel<select onchange="a12SpOF(\'channel\',this.value)">' + a12Opts(chans, F.channel, 'Any channel') + '</select></label></div>';
+    var tbl = list.length ? '<div class="a12-tw"><table class="a12-t"><thead><tr><th>Invoice</th><th>Date</th><th>Status</th><th>Channel</th><th class="n">Qty</th></tr></thead><tbody>' +
+        list.slice(0, S.oShow || 30).map(function (o) { return '<tr><td>' + a12E(o.invoice_no) + (o.amazon_order_no ? '<br><small>' + a12E(o.amazon_order_no) + '</small>' : '') + '</td><td>' + a12E(String(o.order_date || '').slice(0, 10)) + '</td><td>' + a12E(o.status) + '</td><td>' + a12E(o.channel) + '</td><td class="n">' + a12N(o.qty_ordered) + '</td></tr>'; }).join('') + '</tbody></table></div>' +
+        (list.length > (S.oShow || 30) ? '<div style="text-align:center;margin:6px 0;"><button class="csv-btn" onclick="A12.sp.oShow=(A12.sp.oShow||30)+30;a12SpOrders()">Show 30 more (' + (list.length - (S.oShow || 30)) + ' left)</button></div>' : '') : '<div class="a12-sub">No order lines match.</div>';
+    a12SpSet('orders', '&#129534; Order lines &amp; invoices', filt + '<div class="a12-sub"><b>' + a12N(list.length) + '</b> lines, <b>' + a12N(qty) + '</b> units ordered (' + a12N(S.orders.length) + ' lines in total for this product).</div>' + tbl, 'Order lines come from the printed-invoice stamp tool; they exist only for Amazon invoices that were stamped.');
+}
+function a12SpOF(k, v) { A12.sp.oFilt[k] = v; A12.sp.oShow = 30; a12SpOrders(); }
+
+// ── deep links: ?sku=XYZ  ?asin=B0..  or #sku=XYZ  (opened once after sign-in) ───────
+function a12DeepRead() {
+    try {
+        var q = new URLSearchParams(location.search || ''), h = new URLSearchParams(String(location.hash || '').replace(/^#/, ''));
+        A12.deep = q.get('sku') || q.get('asin') || h.get('sku') || h.get('asin') || '';
+    } catch (e) { A12.deep = ''; }
+}
+function a12Deep() {
+    if (!A12.deep || !state.session || !canAnalytics()) return;
+    var c = A12.deep; A12.deep = '';
+    setTimeout(function () { a12OpenSku(c); }, 400);
+}
+
+
+// v113: persistent, dismissible note under the export button (empty list = remove it)
+function a12ExpNote(list) {
+    var host = document.getElementById('full-export-progress'); if (!host) return;
+    var el = document.getElementById('full-export-note');
+    if (!list || !list.length) { if (el && el.parentNode) el.parentNode.removeChild(el); return; }
+    if (!el) { el = document.createElement('div'); el.id = 'full-export-note'; host.parentNode.insertBefore(el, host.nextSibling); }
+    el.setAttribute('style', 'background:#FFF8E1;border:1px solid #E0B84C;border-radius:8px;padding:8px 10px;font-size:12px;color:#5A4500;margin:4px 0;text-align:left;');
+    el.innerHTML = '<strong>Export note</strong><ul style="margin:4px 0 6px 16px;padding:0;">' + list.map(function (t) { return '<li>' + a12E(t) + '</li>'; }).join('') +
+        '</ul><button type="button" class="csv-btn" onclick="a12ExpNote([])">Dismiss</button>';
+}
+// ══ EXPORT FULL INVENTORY: the extra reads (v112) ════════════════════════════
+// Reserved stock is read here, fresh, every time the button is pressed - so cancelling or changing a
+// reservation changes the next export. If it cannot be read, NOTHING is exported (a sheet without the
+// reserved column would be wrong).
+function a12ExportPrep(progEl) {
+    if (!db) { alert('Live database not reachable right now.'); progEl.textContent = ''; return Promise.resolve(null); }
+    var stop = function (what, e) {
+        var msg = 'The export was stopped: ' + what + ' could not be read (' + a12Err(e) + '). A sheet without it would be wrong, so nothing was saved. Try again when the connection is back.';
+        progEl.textContent = msg; try { alert(msg); } catch (x) {}
+        return null;
+    };
+    progEl.textContent = 'Exporting... reading reserved stock';
+    var asOf = fmtIst(new Date().toISOString()) + ' India time';
+    return a12Page(A12_DS.resv).then(function (resv) {
+        progEl.textContent = 'Exporting... reading bins';
+        return a12Page(A12_DS.bins).then(function (bins) {
+            progEl.textContent = 'Exporting... reading forecast';
+            return a12Page(A12_DS.forecast).then(function (fc) { return { fc: fc }; }, function (e) { return { fcErr: e }; }).then(function (f) {
+                var res = {}, binMap = {}, resTotal = 0;
+                resv.forEach(function (r) { var o = res[r.sku_code] = res[r.sku_code] || { u: 0, l: 0 }; o.u += a12Num(r.qty); o.l++; resTotal += a12Num(r.qty); });
+                var tmp = {}; bins.forEach(function (b) { if (a12Num(b.qty_on_hand) !== 0) (tmp[b.sku_code] = tmp[b.sku_code] || []).push({ b: b.bin_code || 'RECEIVING', q: a12Num(b.qty_on_hand) }); });
+                Object.keys(tmp).forEach(function (k) { binMap[k] = tmp[k].sort(function (x, y) { return y.q - x.q; }).map(function (x) { return x.b + ':' + x.q; }).join(' | '); });
+                var fcMap = null, note = '';
+                if (f.fc) { fcMap = {}; f.fc.forEach(function (r) { fcMap[r.sku_code] = r; }); }
+                else note = f.fcErr && f.fcErr.missing ? ' The 8 forecast columns are blank: database step M11 is not applied yet.' : ' The 8 forecast columns are blank: the forecast could not be read (' + a12Err(f.fcErr) + ').';
+                return { asOf: asOf, res: res, bins: binMap, fc: fcMap, note: note, resTotal: resTotal };
+            });
+        }, function (e) { return stop('bin stock', e); });
+    }, function (e) { return stop('reserved stock', e); });
+}
+// deep links
+try { a12DeepRead(); } catch (e) {}
+
 </script>
 <!-- v96: bottom sheet used to pick a bin or a product type. -->
 <div class="sheet-bg" id="pick-sheet-bg" onclick="if(event.target===this)closePickSheet()">
