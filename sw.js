@@ -70,7 +70,9 @@
 // v27 (2026-10-03): bumped for App v108 (inner lists scroll both ways; pull-to-refresh made reliable).
 // v29 (2026-10-03): bumped for App v110 (Stock Search, held-unit lock, one-sheet Void, clearer log, double-scan guard, release reason, stock health check).
 // v30 (2026-10-03): bumped for App v111 (review fixes: bin-search names/ASIN, plain held-check messages, double-scan 15 s + remember, health card 'current', safer buttons and CSV).
-const CACHE_NAME = 'artzfolio-oms-shell-v30';
+// v32 (2026-10-07): bumped for App v113 (review fixes: SKU link double-fire, stable export columns, Back button closes the SKU page, no units_2025 dependency, stable sales paging).
+// v31 (2026-10-07): bumped for App v112 (DASH analytics: Sales / Inventory / Forecast / Production, SKU page, richer inventory export).
+const CACHE_NAME = 'artzfolio-oms-shell-v32';
 const OPTIONAL_FILES = ['./zxing_reader_3.1.4.js', './zxing_reader_3.1.4.wasm'];
 const SHELL_FILES = ['./index.html', './manifest.json', './icon.svg'];
 
