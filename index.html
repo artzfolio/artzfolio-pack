@@ -62,6 +62,11 @@
             Switched off -> clear message + "Switch on & continue". The database
             enforces the same rule (trigger trg_oms_require_tracked_sku), so
             nothing can slip past from any surface. -->
+    <!-- v116 (2026-10-12): (a) DATABASE tab "Find a listing" now shows the same suggestion drop-down as Stock Search;
+         (b) percentages (GST, return rate, margin, profit) are shown and typed as % with two decimals, money fields to two decimals;
+         (c) leaving the app no longer closes the open listing sheet or forgets the PIN straight away - both are kept for 3 minutes (cost values are hidden while away) and then closed;
+         (d) copy buttons on listing rows, the listing sheet, Stock rows, Log rows and DASH tables;
+         (e) Guide and Settings text brought up to date; the DASH "history starts" note no longer goes stale. No database change. -->
     <!-- v115 (2026-10-08, later): (a) search also understands similar words (bulletin = notice = cork = memo, photo = picture, frame = framed, colour = color) and fixes spelling mistakes ("bulltin bord" shows bulletin boards, with a note saying so);
          (b) the Stock health check card is REMOVED (it listed ordinary one-by-one stock-in as double scans; no database change) and its copies on DASH Inventory and the SKU page;
          (c) two make rules on Forecast / Production / Export: sold in last 30 days with nothing free to sell = MAKE whatever the tier; C tier with no sale in 30 days = ON DEMAND.
@@ -3261,7 +3266,7 @@ body.a12-lock{overflow:hidden}
 </style>
 </head>
 <body>
-<div class="ver-corner" id="verCornerBadge" onclick="handleVerBadgeTap()">v115</div>
+<div class="ver-corner" id="verCornerBadge" onclick="handleVerBadgeTap()">v116</div>
 <!-- v112: the full-screen SKU page (opened by a12OpenSku) -->
 <div class="a12-skupage" id="a12-skupage"><div class="a12-sphead"><button type="button" onclick="a12CloseSku()">&larr; Back</button><div id="a12-sp-title"></div></div><div class="a12-spbody" id="a12-sp-body"></div></div>
 <!-- v63: Gap 2 — offline write-queue indicator. Hidden (display:none) unless
@@ -3968,7 +3973,7 @@ body.a12-lock{overflow:hidden}
                 <div id="quick-add-body" style="">
                     <div class="settings-info">Search by SKU, ASIN or name. <strong>Open</strong> shows and edits every field; <strong>Switch ON / OFF</strong> decides whether staff can scan it. Each change asks for <strong>your own PIN</strong> and is recorded in the Audit Log. Excel picks it up on its next open or <strong>SYNC NOW</strong>.</div>
                     <div class="settings-row">
-                        <input type="text" class="settings-input" id="ml-search-input" placeholder="SKU, ASIN, name or size, e.g. photo frame 4x6" autocomplete="off" autocorrect="off" autocapitalize="characters" spellcheck="false" style="text-transform:uppercase" oninput="forceUpperInput(this, event)" onkeydown="if(event.key==='Enter')runListingSearch();">
+                        <input type="text" class="settings-input" id="ml-search-input" placeholder="SKU, ASIN, name or size, e.g. photo frame 4x6" autocomplete="off" autocorrect="off" autocapitalize="characters" spellcheck="false" style="text-transform:uppercase" oninput="forceUpperInput(this, event);sgRender('ml-search-input')" onkeydown="if(event.key==='Enter')runListingSearch();">
                         <button class="scan-cam-btn" onclick="openScannerFor('ml-search-input')" title="Scan a SKU or ASIN barcode">
                             <svg viewBox="0 0 24 24"><path d="M12 9a4 4 0 1 0 4 4 4 4 0 0 0-4-4zm0 6a2 2 0 1 1 2-2 2 2 0 0 1-2 2z"/><path d="M20 4h-2.76l-1.63-2H8.39L6.76 4H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2zm0 15H4V6h3.56L9.19 4h5.62l1.63 2H20z"/></svg>
                         </button>
@@ -4124,13 +4129,15 @@ body.a12-lock{overflow:hidden}
             <div class="guide-section">
                 <h3>&#128203; Daily Workflow</h3>
                 <ol>
-                    <li>In Excel: paste orders in <strong>4. Order Entry</strong> (cols A&ndash;D only; Product &amp; ASIN auto-fill from SKU Database)</li>
-                    <li>Run <strong>Step1 &rarr; Step2 &rarr; Step3_GenerateBarcodes</strong> &rarr; print <strong>6. Print Picklist</strong></li>
-                    <li>Open this app &rarr; tap the <strong>blue &#128247; camera button</strong> &rarr; scan the Pick List QR (col H)</li>
-                    <li>Go to the bin &rarr; scan the Bin QR sticker on the shelf</li>
-                    <li>Scan the <strong>SKU barcode</strong> or the <strong>ASIN barcode</strong> on the product</li>
-                    <li>If Qty &gt; 1: scan once per unit until all are confirmed</li>
-                    <li>Tap <strong>CONFIRM</strong></li>
+                    <li><strong>Amazon orders:</strong> on the laptop run the print step (<em>2_MERGE_AND_STAMP</em>) and print the QR file. Printing an invoice <strong>holds its stock</strong> until the slip is scanned.</li>
+                    <li><strong>PICK tab:</strong> tap the camera and scan the pick QR on the slip. Go to the bin, scan the product, the slip finishes with a green <strong>Picked &#10003;</strong>.</li>
+                    <li><strong>Other sales</strong> (Shopify, Flipkart, Myntra, direct, referral): <strong>ACTIONS &rarr; Dispatch Out</strong>. Channel is compulsory; the order reference is compulsory for Amazon channels. One sale is booked in <strong>one</strong> place only.</li>
+                    <li><strong>Stock coming in, returns, found, lost, QC hold / release, transfers, counts:</strong> ACTIONS tab. A bin is needed on every movement except Set True Count.</li>
+                    <li><strong>Finding stock:</strong> STOCK &rarr; Stock Search. Type a SKU, ASIN, name or size (4x6, 4 by 6). Suggestions appear as you type; tap a result for the full SKU page.</li>
+                    <li><strong>LOG tab:</strong> full stock history with filters. A wrong entry is corrected with <strong>Void</strong> (Supervisor / Admin PIN). Void <em>before</em> the Excel Daily Inventory Sync push.</li>
+                    <li><strong>DASH:</strong> Overview, Sales, Inventory, Forecast, Production (needs the Analytics permission). Tap any row to open its SKU page.</li>
+                    <li><strong>DATABASE tab</strong> (Admin / Supervisor): find a listing, open it, edit fields, switch ON / OFF, or Quick Add. Percentages are typed as %, for example 18 for 18%. If you leave the app, the open sheet is kept for 3 minutes.</li>
+                    <li>Every title, SKU, ASIN, order, bin and entry number has a small <strong>&#128203;</strong> button: tap it to copy.</li>
                 </ol>
             </div>
             <div class="guide-section">
@@ -4146,13 +4153,13 @@ body.a12-lock{overflow:hidden}
                 </ol>
             </div>
             <div class="guide-section">
-                <h3>&#128241; Opening on Android Phone</h3>
+                <h3>&#128241; Opening the App on a Phone</h3>
                 <ol>
-                    <li>Send this HTML file to your phone (WhatsApp, USB, Google Drive)</li>
-                    <li>On the phone: open <strong>Files by Google</strong> app &rarr; find the HTML file &rarr; tap <strong>Open with Chrome</strong></li>
-                    <li>Do NOT type a URL in Chrome's address bar &mdash; always use the Files app to open it</li>
-                    <li>Tap <strong>Allow</strong> when Chrome asks for camera permission</li>
-                    <li>If camera still fails: Chrome menu &rarr; Settings &rarr; Site Settings &rarr; Camera &rarr; Allow for this file</li>
+                    <li>Open <strong>oms.artzfolio.com</strong> in Chrome and sign in with your code and PIN.</li>
+                    <li>Chrome menu &rarr; <strong>Add to Home screen</strong>, so it opens like an app.</li>
+                    <li>Tap <strong>Allow</strong> when Chrome asks for the camera.</li>
+                    <li>If the small badge at the top corner does not show the newest version, close the app completely and open it again, or pull down to refresh.</li>
+                    <li>Camera still blocked: Chrome menu &rarr; Settings &rarr; Site settings &rarr; Camera &rarr; Allow for this site.</li>
                 </ol>
             </div>
             <div class="guide-section">
@@ -4337,8 +4344,8 @@ body.a12-lock{overflow:hidden}
 
             <!-- Version -->
             <div class="ver-badge">
-                <div class="ver-name">&#128230; ArtzFolio Scan-Pick-Pack v91</div>
-                <div class="ver-sub">Full changelog available on request.</div>
+                <div class="ver-name">&#128230; ArtzFolio Scan-Pick-Pack v116</div>
+                <div class="ver-sub">Search suggestions in Database, % shown properly, listing sheet kept for 3 minutes, copy buttons, refreshed Guide. Full changelog available on request.</div>
             </div>
         </div>
     </div>
@@ -5168,9 +5175,55 @@ function clearResumeSession() {
     try { localStorage.removeItem(OMS_RESUME_KEY); } catch (e) {}
 }
 // Called when the app goes to the background.
+// v116: leaving the app for a short while (another app, a call, a screenshot) no longer throws the
+// open listing sheet and the PIN away. Both are kept for DBD_HOLD_MINUTES; the sheet is HIDDEN (so
+// cost figures cannot show in the phone's recent-apps picture) and shown again on return. Away longer
+// than that, everything is closed and the PIN forgotten, exactly as before. The PIN is never stored on disk.
+var DBD_HOLD_MINUTES = 3;
+var _hiddenAt = 0;
+var _dbdLive = null;
+function dbdSetHidden(on) {
+    try {
+        var a = document.getElementById('dbd-bg'), b = document.getElementById('mgr-pin-bg');
+        if (a) a.style.visibility = on ? 'hidden' : '';
+        if (b) b.style.visibility = on ? 'hidden' : '';
+    } catch (e) {}
+}
+var _holdTimer = null;
+var _dbdStash = null;
+function onAppShown() {
+    if (_holdTimer) { clearTimeout(_holdTimer); _holdTimer = null; }
+    try { var bx = document.getElementById('dbd'); if (bx && _dbdStash !== null) { bx.innerHTML = _dbdStash; if (_dbdLive) { for (var k in _dbdLive) { var e1 = document.getElementById(k); if (e1) { e1.value = _dbdLive[k]; try { dbdMark(e1); } catch (e2) {} } } } } _dbdStash = null; _dbdLive = null; } catch (e) {}
+    var away = _hiddenAt ? (Date.now() - _hiddenAt) : 0;
+    _hiddenAt = 0;
+    if (away >= DBD_HOLD_MINUTES * 60000) {
+        try { forgetManagerPin(); mgrPinCancel(); } catch (e) {}
+        try { closeListingDetail(true); closePickSheet(); } catch (e) {}
+        dbdSetHidden(false);
+    } else {
+        if (_mgrPin && _mgrPin.pin) _mgrPin.at += away;   // the time spent away does not use up the remembered-PIN clock
+        dbdSetHidden(false);
+    }
+}
 function onAppHidden() {
-    try { forgetManagerPin(); mgrPinCancel(); } catch (e) {}   // v95
-    try { closeListingDetail(true); closePickSheet(); } catch (e) {}   // v96
+    _hiddenAt = Date.now();
+    // The cost and price figures are taken off the screen at once (not just made invisible), so the phone's
+    // recent-apps picture cannot show them; they are put back on return within the hold time.
+    try {
+        var bx = document.getElementById('dbd');
+        if (bx && _dbd && bx.innerHTML) {
+            var live = {}, ins = bx.querySelectorAll('input[data-field]');
+            for (var i = 0; i < ins.length; i++) live[ins[i].id] = ins[i].value;
+            _dbdStash = bx.innerHTML; _dbdLive = live;
+            bx.innerHTML = '<div style="padding:30px 8px;color:#6B7280;text-align:center;">Paused while you are away.</div>';
+        }
+    } catch (e) {}
+    if (_holdTimer) clearTimeout(_holdTimer);
+    _holdTimer = setTimeout(function () {
+        _holdTimer = null; _dbdStash = null;
+        try { forgetManagerPin(); mgrPinCancel(); closeListingDetail(true); closePickSheet(); } catch (e) {}
+    }, DBD_HOLD_MINUTES * 60000);
+    dbdSetHidden(true);
     saveUiState();
     saveResumeSession();
     // Give the camera back to the phone. Holding a live camera stream in the
@@ -7910,6 +7963,7 @@ var _mlRows = [];
 var _mlSeq = 0;
 var _mlBusy = {};
 function runListingSearch() {
+    try { sgHide('ml-search-input'); } catch (e) {}
     var mySeq = ++_mlSeq;
     var inp = document.getElementById('ml-search-input');
     var out = document.getElementById('ml-results');
@@ -7948,12 +8002,12 @@ function renderListingRows() {
         var on = r.active === true;
         html += '<div style="border:1px solid #E2E8F0;border-radius:10px;padding:8px 10px;margin-bottom:6px;background:#fff;">' +
             '<div style="display:flex;justify-content:space-between;gap:8px;align-items:center;">' +
-              '<div style="font-weight:800;font-size:12px;color:#0A1628;word-break:break-all;">' + esc59(r.sku_code) + '</div>' +
+              '<div style="font-weight:800;font-size:12px;color:#0A1628;word-break:break-all;">' + esc59(r.sku_code) + copyChipHtml(r.sku_code) + '</div>' +
               '<span style="flex:0 0 auto;font-size:11px;font-weight:800;padding:2px 9px;border-radius:10px;' +
                 (on ? 'background:#E8F5EC;color:#1B7A3A;">ON' : 'background:#F1F2F4;color:#6B7280;">OFF') + '</span>' +
             '</div>' +
-            '<div style="font-size:11px;color:#1A1A1A;margin:3px 0;">' + esc59(r.product_name || '(no name)') + '</div>' +
-            '<div style="font-size:11px;color:#6B7280;">' + esc59(r.product_type || '') + (r.asin ? ' &bull; <a href="' + amazonUrl(r.asin) + '" target="_blank" rel="noopener" style="color:#1B4F8A;font-weight:800;">' + esc59(r.asin) + ' &#8599;</a>' : '') +
+            '<div style="font-size:11px;color:#1A1A1A;margin:3px 0;">' + esc59(r.product_name || '(no name)') + (r.product_name ? copyChipHtml(r.product_name) : '') + '</div>' +
+            '<div style="font-size:11px;color:#6B7280;">' + esc59(r.product_type || '') + (r.asin ? ' &bull; <a href="' + amazonUrl(r.asin) + '" target="_blank" rel="noopener" style="color:#1B4F8A;font-weight:800;">' + esc59(r.asin) + ' &#8599;</a>' + copyChipHtml(r.asin) : '') +
               ' &bull; Live stock: <strong>' + r._stock + '</strong></div>' +
             '<div style="margin-top:6px;display:flex;gap:6px;">' +
               '<button class="settings-btn" style="flex:1;" data-sku="' + esc59(r.sku_code) + '" onclick="openListingDetail(this.getAttribute(\'data-sku\'))">&#9998; Open</button>' +
@@ -9027,13 +9081,43 @@ function _fmtVal(v) {
     if (v === null || v === undefined) return '';
     return String(v);
 }
+// v116: four fields are stored as fractions (0.18 = 18%). They are SHOWN and TYPED as percent,
+// two decimals, and converted back to a fraction when saved. Money fields on the pricing block
+// are shown to two decimals (display only: nothing is written unless the person edits that box).
+var DBD_PCT = { gst_rate: 1, return_rate: 1, final_margin_1p: 1, profit_pct_1p: 1 };
+function dbdPctDisp(v) {
+    if (v === null || v === undefined || v === '') return '';
+    var n = Number(v); if (!isFinite(n)) return String(v);
+    return (Math.round(n * 10000) / 100).toFixed(2);
+}
+function dbdMoneyDisp(v) {
+    if (v === null || v === undefined || v === '') return '';
+    var n = Number(v); if (!isFinite(n)) return String(v);
+    return n.toFixed(2);
+}
+function dbdPctToFraction(s) {
+    var t = String(s == null ? '' : s).replace('%', '').trim();
+    if (t === '') return '';
+    if (!/^[0-9]+(\.[0-9]+)?$/.test(t)) return null;   // digits and one dot only: no comma, sign, exponent or hex
+    var x = Number(t); if (!isFinite(x) || x > 100) return null;
+    return String(Math.round(x / 100 * 1000000) / 1000000);
+}
+function copyFromInput(id, btn) {
+    var el = document.getElementById(id);
+    copyToClipboard(el ? el.value : '', btn);
+}
+function copyInputChip(id) {
+    return '<button type="button" class="copy-chip" onclick="event.stopPropagation();copyFromInput(\'' + id + '\',this)" title="Copy">&#128203;</button>';
+}
 function renderListingDetail(msgHtml) {
     if (!_dbd) return;
     var m = _dbd.master, c = _dbd.commercial;
     var on = m.active === true;
     var total = (_dbd.bins || []).reduce(function (t, b) { return t + Number(b.qty_on_hand || 0); }, 0);
     var html = '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;position:sticky;top:-12px;background:#fff;padding:8px 0;z-index:2;border-bottom:1px solid #E2E8F0;">' +
-        '<div><div style="font-size:15px;font-weight:800;color:#0A1628;word-break:break-all;">' + esc59(m.sku_code) + '</div>' +
+        '<div><div style="font-size:15px;font-weight:800;color:#0A1628;word-break:break-all;">' + esc59(m.sku_code) + copyChipHtml(m.sku_code) + '</div>' +
+        (m.product_name ? '<div style="font-size:11px;color:#1A1A1A;margin:2px 0;">' + esc59(m.product_name) + copyChipHtml(m.product_name) + '</div>' : '') +
+        (m.asin ? '<div style="font-size:11px;color:#6B7280;">ASIN ' + esc59(m.asin) + copyChipHtml(m.asin) + '</div>' : '') +
         '<div style="font-size:11px;color:#6B7280;">' + (on ? '<span class="badge" style="background:#E8F5EC;color:#1B7A3A;font-weight:800;padding:1px 8px;border-radius:10px;">ON</span>' : '<span style="background:#F1F2F4;color:#6B7280;font-weight:800;padding:1px 8px;border-radius:10px;">OFF</span>') +
         ' &bull; Stock ' + total + ((_dbd.bins || []).length ? ' (' + _dbd.bins.map(function (b) { return esc59(b.bin_code) + ': ' + b.qty_on_hand; }).join(', ') + ')' : '') +
         (m.asin ? ' &bull; <a href="' + amazonUrl(m.asin) + '" target="_blank" rel="noopener" style="color:#1B4F8A;font-weight:800;">Amazon &#8599;</a>' : '') + '</div>' +
@@ -9044,17 +9128,21 @@ function renderListingDetail(msgHtml) {
     FIELD_CATALOG.forEach(function (f) {
         if (f.field_name === 'sku_code' || f.field_name === 'active') return;
         if (f.grp !== grp) { grp = f.grp; html += '<div class="dbd-grp">' + esc59(grp) + (f.excel_col ? '' : '') + '</div>'; }
-        var val = _fmtVal(f.tbl === 'commercial' ? c[f.field_name] : m[f.field_name]);
+        var rawv = (f.tbl === 'commercial' ? c[f.field_name] : m[f.field_name]);
+        var isPct = !!DBD_PCT[f.field_name];
+        var val = isPct ? dbdPctDisp(rawv)
+            : ((f.tbl === 'commercial' && f.data_type === 'numeric' && rawv !== null && rawv !== undefined && rawv !== '' && isFinite(Number(rawv))) ? dbdMoneyDisp(rawv) : _fmtVal(rawv));
+        var pctTag = isPct ? ' <span style="color:#1B3F6B;font-weight:800;">(%)</span>' : '';
         var colTag = f.excel_col ? ' <span style="color:#9aa4b2;font-weight:600;">(tab 6 col ' + esc59(f.excel_col) + ')</span>' : '';
         if (f.editable) {
             var isNum = (f.data_type === 'numeric' || f.data_type === 'int');
             var extraBtn = (f.field_name === 'product_type') ? '<button class="scan-cam-btn bin-pick-btn" style="flex:0 0 auto;" onclick="openTypePicker(\'dbd-in-product_type\')">&#9660;</button>' : '';
-            html += '<div class="dbd-f"><label>' + esc59(f.label) + colTag + '</label><div style="display:flex;gap:6px;">' +
+            html += '<div class="dbd-f"><label>' + esc59(f.label) + pctTag + colTag + '</label><div style="display:flex;gap:6px;">' +
                 '<input id="dbd-in-' + esc59(f.field_name) + '" data-field="' + esc59(f.field_name) + '" data-orig="' + esc59(val) + '" value="' + esc59(val) + '"' +
-                (isNum ? ' inputmode="decimal"' : '') + (f.field_name === 'asin' ? ' style="text-transform:uppercase"' : '') +
-                ' oninput="dbdMark(this)" autocomplete="off">' + extraBtn + '</div></div>';
+                (isPct ? ' data-pct="1"' : '') + (isNum ? ' inputmode="decimal"' : '') + (f.field_name === 'asin' ? ' style="text-transform:uppercase"' : '') +
+                ' oninput="dbdMark(this)" autocomplete="off">' + extraBtn + copyInputChip('dbd-in-' + esc59(f.field_name)) + '</div></div>';
         } else {
-            html += '<div class="dbd-f"><label>' + esc59(f.label) + colTag + ' &mdash; calculated in Excel</label><div class="dbd-ro">' + (val ? esc59(val) : '&nbsp;') + '</div></div>';
+            html += '<div class="dbd-f"><label>' + esc59(f.label) + colTag + ' &mdash; calculated in Excel</label><div class="dbd-ro">' + (val ? esc59(val) + (isPct ? '%' : '') + copyChipHtml(val + (isPct ? '%' : '')) : '&nbsp;') + '</div></div>';
         }
     });
     html += '<div style="position:sticky;bottom:-90px;background:#fff;padding:10px 0;border-top:1px solid #E2E8F0;display:flex;gap:8px;margin-top:10px;">' +
@@ -9066,7 +9154,10 @@ function renderListingDetail(msgHtml) {
 function dbdMark(el) {
     if (!el) return;
     if (el.getAttribute('data-field') === 'asin') { try { forceUpperInput(el); } catch (e) {} }
-    el.classList.toggle('changed', String(el.value).trim() !== String(el.getAttribute('data-orig') || ''));
+    var nowV = String(el.value).trim(), origV = String(el.getAttribute('data-orig') || '');
+    var diff = nowV !== origV;
+    if (diff && nowV !== '' && origV !== '' && /^[0-9]+(\.[0-9]+)?%?$/.test(nowV) && /^[0-9]+(\.[0-9]+)?$/.test(origV) && Number(nowV.replace('%', '')) === Number(origV)) diff = false;   // v116: 18 and 18.00 are the same
+    el.classList.toggle('changed', diff);
 }
 function saveListingDetail() {
     if (!_dbd) return;
@@ -9078,8 +9169,17 @@ function saveListingDetail() {
         var el = inputs[i], now = String(el.value).trim(), orig = String(el.getAttribute('data-orig') || '');
         if (now === orig) continue;
         var f = el.getAttribute('data-field');
-        changes[f] = (f === 'asin') ? now.toUpperCase() : now;
-        lines.push('  ' + f + ':  ' + (orig || '(blank)') + '  →  ' + (now || '(blank)'));
+        var isP = el.getAttribute('data-pct') === '1';
+        if (now !== '' && orig !== '' && /^[0-9]+(\.[0-9]+)?%?$/.test(now) && /^[0-9]+(\.[0-9]+)?$/.test(orig) && Number(now.replace('%', '')) === Number(orig)) continue;   // same number, different spelling   // v116: same percent, different spelling
+        if (isP) {
+            var frac = dbdPctToFraction(now);
+            if (frac === null) { var mm = document.getElementById('dbd-msg'); if (mm) mm.innerHTML = '<div class="move-result err">' + esc59(f) + ' must be a number from 0 to 100, for example 18 for 18%. Use a dot, not a comma.</div>'; return; }
+            changes[f] = frac;
+            lines.push('  ' + f + ':  ' + (orig ? orig + '%' : '(blank)') + '  →  ' + (now ? now.replace('%', '') + '%' : '(blank)'));
+        } else {
+            changes[f] = (f === 'asin') ? now.toUpperCase() : now;
+            lines.push('  ' + f + ':  ' + (orig || '(blank)') + '  →  ' + (now || '(blank)'));
+        }
         n++;
     }
     var msg = document.getElementById('dbd-msg');
@@ -11077,8 +11177,8 @@ function renderStockList() {
         // button keeps its own click zone via stopPropagation so it still
         // just prints, without also popping the detail sheet behind it.
         html += '<div class="stock-row" onclick="openSkuDetail(\'' + skuForOnclick + '\')">' +
-            '<div><div class="stock-sku">' + esc59(r.sku_code || '') + '<span class="stock-status-badge ' + badgeCls + '">' + badgeText + '</span>' + abcBadge + '</div>' + nameLine +
-            '<div class="stock-asin">' + esc59(r.asin || '') + '</div>' + catLine + reorderLine + binLine + '</div>' +
+            '<div><div class="stock-sku">' + esc59(r.sku_code || '') + copyChipHtml(r.sku_code) + '<span class="stock-status-badge ' + badgeCls + '">' + badgeText + '</span>' + abcBadge + '</div>' + nameLine +
+            '<div class="stock-asin">' + esc59(r.asin || '') + copyChipHtml(r.asin) + '</div>' + catLine + reorderLine + binLine + '</div>' +
             '<div style="display:flex;align-items:center;">' +
             '<div class="stock-qty' + lowCls + '">' + r.qty_on_hand + '</div>' +
             '<button class="print-label-btn" onclick="event.stopPropagation();printLabel(\'' + skuForOnclick + '\')" title="Print label">&#128424;</button>' +
@@ -14932,7 +15032,7 @@ function renderLog() {
         var meta = '';
         if (e.sku || e.bin) {
             var parts = [];
-            if (e.sku)     parts.push('SKU:' + escLt(e.sku));
+            if (e.sku)     parts.push('SKU:' + escLt(e.sku) + copyChipHtml(e.sku));
             if (e.channel) parts.push(escLt(e.channel));
             if (e.bin)     parts.push('Bin:' + escLt(e.bin));
             if (e.qty)     parts.push('Qty:' + e.qty);
@@ -14942,7 +15042,7 @@ function renderLog() {
             '<div class="log-row1">' +
                 '<span class="log-time">' + tDisp + '</span>' +
                 empBadge +
-                '<span class="log-order">' + escLt(e.orderID || '—') + '</span>' +
+                '<span class="log-order">' + escLt(e.orderID || '—') + '</span>' + (e.orderID ? copyChipHtml(e.orderID) : '') +
             '</div>' +
             '<div class="log-action">' + escLt(e.action || '') + '</div>' +
             meta +
@@ -15872,7 +15972,7 @@ document.addEventListener('DOMContentLoaded', function() {
             refreshSessionPermissions(true);
         }
         // v94: the resume token only exists while the app is in the background.
-        if (document.visibilityState === 'visible') { clearResumeSession(); }
+        if (document.visibilityState === 'visible') { clearResumeSession(); try { onAppShown(); } catch (e) {} }   // v116
         if (document.visibilityState === 'hidden') { onAppHidden(); }   // v94
     });
     // v94: pagehide is the last event Android reliably delivers before it
@@ -16359,6 +16459,14 @@ function onStockSearchTyping() { sgRender('stock-search-input'); }
 function initV106Suggest() {
     attachSuggest('bin-lookup-input', onBinLookupPick);
     attachSuggest('stock-search-input', onStockSearchPick);
+    attachSuggest('ml-search-input', onMlSearchPick);   // v116: DATABASE tab "Find a listing" gets the same suggestions
+}
+function onMlSearchPick(it) {
+    var el = document.getElementById('ml-search-input');
+    if (!el) return;
+    if (it.kind === 'BIN') return;   // a bin is not a listing
+    el.value = it.value;
+    runListingSearch();
 }
 
 // ── 3. Stock history (LOG tab) ────────────────────────────────────────────
@@ -16738,24 +16846,25 @@ function lhRowHtml_v109(x) {
     var e = LH.emps && LH.emps[String(x.employee_code || '').toUpperCase()];
     var li = LIX.loaded ? LIX.bySku[String(x.sku_code || '').toUpperCase()] : null;
     var revOf = bal ? bal.txn_id : (x.txn_type === 'MANUAL_CORRECTION' && LH_VOID_NOTE_RE.test(x.note || '') ? Number(LH_VOID_NOTE_RE.exec(x.note)[1]) : null);
-    var meta = ['SKU ' + esc59(x.sku_code)];
-    if (li && li.title) meta.push(esc59(li.title));
-    meta.push('Bin ' + esc59(x.bin_code || '-'));
+    var meta = ['SKU ' + esc59(x.sku_code) + copyChipHtml(x.sku_code)];
+    if (li && li.title) meta.push(esc59(li.title) + copyChipHtml(li.title));
+    if (li && li.asin) meta.push('ASIN ' + esc59(li.asin) + copyChipHtml(li.asin));
+    meta.push('Bin ' + esc59(x.bin_code || '-') + (x.bin_code ? copyChipHtml(x.bin_code) : ''));
     if (x.channel) meta.push(esc59(x.channel));
-    if (x.order_id) meta.push('Order ' + esc59(x.order_id));
+    if (x.order_id) meta.push('Order ' + esc59(x.order_id) + copyChipHtml(x.order_id));
     if (x.session_id) meta.push('Batch ' + esc59(String(x.session_id).slice(0, 8)));
     if (x.entry_source && x.entry_source !== 'APP') meta.push('from ' + esc59(x.entry_source));
     var h = '<li class="log-item lh-row' + (v ? ' lh-void' : '') + (revOf ? ' lh-rev' : '') + '" data-txn="' + x.txn_id + '">' +
         '<div class="log-row1"><span class="log-time">' + esc59(fmtIst(x.created_at, true)) + '</span>' +
         '<span class="log-emp">' + esc59(x.employee_code || '-') + '</span>' +
         (e && e.display_name ? '<span class="lh-name">' + esc59(e.display_name) + '</span>' : '') +
-        '<span class="lh-id">#' + x.txn_id + '</span></div>' +
+        '<span class="lh-id">#' + x.txn_id + '</span>' + copyChipHtml(String(x.txn_id)) + '</div>' +
         '<div class="log-action"><span class="lh-act">' + esc59(lhActionLabel(x)) + '</span> <span class="lh-q ' + (q > 0 ? 'pos' : 'neg') + '">' + (q > 0 ? '+' : '') + q + '</span>' +
         (v ? ' <span class="lh-badge void">VOID</span>' : '') +
         (revOf ? ' <span class="lh-badge rev">Reversal of #' + revOf + '</span>' : '') +
         ((LH.brevBy || {})[x.txn_id] ? ' <span class="lh-badge rev">Batch reversed by #' + LH.brevBy[x.txn_id] + '</span>' : '') + '</div>' +
         '<div class="log-meta">' + meta.join(' &bull; ') + '</div>' +
-        (x.note ? '<div class="lh-note">' + esc59(x.note) + '</div>' : '') +
+        (x.note ? '<div class="lh-note">' + esc59(x.note) + copyChipHtml(x.note) + '</div>' : '') +
         (v ? '<div class="lh-voidinfo">Voided by ' + esc59(v.voided_by) + (v.approver_role ? ' (' + esc59(String(v.approver_role).toLowerCase()) + ')' : '') +
              ' on ' + esc59(fmtIst(v.voided_at)) + ': ' + esc59(v.reason) + ' &bull; stock put back by #' + v.balancing_txn_id + '</div>' : '') +
         (lhCanVoid(x) ? '<div style="margin-top:4px;"><button class="csv-btn lh-void-btn" onclick="openVoidEntry(' + x.txn_id + ')">&#8617; Void</button></div>' : '') +
@@ -17317,9 +17426,9 @@ function slCardHtml(g) {
     var skJs = v110Js(g.sku_code);
     return '<div class="sl-card" data-sku="' + esc59(g.sku_code) + '" style="padding:8px 10px;border-bottom:1px solid #f2f2f2;">' +
         '<div style="display:flex;justify-content:space-between;align-items:flex-start;">' +
-        '<div style="min-width:0;"><div class="stock-sku" style="cursor:pointer;text-decoration:underline;" onclick="a12OpenSku(\'' + skJs + '\')">' + esc59(g.sku_code) + '</div>' +
-        '<div class="stock-asin">' + esc59(g.product_name || '') + '</div>' +
-        '<div style="font-size:10px;color:#888;margin-top:2px;">ASIN: ' + esc59(g.asin || '—') + (g.type ? ' &bull; ' + esc59(g.type) : '') + ' &bull; Updated: ' + fmtRelTime(slMove(g)) + '</div></div>' +
+        '<div style="min-width:0;"><div class="stock-sku" style="cursor:pointer;text-decoration:underline;" onclick="a12OpenSku(\'' + skJs + '\')">' + esc59(g.sku_code) + copyChipHtml(g.sku_code) + '</div>' +
+        '<div class="stock-asin">' + esc59(g.product_name || '') + (g.product_name ? copyChipHtml(g.product_name) : '') + '</div>' +
+        '<div style="font-size:10px;color:#888;margin-top:2px;">ASIN: ' + esc59(g.asin || '—') + (g.asin ? copyChipHtml(g.asin) : '') + (g.type ? ' &bull; ' + esc59(g.type) : '') + ' &bull; Updated: ' + fmtRelTime(slMove(g)) + '</div></div>' +
         '<div class="stock-qty" style="text-align:right;">' + q + '<div style="font-size:9px;color:#999;font-weight:400;">' + (SL.isBin ? 'in ' + esc59(SL.raw) : 'total') + '</div>' +
         (SL.isBin ? '<div style="font-size:9px;color:#999;font-weight:400;">all bins ' + g.total + '</div>' : '') + '</div></div>' +
         '<div style="margin-top:4px;"><span class="sl-lvl" style="color:' + lvCls + ';border-color:' + lvCls + ';">' + SL_LEVEL_WORDS[lvl] + (g.thr > 0 ? ' (reorder at ' + g.thr + ')' : '') + '</span>' +
@@ -18175,7 +18284,11 @@ function v110CountBin(sku, bin) {
 // ══════════════════════════════════════════════════════════════════════════════
 var A12_TTL = 300000;
 var A12_M11_MSG = 'Analytics are not switched on yet. Ask the Admin to apply database step M11.';
-var A12_TRACK_NOTE = 'Sales history starts 2026-09-21, so run rates use a short window.';
+var A12_TRACK_NOTE = (function () {
+    var days = Math.floor((Date.now() - Date.UTC(2026, 8, 21)) / 86400000);   // v116: sales tracking began 2026-09-21
+    return days < 28 ? 'Sales history starts 2026-09-21, so run rates use a short window.'
+                     : 'Sales are tracked since 2026-09-21 (' + days + ' days), enough for normal run rates.';
+})();
 var A12 = { sub: 'overview', cache: {}, inflight: {}, S: {}, T: {}, csv: {}, R: {}, ctlBuilt: '' };
 // ── v114: dashboard helpers - headline sentence, "What does this mean?", plain tier names ──
 var A12_HELP = {
@@ -18319,7 +18432,7 @@ function a12Bars(items, color) {
 }
 function a12Share(p) { return '<span class="a12-pcbar"><i style="width:' + Math.max(0, Math.min(100, p)) + '%"></i></span> ' + a12Pc(p); }
 function a12SkuLink(code, label) {
-    return '<a class="a12-lnk" onclick="event.stopPropagation();a12OpenSku(\'' + v110Js(code) + '\')">' + a12E(label == null ? code : label) + '</a>';
+    return '<a class="a12-lnk" onclick="event.stopPropagation();a12OpenSku(\'' + v110Js(code) + '\')">' + a12E(label == null ? code : label) + '</a>' + copyChipHtml(code);   // v116: copy button
 }
 function a12Opts(list, cur, allLabel) {
     return '<option value="">' + a12E(allLabel) + '</option>' + list.map(function (v) { return '<option value="' + a12E(v) + '"' + (v === cur ? ' selected' : '') + '>' + a12E(v) + '</option>'; }).join('');
