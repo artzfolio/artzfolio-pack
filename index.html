@@ -62,6 +62,12 @@
             Switched off -> clear message + "Switch on & continue". The database
             enforces the same rule (trigger trg_oms_require_tracked_sku), so
             nothing can slip past from any surface. -->
+    <!-- v117 (2026-10-12): (a) Quick Add Listing now REQUIRES MRP, cost before tax, GST % and selling price (tax included) and saves them
+         together with the listing (database step M13, oms_admin_create_listing_v2). (b) New "Fix-It Centre" in the DATABASE tab: the system
+         scans every active listing every 30 minutes for real faults (missing pricing, return rate outside 0-100%, price below cost, MRP below
+         selling price...). Each issue can be opened, IGNORED (a reason is mandatory and stays visible), SNOOZED 7 / 30 days, or reopened.
+         (c) New "Change GST in bulk" tool with a preview before anything is saved (database step M14). (d) Listing sheet shows a tax panel:
+         MRP / selling price with and without tax, cost before and after tax, and the margin. -->
     <!-- v116 (2026-10-12): (a) DATABASE tab "Find a listing" now shows the same suggestion drop-down as Stock Search;
          (b) percentages (GST, return rate, margin, profit) are shown and typed as % with two decimals, money fields to two decimals;
          (c) leaving the app no longer closes the open listing sheet or forgets the PIN straight away - both are kept for 3 minutes (cost values are hidden while away) and then closed;
@@ -3266,7 +3272,7 @@ body.a12-lock{overflow:hidden}
 </style>
 </head>
 <body>
-<div class="ver-corner" id="verCornerBadge" onclick="handleVerBadgeTap()">v116</div>
+<div class="ver-corner" id="verCornerBadge" onclick="handleVerBadgeTap()">v117</div>
 <!-- v112: the full-screen SKU page (opened by a12OpenSku) -->
 <div class="a12-skupage" id="a12-skupage"><div class="a12-sphead"><button type="button" onclick="a12CloseSku()">&larr; Back</button><div id="a12-sp-title"></div></div><div class="a12-spbody" id="a12-sp-body"></div></div>
 <!-- v63: Gap 2 — offline write-queue indicator. Hidden (display:none) unless
@@ -3982,7 +3988,7 @@ body.a12-lock{overflow:hidden}
                     <div class="move-result" id="ml-result"></div>
                     <div id="ml-results"></div>
                     <div style="font-weight:800;color:#0A1628;font-size:13px;margin:16px 0 6px;border-top:1px solid #E2E8F0;padding-top:12px;" id="ml-add-heading">&#10133; Quick Add Listing</div>
-                    <div class="settings-info">Only for a product that is <strong>not in the list at all</strong>. It is created switched ON. <strong>Bin and opening stock are optional</strong> &mdash; leave them blank and inbound the stock later from Actions &rsaquo; New Stock. All other fields can be filled in afterwards with <strong>Open</strong>.</div>
+                    <div class="settings-info">Only for a product that is <strong>not in the list at all</strong>. It is created switched ON. <strong>MRP, selling price, cost before tax and GST % are required.</strong> <strong>Bin and opening stock are optional</strong> &mdash; leave them blank and inbound the stock later from Actions &rsaquo; New Stock. All other fields can be filled in afterwards with <strong>Open</strong>.</div>
                     <div class="settings-row">
                         <input type="text" class="settings-input" id="qa-title-input" placeholder="Product title (required)">
                     </div>
@@ -4012,9 +4018,18 @@ body.a12-lock{overflow:hidden}
                     </div>
                     <div class="settings-row" style="flex-wrap:wrap;">
                         <input type="number" class="settings-input" id="qa-qty-input" placeholder="Opening stock (0)" min="0" value="0" style="max-width:130px">
-                        <input type="number" class="settings-input" id="qa-mrp-input" placeholder="MRP (optional)" min="0" style="max-width:130px">
                         <input type="number" class="settings-input" id="qa-setsize-input" placeholder="Set size (1)" min="1" style="max-width:110px">
                     </div>
+                    <div style="font-weight:800;color:#0A1628;font-size:12px;margin:8px 0 4px;">Pricing (all four are required)</div>
+                    <div class="settings-row" style="flex-wrap:wrap;">
+                        <input type="text" inputmode="decimal" class="settings-input" id="qa-mrp-input" placeholder="MRP, tax included (&#8377;)" autocomplete="off" style="max-width:150px" oninput="qaPricePreview()">
+                        <input type="text" inputmode="decimal" class="settings-input" id="qa-price-input" placeholder="Selling price, tax included (&#8377;)" autocomplete="off" style="max-width:190px" oninput="qaPricePreview()">
+                    </div>
+                    <div class="settings-row" style="flex-wrap:wrap;">
+                        <input type="text" inputmode="decimal" class="settings-input" id="qa-cost-input" placeholder="Cost before tax (&#8377;)" autocomplete="off" style="max-width:170px" oninput="qaPricePreview()">
+                        <input type="text" inputmode="decimal" class="settings-input" id="qa-gst-input" placeholder="GST % (e.g. 18)" autocomplete="off" style="max-width:130px" oninput="qaPricePreview()">
+                    </div>
+                    <div class="settings-info" id="qa-price-preview" style="margin-top:2px;">Type the four prices to see cost after tax and the margin.</div>
                     <div class="settings-row">
                         <input type="text" class="settings-input" id="qa-note-input" placeholder="Note (optional - e.g. PO number)">
                     </div>
@@ -4023,6 +4038,46 @@ body.a12-lock{overflow:hidden}
                         <button class="settings-btn" style="flex:0 0 auto;background:#888" onclick="clearQuickAdd()">Clear</button>
                     </div>
                     <div class="move-result" id="qa-result"></div>
+                </div>
+            </div>
+            <div class="settings-section" id="fixit-section" style="margin-top:10px;">
+                <h3 style="margin-top:0;cursor:pointer;" onclick="fixToggle()">&#128295; Fix-It Centre <span id="fix-badge" style="font-size:11px;color:#6B7280;"></span> <span id="fix-toggle">&#9660;</span></h3>
+                <div id="fix-body" style="display:none;">
+                    <div class="settings-info">The system checks every active listing for real faults every 30 minutes. Open an issue to fix it in the listing sheet. <strong>Ignore</strong> needs a reason, and ignored issues stay visible under the Ignored filter with who ignored them and why. <strong>Snooze</strong> hides an issue for 7 or 30 days, then it returns if the fault is still there.</div>
+                    <div class="settings-row" style="flex-wrap:wrap;gap:6px;">
+                        <button class="settings-btn fix-chip" id="fix-st-OPEN" onclick="fixSetStatus('OPEN')">Open</button>
+                        <button class="settings-btn fix-chip" id="fix-st-SNOOZED" onclick="fixSetStatus('SNOOZED')">Snoozed</button>
+                        <button class="settings-btn fix-chip" id="fix-st-IGNORED" onclick="fixSetStatus('IGNORED')">Ignored</button>
+                        <button class="settings-btn fix-chip" id="fix-st-FIXED" onclick="fixSetStatus('FIXED')">Fixed</button>
+                    </div>
+                    <div class="settings-row" style="flex-wrap:wrap;gap:6px;">
+                        <select class="settings-input" id="fix-sev" onchange="fixReload()" style="max-width:130px"><option value="">All severity</option><option value="HIGH">High</option><option value="MEDIUM">Medium</option><option value="LOW">Low</option></select>
+                        <input type="text" class="settings-input" id="fix-q" placeholder="Search SKU, ASIN or title" autocomplete="off" onkeydown="if(event.key==='Enter')fixReload()">
+                        <button class="settings-btn" style="flex:0 0 auto" onclick="fixReload()">Search</button>
+                    </div>
+                    <div class="settings-row">
+                        <button class="settings-btn" style="flex:1;background:#1B3F6B" onclick="fixScanNow()">&#8635; Check everything now</button>
+                    </div>
+                    <div id="fix-summary" class="settings-info"></div>
+                    <div id="fix-list"></div>
+                </div>
+            </div>
+            <div class="settings-section" id="gst-section" style="margin-top:10px;">
+                <h3 style="margin-top:0;cursor:pointer;" onclick="gstToggle()">&#129534; Change GST in bulk <span id="gst-toggle">&#9660;</span></h3>
+                <div id="gst-body" style="display:none;">
+                    <div class="settings-info">Changes the GST % on many listings at once. Cost after tax is recalculated automatically as cost before tax &times; (1 + GST). You always see a <strong>preview first</strong>; nothing is saved until you press Apply and confirm with your PIN.</div>
+                    <div class="settings-row" style="flex-wrap:wrap;gap:6px;">
+                        <input type="text" inputmode="decimal" class="settings-input" id="gst-from" placeholder="Only listings now at GST % (blank = all)" autocomplete="off" style="max-width:240px">
+                        <input type="text" inputmode="decimal" class="settings-input" id="gst-to" placeholder="New GST %" autocomplete="off" style="max-width:120px">
+                    </div>
+                    <div class="settings-row">
+                        <textarea class="settings-input" id="gst-skus" rows="2" placeholder="Or only these SKUs (separate with space, comma or new line). Leave blank for the filter above." style="width:100%"></textarea>
+                    </div>
+                    <div class="settings-row" style="gap:6px;">
+                        <button class="settings-btn" style="flex:1" onclick="gstRun(true)">&#128065; Preview</button>
+                        <button class="settings-btn" style="flex:1;background:#1B7A3A" id="gst-apply-btn" onclick="gstRun(false)" disabled>&#10003; Apply</button>
+                    </div>
+                    <div id="gst-result" class="move-result"></div>
                 </div>
             </div>
             <div class="settings-section" id="db-bins-section" style="margin-top:10px;">
@@ -4344,7 +4399,7 @@ body.a12-lock{overflow:hidden}
 
             <!-- Version -->
             <div class="ver-badge">
-                <div class="ver-name">&#128230; ArtzFolio Scan-Pick-Pack v116</div>
+                <div class="ver-name">&#128230; ArtzFolio Scan-Pick-Pack v117</div>
                 <div class="ver-sub">Search suggestions in Database, % shown properly, listing sheet kept for 3 minutes, copy buttons, refreshed Guide. Full changelog available on request.</div>
             </div>
         </div>
@@ -5056,7 +5111,7 @@ var UI_STATE_FIELDS_EARLY = ['bin-lookup-input', 'stock-search-input', 'stock-fi
 var UI_STATE_FIELDS_LATE = ['move-sku-input', 'move-bin-input', 'move-qty-input', 'move-note-input',
     'move-transfer-tobin-input', 'move-order-input', 'move-channel-input', 'move-return-grade',
     'qa-title-input', 'qa-sku-input', 'qa-asin-input', 'qa-type-input', 'qa-bin-input',
-    'qa-qty-input', 'qa-mrp-input', 'qa-note-input', 'qa-setsize-input', 'ml-search-input'];
+    'qa-qty-input', 'qa-mrp-input', 'qa-gst-input', 'qa-note-input', 'qa-setsize-input', 'ml-search-input'];   // v117: cost and selling price are never written to the phone's saved screen state
 var _uiStateRestored = false;
 var _signingOut = false;   // set by logout / device block: never save anything after it
 var _uiSaveTimer = null;
@@ -5193,6 +5248,7 @@ var _holdTimer = null;
 var _dbdStash = null;
 function onAppShown() {
     if (_holdTimer) { clearTimeout(_holdTimer); _holdTimer = null; }
+    try { v117Away(false, _hiddenAt ? (Date.now() - _hiddenAt) : 0); } catch (e) {}
     try { var bx = document.getElementById('dbd'); if (bx && _dbdStash !== null) { bx.innerHTML = _dbdStash; if (_dbdLive) { for (var k in _dbdLive) { var e1 = document.getElementById(k); if (e1) { e1.value = _dbdLive[k]; try { dbdMark(e1); } catch (e2) {} } } } } _dbdStash = null; _dbdLive = null; } catch (e) {}
     var away = _hiddenAt ? (Date.now() - _hiddenAt) : 0;
     _hiddenAt = 0;
@@ -5209,6 +5265,7 @@ function onAppHidden() {
     _hiddenAt = Date.now();
     // The cost and price figures are taken off the screen at once (not just made invisible), so the phone's
     // recent-apps picture cannot show them; they are put back on return within the hold time.
+    try { v117Away(true); } catch (e) {}
     try {
         var bx = document.getElementById('dbd');
         if (bx && _dbd && bx.innerHTML) {
@@ -7872,7 +7929,9 @@ function callManagerRpc(fnName, args, reason) {
             var pinRefused = (d.error === 'ADMIN_PIN_REJECTED' || d.error === 'ADMIN_LOCKED');
             var pinWasChecked = d.ok || (d.error && !pinRefused && d.error !== 'NO_SKU' && d.error !== 'NO_STATE' &&
                                 d.error !== 'BAD_SKU' && d.error !== 'NO_NAME' && d.error !== 'NO_TYPE' &&
-                                d.error !== 'NO_CHANGES' && d.error !== 'BAD_ACTION');
+                                d.error !== 'NO_CHANGES' && d.error !== 'BAD_ACTION' &&
+                                d.error !== 'NO_MRP' && d.error !== 'NO_COST' && d.error !== 'BAD_GST' && d.error !== 'NO_PRICE' &&
+                                d.error !== 'PRICE_ABOVE_MRP' && d.error !== 'PRICE_BELOW_COST' && d.error !== 'BAD_COST_POST' && d.error !== 'BAD_SET');   // v117: v2 checks the numbers before the PIN
             if (pinRefused) forgetManagerPin();
             else if (pinWasChecked && epoch === _mgrPinEpoch && _mgrPin.pin !== pin) {
                 _mgrPin.pin = pin; _mgrPin.at = Date.now();   // clock starts once, never extended
@@ -8573,7 +8632,7 @@ function toggleQuickAdd() {
     if (opening) { loadBinList(); loadQuickAddTypeOptions(); }
 }
 function clearQuickAdd(keepResult) {
-    ['qa-title-input','qa-sku-input','qa-asin-input','qa-type-input','qa-bin-input','qa-mrp-input','qa-note-input','qa-setsize-input']
+    ['qa-title-input','qa-sku-input','qa-asin-input','qa-type-input','qa-bin-input','qa-mrp-input','qa-price-input','qa-cost-input','qa-gst-input','qa-note-input','qa-setsize-input']
         .forEach(function(id) { var el = document.getElementById(id); if (el) el.value = ''; });
     var q = document.getElementById('qa-qty-input'); if (q) q.value = '0';
     var r = document.getElementById('qa-result'); if (r && !keepResult) { r.className = 'move-result'; r.textContent = ''; }
@@ -8613,8 +8672,8 @@ function submitQuickAdd_v109() {
     var bin   = (document.getElementById('qa-bin-input').value   || '').trim().toUpperCase();
     var note  = (document.getElementById('qa-note-input').value  || '').trim();
     var qty   = parseInt(document.getElementById('qa-qty-input').value, 10);
-    var mrpRaw = document.getElementById('qa-mrp-input').value;
-    var mrp = (mrpRaw !== '' && !isNaN(parseFloat(mrpRaw))) ? parseFloat(mrpRaw) : null;
+    var mrp = qaMoney('qa-mrp-input'), price = qaMoney('qa-price-input'), costPre = qaMoney('qa-cost-input');
+    var gstFrac = dbdPctToFraction(document.getElementById('qa-gst-input').value);
     var ssEl = document.getElementById('qa-setsize-input');
     var setSize = ssEl && ssEl.value !== '' ? parseInt(ssEl.value, 10) : 1;
 
@@ -8625,14 +8684,22 @@ function submitQuickAdd_v109() {
     if (qty > 0 && !bin) { fail('You entered opening stock - also say which bin it goes into (or set opening stock to 0 and inbound it later).'); return; }
     if (qty > 0 && bin && !confirmNewBins([bin])) { fail('Cancelled - pick the bin from the list or correct it.'); return; }
     if (isNaN(setSize) || setSize < 1) { fail('Set size must be 1 or more.'); return; }
+    if (!(mrp > 0)) { fail('MRP is required: type the MRP (tax included) as a number above 0.'); return; }
+    if (!(costPre > 0)) { fail('Cost before tax is required: type it as a number above 0.'); return; }
+    if (gstFrac === null || gstFrac === '' || Number(gstFrac) > 0.28) { fail('GST % is required: type a number from 0 to 28, for example 18 for 18%.'); return; }
+    if (!(price > 0)) { fail('Selling price is required: type the price (tax included) as a number above 0.'); return; }
+    if (price > mrp) { fail('Selling price cannot be higher than MRP.'); return; }
+    if (price < costPre) { fail('Selling price is below cost before tax. Please check the numbers.'); return; }
+    if (price < Math.round(costPre * (1 + Number(gstFrac)) * 100) / 100 && !confirm('The selling price (' + inr(price) + ') is lower than cost after tax (' + inr(Math.round(costPre * (1 + Number(gstFrac)) * 100) / 100) + '). Every sale would lose money and the Fix-It Centre will flag it.\n\nAdd the listing anyway?')) { fail('Cancelled - nothing was saved.'); return; }
     if (!db) { fail('Database not reachable right now - try again when back online.'); return; }
 
     if (btn) btn.disabled = true;
     resEl.className = 'move-result'; resEl.textContent = 'Adding the listing...';
-    callManagerRpc('oms_admin_create_listing', {
+    callManagerRpc('oms_admin_create_listing_v2', {
         p_sku_code: sku, p_product_name: title, p_product_type: type,
-        p_asin: asin || null, p_mrp: mrp, p_set_size: setSize
-    }, 'Add new listing "' + sku + '"?').then(function (d) {
+        p_asin: asin || null, p_mrp: mrp, p_set_size: setSize,
+        p_cost_pre_tax: costPre, p_gst_rate: Number(gstFrac), p_selling_price: price
+    }, 'Add new listing "' + sku + '" with its prices?').then(function (d) {
         if (d && d.ok) {
             registerTypeOptionsLoaded = false;
             loadQuickAddTypeOptions();
@@ -8656,7 +8723,7 @@ function submitQuickAdd_v109() {
             }
             return { created: false, wasOn: true };
         }
-        fail('Not added: ' + ((d && d.message) || 'unknown reason'));
+        fail((d && /could not find the function|does not exist|schema cache/i.test(String(d.message || ''))) ? 'Not added: the pricing step of the database (M13) is not switched on yet. Ask the Admin.' : ('Not added: ' + ((d && d.message) || 'unknown reason')));
         return null;
     }).then(function (outcome) {
         if (!outcome) return null;
@@ -9123,7 +9190,7 @@ function renderListingDetail(msgHtml) {
         (m.asin ? ' &bull; <a href="' + amazonUrl(m.asin) + '" target="_blank" rel="noopener" style="color:#1B4F8A;font-weight:800;">Amazon &#8599;</a>' : '') + '</div>' +
         '<div style="font-size:10px;color:#6B7280;">Last changed ' + esc59(m.updated_at ? new Date(m.updated_at).toLocaleString('en-IN') : '-') + (m.updated_by ? ' by ' + esc59(m.updated_by) : '') + '</div></div>' +
         '<button class="settings-btn" style="flex:0 0 auto;background:#888;padding:8px 12px;" onclick="closeListingDetail()">&#10005;</button></div>' +
-        '<div id="dbd-msg">' + (msgHtml || '') + '</div>';
+        '<div id="dbd-msg">' + (msgHtml || '') + '</div>' + dbdTaxPanel(m, c);
     var grp = null;
     FIELD_CATALOG.forEach(function (f) {
         if (f.field_name === 'sku_code' || f.field_name === 'active') return;
@@ -9215,6 +9282,250 @@ function saveListingDetail() {
     });
 }
 function jsqSafe(s) { return String(s || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'"); }
+
+
+// ══ v117 (2026-10-12): QUICK ADD PRICING, TAX PANEL, FIX-IT CENTRE, BULK GST ═══
+// While the app is in the background, cost and price figures are removed from the screen (so the phone's recent-apps picture
+// cannot show them) and put back on return within the hold time; after the hold time they stay cleared.
+var _v117Stash = null;
+function v117Away(hide, awayMs) {
+    var qa = ['qa-cost-input', 'qa-price-input'];
+    if (hide) {
+        var st = { qa: {}, fix: null, gst: null };
+        qa.forEach(function (id) { var el = document.getElementById(id); if (el) { st.qa[id] = el.value; el.value = ''; } });
+        var fl = document.getElementById('fix-list'); if (fl && fl.innerHTML) { st.fix = fl.innerHTML; fl.innerHTML = '<div style="color:#6B7280;font-size:12px;">Paused while you are away.</div>'; }
+        var gr = document.getElementById('gst-result'); if (gr && gr.innerHTML) { st.gst = gr.innerHTML; gr.innerHTML = ''; }
+        var pv = document.getElementById('qa-price-preview'); if (pv) pv.innerHTML = 'Type the four prices to see cost after tax and the margin.';
+        _v117Stash = st; return;
+    }
+    var s2 = _v117Stash; _v117Stash = null; if (!s2) return;
+    if (awayMs >= DBD_HOLD_MINUTES * 60000) { FIX.rows = []; FIX.loaded = false; var f2 = document.getElementById('fix-list'); if (f2) f2.innerHTML = '<div style="color:#6B7280;font-size:12px;">Cleared while you were away. Press Search to load again.</div>'; return; }
+    for (var id in s2.qa) { var el = document.getElementById(id); if (el) el.value = s2.qa[id]; }
+    if (s2.fix !== null) { var fl = document.getElementById('fix-list'); if (fl) fl.innerHTML = s2.fix; }
+    if (s2.gst !== null) { var gr = document.getElementById('gst-result'); if (gr) gr.innerHTML = s2.gst; }
+    qaPricePreview();
+}
+function inr(n) {
+    if (n === null || n === undefined || n === '' || !isFinite(Number(n))) return '-';
+    return '₹' + Number(n).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+// Money typed in Quick Add: digits and one dot only (no comma, sign, exponent). Returns a number or NaN.
+function qaMoney(id) {
+    var el = document.getElementById(id); var t = el ? String(el.value || '').replace(/₹/g, '').trim() : '';
+    if (!/^[0-9]+(\.[0-9]{1,2})?$/.test(t)) return NaN;
+    return Number(t);
+}
+function qaPricePreview() {
+    var box = document.getElementById('qa-price-preview'); if (!box) return;
+    var mrp = qaMoney('qa-mrp-input'), price = qaMoney('qa-price-input'), cost = qaMoney('qa-cost-input');
+    var g = dbdPctToFraction((document.getElementById('qa-gst-input') || {}).value);
+    var gn = (g === null || g === '') ? NaN : Number(g);
+    var parts = [];
+    if (isFinite(cost) && isFinite(gn)) parts.push('Cost after tax <strong>' + inr(Math.round(cost * (1 + gn) * 100) / 100) + '</strong>');
+    if (isFinite(price) && isFinite(gn)) parts.push('Selling price without tax <strong>' + inr(Math.round(price / (1 + gn) * 100) / 100) + '</strong>');
+    if (isFinite(price) && isFinite(gn) && isFinite(cost)) {
+        var ex = price / (1 + gn); var mg = ex > 0 ? (ex - cost) / ex * 100 : NaN;
+        if (isFinite(mg)) parts.push('Margin (on the price without tax) <strong>' + mg.toFixed(1) + '%</strong>' + (mg < 0 ? ' <span style="color:#B3261E;font-weight:800;">(loss)</span>' : ''));
+    }
+    if (isFinite(mrp) && isFinite(price) && price > mrp) parts.push('<span style="color:#B3261E;font-weight:800;">Selling price is above MRP</span>');
+    box.innerHTML = parts.length ? parts.join(' &bull; ') : 'Type the four prices to see cost after tax and the margin.';
+}
+// Tax panel on the listing sheet (read-only, calculated on the phone from the saved values).
+function dbdTaxPanel(m, c) {
+    c = c || {}; var g = (m.gst_rate === null || m.gst_rate === undefined || m.gst_rate === '') ? NaN : Number(m.gst_rate);
+    function num(v) { return (v === null || v === undefined || v === '') ? NaN : Number(v); }
+    var mrp = num(m.mrp), sell = num(c.direct_selling_price), pre = num(c.cost_pre_tax), post = num(c.cost_post_tax);
+    function ex(v) { return (isFinite(v) && isFinite(g)) ? Math.round(v / (1 + g) * 100) / 100 : null; }
+    function cell(label, v, bold) { return '<div style="flex:1 1 45%;min-width:130px;"><div style="font-size:9px;color:#6B7280;text-transform:uppercase;">' + esc59(label) + '</div><div style="font-size:12px;' + (bold ? 'font-weight:800;' : '') + '">' + (v === null || v === undefined ? '-' : inr(v)) + '</div></div>'; }
+    var formula = (isFinite(pre) && isFinite(g)) ? Math.round(pre * (1 + g) * 100) / 100 : null;
+    var warn = '';
+    if (formula !== null && isFinite(post) && Math.abs(formula - post) > 0.05) warn = '<div style="font-size:10px;color:#9A6700;margin-top:4px;">Stored cost after tax (' + inr(post) + ') differs from cost before tax &times; (1 + GST) = ' + inr(formula) + '. The database will correct it once the cost-after-tax rule (step M14) is switched on.</div>';
+    var mg = (isFinite(sell) && isFinite(pre) && isFinite(g) && sell > 0) ? ((sell / (1 + g) - pre) / (sell / (1 + g)) * 100) : null;
+    return '<div style="background:#F8F9FB;border:1px solid #E2E8F0;border-radius:8px;padding:8px 10px;margin:8px 0;">' +
+        '<div style="font-size:11px;font-weight:800;color:#1B3F6B;margin-bottom:4px;">Tax view' + (isFinite(g) ? ' (GST ' + (Math.round(g * 10000) / 100).toFixed(2) + '%)' : ' (GST not set)') + '</div>' +
+        '<div style="display:flex;flex-wrap:wrap;gap:6px;">' +
+        cell('MRP with tax', isFinite(mrp) ? mrp : null) + cell('MRP without tax', ex(mrp)) +
+        cell('Selling price with tax', isFinite(sell) ? sell : null, true) + cell('Selling price without tax', ex(sell), true) +
+        cell('Cost before tax', isFinite(pre) ? pre : null) + cell('Cost after tax (stored)', isFinite(post) ? post : null) +
+        '</div>' + (mg !== null ? '<div style="font-size:11px;margin-top:4px;">Margin (on the price without tax): <strong>' + mg.toFixed(1) + '%</strong></div>' : '') + warn + '</div>';
+}
+
+// ---- Fix-It Centre ----
+var FIX = { status: 'OPEN', rows: [], total: 0, counts: {}, rules: [], offset: 0, loading: false, loaded: false, seq: 0, scanning: false };
+var _fixBusy = {};
+var FIX_SEV_STYLE = { HIGH: 'background:#FDECEA;color:#B3261E;', MEDIUM: 'background:#FFF4DB;color:#9A6700;', LOW: 'background:#EEF2F8;color:#1B3F6B;' };
+var FIX_RULE_HELP = {
+    MISSING_PRICING: 'MRP, cost before tax, selling price or GST is blank.',
+    RETURN_RATE_RANGE: 'Return rate must be between 0% and 100%.',
+    PRICE_BELOW_COST: 'Selling price is lower than cost after tax: every sale loses money.',
+    PRICE_BELOW_MIN: 'Selling price is lower than the minimum sale price set for this listing.',
+    MRP_BELOW_SELLING: 'MRP cannot be lower than the selling price.',
+    COST_AFTER_TAX_BELOW_BEFORE: 'Cost after tax cannot be lower than cost before tax.',
+    COST_AFTER_TAX_MISSING: 'Cost before tax is set but cost after tax is blank.',
+    NO_TITLE: 'Active listing with no product title.',
+    OFF_LISTING_HAS_STOCK: 'Listing is switched OFF but still holds stock: switch it ON or move the stock.'
+};
+function fixToggle() {
+    var body = document.getElementById('fix-body'), t = document.getElementById('fix-toggle'); if (!body) return;
+    var opening = body.style.display === 'none';
+    body.style.display = opening ? '' : 'none'; if (t) t.innerHTML = opening ? '&#9650;' : '&#9660;';
+    if (opening) { fixPaintChips(); fixReload(); }
+}
+function fixPaintChips() {
+    ['OPEN', 'SNOOZED', 'IGNORED', 'FIXED'].forEach(function (s) {
+        var b = document.getElementById('fix-st-' + s); if (!b) return;
+        var n = FIX.counts && FIX.counts[s] != null ? ' (' + FIX.counts[s] + ')' : '';
+        b.textContent = (s === 'OPEN' ? 'Open' : s === 'SNOOZED' ? 'Snoozed' : s === 'IGNORED' ? 'Ignored' : 'Fixed') + n;
+        b.style.background = (FIX.status === s) ? '#0A1628' : '#888'; b.style.flex = '1';
+    });
+    var bd = document.getElementById('fix-badge'); if (bd) bd.textContent = (FIX.counts && FIX.counts.OPEN != null) ? '(' + FIX.counts.OPEN + ' open)' : '';
+}
+function fixSetStatus(s) { FIX.status = s; fixPaintChips(); fixReload(); }
+function fixReload() { FIX.offset = 0; FIX.rows = []; fixLoad(); }
+function fixMore() { FIX.offset = FIX.rows.length; fixLoad(); }
+function fixLoad() {
+    var list = document.getElementById('fix-list'); if (!list) return;
+    var seq = ++FIX.seq, append = FIX.offset > 0;   // a newer request always wins; an older answer is thrown away
+    FIX.loading = true;
+    if (!FIX.rows.length) list.innerHTML = '<div style="color:#6B7280;font-size:12px;">Loading...</div>';
+    var sevEl = document.getElementById('fix-sev'), qEl = document.getElementById('fix-q');
+    callManagerRpc('oms_admin_fixit_list', { p_status: FIX.status, p_severity: sevEl && sevEl.value ? sevEl.value : null, p_q: qEl && qEl.value.trim() ? qEl.value.trim() : null, p_limit: 50, p_offset: FIX.offset },
+        'Open the Fix-It list? Confirm with your own PIN.').then(function (d) {
+        if (seq !== FIX.seq) return;
+        FIX.loading = false;
+        if (!d || !d.ok) {
+            // A missing function must never look like "no problems". A failed "Show more" keeps the rows already on screen.
+            var missingF = d && /could not find the function|does not exist|schema cache/i.test(String(d.message || ''));
+            var em = '<div class="move-result err">' + esc59((d && d.cancelled) ? 'Cancelled.' : (missingF ? 'The Fix-It list needs database step M13, which is not switched on yet.' : ('Could not load the Fix-It list: ' + ((d && d.message) || 'unknown reason')))) + '</div>';
+            if (append && FIX.rows.length) { fixRender(); list.insertAdjacentHTML('beforeend', em); } else list.innerHTML = em;
+            return;
+        }
+        FIX.total = d.total || 0; FIX.counts = d.counts || {}; FIX.rules = d.open_by_rule || [];
+        FIX.rows = FIX.rows.concat(d.rows || []);
+        fixPaintChips(); fixRender();
+    });
+}
+function fixScanNow() {
+    if (FIX.scanning) return; FIX.scanning = true;
+    var list = document.getElementById('fix-list'); if (list) list.innerHTML = '<div style="color:#6B7280;font-size:12px;">Checking every active listing...</div>';
+    callManagerRpc('oms_admin_fixit_scan_now', {}, 'Check every listing for faults now? Confirm with your own PIN.').then(function (d) {
+        FIX.scanning = false;
+        if (!d || !d.ok) { if (list) list.innerHTML = '<div class="move-result err">' + esc59((d && d.cancelled) ? 'Cancelled.' : ('Check failed: ' + ((d && d.message) || 'unknown reason'))) + '</div>'; return; }
+        var sm = document.getElementById('fix-summary');
+        FIX.scanNote = d.skipped ? 'A check was already running. Showing the latest list.' : ('Checked just now: <strong>' + (d.open || 0) + '</strong> open, <strong>' + (d.new || 0) + '</strong> new, <strong>' + (d.auto_fixed || 0) + '</strong> closed because the fault is gone.');
+        fixReload();
+    });
+}
+function fixRender() {
+    var list = document.getElementById('fix-list'), sm = document.getElementById('fix-summary'); if (!list) return;
+    if (sm) {
+        sm.innerHTML = (FIX.scanNote ? FIX.scanNote + '<br>' : '') + (FIX.total ? ('Showing <strong>' + FIX.rows.length + '</strong> of <strong>' + FIX.total + '</strong> ' + esc59(FIX.status.toLowerCase()) + ' issue(s).' +
+            (FIX.status === 'OPEN' && FIX.rules.length ? ' ' + FIX.rules.map(function (r) { return esc59(String(r.rule || '').replace(/_/g, ' ').toLowerCase()) + ': ' + r.n; }).join(' &bull; ') : '')) : '');
+    }
+    if (!FIX.rows.length) { list.innerHTML = '<div class="move-result ok">&#10003; Nothing here. ' + (FIX.status === 'OPEN' ? 'No open faults found in your listings.' : 'No ' + esc59(FIX.status.toLowerCase()) + ' issues.') + '</div>'; return; }
+    var html = '';
+    FIX.rows.forEach(function (r) {
+        var id = Number(r.id);
+        var when = r.first_seen ? new Date(r.first_seen).toLocaleDateString('en-IN') : '-';
+        html += '<div class="fix-card" id="fix-card-' + id + '" style="border:1px solid #E2E8F0;border-radius:8px;padding:8px 10px;margin:6px 0;background:#fff;">' +
+            '<div style="display:flex;justify-content:space-between;gap:6px;align-items:flex-start;">' +
+            '<div style="min-width:0;"><div style="font-size:12px;font-weight:800;">' + esc59(r.title) + '</div>' +
+            '<div style="font-size:11px;word-break:break-all;">' + esc59(r.sku_code) + copyChipHtml(r.sku_code) + (r.asin ? ' &bull; ' + esc59(r.asin) + copyChipHtml(r.asin) : '') + '</div>' +
+            (r.product_name ? '<div style="font-size:11px;color:#1A1A1A;">' + esc59(r.product_name) + '</div>' : '') +
+            '<div style="font-size:11px;color:#6B7280;">' + esc59(r.detail || '') + '</div>' +
+            '<div style="font-size:10px;color:#9aa4b2;">' + esc59(FIX_RULE_HELP[r.rule_code] || '') + ' First seen ' + esc59(when) + '.</div>' +
+            (r.status !== 'OPEN' ? '<div style="font-size:10px;color:#1B3F6B;font-weight:700;margin-top:2px;">' + esc59(r.status) + (r.status_by ? ' by ' + esc59(r.status_by) : '') + (r.status_at ? ' on ' + esc59(new Date(r.status_at).toLocaleDateString('en-IN')) : '') +
+                (r.snooze_until ? ' until ' + esc59(new Date(r.snooze_until).toLocaleDateString('en-IN')) : '') + (r.status_reason ? ' &mdash; &ldquo;' + esc59(r.status_reason) + '&rdquo;' : '') + '</div>' : '') +
+            '</div><span style="flex:0 0 auto;font-size:10px;font-weight:800;padding:1px 8px;border-radius:10px;' + (FIX_SEV_STYLE[r.severity] || '') + '">' + esc59(r.severity) + '</span></div>' +
+            '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:6px;">' +
+            '<button class="settings-btn" style="padding:6px 10px;font-size:11px;" data-sku="' + esc59(r.sku_code) + '" onclick="openListingDetail(this.getAttribute(\'data-sku\'))">Open listing</button>' +
+            (r.status === 'OPEN' ? '<button class="settings-btn" style="padding:6px 10px;font-size:11px;background:#9A6700" onclick="fixAskIgnore(' + id + ')">Ignore&hellip;</button>' +
+                '<button class="settings-btn" style="padding:6px 10px;font-size:11px;background:#888" onclick="fixAct(' + id + ',\'SNOOZE\',7)">Snooze 7 days</button>' +
+                '<button class="settings-btn" style="padding:6px 10px;font-size:11px;background:#888" onclick="fixAct(' + id + ',\'SNOOZE\',30)">Snooze 30 days</button>'
+              : (r.status === 'FIXED' ? '' : '<button class="settings-btn" style="padding:6px 10px;font-size:11px;background:#1B3F6B" onclick="fixAct(' + id + ',\'REOPEN\')">Reopen</button>')) +
+            '</div><div id="fix-ign-' + id + '" style="display:none;margin-top:6px;"><input type="text" class="settings-input" id="fix-reason-' + id + '" maxlength="300" placeholder="Why are you ignoring this? (required)" autocomplete="off">' +
+            '<button class="settings-btn" style="margin-top:4px;width:100%;background:#9A6700" onclick="fixAct(' + id + ',\'IGNORE\')">Confirm ignore</button></div>' +
+            '<div id="fix-msg-' + id + '"></div></div>';
+    });
+    if (FIX.rows.length < FIX.total) html += '<button class="settings-btn" style="width:100%;margin-top:6px;background:#888" onclick="fixMore()">Show more (' + (FIX.total - FIX.rows.length) + ' left)</button>';
+    list.innerHTML = html;
+}
+function fixAskIgnore(id) { var el = document.getElementById('fix-ign-' + id); if (el) { el.style.display = ''; var i = document.getElementById('fix-reason-' + id); if (i) i.focus(); } }
+function fixAct(id, action, days) {
+    if (_fixBusy[id]) return;
+    var msg = document.getElementById('fix-msg-' + id);
+    var args = { p_id: id, p_action: action };
+    if (action === 'IGNORE') {
+        var rs = String((document.getElementById('fix-reason-' + id) || {}).value || '').trim();
+        if (rs.length < 3) { if (msg) msg.innerHTML = '<div class="move-result err">Please type a reason (at least 3 letters).</div>'; return; }
+        args.p_reason = rs;
+    }
+    if (action === 'SNOOZE') args.p_until = new Date(Date.now() + days * 86400000).toISOString();
+    _fixBusy[id] = 1;
+    callManagerRpc('oms_admin_fixit_set_status', args, (action === 'IGNORE' ? 'Ignore' : action === 'SNOOZE' ? 'Snooze' : 'Reopen') + ' this issue? Confirm with your own PIN.').then(function (d) {
+        delete _fixBusy[id];
+        if (!d || !d.ok) { if (msg) msg.innerHTML = '<div class="move-result err">' + esc59((d && d.cancelled) ? 'Cancelled - nothing changed.' : ('Not saved: ' + ((d && d.message) || 'unknown reason'))) + '</div>'; return; }
+        var had = FIX.rows.some(function (r) { return Number(r.id) === id; });
+        if (had) {
+            FIX.rows = FIX.rows.filter(function (r) { return Number(r.id) !== id; });
+            FIX.total = Math.max(0, FIX.total - 1);
+            var to = d.status || ({ IGNORE: 'IGNORED', SNOOZE: 'SNOOZED', REOPEN: 'OPEN' })[action];
+            if (FIX.counts) { FIX.counts[FIX.status] = Math.max(0, (FIX.counts[FIX.status] || 1) - 1); FIX.counts[to] = (FIX.counts[to] || 0) + 1; }
+        }
+        logEvent('', 'Fix-It ' + action.toLowerCase() + ' #' + id);
+        fixPaintChips(); fixRender();
+    });
+}
+
+// ---- Change GST in bulk ----
+var GST_LAST = null;
+function gstToggle() {
+    var body = document.getElementById('gst-body'), t = document.getElementById('gst-toggle'); if (!body) return;
+    var opening = body.style.display === 'none';
+    body.style.display = opening ? '' : 'none'; if (t) t.innerHTML = opening ? '&#9650;' : '&#9660;';
+}
+function gstArgs() {
+    var to = dbdPctToFraction((document.getElementById('gst-to') || {}).value);
+    var fromRaw = String((document.getElementById('gst-from') || {}).value || '').trim();
+    var from = fromRaw === '' ? '' : dbdPctToFraction(fromRaw);
+    var skuRaw = String((document.getElementById('gst-skus') || {}).value || '');
+    var skus = skuRaw.split(/[\s,;]+/).map(function (x) { return x.trim().toUpperCase(); }).filter(Boolean);
+    if (to === null || to === '' || Number(to) > 0.28) return { err: 'New GST % is required: a number from 0 to 28, for example 5 or 18.' };
+    if (from === null) return { err: 'The "only listings now at GST %" box must be a number from 0 to 100, or blank.' };
+    return { to: Number(to), from: from === '' ? null : Number(from), skus: skus.length ? skus : null, toPct: (Math.round(Number(to) * 10000) / 100), fromPct: from === '' ? null : (Math.round(Number(from) * 10000) / 100) };
+}
+function gstRun(dry) {
+    var res = document.getElementById('gst-result'), ap = document.getElementById('gst-apply-btn'); if (!res) return;
+    var a = gstArgs();
+    if (a.err) { res.className = 'move-result err'; res.textContent = a.err; return; }
+    if (!dry) {
+        if (!GST_LAST || GST_LAST.to !== a.to || GST_LAST.from !== a.from || JSON.stringify(GST_LAST.skus) !== JSON.stringify(a.skus)) { res.className = 'move-result err'; res.textContent = 'You changed the boxes after the preview. Press Preview again.'; if (ap) ap.disabled = true; return; }
+        if (!confirm('Change GST to ' + a.toPct + '% on ' + GST_LAST.n + ' listing(s)?\nCost after tax will be recalculated for each.\nThis is recorded in the Audit Log.')) return;
+    }
+    if (ap) ap.disabled = true;
+    res.className = 'move-result'; res.textContent = dry ? 'Counting...' : 'Saving...';
+    callManagerRpc('oms_admin_bulk_set_gst', { p_new_rate: a.to, p_from_rate: a.from, p_sku_codes: a.skus, p_dry_run: !!dry },
+        dry ? 'Preview the GST change? Confirm with your own PIN.' : 'Apply the GST change to ' + (GST_LAST ? GST_LAST.n : '') + ' listing(s)? Confirm with your own PIN.').then(function (d) {
+        if (!d || !d.ok) {
+            var missing = d && /could not find the function|does not exist|schema cache/i.test(String(d.message || ''));
+            res.className = 'move-result err';
+            res.textContent = (d && d.cancelled) ? 'Cancelled - nothing was changed.' : (missing ? 'This tool needs database step M14, which is not switched on yet. Ask the Admin to run it.' : ('Not done: ' + ((d && d.message) || 'unknown reason')));
+            return;
+        }
+        if (dry) {
+            GST_LAST = { to: a.to, from: a.from, skus: a.skus, n: d.will_change || 0 };
+            var rows = (d.sample || []).map(function (r) { return '<tr><td style="padding:2px 6px;">' + esc59(r.sku_code) + '</td><td style="padding:2px 6px;">' + (r.old_rate == null ? '-' : (Math.round(Number(r.old_rate) * 10000) / 100) + '%') + ' &rarr; ' + a.toPct + '%</td><td style="padding:2px 6px;">' + inr(r.old_post) + ' &rarr; ' + inr(r.new_post) + '</td></tr>'; }).join('');
+            res.className = 'move-result ok';
+            res.innerHTML = '<strong>' + (d.will_change || 0) + '</strong> listing(s) would change to GST ' + a.toPct + '%.' + (a.skus ? ' You typed ' + a.skus.length + ' SKU(s). If the number is lower, some SKUs were not found, are switched off, or already have that GST.' : '') + (a.skus && a.from !== null ? ' Both the SKU list and the "now at GST" filter apply.' : '') + (rows ? '<div style="font-size:11px;margin-top:4px;">First few:</div><table style="font-size:11px;border-collapse:collapse;">' + rows + '</table>' : '');
+            if (ap) ap.disabled = !(d.will_change > 0);
+        } else {
+            if (!(d.changed > 0)) { res.className = 'move-result err'; res.textContent = 'Nothing was changed: no listing matched (or they already had that GST).'; GST_LAST = null; return; }
+            res.className = 'move-result ok'; res.textContent = '✓ GST changed on ' + (d.changed || 0) + ' listing(s). Cost after tax recalculated. Excel picks this up on its next open or SYNC NOW.';
+            logEvent('', 'Bulk GST change to ' + a.toPct + '% on ' + (d.changed || 0) + ' listing(s)');
+            GST_LAST = null;
+        }
+    });
+}
 
 // Bins ------------------------------------------------------------------------
 function toggleDbBins() {
