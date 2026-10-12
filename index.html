@@ -62,6 +62,19 @@
             Switched off -> clear message + "Switch on & continue". The database
             enforces the same rule (trigger trg_oms_require_tracked_sku), so
             nothing can slip past from any surface. -->
+    <!-- v119 (2026-10-12): review fixes to the RAW tab. H1: when a bill is already entered (for example the first Save went through
+         but the answer was lost), the app now reads that bill, shows its lines, marks the lines already on it and adds ONLY the lines
+         the person ticks (never the whole form again); adding lines to a bill warns about lines that look already there.
+         M1: a different code typed on the PIN sheet reloads who is signed in (manager buttons follow the real person).
+         L1 exact paise maths like the database; L2 "1,000" in bulk files; L3 more column names and a lone sheet accepted;
+         L4 a retried entry with a changed figure says the change was NOT applied; L5 double-tap guards; L6 the missing database
+         function is named; L7 correct row numbers after multi-line cells. -->
+    <!-- v118 (2026-10-12): new RAW tab - Raw Materials (database step M15). Items, vendors (GSTIN check), receive stock
+         (multi-line bills, add lines to a bill, duplicate-bill handling), issue to production, loss / wastage, adjust, stock count,
+         history with void (single entry or whole bill, Admin / Supervisor), merge and archive (Admin / Supervisor), bulk load
+         from an Excel / CSV template with a preview before anything is saved, and CSV exports. Every call carries the person's
+         OWN code + PIN (kept in memory 5 minutes, never stored). Opens for permission raw_materials: Admin always, Supervisor
+         unless switched off, others only when ticked. Without M15 the tab says "Raw materials need database step M15". -->
     <!-- v117 (2026-10-12): (a) Quick Add Listing now REQUIRES MRP, cost before tax, GST % and selling price (tax included) and saves them
          together with the listing (database step M13, oms_admin_create_listing_v2). (b) New "Fix-It Centre" in the DATABASE tab: the system
          scans every active listing every 30 minutes for real faults (missing pricing, return rate outside 0-100%, price below cost, MRP below
@@ -2868,6 +2881,54 @@ var qrcode = function() {
         /* Very narrow phones get three per row rather than four cramped ones. */
         @media (max-width:330px){ .pill-btn{flex:1 1 calc(33.333% - 4px)} }
         .pill-btn.active{background:#1B4F8A;border-color:#1B4F8A;color:#fff}
+        /* v118 raw materials */
+        .rm-note{font-size:12px;color:#6B7280;margin:6px 0}
+        .rm-dim{font-size:11px;color:#6B7280}
+        .rm-big{width:100%;min-height:46px;margin-top:8px;font-size:14px}
+        .rm-sm{min-height:40px;padding:8px 12px;font-size:12px;flex:0 0 auto}
+        .rm-xs{padding:5px 9px;font-size:11px;min-height:32px;flex:0 0 auto}
+        .rm-in{min-height:42px;font-size:15px;width:100%;box-sizing:border-box}
+        .rm-lab{font-size:11px;font-weight:700;color:#1B3F6B;margin:8px 0 3px}
+        .rm-search{display:flex;gap:6px;align-items:stretch;margin:6px 0}
+        .rm-search .settings-btn{flex:0 0 auto;max-width:96px}
+        .rm-filters{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:6px 0}
+        .rm-filters .rm-in{flex:1 1 140px;width:auto}
+        .rm-chk{display:flex;align-items:center;gap:8px;font-size:13px;margin:6px 0;min-height:36px}
+        .rm-chk input{width:22px;height:22px}
+        .rm-2{display:flex;gap:8px}.rm-2>div{flex:1 1 0;min-width:0}
+        .rm-tiles{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:8px 0}
+        .rm-tile{background:#fff;border:1px solid #E2E8F0;border-radius:12px;padding:12px 10px;text-align:left;min-height:86px;cursor:pointer;touch-action:manipulation}
+        .rm-tile.warn{border-color:#B3261E;background:#FDF3F2}
+        .rm-tile-n{font-size:20px;font-weight:800;color:#0A1628;word-break:break-word}
+        .rm-tile-l{font-size:12px;font-weight:700;color:#1B3F6B}
+        .rm-tile-s{font-size:10px;color:#6B7280;margin-top:2px}
+        .rm-acts{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px}
+        .rm-act{min-height:54px;border:1px solid #1B4F8A;border-radius:12px;background:#fff;color:#0A1628;font-size:13px;font-weight:700;cursor:pointer;touch-action:manipulation}
+        .rm-row{display:block;width:100%;text-align:left;background:#fff;border:1px solid #E2E8F0;border-radius:10px;padding:10px;margin:6px 0;cursor:pointer;font-size:13px;color:#1A1A1A;touch-action:manipulation}
+        .rm-row-top{display:flex;flex-wrap:wrap;gap:6px;align-items:center;justify-content:space-between}
+        .rm-row-name{font-size:13px;margin:2px 0}
+        .rm-row-nums{display:flex;gap:12px;font-size:12px;flex-wrap:wrap}
+        .rm-code{font-weight:800;font-size:13px;color:#0A1628;word-break:break-all}
+        .rm-badge{font-size:10px;font-weight:800;padding:1px 8px;border-radius:10px;background:#EEF2F8;color:#1B3F6B}
+        .rm-badge.red{background:#FDECEA;color:#B3261E}.rm-badge.green{background:#E6F4EA;color:#1B7A3A}.rm-badge.grey{background:#EEE;color:#555}
+        .rm-card{background:#F8F9FB;border:1px solid #E2E8F0;border-radius:10px;padding:10px;margin:6px 0;font-size:13px}
+        .rm-h{font-size:15px;font-weight:800;color:#0A1628;margin:2px 0}
+        .rm-kv{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:8px}
+        .rm-kv span{display:block;font-size:9px;color:#6B7280;text-transform:uppercase}.rm-kv b{font-size:13px}
+        .rm-btns{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0}
+        .rm-sec{font-weight:800;color:#0A1628;font-size:13px;margin:14px 0 4px;border-top:1px solid #E2E8F0;padding-top:10px}
+        .rm-li{font-size:13px;margin:4px 0;padding:6px 0;border-bottom:1px dashed #E2E8F0}
+        .rm-led{background:#fff;border:1px solid #E2E8F0;border-radius:10px;padding:8px 10px;margin:6px 0;font-size:12px}
+        .rm-led.voided{opacity:.6;background:#F8F9FB}
+        .rm-q{font-weight:800}.rm-q.pos{color:#1B7A3A}.rm-q.neg{color:#B3261E}
+        .rm-line{border:1px solid #E2E8F0;border-radius:10px;padding:8px 10px;margin:8px 0;background:#fff}
+        .rm-picked{display:flex;justify-content:space-between;gap:8px;align-items:center;background:#EEF2F8;border-radius:10px;padding:8px 10px;font-size:13px}
+        .rm-pickrow{padding:10px;min-height:44px}
+        .rm-pv{font-size:12px;color:#1B3F6B;margin:6px 0;min-height:4px}
+        .rm-tablewrap{overflow-x:auto;max-width:100%}
+        .rm-table{border-collapse:collapse;font-size:11px;width:100%}
+        .rm-table th{background:#0A1628;color:#fff;text-align:left;padding:4px 6px}
+        .rm-table td{border-bottom:1px solid #E2E8F0;padding:4px 6px;vertical-align:top;word-break:break-word}
         .move-result{font-size:12px;margin-top:6px;min-height:16px;font-weight:600}
         .move-result.ok{color:#1e8449}
         .move-result.err{color:#c0392b}
@@ -3272,7 +3333,7 @@ body.a12-lock{overflow:hidden}
 </style>
 </head>
 <body>
-<div class="ver-corner" id="verCornerBadge" onclick="handleVerBadgeTap()">v117</div>
+<div class="ver-corner" id="verCornerBadge" onclick="handleVerBadgeTap()">v119</div>
 <!-- v112: the full-screen SKU page (opened by a12OpenSku) -->
 <div class="a12-skupage" id="a12-skupage"><div class="a12-sphead"><button type="button" onclick="a12CloseSku()">&larr; Back</button><div id="a12-sp-title"></div></div><div class="a12-spbody" id="a12-sp-body"></div></div>
 <!-- v63: Gap 2 — offline write-queue indicator. Hidden (display:none) unless
@@ -3966,6 +4027,17 @@ body.a12-lock{overflow:hidden}
              switchTab() itself refuses entry for non-ADMIN roles too. -->
         <!-- v96 (2026-09-26): DATABASE tab - Admin / Supervisor only. The live database
              is the master copy of every listing; Excel tab 6 mirrors it. -->
+        <!-- v118 (2026-10-12): RAW MATERIALS tab (permission raw_materials; database step M15) -->
+        <div id="rm-tab" class="tab-content">
+            <div style="display:flex;justify-content:space-between;align-items:center;gap:6px;margin-bottom:6px;">
+                <button class="csv-btn" id="rm-back" style="display:none" onclick="rmBack()">&#8592; Back</button>
+                <div id="rm-title" style="font-weight:800;color:#0A1628;font-size:15px;flex:1;">&#127981; Raw materials</div>
+                <button class="csv-btn" onclick="rmHome()">&#127968;</button>
+                <button class="csv-btn" onclick="rmRefresh()">&#8635; Refresh</button>
+            </div>
+            <div id="rm-who" class="rm-dim" style="margin-bottom:6px;"></div>
+            <div id="rm-body"></div>
+        </div>
         <div id="db-tab" class="tab-content">
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
                 <div style="font-weight:800;color:#0A1628;font-size:15px;">&#128451; Database</div>
@@ -4399,7 +4471,7 @@ body.a12-lock{overflow:hidden}
 
             <!-- Version -->
             <div class="ver-badge">
-                <div class="ver-name">&#128230; ArtzFolio Scan-Pick-Pack v117</div>
+                <div class="ver-name">&#128230; ArtzFolio Scan-Pick-Pack v119</div>
                 <div class="ver-sub">Search suggestions in Database, % shown properly, listing sheet kept for 3 minutes, copy buttons, refreshed Guide. Full changelog available on request.</div>
             </div>
         </div>
@@ -4436,6 +4508,7 @@ body.a12-lock{overflow:hidden}
         <button class="tab-btn active" id="tab-pick"     onclick="switchTab('pick')">&#128230; PICK</button>
         <button class="tab-btn"        id="tab-move"     onclick="switchTab('move')">&#128260; ACTIONS</button>
         <button class="tab-btn"        id="tab-stock"    onclick="switchTab('stock')">&#128202; STOCK</button>
+        <button class="tab-btn tab-hidden" id="tab-rm"   onclick="switchTab('rm')">&#127981; RAW</button>
         <button class="tab-btn tab-hidden" id="tab-db"   onclick="switchTab('db')">&#128451; DATABASE</button>
         <button class="tab-btn"        id="tab-log"      onclick="switchTab('log')">&#128220; LOG</button>
         <button class="tab-btn"        id="tab-guide"    onclick="switchTab('guide')">&#10067; GUIDE</button>
@@ -5249,6 +5322,7 @@ var _dbdStash = null;
 function onAppShown() {
     if (_holdTimer) { clearTimeout(_holdTimer); _holdTimer = null; }
     try { v117Away(false, _hiddenAt ? (Date.now() - _hiddenAt) : 0); } catch (e) {}
+    try { rmAway(false, _hiddenAt ? (Date.now() - _hiddenAt) : 0); } catch (e) {}   // v118
     try { var bx = document.getElementById('dbd'); if (bx && _dbdStash !== null) { bx.innerHTML = _dbdStash; if (_dbdLive) { for (var k in _dbdLive) { var e1 = document.getElementById(k); if (e1) { e1.value = _dbdLive[k]; try { dbdMark(e1); } catch (e2) {} } } } } _dbdStash = null; _dbdLive = null; } catch (e) {}
     var away = _hiddenAt ? (Date.now() - _hiddenAt) : 0;
     _hiddenAt = 0;
@@ -5266,6 +5340,7 @@ function onAppHidden() {
     // The cost and price figures are taken off the screen at once (not just made invisible), so the phone's
     // recent-apps picture cannot show them; they are put back on return within the hold time.
     try { v117Away(true); } catch (e) {}
+    try { rmAway(true); } catch (e) {}   // v118: rates and values leave the screen too
     try {
         var bx = document.getElementById('dbd');
         if (bx && _dbd && bx.innerHTML) {
@@ -5279,6 +5354,7 @@ function onAppHidden() {
     _holdTimer = setTimeout(function () {
         _holdTimer = null; _dbdStash = null;
         try { forgetManagerPin(); mgrPinCancel(); closeListingDetail(true); closePickSheet(); } catch (e) {}
+        try { rmForgetPin(); } catch (e) {}   // v118: the raw-materials PIN goes after the same hold time
     }, DBD_HOLD_MINUTES * 60000);
     dbdSetHidden(true);
     saveUiState();
@@ -5372,6 +5448,7 @@ function forceLogoutDeviceBlocked() {
         try { clearResumeSession(); clearUiState(); } catch (e) {}
     } catch (e) {}
     try { forgetManagerPin(); mgrPinCancel(); } catch (e) {}   // v95
+    try { rmReset(''); rmPinCancel(); } catch (e) {}            // v118
     state.session = null;               // v94: or pagehide could resurrect it
     try { showLoginModal(); } catch (e) {}   // v94: no tab is usable while the banner shows
     try {
@@ -5600,7 +5677,7 @@ function enterApp() {
     updateSettingsEmployeeDisplay();
     var _resumeSnap = restoreUiStateEarly();   // v94
     var perm = effectivePermissions();
-    if (perm[state.tab]) {
+    if (perm[state.tab] || (state.tab === 'rm' && canRawMaterials())) {   // v118
         switchTab(state.tab);
     } else {
         var order = ['pick', 'stock', 'move', 'log', 'guide', 'settings', 'dash'];
@@ -5612,6 +5689,7 @@ function enterApp() {
         // code simply did nothing: the login box closed and the person was
         // left on an empty screen with no message at all, which reads as a
         // broken app rather than as a permissions problem. Now it says so.
+        if (!landed && canRawMaterials()) { switchTab('rm'); landed = true; }   // v118
         if (!landed) showNoAccessNotice();
     }
     try { restoreUiStateLate(_resumeSnap); } catch (e) {}   // v94
@@ -5678,6 +5756,7 @@ function logout() {
     // buttons (header + Settings) rather than adding a separate one.
     clearRememberSession();
     try { forgetManagerPin(); } catch (e) {}   // v95
+    try { rmReset(''); rmPinCancel(); } catch (e) {}   // v118
     try { lsRemove(LS_SESSION); } catch (e) {} // v96: a half-done pick is not left for the next person
     _signingOut = true;     // v94
     clearResumeSession();   // v94
@@ -6124,6 +6203,7 @@ function applyRolePermissions() {
     applyListingManagerVisibility();   // v95
     try { applyBulkPickVisibility(); } catch (e) {}          // v96
     try { onReservedRoleChange(); } catch (e) {}             // v103
+    try { applyRawMaterialsVisibility(); } catch (e) {}      // v118
     // v96: a half-done pick restored at start-up belongs to whoever started it
     if (state._pickOwner && state.session && state._pickOwner !== state.session.employee_code) {
         state._pickOwner = ''; try { lsRemove(LS_SESSION); resetPick(); } catch (e) {}
@@ -9283,6 +9363,1897 @@ function saveListingDetail() {
 }
 function jsqSafe(s) { return String(s || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'"); }
 
+
+
+// ══ v118 (2026-10-12): RAW MATERIALS MODULE (database step M15) ═════════════════════════════
+// Factory raw materials: items, vendors, receipts, issues to production, losses, adjustments,
+// counts, history with void, bulk load from Excel / CSV, and exports.
+// Every database call goes through rmCall(): the person's OWN employee code + PIN on each call
+// (contract M15 v2). The PIN is kept in this page's memory only, for 5 minutes from the first
+// accepted call, never written to the phone, and forgotten when the app is away for 3 minutes or more,
+// on logout, and on any wrong-PIN answer. Who may open the tab: permission key raw_materials
+// (Admin always, Supervisor unless switched off, everyone else only when ticked).
+
+// ---- permission -------------------------------------------------------------------------------
+function canRawMaterials() {
+    if (!state.session) return false;
+    var r = String(state.session.role || '').toUpperCase();
+    if (r === 'ADMIN') return true;
+    if (r === 'READ_ONLY_ADMIN') return false;           // the database never lets this role in
+    var p = effectivePermissions() || {};
+    if (r === 'SUPERVISOR') return p.raw_materials !== false;
+    return p.raw_materials === true;
+}
+function rmCanManage() { return !!(RM.lk && RM.lk.actor && RM.lk.actor.can_manage); }
+
+// ---- pure helpers (unit-tested in t118.js) ----------------------------------------------------
+var RM_PIN_MINUTES = 5;
+// Indian grouping for quantities: up to 3 decimals, no trailing zeros. null/blank -> '-'
+function rmQty(n, dec) {
+    if (n === null || n === undefined || n === '' || !isFinite(Number(n))) return '-';
+    var d = (dec === undefined || dec === null) ? 3 : Math.max(0, Math.min(6, Number(dec)));
+    var v = Number(n); if (v === 0 || Math.abs(v) < Math.pow(10, -d) / 2) v = 0;   // never "-0"
+    return v.toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: d });
+}
+// Rupees with Indian grouping and 2 decimals. null/blank -> '-' (never ₹0.00 for a missing figure)
+function rmInr(n) {
+    if (n === null || n === undefined || n === '' || !isFinite(Number(n))) return '-';
+    var v = Math.round(Number(n) * 100) / 100, neg = v < 0;
+    return (neg ? '-' : '') + '₹' + Math.abs(v).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+// v119 (L1): a decimal number -> BigInt scaled by 10^dp, exactly (from its shortest text form). null when not a number.
+function rmScaled(x, dp) {
+    var t = String(x).trim();
+    if (!/^-?[0-9]+(\.[0-9]+)?$/.test(t)) { var n = Number(x); if (!isFinite(n)) return null; t = String(n); if (/e/i.test(t)) t = n.toFixed(dp + 2); }
+    var neg = t.charAt(0) === '-'; if (neg) t = t.slice(1);
+    var parts = t.split('.'), frac = (parts[1] || '');
+    var keep = (frac + '000000000000000000').slice(0, dp + 1);   // one extra digit decides the rounding
+    var ten = BigInt(10), big = BigInt(parts[0] + keep), q = big / ten, last = big % ten;   // BigInt() calls, not 10n literals: an old browser still loads the page
+    if (last >= BigInt(5)) q = q + BigInt(1);                    // half away from zero
+    return neg ? -q : q;
+}
+// money = round(a x b, 2), exact, like the database. a and b as typed (strings or numbers). Returns a Number of rupees, or NaN.
+function rmMulMoney(a, b) {
+    if (typeof BigInt === 'undefined') { var f = Number((Number(a) * Number(b)).toPrecision(12)); return isFinite(f) ? (f < 0 ? -1 : 1) * Number(Math.round(Number(Math.abs(f) + 'e2')) + 'e-2') : NaN; }
+    var A = rmScaled(a, 6), B = rmScaled(b, 6); if (A === null || B === null) return NaN;
+    var p = A * B, neg = p < BigInt(0); if (neg) p = -p;          // scale 10^12
+    var div = BigInt('10000000000'), cents = p / div, rem = p % div;
+    if (rem >= BigInt('5000000000')) cents = cents + BigInt(1);
+    return Number(neg ? -cents : cents) / 100;
+}
+// A rate per unit: 2 to 4 decimals
+function rmRate(n) {
+    if (n === null || n === undefined || n === '' || !isFinite(Number(n))) return '-';
+    return '₹' + Number(n).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 4 });
+}
+// A number typed by a person: digits with one optional dot (max `dp` decimals), optional leading minus
+// only when neg is true. Spaces trimmed. Commas, exponents, words are refused (returns NaN).
+function rmNum(s, dp, neg) {
+    var t = String(s == null ? '' : s).replace(/₹/g, '').trim();
+    if (t === '') return NaN;
+    var d = (dp === undefined || dp === null) ? 3 : dp;
+    var re = new RegExp('^' + (neg ? '-?' : '') + '[0-9]+(\\.[0-9]{1,' + Math.max(1, d) + '})?$');
+    if (d === 0) re = new RegExp('^' + (neg ? '-?' : '') + '[0-9]+$');
+    if (!re.test(t)) return NaN;
+    var v = Number(t);
+    if (!isFinite(v) || Math.abs(v) > 1000000000) return NaN;
+    return v;
+}
+// Units offered for an item: the base unit first (factor 1), then its conversions.
+function rmUnitList(baseUom, conversions) {
+    var out = [{ code: String(baseUom || ''), to_base: 1, base: true }];
+    (conversions || []).forEach(function (c) {
+        if (!c || !c.uom_code || String(c.uom_code) === String(baseUom)) return;
+        var f = Number(c.to_base);
+        if (isFinite(f) && f > 0) out.push({ code: String(c.uom_code), to_base: f, base: false });
+    });
+    return out;
+}
+// qty in a unit -> base units. { ok, base_qty, factor } or { ok:false, message }
+function rmToBase(qty, uomCode, baseUom, conversions) {
+    var q = Number(qty);
+    if (!isFinite(q)) return { ok: false, message: 'Type the quantity as a number.' };
+    var u = String(uomCode || baseUom || '');
+    var list = rmUnitList(baseUom, conversions);
+    for (var i = 0; i < list.length; i++) {
+        if (list[i].code === u) {
+            var b = Math.round(q * list[i].to_base * 1000) / 1000;
+            return { ok: true, base_qty: b, factor: list[i].to_base };
+        }
+    }
+    return { ok: false, message: 'This item has no conversion for ' + u + '. Add it on the item page first.' };
+}
+// "= 12.5 MTR" preview text, '' when the unit is the base unit or the input is not a number
+function rmConvText(qty, uomCode, baseUom, conversions) {
+    if (!uomCode || String(uomCode) === String(baseUom)) return '';
+    var r = rmToBase(qty, uomCode, baseUom, conversions);
+    if (!r.ok) return isFinite(Number(qty)) ? r.message : '';
+    return '= ' + rmQty(r.base_qty) + ' ' + baseUom + ' (1 ' + uomCode + ' = ' + rmQty(r.factor, 6) + ' ' + baseUom + ')';
+}
+// GSTIN: 2-digit state, PAN (5 letters, 4 digits, 1 letter), entity 1-9/A-Z, 'Z', check character.
+// Returns { ok, state, pan, checksum_ok, message }
+function rmGstin(g) {
+    var t = String(g == null ? '' : g).toUpperCase().replace(/\s+/g, '');
+    if (t === '') return { ok: true, empty: true };
+    if (!/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/.test(t)) return { ok: false, message: 'A GSTIN has 15 characters: 2-digit state code, 10-character PAN, 1 digit or letter, Z, and a check character. Example 07AAAAA0000A1Z5.' };
+    var st = parseInt(t.slice(0, 2), 10);
+    if (!((st >= 1 && st <= 38) || st === 97 || st === 99)) return { ok: false, message: 'The first two digits of a GSTIN must be a GST state code (01 to 38, 97 or 99).' };
+    var cs = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ', sum = 0;
+    for (var i = 0; i < 14; i++) {
+        var p = cs.indexOf(t.charAt(i)) * ((i % 2) ? 2 : 1);
+        sum += Math.floor(p / 36) + (p % 36);
+    }
+    var chk = cs.charAt((36 - (sum % 36)) % 36);
+    return { ok: true, gstin: t, state: t.slice(0, 2), pan: t.slice(2, 12), checksum_ok: chk === t.charAt(14) };
+}
+// Is a PostgREST / network error "the M15 function is not there"?
+function rmIsMissing(err, status) {
+    if (status === 404) return true;
+    if (!err) return false;
+    var t = [err.code, err.message, err.details, err.hint].join(' ');
+    return /PGRST202|42883|could not find the function|function .* does not exist|schema cache/i.test(t);
+}
+// Plain-English text for a refusal object { ok:false, error, message, ... }. Never shows a raw database error.
+function rmErrText(d) {
+    if (!d) return 'Not done - no answer from the database. Nothing was saved.';
+    var e = String(d.error || ''), msg = (typeof d.message === 'string' && d.message) ? d.message : '';
+    var u = d.base_uom_code ? ' ' + d.base_uom_code : '';
+    switch (e) {
+        case 'PIN_REJECTED':
+            return 'That code and PIN did not match an active account' +
+                (d.attempts_used != null ? ' (' + d.attempts_used + ' of 5 attempts used' + (d.locked ? ' - the account is now locked for 15 minutes' : '') + ')' : '') +
+                '. Nothing was saved.';
+        case 'LOCKED': return 'This account is locked for 15 minutes after 5 wrong PINs. Nothing was saved. Try again later or ask an Admin.';
+        case 'NOT_ALLOWED': return msg || 'Your account is not allowed to do this.';
+        case 'INSUFFICIENT_STOCK': return 'Not enough stock. On hand: ' + rmQty(d.on_hand) + u + '; you asked for ' + rmQty(d.requested) + u + '. Nothing was saved.';
+        case 'STALE': return 'Someone else changed this record after you opened it. The latest version has been loaded under your changes - check them and save again.';
+        case 'BUSY': return 'Someone else was saving the same items at that moment. Nothing was saved - tap Save again.';
+        case 'DUPLICATE_INVOICE': return 'This bill is already entered: invoice ' + (d.invoice_no || '') + (d.vendor_code ? ' from ' + d.vendor_code : '') + '. Nothing was saved. Add the missing lines to that bill instead, or check the invoice number.';
+        case 'CQID_CONFLICT': return 'This entry clashed with an earlier one. Nothing was saved - close this screen and enter it again.';
+        case 'ITEM_MERGED': return 'This item was merged into ' + (d.merged_into_item_code || 'another item') + '. Use that item instead. Nothing was saved.';
+        case 'VENDOR_MERGED': return 'This vendor was merged into another vendor. Use that vendor instead. Nothing was saved.';
+        case 'ITEM_INACTIVE': return msg || 'This item is archived. An Admin or Supervisor must restore it first. Nothing was saved.';
+        case 'NO_CONVERSION': return 'This item has no conversion for that unit. Add the conversion on the item page, or enter the quantity in the base unit. Nothing was saved.';
+        case 'HAS_STOCK': return 'This item still has stock (' + rmQty(d.on_hand) + '). Bring it to zero (issue, loss or count) before archiving.';
+        case 'WOULD_GO_NEGATIVE': return 'Some of this stock has already been used, so it cannot be voided. Post an adjustment instead. Nothing was voided.';
+        case 'ALREADY_VOIDED': return 'This was already voided. Refresh to see the latest.';
+        case 'NOTHING_TO_VOID': return 'Every line of this bill is already voided.';
+        case 'RECEIPT_VOIDED': return 'Every line of that bill was voided. Enter the bill again as a new receipt.';
+        case 'IS_REVERSAL': return 'This row is itself a reversal and cannot be voided.';
+        case 'UOM_LOCKED': return 'The base unit cannot be changed once stock entries exist for this item.';
+        case 'UOM_MISMATCH': return 'The two items use different base units, so they cannot be merged.';
+        case 'GSTIN_DIFFERENT': return 'The two vendors have different GSTINs. Tick "They are the same business" only if that is true, then merge again.';
+        case 'INVOICE_COLLISION': return 'Both vendors have a live bill with the same invoice number' + (d.invoice_nos ? ' (' + [].concat(d.invoice_nos).join(', ') + ')' : '') + '. Void or correct one of them first.';
+        case 'BAD_LINES': return 'Some lines have problems (shown under each line). Nothing was saved.';
+        case 'ROWS_HAVE_ERRORS': return 'Some rows have errors (shown below). Nothing was saved. Fix them in the file and upload it again.';
+        case 'IMPORT_FAILED': return 'The import failed inside the database. Nothing was saved. Try again; if it happens again, send the file to the Admin.';
+        case 'NO_M15': return 'Raw materials need database step M15' + (d.fn ? ((d.fn === 'rm_receipt_add_lines' || d.fn === 'rm_void_receipt') ? ' version 2: the database function ' + d.fn + ' is missing.' : ': the database function ' + d.fn + ' is missing.') : '.') + ' Ask the Admin to switch it on.';
+        case 'OFFLINE': return 'No connection to the database right now. Nothing was saved. Try again when you are back online.';
+        case 'NETWORK': return d.read ? 'Could not load - check the connection and try again.' : 'Could not save - check the connection and try again. If you are not sure it was saved, check History before entering it again.';
+        case 'CANCELLED': return 'Cancelled - nothing was changed.';
+        case 'NOT_ALLOWED_APP': return 'Raw materials are not switched on for your account. Ask an Admin to tick "Raw materials" for you.';
+    }
+    return msg || ('Not done (' + (e || 'unknown reason') + '). Nothing was saved.');
+}
+// CSV text -> array of { row, cells[] } (1-based row numbers). Handles quotes, "" escapes, CR/LF, BOM,
+// and comma / semicolon / tab separators (taken from the first non-blank line).
+function rmParseCsv(text) {
+    var s = String(text == null ? '' : text).replace(/^﻿/, '');
+    var firstLine = (s.split(/\r?\n/).filter(function (l) { return l.trim() !== '' && l.trim().charAt(0) !== '#'; })[0]) || '';
+    var sep = ',';
+    if (firstLine.indexOf(',') < 0) { if (firstLine.indexOf('\t') >= 0) sep = '\t'; else if (firstLine.indexOf(';') >= 0) sep = ';'; }
+    var rows = [], cur = [], cell = '', q = false, row = 1, line = 1, i = 0;   // v119 L7: row = the line the record starts on
+    function endCell() { cur.push(cell); cell = ''; }
+    function endRow() { endCell(); rows.push({ row: row, cells: cur }); cur = []; line++; row = line; }
+    for (i = 0; i < s.length; i++) {
+        var ch = s.charAt(i);
+        if (q) {
+            if (ch === '"') { if (s.charAt(i + 1) === '"') { cell += '"'; i++; } else q = false; }
+            else { if (ch === '\n') line++; cell += ch; }
+        } else if (ch === '"' && cell === '') q = true;
+        else if (ch === sep) endCell();
+        else if (ch === '\r') { if (s.charAt(i + 1) === '\n') i++; endRow(); }
+        else if (ch === '\n') endRow();
+        else cell += ch;
+    }
+    if (cell !== '' || cur.length) endRow();
+    return rows;
+}
+// The three upload kinds
+var RM_BULK = {
+    items: { fn: 'rm_bulk_upsert_items', label: 'Items', sheet: 'Items', key: 'item_code',
+        cols: ['item_code', 'item_name', 'category_code', 'base_uom_code', 'spec', 'hsn', 'gst_rate', 'reorder_level', 'reorder_qty', 'lead_time_days', 'notes'],
+        num: ['gst_rate', 'reorder_level', 'reorder_qty', 'lead_time_days'],
+        need: ['item_code'],
+        help: ['required. Letters, digits - _ . (max 40)', 'required for a new item', 'required for a new item, e.g. CANVAS', 'required for a new item, e.g. MTR', 'optional', 'optional, 4-8 digits', 'optional, 0-40', 'optional, in base unit (Admin/Supervisor to change an existing item)', 'optional, in base unit', 'optional, days', 'optional'] },
+    vendors: { fn: 'rm_bulk_upsert_vendors', label: 'Vendors', sheet: 'Vendors', key: 'vendor_code',
+        cols: ['vendor_code', 'vendor_name', 'gstin', 'pan', 'contact_role', 'phone', 'email', 'address', 'state_code', 'payment_terms_days', 'payment_terms_note', 'lead_time_days', 'notes'],
+        num: ['payment_terms_days', 'lead_time_days'],
+        need: [],
+        help: ['vendor code (or leave blank and give the GSTIN of an existing vendor)', 'required for a new vendor', 'optional, 15 characters', 'optional (taken from GSTIN)', 'a role, never a person\'s name', 'optional', 'optional', 'optional', 'optional, e.g. 07', 'optional, days', 'optional', 'optional, days', 'optional'] },
+    opening: { fn: 'rm_bulk_opening_balance', label: 'Opening balance', sheet: 'OpeningBalance', key: 'item_code',
+        cols: ['item_code', 'qty', 'uom_code', 'rate_ex_gst', 'batch_no', 'location_code', 'note', 'mode'],
+        num: ['qty', 'rate_ex_gst'],
+        need: ['item_code', 'qty', 'rate_ex_gst'],
+        help: ['required, an existing item', 'required, above 0', 'optional, blank = base unit', 'required, rupees per the unit typed, before GST', 'optional', 'optional, blank = MAIN', 'optional', 'blank for the first opening; ADD to add to an existing opening'] }
+};
+// v119 (L3): other column names people use, per upload type
+var RM_ALIAS = {
+    items: { code: 'item_code', item: 'item_code', sku: 'item_code', name: 'item_name', item_description: 'item_name', description: 'item_name', category: 'category_code',
+        unit: 'base_uom_code', uom: 'base_uom_code', base_unit: 'base_uom_code', base_uom: 'base_uom_code', specification: 'spec', hsn_code: 'hsn', gst: 'gst_rate', gst_percent: 'gst_rate', gst_pct: 'gst_rate',
+        reorder_at: 'reorder_level', reorder_point: 'reorder_level', reorder_quantity: 'reorder_qty', lead_time: 'lead_time_days', lead_days: 'lead_time_days', note: 'notes', remarks: 'notes' },
+    vendors: { code: 'vendor_code', vendor: 'vendor_code', supplier_code: 'vendor_code', name: 'vendor_name', supplier_name: 'vendor_name', gst_no: 'gstin', gstin_no: 'gstin', gst_number: 'gstin',
+        pan_no: 'pan', contact: 'contact_role', mobile: 'phone', phone_no: 'phone', e_mail: 'email', state: 'state_code', payment_terms: 'payment_terms_days', credit_days: 'payment_terms_days',
+        lead_time: 'lead_time_days', note: 'notes', remarks: 'notes' },
+    opening: { code: 'item_code', item: 'item_code', quantity: 'qty', opening_qty: 'qty', opening_stock: 'qty', unit: 'uom_code', uom: 'uom_code', rate: 'rate_ex_gst', rate_ex_gst: 'rate_ex_gst',
+        rate_before_gst: 'rate_ex_gst', rate_without_gst: 'rate_ex_gst', cost: 'rate_ex_gst', batch: 'batch_no', lot: 'batch_no', location: 'location_code', notes: 'note', remarks: 'note' }
+};
+// v119 (L2): "1,000" / "₹ 1,250.50" / " 12 " in a number column -> a plain number text, else unchanged
+function rmBulkNumText(v) {
+    var t = String(v == null ? '' : v).replace(/[₹\s]/g, '');
+    if (/^-?[0-9]{1,3}(,[0-9]{2,3})+(\.[0-9]+)?$/.test(t) || /^-?[0-9]+(\.[0-9]+)?$/.test(t)) return t.replace(/,/g, '');
+    return String(v);
+}
+function rmHeaderKey(h) {
+    return String(h == null ? '' : h).trim().toLowerCase().replace(/\(.*?\)/g, '').replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+}
+// Sheet rows (from CSV or .xlsx) -> rows for the database.
+// { ok, rows:[{_row, field...}], header_row, unknown:[], errors:[] }. Blank cells are left out
+// ("leave as is" in the contract). A row whose first filled cell starts with # is a note and is skipped.
+function rmSheetToRows(kind, matrix) {
+    var K = RM_BULK[kind]; if (!K) return { ok: false, errors: ['Unknown upload type.'] };
+    var hdr = null, hdrRow = 0, map = [], unknown = [], errors = [], rows = [], seen = {};
+    for (var i = 0; i < matrix.length; i++) {
+        var cells = matrix[i].cells || [];
+        var first = ''; for (var c0 = 0; c0 < cells.length; c0++) { if (String(cells[c0] || '').trim() !== '') { first = String(cells[c0]).trim(); break; } }
+        if (first === '' || first.charAt(0) === '#') continue;
+        if (!hdr) {
+            hdr = cells; hdrRow = matrix[i].row;
+            for (var c = 0; c < cells.length; c++) {
+                if (String(cells[c] == null ? '' : cells[c]).trim().charAt(0) === '_') { map.push(null); continue; }   // the contract ignores _ columns
+                var k = rmHeaderKey(cells[c]);
+                if (k === '') { map.push(null); continue; }
+                if (K.cols.indexOf(k) < 0 && RM_ALIAS[kind] && RM_ALIAS[kind][k]) k = RM_ALIAS[kind][k];   // v119 L3
+                if (K.cols.indexOf(k) < 0) { unknown.push(String(cells[c]).trim()); map.push(null); continue; }
+                if (seen[k]) { errors.push('The column "' + k + '" appears twice.'); map.push(null); continue; }
+                seen[k] = 1; map.push(k);
+            }
+            continue;
+        }
+        var o = { _row: matrix[i].row }, any = false;
+        for (var j = 0; j < map.length; j++) {
+            if (!map[j]) continue;
+            var v = String(cells[j] == null ? '' : cells[j]).trim();
+            if (v === '') continue;
+            if (K.num.indexOf(map[j]) >= 0) { var nv = rmBulkNumText(v); if (/^-?[0-9]+(\.[0-9]+)?$/.test(nv)) { o[map[j]] = Number(nv); any = true; continue; } }   // v119 L2
+            o[map[j]] = v;
+            any = true;
+        }
+        if (any) rows.push(o);
+    }
+    if (!hdr) errors.push('No header row found. The first row must hold the column names, e.g. ' + K.cols.slice(0, 4).join(', ') + '.');
+    else K.need.forEach(function (n) { if (!seen[n]) errors.push('The column "' + n + '" is missing.'); });
+    if (kind === 'vendors' && hdr && !seen.vendor_code && !seen.gstin) errors.push('The file needs a vendor_code or a gstin column.');
+    if (unknown.length) errors.push('These columns are not known: ' + unknown.join(', ') + '. Use the template\'s column names (or start a column name with _ to have it ignored).');
+    return { ok: !errors.length, rows: rows, header_row: hdrRow, unknown: unknown, errors: errors };
+}
+// A cell for a CSV file: quotes when needed, and a leading ' when Excel would read it as a formula.
+function rmCsvCell(s) {
+    s = String(s == null ? '' : s);
+    if (/^[=+\-@\t\r]/.test(s)) s = "'" + s;
+    return /[",\r\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+}
+function rmCsv(header, rows) {
+    return '﻿' + [header].concat(rows).map(function (r) { return r.map(rmCsvCell).join(','); }).join('\r\n') + '\r\n';
+}
+// ---- .xlsx writer (no library): a stored (uncompressed) ZIP holding a minimal workbook ---------
+var _rmCrcT = null;
+function rmCrc32(bytes) {
+    if (!_rmCrcT) { _rmCrcT = []; for (var n = 0; n < 256; n++) { var c = n; for (var k = 0; k < 8; k++) c = (c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1); _rmCrcT[n] = c >>> 0; } }
+    var crc = 0xFFFFFFFF;
+    for (var i = 0; i < bytes.length; i++) crc = _rmCrcT[(crc ^ bytes[i]) & 0xFF] ^ (crc >>> 8);
+    return (crc ^ 0xFFFFFFFF) >>> 0;
+}
+function rmZipStore(files) {   // files: [{name, text}] -> Uint8Array
+    var enc = new TextEncoder(), parts = [], central = [], off = 0;
+    function u16(v) { return [v & 255, (v >>> 8) & 255]; }
+    function u32(v) { return [v & 255, (v >>> 8) & 255, (v >>> 16) & 255, (v >>> 24) & 255]; }
+    files.forEach(function (f) {
+        var name = enc.encode(f.name), data = enc.encode(f.text), crc = rmCrc32(data);
+        var head = [].concat([0x50, 0x4b, 0x03, 0x04], u16(20), u16(0x0800), u16(0), u16(0), u16(0x21), u32(crc), u32(data.length), u32(data.length), u16(name.length), u16(0));
+        parts.push(new Uint8Array(head), name, data);
+        central.push(new Uint8Array([].concat([0x50, 0x4b, 0x01, 0x02], u16(20), u16(20), u16(0x0800), u16(0), u16(0), u16(0x21), u32(crc), u32(data.length), u32(data.length), u16(name.length), u16(0), u16(0), u16(0), u16(0), u32(0), u32(off))), name);
+        off += head.length + name.length + data.length;
+    });
+    var cdSize = central.reduce(function (a, b) { return a + b.length; }, 0);
+    var end = new Uint8Array([].concat([0x50, 0x4b, 0x05, 0x06], u16(0), u16(0), u16(files.length), u16(files.length), u32(cdSize), u32(off), u16(0)));
+    var all = parts.concat(central, [end]), len = all.reduce(function (a, b) { return a + b.length; }, 0), out = new Uint8Array(len), p = 0;
+    all.forEach(function (b) { out.set(b, p); p += b.length; });
+    return out;
+}
+function rmXmlEsc(s) {
+    return String(s == null ? '' : s).replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+function rmColLetter(n) { var s = ''; n++; while (n > 0) { var m = (n - 1) % 26; s = String.fromCharCode(65 + m) + s; n = Math.floor((n - 1) / 26); } return s; }
+// sheets: [{name, rows:[[...]], widths:[...], header:true}] -> Uint8Array (.xlsx). Text cells only (inline strings),
+// numbers as numbers. Row 1 of a sheet with header:true is bold white on navy.
+function rmXlsxBuild(sheets) {
+    var files = [];
+    files.push({ name: '[Content_Types].xml', text: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>' +
+        sheets.map(function (s, i) { return '<Override PartName="/xl/worksheets/sheet' + (i + 1) + '.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>'; }).join('') + '</Types>' });
+    files.push({ name: '_rels/.rels', text: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>' });
+    files.push({ name: 'xl/workbook.xml', text: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets>' +
+        sheets.map(function (s, i) { return '<sheet name="' + rmXmlEsc(s.name) + '" sheetId="' + (i + 1) + '" r:id="rId' + (i + 1) + '"/>'; }).join('') + '</sheets></workbook>' });
+    files.push({ name: 'xl/_rels/workbook.xml.rels', text: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' +
+        sheets.map(function (s, i) { return '<Relationship Id="rId' + (i + 1) + '" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet' + (i + 1) + '.xml"/>'; }).join('') +
+        '<Relationship Id="rId' + (sheets.length + 1) + '" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>' });
+    files.push({ name: 'xl/styles.xml', text: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><fonts count="3"><font><sz val="9"/><color rgb="FF1A1A1A"/><name val="Arial"/></font><font><b/><sz val="10"/><color rgb="FFFFFFFF"/><name val="Arial"/></font><font><i/><sz val="8"/><color rgb="FF6B7280"/><name val="Arial"/></font></fonts>' +
+        '<fills count="3"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FF0A1628"/><bgColor indexed="64"/></patternFill></fill></fills>' +
+        '<borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>' +
+        '<cellXfs count="3"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/><xf numFmtId="0" fontId="1" fillId="2" borderId="0" xfId="0" applyFont="1" applyFill="1"/><xf numFmtId="0" fontId="2" fillId="0" borderId="0" xfId="0" applyFont="1"/></cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>' });
+    sheets.forEach(function (s, si) {
+        var x = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">';
+        if (s.header) x += '<sheetViews><sheetView workbookViewId="0"><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews>';
+        if (s.widths && s.widths.length) x += '<cols>' + s.widths.map(function (w, i) { return '<col min="' + (i + 1) + '" max="' + (i + 1) + '" width="' + w + '" customWidth="1"/>'; }).join('') + '</cols>';
+        x += '<sheetData>';
+        (s.rows || []).forEach(function (r, ri) {
+            x += '<row r="' + (ri + 1) + '">';
+            r.forEach(function (v, ci) {
+                if (v === null || v === undefined || v === '') return;
+                var ref = rmColLetter(ci) + (ri + 1);
+                var st = (s.header && ri === 0) ? ' s="1"' : ((typeof v === 'string' && v.charAt(0) === '#') ? ' s="2"' : '');
+                if (typeof v === 'number' && isFinite(v)) x += '<c r="' + ref + '"' + st + '><v>' + v + '</v></c>';
+                else x += '<c r="' + ref + '"' + st + ' t="inlineStr"><is><t xml:space="preserve">' + rmXmlEsc(v) + '</t></is></c>';
+            });
+            x += '</row>';
+        });
+        x += '</sheetData></worksheet>';
+        files.push({ name: 'xl/worksheets/sheet' + (si + 1) + '.xml', text: x });
+    });
+    return rmZipStore(files);
+}
+// ---- .xlsx reader for any named sheet (reuses the v99 ZIP helpers) ---------------------------
+// bytes -> Promise { ok, sheet, matrix:[{row, cells[]}], names:[], message }
+function rmXlsxReadSheet(bytes, wanted) {
+    var idx;
+    try { idx = xlsxZipIndex(bytes); } catch (e) { return Promise.resolve({ ok: false, message: 'This is not a readable .xlsx file. Save the sheet as CSV and upload that.' }); }
+    var want = [].concat(wanted).map(function (w) { return rmHeaderKey(w).replace(/_/g, ''); });
+    return Promise.all([xlsxZipText(bytes, idx, 'xl/workbook.xml'), xlsxZipText(bytes, idx, 'xl/_rels/workbook.xml.rels'), xlsxZipText(bytes, idx, 'xl/sharedStrings.xml')]).then(function (t) {
+        var wb = t[0] || '', rels = t[1] || '', sst = t[2] || '', m, names = [], rid = null, found = null;
+        var re = /<(?:\w+:)?sheet\b([^>]*?)\/?>/g;
+        while ((m = re.exec(wb))) {
+            var nm = String(_xattr(m[1], 'name') || '');
+            names.push(nm);
+            if (!rid && want.indexOf(rmHeaderKey(nm).replace(/_/g, '')) >= 0) { var r = /(?:^|\s)[\w]+:id\s*=\s*"([^"]*)"/.exec(m[1]); rid = r ? r[1] : null; found = nm; }
+        }
+        if (!rid && names.length === 1) {   // v119 L3: a workbook with a single sheet (e.g. "Sheet1") is used as it is
+            re.lastIndex = 0; m = re.exec(wb); var r1 = m ? /(?:^|\s)[\w]+:id\s*=\s*"([^"]*)"/.exec(m[1]) : null; rid = r1 ? r1[1] : null; found = names[0];
+        }
+        if (!rid) return { ok: false, names: names, message: 'The file has no sheet called ' + [].concat(wanted)[0] + '. Sheets found: ' + (names.join(', ') || 'none') + '.' };
+        var target = null, rr = /<(?:\w+:)?Relationship\b([^>]*?)\/?>/g;
+        while ((m = rr.exec(rels))) { if (_xattr(m[1], 'Id') === rid) { target = _xattr(m[1], 'Target'); break; } }
+        if (!target) return { ok: false, names: names, message: 'The sheet ' + found + ' could not be found inside the file.' };
+        var path = target.charAt(0) === '/' ? target.slice(1) : ('xl/' + target.replace(/^\.\//, ''));
+        var shared = [], rs = /<(?:\w+:)?si\b[^>]*?(?:\/>|>([\s\S]*?)<\/(?:\w+:)?si>)/g;
+        while ((m = rs.exec(sst))) shared.push(_xtexts(m[1] || ''));
+        return xlsxZipText(bytes, idx, path).then(function (sheet) {
+            if (sheet == null) return { ok: false, names: names, message: 'The sheet ' + found + ' could not be read.' };
+            var out = [], rowNo = 0, rowRe = /<(?:\w+:)?row\b([^>]*?)(?:\/>|>([\s\S]*?)<\/(?:\w+:)?row>)/g, rm;
+            while ((rm = rowRe.exec(sheet))) {
+                var rAttr = _xattr(rm[1], 'r'); rowNo = rAttr ? parseInt(rAttr, 10) : rowNo + 1;
+                var cells = [], colNo = 0, cellRe = /<(?:\w+:)?c\b([^>]*?)(?:\/>|>([\s\S]*?)<\/(?:\w+:)?c>)/g, cm;
+                while ((cm = cellRe.exec(rm[2] || ''))) {
+                    var ref = _xattr(cm[1], 'r'), typ = _xattr(cm[1], 't') || 'n', inner = cm[2] || '';
+                    colNo = ref ? _xcolNum(ref.replace(/[0-9$]/g, '').toUpperCase()) : colNo + 1;
+                    if (colNo > 60) continue;
+                    var vm = /<(?:\w+:)?v(?:\s[^>]*)?>([\s\S]*?)<\/(?:\w+:)?v>/.exec(inner), v = vm ? xlsxUnescape(vm[1]) : '', val = '';
+                    if (typ === 's') val = shared[parseInt(v, 10)] || '';
+                    else if (typ === 'inlineStr') val = _xtexts(inner);
+                    else if (typ === 'str') val = v;
+                    else if (typ === 'b') val = v === '1' ? 'TRUE' : (v === '0' ? 'FALSE' : '');
+                    else if (typ === 'e') val = '';
+                    else val = v === '' ? '' : _xnum(v);
+                    while (cells.length < colNo - 1) cells.push('');
+                    cells[colNo - 1] = String(val).trim();
+                }
+                out.push({ row: rowNo, cells: cells });
+            }
+            return { ok: true, sheet: found, names: names, matrix: out };
+        });
+    }).catch(function () { return { ok: false, message: 'This .xlsx file could not be read. Save the sheet as CSV and upload that.' }; });
+}
+function rmUuid() {
+    try { if (window.crypto && crypto.randomUUID) return crypto.randomUUID(); } catch (e) {}
+    var s = ''; for (var i = 0; i < 32; i++) s += Math.floor(Math.random() * 16).toString(16);
+    return s.slice(0, 8) + '-' + s.slice(8, 12) + '-4' + s.slice(13, 16) + '-a' + s.slice(17, 20) + '-' + s.slice(20, 32);
+}
+function rmTodayIst() { try { return istDateStr(Date.now()); } catch (e) { return new Date().toISOString().slice(0, 10); } }
+
+// ---- the call wrapper -------------------------------------------------------------------------
+var RM_PIN = { code: null, pin: null, at: 0 };
+var _rmPinEpoch = 0;
+var _rmCredWait = null;     // { promise, resolve } while the sheet is open
+function rmForgetPin() { RM_PIN = { code: null, pin: null, at: 0 }; _rmPinEpoch++; }
+function rmPinFresh() { return !!(RM_PIN.pin && (Date.now() - RM_PIN.at) < RM_PIN_MINUTES * 60000); }
+function rmGetCreds(reason) {
+    if (rmPinFresh()) return Promise.resolve({ code: RM_PIN.code, pin: RM_PIN.pin });
+    if (RM_PIN.pin) rmForgetPin();
+    if (_rmCredWait) return _rmCredWait.promise;
+    var w = {};
+    w.promise = new Promise(function (res) { w.resolve = res; });
+    _rmCredWait = w;
+    var bg = document.getElementById('rm-pin-bg'), ci = document.getElementById('rm-pin-code'), pi = document.getElementById('rm-pin-input');
+    var rs = document.getElementById('rm-pin-reason'), er = document.getElementById('rm-pin-err');
+    if (rs) rs.textContent = reason || 'Raw materials: type your own employee code and PIN. It is remembered on this phone for 5 minutes, in memory only.';
+    if (er) er.textContent = '';
+    if (ci) ci.value = sessionEmployeeCode();
+    if (pi) pi.value = '';
+    if (bg) bg.classList.add('active');
+    setTimeout(function () { try { (ci && !ci.value ? ci : pi).focus(); } catch (e) {} }, 60);
+    return w.promise;
+}
+function rmPinOk() {
+    var ci = document.getElementById('rm-pin-code'), pi = document.getElementById('rm-pin-input'), er = document.getElementById('rm-pin-err');
+    var code = String((ci && ci.value) || '').trim().toUpperCase(), pin = String((pi && pi.value) || '').trim();
+    if (!code) { if (er) er.textContent = 'Type your employee code.'; try { ci.focus(); } catch (e) {} return; }
+    if (!/^[0-9]{4}$/.test(pin)) { if (er) er.textContent = 'The PIN is 4 digits.'; if (pi) pi.value = ''; try { pi.focus(); } catch (e) {} return; }
+    if (pi) pi.value = '';
+    var bg = document.getElementById('rm-pin-bg'); if (bg) bg.classList.remove('active');
+    var w = _rmCredWait; _rmCredWait = null;
+    if (w) w.resolve({ code: code, pin: pin });
+}
+function rmPinCancel() {
+    var pi = document.getElementById('rm-pin-input'); if (pi) pi.value = '';
+    var bg = document.getElementById('rm-pin-bg'); if (bg) bg.classList.remove('active');
+    var w = _rmCredWait; _rmCredWait = null;
+    if (w) w.resolve(null);
+}
+// fn = an rm_* function; args = its arguments without p_employee_code / p_pin.
+// Always resolves (never rejects) to the database answer, with .text holding plain words for a refusal.
+// opts: { read: true for loads (different failure wording), timeout ms, reason: text on the PIN sheet }
+function rmCall(fn, args, opts) {
+    opts = opts || {};
+    function fail(code, extra) { var d = { ok: false, error: code, read: !!opts.read }; for (var k in (extra || {})) d[k] = extra[k]; d.text = rmErrText(d); return d; }
+    if (!canRawMaterials()) return Promise.resolve(fail('NOT_ALLOWED_APP'));
+    if (!db) return Promise.resolve(fail('OFFLINE'));
+    var epoch = _rmPinEpoch;
+    return rmGetCreds(opts.reason).then(function (c) {
+        if (!c) return fail('CANCELLED', { cancelled: true });
+        var payload = { p_employee_code: c.code, p_pin: c.pin };
+        for (var k in (args || {})) { if (Object.prototype.hasOwnProperty.call(args, k) && args[k] !== undefined) payload[k] = args[k]; }
+        return withTimeout(db.rpc(fn, payload), opts.timeout || 20000, 'Raw materials').then(function (res) {
+            if (res && res.error) return rmIsMissing(res.error, res.status) ? fail('NO_M15', { fn: fn }) : fail('NETWORK');
+            var d = res ? res.data : null;
+            if (!d || typeof d !== 'object' || Array.isArray(d)) return fail('NETWORK');
+            if (d.ok === true) {
+                if (epoch === _rmPinEpoch && !(RM_PIN.pin === c.pin && RM_PIN.code === c.code)) RM_PIN = { code: c.code, pin: c.pin, at: Date.now() };   // the 5 minutes start once, never extended
+                if (fn === 'rm_lookups') { if (RM.lk && d.actor) { RM.lk = d; try { rmWho(); } catch (e) {} } }
+                else if (RM.lk && RM.lk.actor && String(RM.lk.actor.employee_code || '').toUpperCase() !== c.code) rmActorChanged(c.code);   // v119 M1
+                return d;
+            }
+            if (d.error === 'PIN_REJECTED' || d.error === 'LOCKED') rmForgetPin();
+            d.read = !!opts.read;
+            d.text = rmErrText(d);
+            return d;
+        });
+    }).catch(function () { return fail('NETWORK'); });
+}
+
+// v119 (M1): someone else typed their own code on the PIN sheet. Manager buttons go at once (until the database says
+// otherwise), the "signed in as" line is reloaded, and the screen is redrawn for the real person.
+var _rmActorSeq = 0;
+function rmActorChanged(code) {
+    if (!RM.lk) return;
+    RM.lk.actor = { employee_code: code, role: '', level: 'STORE', can_manage: false };
+    try { rmWho(); } catch (e) {}
+    var my = ++_rmActorSeq;
+    setTimeout(function () { try { if (state.tab === 'rm' && !RM.away) rmRender(false); } catch (e) {} }, 0);
+    rmCall('rm_lookups', {}, { read: true }).then(function (d) {
+        if (my !== _rmActorSeq || !d.ok || !RM.lk) return;
+        RM.lk = d; rmWho();
+        try { if (state.tab === 'rm' && !RM.away) rmRender(false); } catch (e) {}
+    });
+}
+// ---- state + navigation -------------------------------------------------------------------------
+var RM = { lk: null, view: 'home', params: {}, stack: [], seq: 0, form: {}, data: {}, pick: {}, sum: null, busy: false, away: null };
+function rmEl(id) { return document.getElementById(id); }
+function rmMsgHtml(d, okText) {
+    if (d && d.ok) return '<div class="move-result ok">' + esc59(okText || 'Saved.') + '</div>';
+    return '<div class="move-result err">' + esc59((d && d.text) || rmErrText(d)) + '</div>';
+}
+function rmSetMsg(id, html) { var el = rmEl(id); if (el) el.innerHTML = html; }
+function rmEnter() {
+    if (!canRawMaterials()) return;
+    if (!RM.lk) { rmLoadLookups(); return; }
+    rmRender();
+}
+function rmLoadLookups() {
+    var body = rmEl('rm-body'); if (!body) return;
+    body.innerHTML = '<div class="rm-note">Opening raw materials...</div>';
+    rmCall('rm_lookups', {}, { read: true, reason: 'Open raw materials: type your own employee code and PIN.' }).then(function (d) {
+        if (!d.ok) {
+            body.innerHTML = rmMsgHtml(d) + '<button class="settings-btn rm-big" onclick="rmLoadLookups()">&#128274; Sign in to raw materials</button>';
+            return;
+        }
+        RM.lk = d;
+        rmWho();
+        RM.view = 'home'; RM.stack = []; RM.params = {};
+        rmRender();
+    });
+}
+function rmWho() {
+    var w = rmEl('rm-who'); if (!w || !RM.lk || !RM.lk.actor) return;
+    var a = RM.lk.actor;
+    w.innerHTML = 'Signed in for raw materials as <strong>' + esc59(a.employee_code) + '</strong> (' + esc59(String(a.role || '').toLowerCase()) + (a.can_manage ? ', can archive, merge and void' : '') + '). Stock value uses the ' + esc59(RM.lk.valuation_basis || 'weighted average purchase rate') + '.';
+}
+function rmGo(view, params) {
+    RM.stack.push({ view: RM.view, params: RM.params });
+    RM.view = view; RM.params = params || {}; RM.form = {}; RM.pick = {};
+    rmRender(true);
+    try { var c = document.querySelector('.content'); if (c) c.scrollTop = 0; } catch (e) {}
+}
+function rmBack() {
+    var p = RM.stack.pop();
+    if (!p) { RM.view = 'home'; RM.params = {}; } else { RM.view = p.view; RM.params = p.params; }
+    RM.form = {}; RM.pick = {};
+    rmRender(true);
+}
+function rmHome() { RM.stack = []; RM.view = 'home'; RM.params = {}; RM.form = {}; RM.pick = {}; rmRender(true); }
+function rmRefresh() { if (!RM.lk) { rmLoadLookups(); return; } rmRender(true); }
+var RM_TITLES = { home: 'Raw materials', items: 'Items', item: 'Item', itemEdit: 'Item', vendors: 'Vendors', vendor: 'Vendor', vendorEdit: 'Vendor',
+    receive: 'Receive stock', issue: 'Issue to production', loss: 'Loss / wastage', adjust: 'Adjust stock', count: 'Stock count', ledger: 'History',
+    bulk: 'Bulk load', exportv: 'Export', merge: 'Merge', linkVendor: 'Link a vendor' };
+// fetch = true reloads the data the view needs; false redraws from what is already in memory (after "away")
+function rmRender(fetch) {
+    var body = rmEl('rm-body'), t = rmEl('rm-title'), b = rmEl('rm-back');
+    if (!body) return;
+    if (!RM.lk) { rmLoadLookups(); return; }
+    if (t) t.innerHTML = '&#127981; ' + esc59(RM_TITLES[RM.view] || 'Raw materials');
+    if (b) b.style.display = RM.view === 'home' ? 'none' : '';
+    var f = window['rmView_' + RM.view];
+    if (typeof f !== 'function') { RM.view = 'home'; f = rmView_home; }
+    f(fetch !== false);
+}
+// Run a read for the current view; a newer view or reload makes an older answer be thrown away.
+function rmLoad(fn, args, done) {
+    var seq = ++RM.seq, view = RM.view;
+    rmCall(fn, args, { read: true }).then(function (d) {
+        if (seq !== RM.seq || view !== RM.view) return;
+        done(d);
+    });
+}
+function rmLoading(txt) { var b = rmEl('rm-body'); if (b) b.innerHTML = '<div class="rm-note">' + esc59(txt || 'Loading...') + '</div>'; }
+function rmLoadErr(d, retry) {
+    var b = rmEl('rm-body'); if (!b) return;
+    b.innerHTML = rmMsgHtml(d) + '<button class="settings-btn rm-big" onclick="' + retry + '">&#8635; Try again</button>';
+}
+// form fields keep their value in RM.form, so a redraw never loses what was typed
+function rmF(el) {
+    if (!el || !el.id) return;
+    RM.form[el.id] = (el.type === 'checkbox') ? el.checked : el.value;
+    try { rmLive(); } catch (e) {}
+}
+function rmV(id, def) { var v = RM.form[id]; return esc59(v === undefined || v === null ? (def == null ? '' : def) : v); }
+function rmChk(id, def) { var v = RM.form[id]; return (v === undefined ? !!def : !!v) ? ' checked' : ''; }
+function rmInput(id, ph, opts) {
+    opts = opts || {};
+    return '<input type="text" class="settings-input rm-in" id="' + id + '" placeholder="' + esc59(ph) + '" autocomplete="off" autocorrect="off" spellcheck="false"' +
+        (opts.num ? ' inputmode="decimal"' : '') + (opts.upper ? ' autocapitalize="characters" style="text-transform:uppercase"' : '') +
+        (opts.max ? ' maxlength="' + opts.max + '"' : '') + ' value="' + rmV(id, opts.def) + '" oninput="rmF(this)"' + (opts.enter ? ' onkeydown="if(event.key===\'Enter\')' + opts.enter + '"' : '') + '>';
+}
+function rmSelect(id, options, def, extra) {
+    var cur = RM.form[id] === undefined ? (def == null ? '' : def) : RM.form[id];
+    if (RM.form[id] === undefined) RM.form[id] = cur;
+    return '<select class="settings-input rm-in" id="' + id + '" onchange="rmF(this)' + (extra || '') + '">' + options.map(function (o) {
+        return '<option value="' + esc59(o.v) + '"' + (String(o.v) === String(cur) ? ' selected' : '') + '>' + esc59(o.t) + '</option>';
+    }).join('') + '</select>';
+}
+function rmLabel(t) { return '<div class="rm-lab">' + t + '</div>'; }
+function rmCatOptions(withAll) {
+    var o = withAll ? [{ v: '', t: 'All categories' }] : [{ v: '', t: 'Choose a category' }];
+    ((RM.lk && RM.lk.categories) || []).forEach(function (c) { o.push({ v: c.category_code, t: c.category_name + ' (' + c.category_code + ')' }); });
+    return o;
+}
+function rmUomOptions() {
+    var o = [{ v: '', t: 'Choose a unit' }];
+    ((RM.lk && RM.lk.uoms) || []).forEach(function (u) { o.push({ v: u.uom_code, t: u.uom_name + ' (' + u.uom_code + ')' }); });
+    return o;
+}
+function rmReasonOptions(kind) {
+    var o = [{ v: '', t: 'Choose a reason (required)' }];
+    ((RM.lk && RM.lk.reasons) || []).forEach(function (r) { if (r.applies_to === kind || r.applies_to === 'ANY') o.push({ v: r.reason_code, t: r.label }); });
+    return o;
+}
+function rmShowing(n, total, what) {
+    if (!total) return '';
+    return '<div class="rm-note">' + (n < total ? 'Showing <strong>' + rmQty(n, 0) + '</strong> of <strong>' + rmQty(total, 0) + '</strong> ' + what + '.' : '<strong>' + rmQty(total, 0) + '</strong> ' + what + '.') + '</div>';
+}
+
+// ---- 1. home -------------------------------------------------------------------------------------
+function rmView_home(fetch) {
+    var body = rmEl('rm-body');
+    function draw() {
+        var s = RM.sum || {};
+        var tile = function (label, val, sub, onclick, warn) {
+            return '<button class="rm-tile' + (warn ? ' warn' : '') + '" onclick="' + onclick + '"><div class="rm-tile-n">' + val + '</div><div class="rm-tile-l">' + esc59(label) + '</div>' + (sub ? '<div class="rm-tile-s">' + sub + '</div>' : '') + '</button>';
+        };
+        var html = '<div class="rm-search"><input type="text" class="settings-input rm-in" id="rm-home-q" placeholder="Search items: code, name, old name" autocomplete="off" value="' + rmV('rm-home-q') + '" oninput="rmF(this)" onkeydown="if(event.key===\'Enter\')rmHomeSearch()"><button class="settings-btn" onclick="rmHomeSearch()">Search</button></div>';
+        if (RM.sum) {
+            html += '<div class="rm-tiles">' +
+                tile('Items', rmQty(s.items_active, 0), rmQty(s.items_in_stock, 0) + ' in stock', "rmGo('items',{})") +
+                tile('Low stock', rmQty(s.low_stock_count, 0), 'at or below reorder level', "rmGo('items',{low:true})", Number(s.low_stock_count) > 0) +
+                tile('Stock value', rmInr(s.stock_value), (Number(s.items_missing_rate) > 0 ? '<span style="color:#B3261E;">' + rmQty(s.items_missing_rate, 0) + ' item(s) have stock but no rate - not counted</span>' : 'weighted average rate, before GST'), "rmGo('items',{})") +
+                tile('Vendors', rmQty(s.vendors_active, 0), rmQty(s.entries_today, 0) + ' entries today', "rmGo('vendors',{})") +
+                '</div><div class="rm-note">' + esc59(s.as_of_ist ? 'As of ' + s.as_of_ist + ' India time' : '') + '</div>';
+        } else if (RM.sumErr) html += rmMsgHtml(RM.sumErr);
+        html += '<div class="rm-acts">' +
+            '<button class="rm-act" onclick="rmGo(\'receive\',{})">&#128229; Receive stock</button>' +
+            '<button class="rm-act" onclick="rmGo(\'issue\',{})">&#128228; Issue to production</button>' +
+            '<button class="rm-act" onclick="rmGo(\'loss\',{})">&#128465; Loss / wastage</button>' +
+            '<button class="rm-act" onclick="rmGo(\'adjust\',{})">&#9878; Adjust</button>' +
+            '<button class="rm-act" onclick="rmGo(\'count\',{})">&#128290; Stock count</button>' +
+            '<button class="rm-act" onclick="rmGo(\'ledger\',{})">&#128220; History</button>' +
+            '<button class="rm-act" onclick="rmGo(\'items\',{})">&#128230; Items</button>' +
+            '<button class="rm-act" onclick="rmGo(\'vendors\',{})">&#127970; Vendors</button>' +
+            '<button class="rm-act" onclick="rmGo(\'bulk\',{})">&#128228; Bulk load</button>' +
+            '<button class="rm-act" onclick="rmGo(\'exportv\',{})">&#11015; Export</button>' +
+            '</div>';
+        body.innerHTML = html;
+    }
+    if (!fetch && (RM.sum || RM.sumErr)) { draw(); return; }
+    if (!RM.sum) rmLoading('Loading the summary...'); else draw();
+    rmLoad('rm_stock_summary', {}, function (d) {
+        if (d.ok) { RM.sum = d; RM.sumErr = null; } else { RM.sum = null; RM.sumErr = d; }
+        draw();
+    });
+}
+function rmHomeSearch() { var q = String(RM.form['rm-home-q'] || '').trim(); rmGo('items', { q: q }); }
+
+// ---- 2. items list --------------------------------------------------------------------------------
+function rmView_items(fetch) {
+    var body = rmEl('rm-body'), P = RM.params;
+    if (RM.form['ri-q'] === undefined) { RM.form['ri-q'] = P.q || ''; RM.form['ri-low'] = !!P.low; RM.form['ri-act'] = true; RM.form['ri-cat'] = P.cat || ''; }
+    var L = RM.data.items || (RM.data.items = { rows: [], total: 0 });
+    function draw(errD) {
+        var L = RM.data.items || { rows: [], total: 0 };
+        var html = '<div class="rm-search">' + rmInput('ri-q', 'Code, name, spec or old name', { enter: 'rmItemsReload()' }) + '<button class="settings-btn" onclick="rmItemsReload()">Search</button></div>' +
+            '<div class="rm-filters">' + rmSelect('ri-cat', rmCatOptions(true), '', ';rmItemsReload()') +
+            '<label class="rm-chk"><input type="checkbox" id="ri-low"' + rmChk('ri-low') + ' onchange="rmF(this);rmItemsReload()"> Low stock only</label>' +
+            '<label class="rm-chk"><input type="checkbox" id="ri-act"' + rmChk('ri-act', true) + ' onchange="rmF(this);rmItemsReload()"> Active only</label></div>' +
+            '<button class="settings-btn rm-big" style="background:#1B7A3A" onclick="rmGo(\'itemEdit\',{})">&#10133; Add an item</button>';
+        if (errD) html += rmMsgHtml(errD);
+        else if (L.loading && !L.rows.length) html += '<div class="rm-note">Loading...</div>';
+        else {
+            html += rmShowing(L.rows.length, L.total, 'item(s)');
+            if (!L.rows.length) html += '<div class="rm-note">No item matches. Check the spelling, clear the filters, or add the item.</div>';
+            L.rows.forEach(function (r, i) {
+                html += '<button class="rm-row" onclick="rmOpenItem(' + Number(r.item_id) + ')">' +
+                    '<div class="rm-row-top"><span class="rm-code">' + esc59(r.item_code) + '</span>' + (r.below_reorder ? '<span class="rm-badge red">LOW</span>' : '') + (r.active === false ? '<span class="rm-badge grey">ARCHIVED</span>' : '') + (r.merged_into_item_code ? '<span class="rm-badge grey">MERGED &rarr; ' + esc59(r.merged_into_item_code) + '</span>' : '') + '</div>' +
+                    '<div class="rm-row-name">' + esc59(r.item_name) + (r.spec ? ' <span class="rm-dim">' + esc59(r.spec) + '</span>' : '') + '</div>' +
+                    '<div class="rm-row-nums"><span><strong>' + rmQty(r.on_hand) + '</strong> ' + esc59(r.base_uom_code) + '</span><span>' + (r.stock_value == null ? (Number(r.on_hand) > 0 ? '<span style="color:#B3261E">Rate missing</span>' : '-') : rmInr(r.stock_value)) + '</span><span>' + (r.days_of_cover == null ? '' : rmQty(r.days_of_cover, 0) + ' days') + '</span></div></button>';
+            });
+            if (L.rows.length < L.total) html += '<button class="settings-btn rm-big" style="background:#888" onclick="rmItemsMore()">' + (L.loading ? 'Loading...' : 'Show 50 more (' + rmQty(L.total - L.rows.length, 0) + ' left)') + '</button>';
+            if (L.moreErr) html += rmMsgHtml(L.moreErr);
+        }
+        body.innerHTML = html;
+    }
+    RM.data.itemsDraw = draw;
+    if (!fetch && L.rows.length) { draw(); return; }
+    rmItemsReload();
+}
+function rmItemsArgs(off) {
+    return { p_q: String(RM.form['ri-q'] || '').trim() || null, p_category: RM.form['ri-cat'] || null, p_active_only: RM.form['ri-act'] !== false, p_low_only: !!RM.form['ri-low'], p_limit: 50, p_offset: off };
+}
+function rmItemsReload() {
+    var L = RM.data.items = { rows: [], total: 0, loading: true };
+    if (RM.data.itemsDraw) RM.data.itemsDraw();
+    rmLoad('rm_list_items', rmItemsArgs(0), function (d) {
+        L.loading = false;
+        if (!d.ok) { RM.data.itemsDraw(d); return; }
+        L.rows = d.items || []; L.total = Number(d.total) || 0;
+        RM.data.itemsDraw();
+    });
+}
+function rmItemsMore() {
+    var L = RM.data.items; if (!L || L.loading) return;
+    L.loading = true; L.moreErr = null; RM.data.itemsDraw();
+    rmLoad('rm_list_items', rmItemsArgs(L.rows.length), function (d) {
+        L.loading = false;
+        if (!d.ok) { L.moreErr = d; RM.data.itemsDraw(); return; }   // rows already shown stay
+        L.rows = L.rows.concat(d.items || []); L.total = Number(d.total) || L.total;
+        RM.data.itemsDraw();
+    });
+}
+function rmOpenItem(id) { rmGo('item', { item_id: id }); }
+
+// ---- item page ------------------------------------------------------------------------------------
+function rmLedgerRowHtml(r, opts) {
+    opts = opts || {};
+    var q = Number(r.qty_base), cls = q > 0 ? 'pos' : (q < 0 ? 'neg' : '');
+    var canVoid = rmCanManage() && !r.is_voided && r.txn_type !== 'VOID_REVERSAL' && !r.reverses_txn_id;
+    var id = Number(r.txn_id);
+    var h = '<div class="rm-led' + (r.is_voided ? ' voided' : '') + '">' +
+        '<div class="rm-row-top"><span class="rm-badge">' + esc59(String(r.txn_type || '').replace(/_/g, ' ')) + '</span><span class="rm-dim">' + esc59(r.created_at_ist || '') + '</span>' + (r.is_voided ? '<span class="rm-badge grey">VOIDED</span>' : '') + '</div>' +
+        (opts.noItem ? '' : '<div class="rm-row-name">' + esc59(r.item_code) + ' &middot; ' + esc59(r.item_name) + '</div>') +
+        '<div><span class="rm-q ' + cls + '">' + (q > 0 ? '+' : '') + rmQty(q) + ' ' + esc59(r.base_uom_code) + '</span>' +
+        (r.entered_uom_code && r.entered_uom_code !== r.base_uom_code ? ' <span class="rm-dim">(' + rmQty(r.entered_qty) + ' ' + esc59(r.entered_uom_code) + ')</span>' : '') +
+        (r.value_ex_gst != null ? ' &middot; ' + rmInr(r.value_ex_gst) + (r.rate_ex_gst != null ? ' <span class="rm-dim">@ ' + rmRate(r.rate_ex_gst) + '/' + esc59(r.base_uom_code) + '</span>' : '') : '') + '</div>' +
+        '<div class="rm-dim">' + [r.vendor_code ? 'Vendor ' + esc59(r.vendor_code) : '', r.invoice_no ? 'Bill ' + esc59(r.invoice_no) : '', r.reason_label ? esc59(r.reason_label) : '', r.work_order_ref ? 'WO ' + esc59(r.work_order_ref) : '', r.sku_code ? 'SKU ' + esc59(r.sku_code) : '', r.batch_no ? 'Batch ' + esc59(r.batch_no) : '', 'by ' + esc59(r.employee_code || '-'), r.entry_source ? esc59(r.entry_source) : ''].filter(Boolean).join(' &middot; ') + '</div>' +
+        (r.note ? '<div class="rm-dim">&ldquo;' + esc59(r.note) + '&rdquo;</div>' : '') +
+        (r.is_voided && r.void_reason ? '<div class="rm-dim">Voided: ' + esc59(r.void_reason) + '</div>' : '');
+    if (canVoid) {
+        h += '<div class="rm-btns"><button class="settings-btn rm-sm" style="background:#9A6700" onclick="rmAskReason(\'v' + id + '\')">Void&hellip;</button>' +
+            (r.receipt_id && r.txn_type === 'RECEIPT' ? '<button class="settings-btn rm-sm" style="background:#B3261E" onclick="rmAskReason(\'b' + id + '\')">Void whole bill&hellip;</button>' : '') + '</div>' +
+            rmReasonBox('v' + id, 'Why void this entry? (at least 5 letters)', 'rmVoidEntry(' + id + ')', 'Confirm void') +
+            (r.receipt_id && r.txn_type === 'RECEIPT' ? rmReasonBox('b' + id, 'Why void every line of bill ' + (r.invoice_no || '') + '? (at least 5 letters)', 'rmVoidReceipt(' + Number(r.receipt_id) + ',\'' + 'b' + id + '\')', 'Confirm: void the whole bill') : '');
+    }
+    return h + '<div id="rm-vmsg-' + id + '"></div></div>';
+}
+function rmReasonBox(key, ph, action, btn) {
+    return '<div id="rm-rs-' + key + '" style="display:none;margin-top:6px;">' + rmInput('rm-rsn-' + key, ph, { max: 500 }) +
+        '<button class="settings-btn rm-big" style="background:#9A6700;margin-top:4px;" onclick="' + action + '">' + esc59(btn) + '</button><div id="rm-rsm-' + key + '"></div></div>';
+}
+function rmAskReason(key) { var el = rmEl('rm-rs-' + key); if (el) { el.style.display = el.style.display === 'none' ? '' : 'none'; RM.form['_open_' + key] = el.style.display === ''; var i = rmEl('rm-rsn-' + key); if (i && el.style.display === '') i.focus(); } }
+function rmReasonVal(key, msgId) {
+    var v = String(RM.form['rm-rsn-' + key] || '').trim();
+    if (v.length < 5) { rmSetMsg(msgId || ('rm-rsm-' + key), '<div class="move-result err">Please type a reason (at least 5 letters).</div>'); return null; }
+    return v;
+}
+var _rmBusy = {};
+function rmVoidEntry(id) {
+    var rs = rmReasonVal('v' + id); if (rs === null || _rmBusy['v' + id]) return;
+    if (!confirm('Void this entry? A balancing row is added; the original stays visible as VOIDED.')) return;
+    _rmBusy['v' + id] = 1;
+    rmCall('rm_void_entry', { p_txn_id: id, p_reason: rs }).then(function (d) {
+        delete _rmBusy['v' + id];
+        if (!d.ok) { rmSetMsg('rm-rsm-v' + id, rmMsgHtml(d)); return; }
+        logEvent('', 'Raw material entry #' + id + ' voided');
+        alert('Voided. Stock now ' + rmQty(d.on_hand_after) + ' ' + (d.base_uom_code || '') + '.');
+        rmRender(true);
+    });
+}
+function rmVoidReceipt(rid, key) {
+    var rs = rmReasonVal(key); if (rs === null || _rmBusy['r' + rid]) return;
+    if (!confirm('Void EVERY remaining line of this bill? Afterwards the invoice number can be entered again.')) return;
+    _rmBusy['r' + rid] = 1;
+    rmCall('rm_void_receipt', { p_receipt_id: rid, p_reason: rs }).then(function (d) {
+        delete _rmBusy['r' + rid];
+        if (!d.ok) { rmSetMsg('rm-rsm-' + key, rmMsgHtml(d)); return; }
+        logEvent('', 'Raw material bill ' + (d.invoice_no || rid) + ' voided');
+        alert('Bill ' + (d.invoice_no || '') + ' voided: ' + (d.lines_voided || 0) + ' line(s) reversed. The invoice number is free again.');
+        rmRender(true);
+    });
+}
+function rmView_item(fetch) {
+    var body = rmEl('rm-body'), id = Number(RM.params.item_id);
+    function draw() {
+        var D = RM.data.item; if (!D) return;
+        var it = D.item || {}, man = rmCanManage(), u = esc59(it.base_uom_code);
+        var html = '<div class="rm-card"><div class="rm-row-top"><span class="rm-code">' + esc59(it.item_code) + '</span>' + copyChipHtml(it.item_code) +
+            (it.below_reorder ? '<span class="rm-badge red">LOW</span>' : '') + (it.active === false ? '<span class="rm-badge grey">ARCHIVED</span>' : '') + '</div>' +
+            '<div class="rm-h">' + esc59(it.item_name) + '</div>' +
+            (it.merged_into_item_code ? '<div class="move-result err">Merged into ' + esc59(it.merged_into_item_code) + '. Use that item.</div>' : '') +
+            '<div class="rm-dim">' + esc59(it.category_name || it.category_code || '') + (it.spec ? ' &middot; ' + esc59(it.spec) : '') + (it.hsn ? ' &middot; HSN ' + esc59(it.hsn) : '') + (it.gst_rate != null ? ' &middot; GST ' + rmQty(it.gst_rate, 2) + '%' : '') + '</div>' +
+            '<div class="rm-kv">' +
+            '<div><span>On hand</span><b>' + rmQty(it.on_hand) + ' ' + u + '</b></div>' +
+            '<div><span>Rate (weighted avg)</span><b>' + (it.wac_rate == null ? '-' : rmRate(it.wac_rate) + '/' + u) + '</b></div>' +
+            '<div><span>Value</span><b>' + (it.stock_value == null ? (Number(it.on_hand) > 0 ? '<span style="color:#B3261E">Rate missing</span>' : '-') : rmInr(it.stock_value)) + '</b></div>' +
+            '<div><span>Days of cover</span><b>' + (it.days_of_cover == null ? '' : rmQty(it.days_of_cover, 0)) + '</b></div>' +
+            '<div><span>Used in 30 days</span><b>' + rmQty(it.used_30d) + ' ' + u + '</b></div>' +
+            '<div><span>Reorder at / qty</span><b>' + rmQty(it.reorder_level) + ' / ' + rmQty(it.reorder_qty) + '</b></div>' +
+            '<div><span>Suggested order</span><b>' + (Number(it.suggested_order_qty) > 0 ? rmQty(it.suggested_order_qty) + ' ' + u : '-') + '</b></div>' +
+            '<div><span>Lead time</span><b>' + (it.effective_lead_time_days == null ? '-' : rmQty(it.effective_lead_time_days, 0) + ' days') + '</b></div>' +
+            '<div><span>Last rate</span><b>' + (it.last_rate == null ? '-' : rmRate(it.last_rate) + '/' + u) + '</b></div>' +
+            '<div><span>Last received</span><b>' + (it.last_received_at ? esc59(fmtIst(it.last_received_at)) : '-') + '</b></div>' +
+            '</div>' + (it.notes ? '<div class="rm-dim">Notes: ' + esc59(it.notes) + '</div>' : '') + '</div>';
+        var actv = it.active !== false && !it.merged_into_item_code;
+        html += '<div class="rm-btns">' +
+            (actv ? '<button class="settings-btn rm-sm" onclick="rmGo(\'itemEdit\',{item_id:' + id + '})">&#9998; Edit</button>' +
+                '<button class="settings-btn rm-sm" style="background:#1B7A3A" onclick="rmGo(\'receive\',{item_id:' + id + '})">Receive</button>' +
+                '<button class="settings-btn rm-sm" onclick="rmGo(\'issue\',{item_id:' + id + '})">Issue</button>' +
+                '<button class="settings-btn rm-sm" onclick="rmGo(\'loss\',{item_id:' + id + '})">Loss</button>' +
+                '<button class="settings-btn rm-sm" onclick="rmGo(\'count\',{item_id:' + id + '})">Count</button>' +
+                '<button class="settings-btn rm-sm" onclick="rmGo(\'adjust\',{item_id:' + id + '})">Adjust</button>' : '') +
+            '<button class="settings-btn rm-sm" style="background:#888" onclick="rmGo(\'ledger\',{item_id:' + id + ',item_code:RM.data.item.item.item_code})">Full history</button>' +
+            (man && !it.merged_into_item_code ? '<button class="settings-btn rm-sm" style="background:#9A6700" onclick="rmAskReason(\'arch\')">' + (it.active === false ? 'Restore&hellip;' : 'Archive&hellip;') + '</button>' : '') +
+            (man && actv ? '<button class="settings-btn rm-sm" style="background:#B3261E" onclick="rmGo(\'merge\',{kind:\'item\',from_id:' + id + '})">Merge&hellip;</button>' : '') +
+            '</div>' + (man ? rmReasonBox('arch', (it.active === false ? 'Why restore' : 'Why archive') + ' this item? (at least 5 letters)', 'rmItemActive(' + id + ',' + (it.active === false) + ')', it.active === false ? 'Confirm restore' : 'Confirm archive') : '');
+        // conversions
+        html += '<div class="rm-sec">Units</div><div class="rm-dim">Stock is kept in ' + u + '. Other units this item can be entered in:</div>';
+        (D.conversions || []).forEach(function (c, i) {
+            html += '<div class="rm-li">1 ' + esc59(c.uom_code) + ' = <b>' + rmQty(c.to_base, 6) + '</b> ' + u + (actv ? ' <button class="settings-btn rm-xs" style="background:#888" onclick="rmUomRemove(' + i + ')">Remove</button>' : '') + '</div>';
+        });
+        if (!(D.conversions || []).length) html += '<div class="rm-dim">None yet.</div>';
+        if (actv) html += '<div class="rm-filters">1 ' + rmSelect('ru-uom', rmUomOptions(), '') + ' = ' + rmInput('ru-f', 'how many ' + it.base_uom_code, { num: true }) + '<button class="settings-btn rm-sm" onclick="rmUomSave()">Save unit</button></div><div id="ru-msg"></div>';
+        // vendors
+        html += '<div class="rm-sec">Vendors</div>';
+        (D.vendors || []).forEach(function (v) {
+            html += '<div class="rm-li"><b>' + esc59(v.vendor_code) + '</b> ' + esc59(v.vendor_name) + (v.preferred ? ' <span class="rm-badge green">PREFERRED</span>' : '') + (v.active === false ? ' <span class="rm-badge grey">ARCHIVED</span>' : '') +
+                '<div class="rm-dim">' + [v.quoted_rate != null ? 'Quote ' + rmRate(v.quoted_rate) + '/' + u + (v.quoted_on ? ' (' + esc59(v.quoted_on) + ')' : '') : '', v.lead_time_days != null ? 'Lead ' + esc59(v.lead_time_days) + ' days' : '', v.min_order_qty != null ? 'MOQ ' + rmQty(v.min_order_qty) : ''].filter(Boolean).join(' &middot; ') + '</div>' +
+                (actv ? '<button class="settings-btn rm-xs" onclick="rmGo(\'linkVendor\',{item_id:' + id + ',vendor_id:' + Number(v.vendor_id) + '})">Edit</button>' : '') + '</div>';
+        });
+        if (!(D.vendors || []).length) html += '<div class="rm-dim">No vendor linked.</div>';
+        if (actv) html += '<button class="settings-btn rm-sm" onclick="rmGo(\'linkVendor\',{item_id:' + id + '})">&#10133; Link a vendor</button>';
+        // aliases
+        html += '<div class="rm-sec">Other names (search finds the item by these)</div>';
+        (D.aliases || []).forEach(function (a) {
+            var rem = actv && (a.source === 'MANUAL' || a.source === 'VENDOR_PART');
+            html += '<div class="rm-li">' + esc59(a.alias_text) + ' <span class="rm-dim">' + esc59(a.source || '') + '</span>' + (rem ? ' <button class="settings-btn rm-xs" style="background:#888" onclick="rmAliasRemove(' + Number(a.alias_id) + ')">Remove</button>' : '') + '</div>';
+        });
+        if (!(D.aliases || []).length) html += '<div class="rm-dim">None.</div>';
+        if (actv) html += '<div class="rm-filters">' + rmInput('ra-t', 'Add another name or vendor part no.', { max: 200 }) + '<button class="settings-btn rm-sm" onclick="rmAliasAdd()">Add</button></div><div id="ra-msg"></div>';
+        if ((D.merged_from || []).length) html += '<div class="rm-dim">Merged into this item: ' + D.merged_from.map(function (m) { return esc59(m.item_code) + ' (' + esc59(m.item_name) + ')'; }).join(', ') + '</div>';
+        // ledger
+        html += '<div class="rm-sec">Last ' + (D.ledger || []).length + ' entries</div>';
+        (D.ledger || []).forEach(function (r) { html += rmLedgerRowHtml(r, { noItem: true }); });
+        if (!(D.ledger || []).length) html += '<div class="rm-dim">No entries yet.</div>';
+        html += '<div id="rm-item-msg"></div>';
+        body.innerHTML = html;
+        rmReopenBoxes();
+    }
+    if (!fetch && RM.data.item && Number(RM.data.item.item.item_id) === id) { draw(); return; }
+    rmLoading();
+    rmLoad('rm_item_detail', { p_item_id: id }, function (d) {
+        if (!d.ok) { rmLoadErr(d, 'rmRender(true)'); return; }
+        RM.data.item = d; draw();
+    });
+}
+function rmReopenBoxes() { for (var k in RM.form) { if (k.indexOf('_open_') === 0 && RM.form[k]) { var el = rmEl('rm-rs-' + k.slice(6)); if (el) el.style.display = ''; } } }
+function rmItemActive(id, restore) {
+    var rs = rmReasonVal('arch'); if (rs === null || _rmBusy.arch) return;
+    _rmBusy.arch = 1;
+    rmCall('rm_item_set_active', { p_item_id: id, p_active: !!restore, p_reason: rs }).then(function (d) {
+        delete _rmBusy.arch;
+        if (!d.ok) { rmSetMsg('rm-rsm-arch', rmMsgHtml(d)); return; }
+        RM.form = {}; rmRender(true);
+    });
+}
+function rmUomSave() {
+    var it = RM.data.item.item, u = RM.form['ru-uom'], f = rmNum(RM.form['ru-f'], 6);
+    if (!u) { rmSetMsg('ru-msg', '<div class="move-result err">Choose the unit.</div>'); return; }
+    if (!(f > 0)) { rmSetMsg('ru-msg', '<div class="move-result err">Type how many ' + esc59(it.base_uom_code) + ' make one ' + esc59(u) + ' (a number above 0).</div>'); return; }
+    if (_rmBusy.ru) return; _rmBusy.ru = 1;
+    rmCall('rm_item_uom_set', { p_item_id: Number(it.item_id), p_uom_code: u, p_to_base: f }).then(function (d) {
+        delete _rmBusy.ru;
+        if (!d.ok) { rmSetMsg('ru-msg', rmMsgHtml(d)); return; }
+        RM.form['ru-f'] = ''; rmRender(true);
+    });
+}
+function rmUomRemove(i) {
+    var it = RM.data.item.item, c = (RM.data.item.conversions || [])[i]; if (!c) return;
+    if (_rmBusy.ru) return;
+    if (!confirm('Remove the unit ' + c.uom_code + ' from this item? Past entries keep their factor.')) return;
+    _rmBusy.ru = 1;
+    rmCall('rm_item_uom_set', { p_item_id: Number(it.item_id), p_uom_code: c.uom_code, p_to_base: Number(c.to_base), p_remove: true }).then(function (d) {
+        delete _rmBusy.ru;
+        if (!d.ok) { rmSetMsg('ru-msg', rmMsgHtml(d)); return; }
+        rmRender(true);
+    });
+}
+function rmAliasAdd() {
+    var t = String(RM.form['ra-t'] || '').trim(); if (!t) { rmSetMsg('ra-msg', '<div class="move-result err">Type the other name.</div>'); return; }
+    if (_rmBusy.ra) return; _rmBusy.ra = 1;
+    rmCall('rm_item_alias_add', { p_item_id: Number(RM.params.item_id), p_alias_text: t }).then(function (d) {
+        delete _rmBusy.ra;
+        if (!d.ok) { rmSetMsg('ra-msg', rmMsgHtml(d)); return; }
+        RM.form['ra-t'] = ''; rmRender(true);
+    });
+}
+function rmAliasRemove(aid) {
+    if (_rmBusy.ra) return;
+    if (!confirm('Remove this other name?')) return;
+    _rmBusy.ra = 1;
+    rmCall('rm_item_alias_remove', { p_alias_id: aid }).then(function (d) {
+        delete _rmBusy.ra;
+        if (!d.ok) { rmSetMsg('ra-msg', rmMsgHtml(d)); return; }
+        rmRender(true);
+    });
+}
+
+// ---- 3. add / edit item ----------------------------------------------------------------------------
+var RM_ITEM_FIELDS = ['item_name', 'category_code', 'base_uom_code', 'spec', 'hsn', 'gst_rate', 'reorder_level', 'reorder_qty', 'lead_time_days', 'notes'];
+function rmView_itemEdit(fetch) {
+    var body = rmEl('rm-body'), id = RM.params.item_id ? Number(RM.params.item_id) : null;
+    function fill(it) {
+        RM.form._orig = {};
+        RM_ITEM_FIELDS.forEach(function (k) { var v = it[k] == null ? '' : String(it[k]); RM.form._orig[k] = v; if (RM.form['ie-' + k] === undefined) RM.form['ie-' + k] = v; });
+        RM.form._upd = it.updated_at; RM.form._code = it.item_code;
+    }
+    function draw() {
+        var html = '<div class="rm-note">' + (id ? 'Edit <strong>' + esc59(RM.form._code) + '</strong>. Only changed boxes are saved. A new name keeps the old one as another name.' : 'A new raw-material item. The code is permanent (letters, digits, - _ .).') + '</div>';
+        if (!id) html += rmLabel('Code (required)') + rmInput('ie-item_code', 'e.g. CNV-380-MATTE', { upper: true, max: 40 });
+        html += rmLabel('Name (required)') + rmInput('ie-item_name', 'e.g. Canvas 380 GSM matte', { max: 200 }) +
+            rmLabel('Category (required)') + rmSelect('ie-category_code', rmCatOptions(false), '') +
+            rmLabel('Base unit - stock is kept in this unit (required)') + rmSelect('ie-base_uom_code', rmUomOptions(), '') +
+            rmLabel('Specification') + rmInput('ie-spec', 'size, GSM, thickness...', { max: 500 }) +
+            '<div class="rm-2"><div>' + rmLabel('HSN code') + rmInput('ie-hsn', '4 to 8 digits', { num: true, max: 8 }) + '</div><div>' + rmLabel('GST %') + rmInput('ie-gst_rate', 'e.g. 12', { num: true }) + '</div></div>' +
+            '<div class="rm-2"><div>' + rmLabel('Reorder at (base unit)') + rmInput('ie-reorder_level', '0', { num: true }) + '</div><div>' + rmLabel('Reorder qty (base unit)') + rmInput('ie-reorder_qty', '0', { num: true }) + '</div></div>' +
+            rmLabel('Lead time (days)') + rmInput('ie-lead_time_days', 'blank = from vendor', { num: true }) +
+            rmLabel('Notes') + rmInput('ie-notes', 'optional', { max: 2000 }) +
+            '<button class="settings-btn rm-big" style="background:#1B7A3A" id="ie-save" onclick="rmItemSave()">&#10003; Save</button><div id="ie-msg"></div>';
+        body.innerHTML = html;
+    }
+    if (!id) { draw(); return; }
+    if (!fetch && RM.form._orig) { draw(); return; }
+    rmLoading();
+    rmLoad('rm_item_detail', { p_item_id: id }, function (d) {
+        if (!d.ok) { rmLoadErr(d, 'rmRender(true)'); return; }
+        fill(d.item || {}); draw();
+    });
+}
+function rmItemNumChecks(f, msg) {
+    var bad = null;
+    [['gst_rate', 'GST %', 2], ['reorder_level', 'Reorder at', 3], ['reorder_qty', 'Reorder qty', 3], ['lead_time_days', 'Lead time', 0]].forEach(function (x) {
+        var v = String(f[x[0]] == null ? '' : f[x[0]]).trim();
+        if (v !== '' && isNaN(rmNum(v, x[2]))) bad = bad || (x[1] + ' must be a number' + (x[2] === 0 ? ' of whole days' : '') + '.');
+    });
+    if (bad) { rmSetMsg(msg, '<div class="move-result err">' + esc59(bad) + '</div>'); return false; }
+    return true;
+}
+function rmItemSave() {
+    if (_rmBusy.ie) return;
+    var id = RM.params.item_id ? Number(RM.params.item_id) : null, f = {};
+    RM_ITEM_FIELDS.forEach(function (k) { f[k] = String(RM.form['ie-' + k] == null ? '' : RM.form['ie-' + k]).trim(); });
+    if (!f.item_name) { rmSetMsg('ie-msg', '<div class="move-result err">Type the name.</div>'); return; }
+    if (!f.category_code || !f.base_uom_code) { rmSetMsg('ie-msg', '<div class="move-result err">Choose the category and the base unit.</div>'); return; }
+    if (!rmItemNumChecks(f, 'ie-msg')) return;
+    var numOrNull = function (v) { return v === '' ? null : Number(v); };
+    var p;
+    if (!id) {
+        var code = String(RM.form['ie-item_code'] || '').trim().toUpperCase();
+        if (!/^[A-Z0-9_.\-]{1,40}$/.test(code)) { rmSetMsg('ie-msg', '<div class="move-result err">The code may use letters, digits and - _ . only (up to 40).</div>'); return; }
+        _rmBusy.ie = 1;
+        p = rmCall('rm_item_create', { p_item_code: code, p_item_name: f.item_name, p_category_code: f.category_code, p_base_uom_code: f.base_uom_code,
+            p_spec: f.spec || null, p_hsn: f.hsn || null, p_gst_rate: numOrNull(f.gst_rate), p_reorder_level: f.reorder_level === '' ? 0 : Number(f.reorder_level),
+            p_reorder_qty: f.reorder_qty === '' ? 0 : Number(f.reorder_qty), p_lead_time_days: numOrNull(f.lead_time_days), p_notes: f.notes || null, p_source: 'APP' });
+    } else {
+        var ch = {}, n = 0, o = RM.form._orig || {};
+        RM_ITEM_FIELDS.forEach(function (k) {
+            if (f[k] === o[k]) return;
+            if (['gst_rate', 'reorder_level', 'reorder_qty', 'lead_time_days'].indexOf(k) >= 0) { if (f[k] !== '' && o[k] !== '' && Number(f[k]) === Number(o[k])) return; ch[k] = f[k] === '' ? null : Number(f[k]); }
+            else ch[k] = f[k] === '' ? null : f[k];
+            n++;
+        });
+        if (!n) { rmSetMsg('ie-msg', '<div class="move-result">Nothing was changed.</div>'); return; }
+        _rmBusy.ie = 1;
+        p = rmCall('rm_item_update', { p_item_id: id, p_changes: ch, p_expected_updated_at: RM.form._upd || null, p_source: 'APP' });
+    }
+    p.then(function (d) {
+        delete _rmBusy.ie;
+        if (!d.ok) {
+            rmSetMsg('ie-msg', rmMsgHtml(d));
+            if (d.error === 'STALE' && id) {   // reload, keep what the person typed
+                rmCall('rm_item_detail', { p_item_id: id }, { read: true }).then(function (x) {
+                    if (!x.ok) return;
+                    RM.form._upd = x.item.updated_at; RM.form._orig = {};
+                    RM_ITEM_FIELDS.forEach(function (k) { RM.form._orig[k] = x.item[k] == null ? '' : String(x.item[k]); });
+                });
+            }
+            return;
+        }
+        logEvent('', 'Raw material item ' + (d.item_code || '') + (id ? ' updated' : ' created'));
+        RM.sum = null; RM.data.items = null;
+        var newId = Number(d.item_id);
+        RM.stack.pop();   // go to the item page instead of back to the form
+        RM.view = 'item'; RM.params = { item_id: newId }; RM.form = {}; RM.data.item = null;
+        rmRender(true);
+    });
+}
+
+// ---- pickers (item / vendor) used by the entry forms -------------------------------------------------
+function rmPickerHtml(slot, kind, label) {
+    var cur = RM.form[slot];
+    if (cur && typeof cur === 'object') {
+        var sub = kind === 'item' ? ('On hand ' + rmQty(cur.on_hand) + ' ' + esc59(cur.base_uom_code)) : (cur.gstin ? 'GSTIN ' + esc59(cur.gstin) : '');
+        return rmLabel(label) + '<div class="rm-picked"><div><b>' + esc59(kind === 'item' ? cur.item_code : cur.vendor_code) + '</b> ' + esc59(kind === 'item' ? cur.item_name : cur.vendor_name) + '<div class="rm-dim">' + sub + '</div></div><button class="settings-btn rm-xs" style="background:#888" onclick="rmPickClear(\'' + slot + '\')">Change</button></div>';
+    }
+    var res = RM.pick[slot], list = '';
+    if (res && res.loading) list = '<div class="rm-dim">Searching...</div>';
+    else if (res && res.err) list = rmMsgHtml(res.err);
+    else if (res) {
+        list = (res.total > res.rows.length ? '<div class="rm-dim">Best ' + res.rows.length + ' of ' + rmQty(res.total, 0) + ' - type more to narrow down.</div>' : '');
+        if (!res.rows.length) list += '<div class="rm-dim">Nothing matches.' + (kind === 'item' ? ' Add the item first (Items &rsaquo; Add an item).' : ' Add the vendor first (Vendors &rsaquo; Add a vendor).') + '</div>';
+        res.rows.forEach(function (r, i) {
+            list += '<button class="rm-row rm-pickrow" onclick="rmPickSet(\'' + slot + '\',\'' + kind + '\',' + i + ')"><b>' + esc59(kind === 'item' ? r.item_code : r.vendor_code) + '</b> ' + esc59(kind === 'item' ? r.item_name : r.vendor_name) +
+                (kind === 'item' ? ' <span class="rm-dim">(' + rmQty(r.on_hand) + ' ' + esc59(r.base_uom_code) + ')</span>' : (r.gstin ? ' <span class="rm-dim">' + esc59(r.gstin) + '</span>' : '')) + '</button>';
+        });
+    }
+    return rmLabel(label) + '<div class="rm-search">' + rmInput(slot + '-q', kind === 'item' ? 'Type item code or name' : 'Type vendor code, name or GSTIN', { enter: 'rmPickFind(\'' + slot + '\',\'' + kind + '\')' }) +
+        '<button class="settings-btn" onclick="rmPickFind(\'' + slot + '\',\'' + kind + '\')">Find</button></div><div id="' + slot + '-res">' + list + '</div>';
+}
+function rmPickFind(slot, kind) {
+    var q = String(RM.form[slot + '-q'] || '').trim();
+    var st = RM.pick[slot] = { loading: true, rows: [], total: 0 };
+    var view = RM.view;
+    rmRender(false);
+    rmCall(kind === 'item' ? 'rm_list_items' : 'rm_list_vendors', kind === 'item' ? { p_q: q || null, p_active_only: true, p_limit: 20, p_offset: 0 } : { p_q: q || null, p_active_only: true, p_limit: 20, p_offset: 0 }, { read: true }).then(function (d) {
+        if (RM.pick[slot] !== st || RM.view !== view) return;
+        st.loading = false;
+        if (!d.ok) st.err = d; else { st.rows = (kind === 'item' ? d.items : d.vendors) || []; st.total = Number(d.total) || 0; }
+        rmRender(false);
+    });
+}
+function rmPickSet(slot, kind, i) {
+    var st = RM.pick[slot]; if (!st || !st.rows[i]) return;
+    var r = st.rows[i], view = RM.view;
+    if (kind === 'vendor') { RM.form[slot] = r; delete RM.pick[slot]; rmRender(false); try { rmOnPick(slot); } catch (e) {} return; }
+    // an item: its units and GST come from the detail call
+    st.loading = true; rmRender(false);
+    rmCall('rm_item_detail', { p_item_id: Number(r.item_id) }, { read: true }).then(function (d) {
+        if (RM.view !== view) return;
+        if (!d.ok) { st.loading = false; st.err = d; rmRender(false); return; }
+        var it = d.item || {};
+        RM.form[slot] = { item_id: Number(it.item_id), item_code: it.item_code, item_name: it.item_name, base_uom_code: it.base_uom_code, on_hand: it.on_hand,
+            conversions: d.conversions || [], gst_rate: it.gst_rate, last_rate: it.last_rate, vendors: d.vendors || [] };
+        delete RM.pick[slot];
+        try { rmOnPick(slot); } catch (e) {}
+        rmRender(false);
+    });
+}
+function rmPickClear(slot) { delete RM.form[slot]; delete RM.pick[slot]; rmRender(false); }
+function rmOnPick(slot) {
+    var it = RM.form[slot];
+    var m = /^rl([0-9]+)-item$/.exec(slot);
+    if (m && it && typeof it === 'object') {   // a receipt line: default GST from the item
+        var k = 'rl' + m[1] + '-gst';
+        if ((RM.form[k] === undefined || RM.form[k] === '') && it.gst_rate != null) RM.form[k] = String(Number(it.gst_rate));
+        RM.form['rl' + m[1] + '-uom'] = it.base_uom_code;
+    }
+    if (slot === 'mv-item' && it) RM.form['mv-uom'] = it.base_uom_code;
+}
+// the item fixed by the screen that opened the form (from an item page)
+function rmPreloadItem(slot) {
+    var id = RM.params.item_id; if (!id || RM.form[slot] || RM.form['_pre_' + slot]) return;
+    RM.form['_pre_' + slot] = 1;
+    RM.pick[slot] = { rows: [{ item_id: id }], total: 1 };
+    rmPickSet(slot, 'item', 0);
+}
+function rmUnitSelect(id, it) {
+    var list = rmUnitList(it.base_uom_code, it.conversions);
+    return rmSelect(id, list.map(function (u) { return { v: u.code, t: u.code + (u.base ? ' (base unit)' : ' (1 = ' + rmQty(u.to_base, 6) + ' ' + it.base_uom_code + ')') }; }), it.base_uom_code);
+}
+
+// ---- 5. receive stock --------------------------------------------------------------------------------
+function rmView_receive(fetch) {
+    var body = rmEl('rm-body'), F = RM.form;
+    if (F._lines === undefined) { F._lines = 1; F['rc-date'] = rmTodayIst(); }
+    if (RM.params.receipt) F._addTo = RM.params.receipt;   // add lines to an existing bill
+    if (RM.params.item_id) rmPreloadItem('rl0-item');
+    var add = F._addTo;
+    var html = '';
+    if (add) {
+        html += '<div class="rm-card"><b>Adding lines to bill ' + esc59(add.invoice_no) + '</b> from ' + esc59(add.vendor_code || '') + (add.invoice_date ? ' dated ' + esc59(add.invoice_date) : '') +
+            '<div class="rm-dim">Vendor, invoice number and date stay as they are on that bill.</div><button class="settings-btn rm-xs" style="background:#888" onclick="RM.form._addTo=null;RM.params.receipt=null;rmRender(false)">Enter a new bill instead</button></div>';
+    } else {
+        html += rmPickerHtml('rc-vendor', 'vendor', 'Vendor (required)') +
+            '<div class="rm-2"><div>' + rmLabel('Invoice no. (required)') + rmInput('rc-inv', 'as printed on the bill', { max: 60 }) + '</div><div>' + rmLabel('Invoice date') + '<input type="date" class="settings-input rm-in" id="rc-date" value="' + rmV('rc-date') + '" max="' + esc59(rmTodayIst()) + '" onchange="rmF(this)"></div></div>' +
+            '<div class="rm-2"><div>' + rmLabel('PO no.') + rmInput('rc-po', 'optional', { max: 60 }) + '</div><div>' + rmLabel('Freight (&#8377;, kept on the bill, not in the rate)') + rmInput('rc-frt', '0', { num: true }) + '</div></div>';
+    }
+    for (var i = 0; i < F._lines; i++) {
+        var it = F['rl' + i + '-item'];
+        html += '<div class="rm-line"><div class="rm-row-top"><b>Line ' + (i + 1) + '</b>' + (F._lines > 1 ? '<button class="settings-btn rm-xs" style="background:#888" onclick="rmRcvDel(' + i + ')">Remove line</button>' : '') + '</div>' +
+            rmPickerHtml('rl' + i + '-item', 'item', 'Item');
+        if (it && typeof it === 'object') {
+            html += '<div class="rm-2"><div>' + rmLabel('Quantity') + rmInput('rl' + i + '-qty', 'e.g. 25', { num: true }) + '</div><div>' + rmLabel('Unit') + rmUnitSelect('rl' + i + '-uom', it) + '</div></div>' +
+                '<div class="rm-2"><div>' + rmLabel('Rate before GST, per unit typed (&#8377;)') + rmInput('rl' + i + '-rate', it.last_rate != null ? 'last ' + rmQty(it.last_rate, 4) + '/' + it.base_uom_code : 'e.g. 120', { num: true }) + '</div><div>' + rmLabel('GST %') + rmInput('rl' + i + '-gst', 'e.g. 12', { num: true }) + '</div></div>' +
+                rmLabel('Batch / lot') + rmInput('rl' + i + '-batch', 'optional', { max: 60 }) +
+                '<div class="rm-pv" id="rl' + i + '-pv"></div>';
+        }
+        html += '<div id="rl' + i + '-err"></div></div>';
+    }
+    html += '<button class="settings-btn rm-big" style="background:#888" onclick="rmRcvAdd()">&#10133; Add another line</button>' +
+        rmLabel('Note') + rmInput('rc-note', 'optional', { max: 1000 }) +
+        '<div class="rm-pv" id="rc-total"></div>' +
+        '<button class="settings-btn rm-big" style="background:#1B7A3A" onclick="rmRcvSave()">&#10003; Save receipt</button><div id="rc-msg"></div>';
+    body.innerHTML = html;
+    rmLive();
+}
+function rmRcvAdd() { if (RM.form._lines >= 200) return; RM.form._lines++; rmRender(false); }
+function rmRcvDel(i) {
+    var F = RM.form, n = F._lines;
+    for (var j = i; j < n - 1; j++) ['item', 'qty', 'uom', 'rate', 'gst', 'batch', 'item-q'].forEach(function (k) { F['rl' + j + '-' + k] = F['rl' + (j + 1) + '-' + k]; RM.pick['rl' + j + '-item'] = RM.pick['rl' + (j + 1) + '-item']; });
+    ['item', 'qty', 'uom', 'rate', 'gst', 'batch', 'item-q'].forEach(function (k) { delete F['rl' + (n - 1) + '-' + k]; });
+    delete RM.pick['rl' + (n - 1) + '-item'];
+    F._lines = n - 1; rmRender(false);
+}
+// receipt line maths, used for the preview and for the save
+function rmRcvLine(i) {
+    var F = RM.form, it = F['rl' + i + '-item'];
+    if (!it || typeof it !== 'object') return { empty: true };
+    var q = rmNum(F['rl' + i + '-qty'], 3), r = rmNum(F['rl' + i + '-rate'], 4), gRaw = String(F['rl' + i + '-gst'] == null ? '' : F['rl' + i + '-gst']).trim(), g = gRaw === '' ? 0 : rmNum(gRaw, 2);
+    var uom = F['rl' + i + '-uom'] || it.base_uom_code, out = { it: it, uom: uom, q: q, r: r, g: g, gRaw: gRaw };
+    if (!(q > 0)) out.err = 'Type the quantity (a number above 0, up to 3 decimals).';
+    else if (!(r >= 0)) out.err = 'Type the rate before GST (a number, up to 4 decimals). Use 0 for a free sample.';
+    else if (isNaN(g) || g > 40) out.err = 'GST % must be a number from 0 to 40.';
+    var cb = rmToBase(isFinite(q) ? q : 0, uom, it.base_uom_code, it.conversions);
+    if (!cb.ok) out.err = out.err || cb.message;
+    if (!out.err) {
+        out.value = rmMulMoney(q, r); out.gst = rmMulMoney(out.value, g / 100); out.total = Math.round((out.value * 100 + out.gst * 100)) / 100;   // v119 L1: like the database
+        out.base = cb.base_qty; out.perBase = cb.factor ? r / cb.factor : r;
+    }
+    return out;
+}
+function rmLive() {
+    var F = RM.form;
+    if (RM.view === 'receive') {
+        var tv = 0, tg = 0, ok = 0;
+        for (var i = 0; i < F._lines; i++) {
+            var L = rmRcvLine(i), pv = rmEl('rl' + i + '-pv'); if (!pv || L.empty) continue;
+            if (L.err) { pv.innerHTML = (isFinite(L.q) || isFinite(L.r)) ? '<span style="color:#9A6700">' + esc59(L.err) + '</span>' : ''; continue; }
+            ok++; tv = Math.round(tv * 100 + L.value * 100) / 100; tg = Math.round(tg * 100 + L.gst * 100) / 100;
+            pv.innerHTML = (L.uom !== L.it.base_uom_code ? esc59(rmConvText(L.q, L.uom, L.it.base_uom_code, L.it.conversions)) + '<br>' : '') +
+                'Value ' + rmInr(L.value) + ' + GST ' + rmInr(L.gst) + ' = <b>' + rmInr(L.total) + '</b>' + (L.uom !== L.it.base_uom_code ? ' &middot; ' + rmRate(L.perBase) + '/' + esc59(L.it.base_uom_code) : '');
+        }
+        var tt = rmEl('rc-total');   // (bill total)
+        if (tt) tt.innerHTML = ok ? 'Bill total (' + ok + ' line' + (ok > 1 ? 's' : '') + '): ' + rmInr(Math.round(tv * 100) / 100) + ' + GST ' + rmInr(Math.round(tg * 100) / 100) + ' = <b>' + rmInr(Math.round((tv + tg) * 100) / 100) + '</b>' : '';
+    }
+    if (RM.view === 'vendorEdit') rmGstinPreview();
+    if (RM.view === 'issue' || RM.view === 'loss' || RM.view === 'adjust' || RM.view === 'count') {
+        var it = F['mv-item'], pv2 = rmEl('mv-pv');
+        if (pv2 && it && typeof it === 'object') {
+            var q = rmNum(F['mv-qty'], 3), u = F['mv-uom'] || it.base_uom_code, t = '';
+            if (isFinite(q)) {
+                var cb = rmToBase(q, u, it.base_uom_code, it.conversions);
+                if (!cb.ok) t = esc59(cb.message);
+                else {
+                    var base = cb.base_qty, oh = Number(it.on_hand) || 0, after;
+                    if (u !== it.base_uom_code) t = esc59(rmConvText(q, u, it.base_uom_code, it.conversions)) + '<br>';
+                    if (RM.view === 'count') after = base;
+                    else if (RM.view === 'adjust') after = oh + (F['mv-dir'] === 'MINUS' ? -base : base);
+                    else after = oh - base;
+                    after = Math.round(after * 1000) / 1000;
+                    t += 'On hand now ' + rmQty(oh) + ' &rarr; after <b>' + rmQty(after) + '</b> ' + esc59(it.base_uom_code) + (RM.view === 'count' ? ' (difference ' + (after - oh > 0 ? '+' : '') + rmQty(Math.round((after - oh) * 1000) / 1000) + ')' : '') +
+                        (after < 0 ? ' <span style="color:#B3261E;font-weight:800;">- not enough stock</span>' : '');
+                }
+            }
+            pv2.innerHTML = t;
+        }
+    }
+}
+function rmRcvSave() {
+    if (_rmBusy.rc) return;
+    var F = RM.form, add = F._addTo, lines = [], bad = 0;
+    for (var i = 0; i < F._lines; i++) {
+        var L = rmRcvLine(i), e = rmEl('rl' + i + '-err');
+        if (L.empty) { if (e) e.innerHTML = '<div class="move-result err">Choose the item for this line, or remove the line.</div>'; bad++; continue; }
+        if (L.err) { if (e) e.innerHTML = '<div class="move-result err">' + esc59(L.err) + '</div>'; bad++; continue; }
+        if (e) e.innerHTML = '';
+        var o = { item_id: L.it.item_id, qty: L.q, uom_code: L.uom, rate_ex_gst: L.r, gst_rate: L.gRaw === '' ? undefined : L.g };
+        var b = String(F['rl' + i + '-batch'] || '').trim(); if (b) o.batch_no = b;
+        if (o.gst_rate === undefined) delete o.gst_rate;
+        lines.push(o);
+    }
+    if (bad) { rmSetMsg('rc-msg', '<div class="move-result err">Fix the lines marked above. Nothing was saved.</div>'); return; }
+    var note = String(F['rc-note'] || '').trim() || null, p, desc;
+    if (add) {
+        _rmBusy.rc = 1; rmSetMsg('rc-msg', '<div class="move-result">Checking what is already on bill ' + esc59(add.invoice_no) + '...</div>');
+        var keys = rmRcvFormKeys();
+        p = (add.vendor_id ? rmBillLines(add.vendor_id, add.receipt_id) : Promise.resolve({ ok: false, d: { text: 'vendor not known' } })).then(function (b) {
+            var warn;
+            if (!b.ok) warn = 'The bill could not be read to check for lines already on it. Add ' + lines.length + ' line(s) to bill ' + add.invoice_no + ' anyway?';
+            else {
+                var m = rmMatchBillLines(keys, b.lines), same = [];
+                m.forEach(function (x, i) { if (x) same.push(i + 1); });
+                warn = same.length ? 'Line(s) ' + same.join(', ') + ' look ALREADY on bill ' + add.invoice_no + ' (same item, quantity and value). If an earlier Save went through, adding them again books the stock twice.\n\nAdd all ' + lines.length + ' line(s) anyway?' : 'Add ' + lines.length + ' line(s) to bill ' + add.invoice_no + '?';
+            }
+            if (!confirm(warn)) return { ok: false, error: 'CANCELLED', text: 'Cancelled - nothing was added.' };
+            rmSetMsg('rc-msg', '<div class="move-result">Saving...</div>');
+            return rmCall('rm_receipt_add_lines', { p_receipt_id: Number(add.receipt_id), p_lines: lines, p_note: note, p_source: 'APP' }, { timeout: 30000 });
+        });
+    } else {
+        var v = F['rc-vendor'], inv = String(F['rc-inv'] || '').trim(), dt = String(F['rc-date'] || '').trim(), frt = String(F['rc-frt'] || '').trim();
+        if (!v || typeof v !== 'object') { rmSetMsg('rc-msg', '<div class="move-result err">Choose the vendor.</div>'); return; }
+        if (!inv) { rmSetMsg('rc-msg', '<div class="move-result err">Type the invoice number from the bill.</div>'); return; }
+        if (!/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(dt)) { rmSetMsg('rc-msg', '<div class="move-result err">Choose the invoice date.</div>'); return; }
+        var fr = frt === '' ? 0 : rmNum(frt, 2);
+        if (isNaN(fr) || fr < 0) { rmSetMsg('rc-msg', '<div class="move-result err">Freight must be a number (rupees), or blank.</div>'); return; }
+        desc = 'Save bill ' + inv + ' from ' + v.vendor_code + ' with ' + lines.length + ' line(s)?';
+        if (!confirm(desc)) return;
+        _rmBusy.rc = 1; rmSetMsg('rc-msg', '<div class="move-result">Saving...</div>');
+        p = rmCall('rm_receive', { p_vendor_id: Number(v.vendor_id), p_invoice_no: inv, p_invoice_date: dt, p_lines: lines, p_po_no: String(F['rc-po'] || '').trim() || null, p_freight: fr, p_note: note, p_source: 'APP' }, { timeout: 30000 });
+    }
+    p.then(function (d) {
+        delete _rmBusy.rc;
+        if (!d.ok) {
+            if (d.error === 'BAD_LINES') {
+                (d.lines || []).forEach(function (le) { var e = rmEl('rl' + (Number(le.line) - 1) + '-err'); if (e) e.innerHTML = '<div class="move-result err">' + esc59(le.message || le.error) + '</div>'; });
+            }
+            var extra = '';
+            if (d.error === 'DUPLICATE_INVOICE' && d.receipt_id) {   // v119 H1: compare with the bill first, never re-add blindly
+                RM.form._dup = { receipt_id: d.receipt_id, invoice_no: d.invoice_no, vendor_code: d.vendor_code, vendor_id: Number((RM.form['rc-vendor'] || {}).vendor_id) };
+                rmDupPanel(RM.form._dup);
+                return;
+            }
+            if (d.error === 'RECEIPT_VOIDED') extra = '<button class="settings-btn rm-big" onclick="RM.form._addTo=null;RM.params.receipt=null;rmRender(false)">Enter it as a new bill</button>';
+            rmSetMsg('rc-msg', rmMsgHtml(d) + extra);
+            return;
+        }
+        logEvent('', 'Raw materials received: bill ' + (d.invoice_no || '') + ', ' + (d.line_count || 0) + ' line(s)');
+        RM.sum = null; RM.data.items = null;
+        var keepVendor = !add && RM.form['rc-vendor'];
+        RM.form = { _lines: 1, 'rc-date': rmTodayIst() };
+        if (keepVendor) RM.form['rc-vendor'] = keepVendor;
+        RM.params = {};
+        rmRender(false);
+        rmSetMsg('rc-msg', '<div class="move-result ok">&#10003; Saved' + (d.added_to_existing ? ' (added to the existing bill)' : '') + ': bill ' + esc59(d.invoice_no || '') + ' from ' + esc59(d.vendor_code || '') + ', ' + (d.line_count || 0) + ' line(s), ' + rmInr(d.value_ex_gst) + ' + GST ' + rmInr(d.gst_amount) + ' = <b>' + rmInr(d.total) + '</b>. The form is ready for the next bill.</div>');
+    });
+}
+
+// ---- v119 (H1): what is already on a bill ---------------------------------------------------------------
+// The live (not voided) RECEIPT rows of one bill, read from History. -> Promise { ok, lines, complete, d }
+function rmBillLines(vendorId, receiptId) {
+    var rid = Number(receiptId);
+    return rmReadAll('rm_ledger_list', function (off, page) { return { p_item_id: null, p_vendor_id: Number(vendorId), p_txn_type: 'RECEIPT', p_from_date: null, p_to_date: null, p_limit: page, p_offset: off }; }, 'rows', 1000, 20000).then(function (r) {
+        if (!r.ok) return { ok: false, d: r.d };
+        return { ok: true, complete: !(r.total > r.rows.length), lines: r.rows.filter(function (x) { return Number(x.receipt_id) === rid && !x.is_voided; }) };
+    });
+}
+// Which form lines are already on the bill: same item, same quantity in the base unit, same value before GST.
+// Each bill line can match one form line only. form: [{item_id, qty_base, value}] -> [true|false per form line]
+function rmMatchBillLines(form, bill) {
+    var used = bill.map(function () { return false; });
+    return form.map(function (f) {
+        for (var i = 0; i < bill.length; i++) {
+            var b = bill[i];
+            if (used[i] || Number(b.item_id) !== Number(f.item_id)) continue;
+            if (Math.abs(Number(b.qty_base) - Number(f.qty_base)) > 0.0005) continue;
+            if (Math.abs(Number(b.value_ex_gst) - Number(f.value)) > 0.005) continue;
+            used[i] = true; return true;
+        }
+        return false;
+    });
+}
+function rmRcvFormKeys() {
+    var F = RM.form, out = [];
+    for (var i = 0; i < F._lines; i++) { var L = rmRcvLine(i); out.push(L.empty || L.err ? null : { item_id: L.it.item_id, item_code: L.it.item_code, qty_base: L.base, value: L.value, q: L.q, uom: L.uom }); }
+    return out;
+}
+function rmDupPanel(dup) {
+    var F = RM.form, keys = rmRcvFormKeys();
+    rmSetMsg('rc-msg', '<div class="move-result err">' + esc59(rmErrText({ error: 'DUPLICATE_INVOICE', invoice_no: dup.invoice_no, vendor_code: dup.vendor_code })) + '</div><div class="rm-note">Checking what is already on that bill...</div>');
+    var view = RM.view;
+    rmBillLines(dup.vendor_id, dup.receipt_id).then(function (b) {
+        if (RM.view !== view || RM.form._dup !== dup) return;
+        if (!b.ok) { rmSetMsg('rc-msg', '<div class="move-result err">This bill is already entered, and it could not be read to compare (' + esc59(b.d && b.d.text || 'no answer') + '). Nothing was added. Open the vendor page to check the bill before adding anything.</div>'); return; }
+        var m = rmMatchBillLines(keys.map(function (k) { return k || { item_id: -1 }; }), b.lines);
+        var html = '<div class="move-result err">Bill ' + esc59(dup.invoice_no) + ' from ' + esc59(dup.vendor_code) + ' is already entered. Nothing was saved this time.</div>' +
+            '<div class="rm-card"><b>Already on that bill (' + b.lines.length + ' line' + (b.lines.length === 1 ? '' : 's') + ')</b>' + (b.complete ? '' : '<div class="rm-dim">Only part of this vendor\'s history could be read.</div>') +
+            b.lines.map(function (x) { return '<div class="rm-li">' + esc59(x.item_code) + ' &middot; ' + rmQty(x.qty_base) + ' ' + esc59(x.base_uom_code) + ' &middot; ' + rmInr(x.value_ex_gst) + '</div>'; }).join('') + '</div>';
+        var newCount = 0;
+        keys.forEach(function (k, i) { if (k && !m[i]) newCount++; });
+        if (!newCount) {
+            F._dupDone = 1;
+            html += '<div class="move-result ok">Every line on this screen is already on that bill. The earlier Save went through (its answer was probably lost). Nothing more is needed.</div>' +
+                '<button class="settings-btn rm-big" onclick="rmRcvNext()">Start the next bill</button>';
+            rmSetMsg('rc-msg', html); return;
+        }
+        html += '<div class="rm-card"><b>Lines on this screen</b><div class="rm-dim">Tick only the lines that are NOT on the bill yet.</div>';
+        keys.forEach(function (k, i) {
+            if (!k) return;
+            var id = 'dupk' + i; if (F[id] === undefined) F[id] = !m[i];
+            html += '<label class="rm-chk"><input type="checkbox" id="' + id + '"' + (F[id] ? ' checked' : '') + ' onchange="rmF(this)"> Line ' + (i + 1) + ': ' + esc59(k.item_code) + ' &middot; ' + rmQty(k.qty_base) + ' (base unit) &middot; ' + rmInr(k.value) + (m[i] ? ' <span class="rm-badge grey">already on this bill</span>' : ' <span class="rm-badge green">not on the bill</span>') + '</label>';
+        });
+        html += '</div><button class="settings-btn rm-big" onclick="rmRcvDupAdd()">Add only the ticked lines to bill ' + esc59(dup.invoice_no) + '</button>' +
+            '<button class="settings-btn rm-big" style="background:#888" onclick="rmRcvNext()">Discard this form</button>';
+        rmSetMsg('rc-msg', html);
+    });
+}
+function rmRcvNext() { var v = RM.form['rc-vendor']; RM.form = { _lines: 1, 'rc-date': rmTodayIst() }; if (v) RM.form['rc-vendor'] = v; RM.params = {}; rmRender(false); }
+function rmRcvDupAdd() {
+    var F = RM.form, dup = F._dup; if (!dup) return;
+    var keep = [];
+    for (var i = 0; i < F._lines; i++) if (F['dupk' + i]) keep.push(i);
+    if (!keep.length) { rmSetMsg('rc-msg', '<div class="move-result err">No line is ticked, so nothing will be added.</div>'); return; }
+    var nf = { _lines: keep.length, _addTo: { receipt_id: dup.receipt_id, invoice_no: dup.invoice_no, vendor_code: dup.vendor_code, vendor_id: dup.vendor_id }, 'rc-note': F['rc-note'] }, np = {};
+    keep.forEach(function (oi, ni) {
+        ['item', 'qty', 'uom', 'rate', 'gst', 'batch'].forEach(function (k) { if (F['rl' + oi + '-' + k] !== undefined) nf['rl' + ni + '-' + k] = F['rl' + oi + '-' + k]; });
+    });
+    RM.form = nf; RM.pick = np; RM.params = {};
+    rmRender(false);
+    rmSetMsg('rc-msg', '<div class="move-result">Only the ' + keep.length + ' ticked line(s) are kept. Check them, then tap Save receipt to add them to bill ' + esc59(dup.invoice_no) + '.</div>');
+}
+function rmRcvUseDup() {
+    var x = RM.form._dup; if (!x) return;
+    RM.form._addTo = { receipt_id: x.receipt_id, invoice_no: x.invoice_no, vendor_code: x.vendor_code };
+    rmRender(false);
+    rmSetMsg('rc-msg', '<div class="move-result">The lines are kept. Check them, then tap Save to add them to bill ' + esc59(x.invoice_no) + '.</div>');
+}
+
+// ---- 6/7/8. issue, loss, adjust, count (one form) ------------------------------------------------------
+function rmMoveForm(kind) {
+    var body = rmEl('rm-body'), F = RM.form;
+    if (!F._cq) F._cq = rmUuid();             // one request id per entry: a retry after a dropped connection is never saved twice
+    if (RM.params.item_id) rmPreloadItem('mv-item');
+    var it = F['mv-item'];
+    var intro = { issue: 'Stock taken from the store to production.', loss: 'Stock damaged, wasted or missing. A reason is required.', adjust: 'Correct stock up (found) or down (missing). A reason is required.', count: 'Type what you physically counted. The difference is posted as one adjustment.' }[kind];
+    var html = '<div class="rm-note">' + intro + '</div>' + rmPickerHtml('mv-item', 'item', 'Item (required)');
+    if (it && typeof it === 'object') {
+        if (kind === 'adjust') html += rmLabel('Direction') + rmSelect('mv-dir', [{ v: 'PLUS', t: '+ Found / more than the system shows' }, { v: 'MINUS', t: '- Missing / less than the system shows' }], 'PLUS', ';rmLive()');
+        html += '<div class="rm-2"><div>' + rmLabel(kind === 'count' ? 'Counted quantity' : 'Quantity') + rmInput('mv-qty', kind === 'count' ? 'what is on the shelf' : 'e.g. 5', { num: true }) + '</div><div>' + rmLabel('Unit') + rmUnitSelect('mv-uom', it) + '</div></div>';
+        if (kind === 'loss') html += rmLabel('Reason (required)') + rmSelect('mv-reason', rmReasonOptions('LOSS'), '');
+        if (kind === 'adjust') html += rmLabel('Reason (required)') + rmSelect('mv-reason', rmReasonOptions('ADJUST'), '');
+        if (kind === 'count') html += rmLabel('Reason') + rmSelect('mv-reason', rmReasonOptions('ADJUST').slice(1), 'COUNT_CORRECTION');
+        if (kind === 'issue' || kind === 'loss') html += '<div class="rm-2"><div>' + rmLabel('Work order / job') + rmInput('mv-wo', 'optional', { max: 100 }) + '</div><div>' + rmLabel(kind === 'issue' ? 'For product SKU' : 'Batch / lot') + rmInput(kind === 'issue' ? 'mv-sku' : 'mv-batch', 'optional', { upper: kind === 'issue', max: 60 }) + '</div></div>';
+        html += rmLabel('Note') + rmInput('mv-note', kind === 'adjust' || kind === 'loss' ? 'what happened (recommended)' : 'optional', { max: 1000 }) +
+            '<div class="rm-pv" id="mv-pv"></div>' +
+            '<button class="settings-btn rm-big" style="background:#1B7A3A" onclick="rmMoveSave(\'' + kind + '\')">&#10003; Save</button>';
+    }
+    html += '<div id="mv-msg"></div>';
+    body.innerHTML = html;
+    rmLive();
+}
+function rmView_issue() { rmMoveForm('issue'); }
+function rmView_loss() { rmMoveForm('loss'); }
+function rmView_adjust() { rmMoveForm('adjust'); }
+function rmView_count() { rmMoveForm('count'); }
+function rmMoveSave(kind) {
+    if (_rmBusy.mv) return;
+    var F = RM.form, it = F['mv-item'];
+    if (!it || typeof it !== 'object') { rmSetMsg('mv-msg', '<div class="move-result err">Choose the item.</div>'); return; }
+    var q = rmNum(F['mv-qty'], 3), u = F['mv-uom'] || it.base_uom_code, rs = F['mv-reason'] || '', note = String(F['mv-note'] || '').trim() || null;
+    if (kind === 'count' ? !(q >= 0) : !(q > 0)) { rmSetMsg('mv-msg', '<div class="move-result err">Type the quantity as a number' + (kind === 'count' ? ' (0 or more)' : ' above 0') + ', up to 3 decimals.</div>'); return; }
+    if ((kind === 'loss' || kind === 'adjust') && !rs) { rmSetMsg('mv-msg', '<div class="move-result err">Choose the reason.</div>'); return; }
+    var cb = rmToBase(q, u, it.base_uom_code, it.conversions);
+    if (!cb.ok) { rmSetMsg('mv-msg', '<div class="move-result err">' + esc59(cb.message) + '</div>'); return; }
+    var base = { p_item_id: it.item_id, p_uom_code: u, p_note: note, p_client_queue_id: F._cq, p_source: 'APP' }, fn, word;
+    if (kind === 'issue') { fn = 'rm_issue'; base.p_qty = q; base.p_work_order = String(F['mv-wo'] || '').trim() || null; base.p_sku_code = String(F['mv-sku'] || '').trim().toUpperCase() || null; word = 'Issue ' + rmQty(q) + ' ' + u + ' of ' + it.item_code + ' to production?'; }
+    if (kind === 'loss') { fn = 'rm_record_loss'; base.p_qty = q; base.p_reason_code = rs; base.p_work_order = String(F['mv-wo'] || '').trim() || null; base.p_batch_no = String(F['mv-batch'] || '').trim() || null; word = 'Record a loss of ' + rmQty(q) + ' ' + u + ' of ' + it.item_code + '?'; }
+    if (kind === 'adjust') { fn = 'rm_adjust'; base.p_delta = F['mv-dir'] === 'MINUS' ? -q : q; base.p_reason_code = rs; word = 'Adjust ' + it.item_code + ' by ' + (base.p_delta > 0 ? '+' : '') + rmQty(base.p_delta) + ' ' + u + '?'; }
+    if (kind === 'count') { fn = 'rm_count'; base.p_counted_qty = q; base.p_reason_code = rs || 'COUNT_CORRECTION'; word = 'Set the stock of ' + it.item_code + ' to ' + rmQty(q) + ' ' + u + ' (as counted)?'; }
+    if (!confirm(word)) return;
+    var sig = JSON.stringify([fn, base.p_item_id, base.p_qty, base.p_delta, base.p_counted_qty, u, base.p_reason_code || '']);
+    if (!F._cqSig) F._cqSig = sig;   // v119 L4: what was sent first under this request id
+    _rmBusy.mv = 1; rmSetMsg('mv-msg', '<div class="move-result">Saving...</div>');
+    rmCall(fn, base).then(function (d) {
+        delete _rmBusy.mv;
+        if (!d.ok) {
+            var extra = d.error === 'INSUFFICIENT_STOCK' ? '<button class="settings-btn rm-big" onclick="rmGo(\'receive\',{item_id:' + Number(it.item_id) + '})">Enter the receipt first</button>' : '';
+            if (d.error === 'CQID_CONFLICT') RM.form._cq = rmUuid();
+            rmSetMsg('mv-msg', rmMsgHtml(d) + extra);
+            return;
+        }
+        var msg, bu = esc59(d.base_uom_code || it.base_uom_code || '');
+        if (d.duplicate && F._cqSig && F._cqSig !== sig) {
+            RM.form._cq = rmUuid(); RM.form._cqSig = null;
+            rmSetMsg('mv-msg', '<div class="move-result err">An earlier attempt of this entry was already saved (entry #' + esc59(d.txn_id) + '). Your changed figure was NOT applied. Check History; if a correction is needed, post an adjustment.</div>');
+            RM.sum = null; RM.data.items = null;
+            return;
+        }
+        if (d.duplicate) msg = 'Already saved earlier (entry #' + esc59(d.txn_id) + ') - not saved twice.';
+        else if (kind === 'count') msg = d.no_change ? 'Count matches the system (' + rmQty(d.after) + ' ' + bu + '). Nothing to correct; the count is recorded.' : 'Count saved: ' + rmQty(d.before) + ' &rarr; ' + rmQty(d.after) + ' ' + bu + ' (difference ' + (Number(d.delta) > 0 ? '+' : '') + rmQty(d.delta) + ').';
+        else msg = 'Saved. ' + esc59(it.item_code) + ' now ' + rmQty(d.on_hand_after) + ' ' + bu + '.';
+        logEvent('', 'Raw material ' + kind + ': ' + it.item_code);
+        RM.sum = null; RM.data.items = null;
+        var keep = {};
+        RM.form = keep; RM.params = {};
+        rmRender(false);
+        rmSetMsg('mv-msg', '<div class="move-result ok">&#10003; ' + msg + ' Ready for the next entry.</div>');
+    });
+}
+
+// ---- 4. vendors -------------------------------------------------------------------------------------------
+function rmView_vendors(fetch) {
+    var body = rmEl('rm-body');
+    if (RM.form['rv-act'] === undefined) RM.form['rv-act'] = true;
+    var L = RM.data.vendors || (RM.data.vendors = { rows: [], total: 0 });
+    function draw(errD) {
+        var L = RM.data.vendors || { rows: [], total: 0 };
+        var html = '<div class="rm-search">' + rmInput('rv-q', 'Code, name or GSTIN', { enter: 'rmVendorsReload()' }) + '<button class="settings-btn" onclick="rmVendorsReload()">Search</button></div>' +
+            '<label class="rm-chk"><input type="checkbox" id="rv-act"' + rmChk('rv-act', true) + ' onchange="rmF(this);rmVendorsReload()"> Active only</label>' +
+            '<button class="settings-btn rm-big" style="background:#1B7A3A" onclick="rmGo(\'vendorEdit\',{})">&#10133; Add a vendor</button>';
+        if (errD) html += rmMsgHtml(errD);
+        else if (L.loading && !L.rows.length) html += '<div class="rm-note">Loading...</div>';
+        else {
+            html += rmShowing(L.rows.length, L.total, 'vendor(s)');
+            if (!L.rows.length) html += '<div class="rm-note">No vendor matches.</div>';
+            L.rows.forEach(function (v) {
+                html += '<button class="rm-row" onclick="rmGo(\'vendor\',{vendor_id:' + Number(v.vendor_id) + '})"><div class="rm-row-top"><span class="rm-code">' + esc59(v.vendor_code) + '</span>' + (v.active === false ? '<span class="rm-badge grey">ARCHIVED</span>' : '') + (v.merged_into_vendor_code ? '<span class="rm-badge grey">MERGED &rarr; ' + esc59(v.merged_into_vendor_code) + '</span>' : '') + '</div>' +
+                    '<div class="rm-row-name">' + esc59(v.vendor_name) + '</div><div class="rm-dim">' + [v.gstin ? 'GSTIN ' + esc59(v.gstin) : 'No GSTIN', rmQty(v.items_supplied, 0) + ' item(s)', v.last_invoice_date ? 'last bill ' + esc59(v.last_invoice_date) : ''].filter(Boolean).join(' &middot; ') + '</div></button>';
+            });
+            if (L.rows.length < L.total) html += '<button class="settings-btn rm-big" style="background:#888" onclick="rmVendorsMore()">' + (L.loading ? 'Loading...' : 'Show 50 more (' + rmQty(L.total - L.rows.length, 0) + ' left)') + '</button>';
+            if (L.moreErr) html += rmMsgHtml(L.moreErr);
+        }
+        body.innerHTML = html;
+    }
+    RM.data.vendorsDraw = draw;
+    if (!fetch && L.rows.length) { draw(); return; }
+    rmVendorsReload();
+}
+function rmVendorsArgs(off) { return { p_q: String(RM.form['rv-q'] || '').trim() || null, p_active_only: RM.form['rv-act'] !== false, p_limit: 50, p_offset: off }; }
+function rmVendorsReload() {
+    var L = RM.data.vendors = { rows: [], total: 0, loading: true };
+    if (RM.data.vendorsDraw) RM.data.vendorsDraw();
+    rmLoad('rm_list_vendors', rmVendorsArgs(0), function (d) {
+        L.loading = false;
+        if (!d.ok) { RM.data.vendorsDraw(d); return; }
+        L.rows = d.vendors || []; L.total = Number(d.total) || 0; RM.data.vendorsDraw();
+    });
+}
+function rmVendorsMore() {
+    var L = RM.data.vendors; if (!L || L.loading) return;
+    L.loading = true; L.moreErr = null; RM.data.vendorsDraw();
+    rmLoad('rm_list_vendors', rmVendorsArgs(L.rows.length), function (d) {
+        L.loading = false;
+        if (!d.ok) { L.moreErr = d; RM.data.vendorsDraw(); return; }
+        L.rows = L.rows.concat(d.vendors || []); L.total = Number(d.total) || L.total; RM.data.vendorsDraw();
+    });
+}
+function rmView_vendor(fetch) {
+    var body = rmEl('rm-body'), id = Number(RM.params.vendor_id);
+    function draw() {
+        var D = RM.data.vendor; if (!D) return;
+        var v = D.vendor || {}, man = rmCanManage(), actv = v.active !== false && !v.merged_into_vendor_code;
+        var html = '<div class="rm-card"><div class="rm-row-top"><span class="rm-code">' + esc59(v.vendor_code) + '</span>' + (v.active === false ? '<span class="rm-badge grey">ARCHIVED</span>' : '') + '</div><div class="rm-h">' + esc59(v.vendor_name) + '</div>' +
+            (v.merged_into_vendor_code ? '<div class="move-result err">Merged into ' + esc59(v.merged_into_vendor_code) + '.</div>' : '') +
+            '<div class="rm-kv">' +
+            '<div><span>GSTIN</span><b>' + (v.gstin ? esc59(v.gstin) + copyChipHtml(v.gstin) : '-') + '</b></div><div><span>PAN</span><b>' + esc59(v.pan || '-') + '</b></div>' +
+            '<div><span>State code</span><b>' + esc59(v.state_code || '-') + '</b></div><div><span>Contact (role)</span><b>' + esc59(v.contact_role || '-') + '</b></div>' +
+            '<div><span>Phone</span><b>' + esc59(v.phone || '-') + '</b></div><div><span>Email</span><b>' + esc59(v.email || '-') + '</b></div>' +
+            '<div><span>Payment terms</span><b>' + (v.payment_terms_days != null ? esc59(v.payment_terms_days) + ' days' : '-') + (v.payment_terms_note ? ' ' + esc59(v.payment_terms_note) : '') + '</b></div><div><span>Lead time</span><b>' + (v.lead_time_days != null ? esc59(v.lead_time_days) + ' days' : '-') + '</b></div>' +
+            '</div>' + (v.address ? '<div class="rm-dim">' + esc59(v.address) + '</div>' : '') + (v.notes ? '<div class="rm-dim">Notes: ' + esc59(v.notes) + '</div>' : '') + '</div>' +
+            '<div class="rm-btns">' + (actv ? '<button class="settings-btn rm-sm" onclick="rmGo(\'vendorEdit\',{vendor_id:' + id + '})">&#9998; Edit</button>' : '') +
+            '<button class="settings-btn rm-sm" style="background:#888" onclick="rmGo(\'ledger\',{vendor_id:' + id + ',vendor_code:RM.data.vendor.vendor.vendor_code})">History</button>' +
+            (man && !v.merged_into_vendor_code ? '<button class="settings-btn rm-sm" style="background:#9A6700" onclick="rmAskReason(\'varch\')">' + (v.active === false ? 'Restore&hellip;' : 'Archive&hellip;') + '</button>' : '') +
+            (man && actv ? '<button class="settings-btn rm-sm" style="background:#B3261E" onclick="rmGo(\'merge\',{kind:\'vendor\',from_id:' + id + '})">Merge&hellip;</button>' : '') + '</div>' +
+            (man ? rmReasonBox('varch', (v.active === false ? 'Why restore' : 'Why archive') + ' this vendor? (at least 5 letters)', 'rmVendorActive(' + id + ',' + (v.active === false) + ')', v.active === false ? 'Confirm restore' : 'Confirm archive') : '');
+        html += '<div class="rm-sec">Items supplied</div>';
+        (D.items || []).forEach(function (x) { html += '<button class="rm-row" onclick="rmOpenItem(' + Number(x.item_id) + ')"><b>' + esc59(x.item_code) + '</b> ' + esc59(x.item_name) + (x.preferred ? ' <span class="rm-badge green">PREFERRED</span>' : '') + (x.quoted_rate != null ? '<div class="rm-dim">Quote ' + rmRate(x.quoted_rate) + ' per base unit</div>' : '') + '</button>'; });
+        if (!(D.items || []).length) html += '<div class="rm-dim">None linked.</div>';
+        html += '<div class="rm-sec">Other names</div>' + ((D.aliases || []).length ? D.aliases.map(function (a) { return '<div class="rm-li">' + esc59(a.alias_text) + ' <span class="rm-dim">' + esc59(a.source || '') + '</span></div>'; }).join('') : '<div class="rm-dim">None.</div>');
+        if (actv) html += '<div class="rm-filters">' + rmInput('rva-t', 'Add another name', { max: 200 }) + '<button class="settings-btn rm-sm" onclick="rmVAliasAdd()">Add</button></div><div id="rva-msg"></div>';
+        html += '<div class="rm-sec">Last ' + (D.receipts || []).length + ' bills</div>';
+        (D.receipts || []).forEach(function (r) {
+            var rid = Number(r.receipt_id), live = Number(r.voided_lines) < Number(r.line_count);
+            html += '<div class="rm-led' + (live ? '' : ' voided') + '"><div class="rm-row-top"><b>Bill ' + esc59(r.invoice_no) + '</b><span class="rm-dim">' + esc59(r.invoice_date || '') + '</span>' + (!live ? '<span class="rm-badge grey">VOIDED</span>' : (Number(r.voided_lines) > 0 ? '<span class="rm-badge">' + esc59(r.voided_lines) + ' line(s) voided</span>' : '')) + '</div>' +
+                '<div>' + rmQty(r.line_count, 0) + ' line(s) &middot; ' + rmInr(r.value_ex_gst) + ' before GST &middot; total <b>' + rmInr(r.total) + '</b>' + (Number(r.freight) > 0 ? ' &middot; freight ' + rmInr(r.freight) : '') + '</div><div class="rm-dim">' + (r.po_no ? 'PO ' + esc59(r.po_no) + ' &middot; ' : '') + 'by ' + esc59(r.created_by || '-') + '</div>' +
+                (live && actv ? '<div class="rm-btns"><button class="settings-btn rm-xs" onclick="rmAddToBill(' + rid + ')">Add missing lines</button>' + (man ? '<button class="settings-btn rm-xs" style="background:#B3261E" onclick="rmAskReason(\'rb' + rid + '\')">Void whole bill&hellip;</button>' : '') + '</div>' +
+                    (man ? rmReasonBox('rb' + rid, 'Why void every line of bill ' + (r.invoice_no || '') + '? (at least 5 letters)', 'rmVoidReceipt(' + rid + ',\'rb' + rid + '\')', 'Confirm: void the whole bill') : '') : '') + '</div>';
+        });
+        if (!(D.receipts || []).length) html += '<div class="rm-dim">No bills yet.</div>';
+        body.innerHTML = html;
+        rmReopenBoxes();
+    }
+    if (!fetch && RM.data.vendor && Number(RM.data.vendor.vendor.vendor_id) === id) { draw(); return; }
+    rmLoading();
+    rmLoad('rm_vendor_detail', { p_vendor_id: id }, function (d) {
+        if (!d.ok) { rmLoadErr(d, 'rmRender(true)'); return; }
+        RM.data.vendor = d; draw();
+    });
+}
+function rmAddToBill(rid) {
+    var D = RM.data.vendor, r = null; (D.receipts || []).forEach(function (x) { if (Number(x.receipt_id) === rid) r = x; });
+    if (!r) return;
+    rmGo('receive', { receipt: { receipt_id: rid, invoice_no: r.invoice_no, invoice_date: r.invoice_date, vendor_code: D.vendor.vendor_code, vendor_id: Number(D.vendor.vendor_id) } });
+}
+function rmVendorActive(id, restore) {
+    var rs = rmReasonVal('varch'); if (rs === null || _rmBusy.varch) return;
+    _rmBusy.varch = 1;
+    rmCall('rm_vendor_set_active', { p_vendor_id: id, p_active: !!restore, p_reason: rs }).then(function (d) {
+        delete _rmBusy.varch;
+        if (!d.ok) { rmSetMsg('rm-rsm-varch', rmMsgHtml(d)); return; }
+        RM.form = {}; RM.data.vendors = null; rmRender(true);
+    });
+}
+function rmVAliasAdd() {
+    var t = String(RM.form['rva-t'] || '').trim(); if (!t) return;
+    if (_rmBusy.rva) return; _rmBusy.rva = 1;
+    rmCall('rm_vendor_alias_add', { p_vendor_id: Number(RM.params.vendor_id), p_alias_text: t }).then(function (d) {
+        delete _rmBusy.rva;
+        if (!d.ok) { rmSetMsg('rva-msg', rmMsgHtml(d)); return; }
+        RM.form['rva-t'] = ''; rmRender(true);
+    });
+}
+var RM_VENDOR_FIELDS = ['vendor_name', 'gstin', 'pan', 'contact_role', 'phone', 'email', 'address', 'state_code', 'payment_terms_days', 'payment_terms_note', 'lead_time_days', 'notes'];
+function rmView_vendorEdit(fetch) {
+    var body = rmEl('rm-body'), id = RM.params.vendor_id ? Number(RM.params.vendor_id) : null;
+    function draw() {
+        var html = '<div class="rm-note">' + (id ? 'Edit <strong>' + esc59(RM.form._code) + '</strong>. Only changed boxes are saved. A changed GSTIN keeps the old one as another name.' : 'A new vendor. Contact is a role (e.g. "Sales desk"), never a person\'s name.') + '</div>';
+        if (!id) html += rmLabel('Vendor code (required)') + rmInput('ve-vendor_code', 'e.g. V-SHARMA-CANVAS', { upper: true, max: 40 });
+        html += rmLabel('Name (required)') + rmInput('ve-vendor_name', 'business name', { max: 200 }) +
+            rmLabel('GSTIN') + rmInput('ve-gstin', '15 characters, e.g. 07AAAAA0000A1Z5', { upper: true, max: 15 }) + '<div class="rm-pv" id="ve-gpv"></div>' +
+            '<div class="rm-2"><div>' + rmLabel('PAN') + rmInput('ve-pan', 'taken from the GSTIN', { upper: true, max: 10 }) + '</div><div>' + rmLabel('State code') + rmInput('ve-state_code', 'e.g. 07', { num: true, max: 2 }) + '</div></div>' +
+            rmLabel('Contact role') + rmInput('ve-contact_role', 'e.g. Sales desk', { max: 200 }) +
+            '<div class="rm-2"><div>' + rmLabel('Phone') + rmInput('ve-phone', 'optional', { num: true, max: 20 }) + '</div><div>' + rmLabel('Email') + rmInput('ve-email', 'optional', { max: 200 }) + '</div></div>' +
+            rmLabel('Address') + rmInput('ve-address', 'optional', { max: 1000 }) +
+            '<div class="rm-2"><div>' + rmLabel('Payment terms (days)') + rmInput('ve-payment_terms_days', 'e.g. 30', { num: true }) + '</div><div>' + rmLabel('Lead time (days)') + rmInput('ve-lead_time_days', 'e.g. 7', { num: true }) + '</div></div>' +
+            rmLabel('Payment terms note') + rmInput('ve-payment_terms_note', 'optional', { max: 200 }) +
+            rmLabel('Notes') + rmInput('ve-notes', 'optional', { max: 2000 }) +
+            '<button class="settings-btn rm-big" style="background:#1B7A3A" onclick="rmVendorSave()">&#10003; Save</button><div id="ve-msg"></div>';
+        body.innerHTML = html;
+        rmGstinPreview();
+    }
+    if (!id) { draw(); return; }
+    if (!fetch && RM.form._orig) { draw(); return; }
+    rmLoading();
+    rmLoad('rm_vendor_detail', { p_vendor_id: id }, function (d) {
+        if (!d.ok) { rmLoadErr(d, 'rmRender(true)'); return; }
+        var v = d.vendor || {}; RM.form._orig = {};
+        RM_VENDOR_FIELDS.forEach(function (k) { var x = v[k] == null ? '' : String(v[k]); RM.form._orig[k] = x; if (RM.form['ve-' + k] === undefined) RM.form['ve-' + k] = x; });
+        RM.form._upd = v.updated_at; RM.form._code = v.vendor_code;
+        draw();
+    });
+}
+function rmGstinPreview() {
+    var el = rmEl('ve-gpv'); if (!el) return;
+    var g = rmGstin(RM.form['ve-gstin']);
+    if (g.empty) { el.innerHTML = ''; return; }
+    if (!g.ok) { el.innerHTML = '<span style="color:#B3261E">' + esc59(g.message) + '</span>'; return; }
+    el.innerHTML = 'State ' + esc59(g.state) + ' &middot; PAN ' + esc59(g.pan) + (g.checksum_ok ? ' &middot; <span style="color:#1B7A3A">check character OK</span>' : ' &middot; <span style="color:#9A6700;font-weight:700;">the last character does not match the GSTIN check - please re-check each character</span>');
+}
+function rmVendorSave() {
+    if (_rmBusy.ve) return;
+    var id = RM.params.vendor_id ? Number(RM.params.vendor_id) : null, f = {};
+    RM_VENDOR_FIELDS.forEach(function (k) { f[k] = String(RM.form['ve-' + k] == null ? '' : RM.form['ve-' + k]).trim(); });
+    f.gstin = f.gstin.toUpperCase().replace(/\s+/g, ''); f.pan = f.pan.toUpperCase();
+    if (!f.vendor_name) { rmSetMsg('ve-msg', '<div class="move-result err">Type the vendor name.</div>'); return; }
+    var g = rmGstin(f.gstin);
+    if (!g.ok) { rmSetMsg('ve-msg', '<div class="move-result err">' + esc59(g.message) + '</div>'); return; }
+    if (g.ok && !g.empty && !g.checksum_ok && !confirm('The GSTIN check character does not match. A typing mistake is likely. Save anyway?')) return;
+    if (f.pan && !/^[A-Z]{5}[0-9]{4}[A-Z]$/.test(f.pan)) { rmSetMsg('ve-msg', '<div class="move-result err">A PAN is 5 letters, 4 digits and 1 letter.</div>'); return; }
+    if (f.email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(f.email)) { rmSetMsg('ve-msg', '<div class="move-result err">The email does not look right.</div>'); return; }
+    var bad = null;
+    [['payment_terms_days', 'Payment terms'], ['lead_time_days', 'Lead time']].forEach(function (x) { if (f[x[0]] !== '' && isNaN(rmNum(f[x[0]], 0))) bad = x[1] + ' must be whole days.'; });
+    if (bad) { rmSetMsg('ve-msg', '<div class="move-result err">' + esc59(bad) + '</div>'); return; }
+    var nn = function (v) { return v === '' ? null : v; }, p;
+    if (!id) {
+        var code = String(RM.form['ve-vendor_code'] || '').trim().toUpperCase();
+        if (!/^[A-Z0-9_.\-]{1,40}$/.test(code)) { rmSetMsg('ve-msg', '<div class="move-result err">The vendor code may use letters, digits and - _ . only (up to 40).</div>'); return; }
+        _rmBusy.ve = 1;
+        p = rmCall('rm_vendor_create', { p_vendor_code: code, p_vendor_name: f.vendor_name, p_gstin: nn(f.gstin), p_pan: nn(f.pan), p_contact_role: nn(f.contact_role), p_phone: nn(f.phone), p_email: nn(f.email),
+            p_address: nn(f.address), p_state_code: nn(f.state_code), p_payment_terms_days: f.payment_terms_days === '' ? null : Number(f.payment_terms_days), p_payment_terms_note: nn(f.payment_terms_note),
+            p_lead_time_days: f.lead_time_days === '' ? null : Number(f.lead_time_days), p_notes: nn(f.notes), p_source: 'APP' });
+    } else {
+        var ch = {}, n = 0, o = RM.form._orig || {};
+        RM_VENDOR_FIELDS.forEach(function (k) {
+            if (f[k] === String(o[k] || '').trim()) return;
+            if ((k === 'payment_terms_days' || k === 'lead_time_days')) { if (f[k] !== '' && o[k] !== '' && Number(f[k]) === Number(o[k])) return; ch[k] = f[k] === '' ? null : Number(f[k]); }
+            else ch[k] = f[k] === '' ? null : f[k];
+            n++;
+        });
+        if (!n) { rmSetMsg('ve-msg', '<div class="move-result">Nothing was changed.</div>'); return; }
+        _rmBusy.ve = 1;
+        p = rmCall('rm_vendor_update', { p_vendor_id: id, p_changes: ch, p_expected_updated_at: RM.form._upd || null, p_source: 'APP' });
+    }
+    p.then(function (d) {
+        delete _rmBusy.ve;
+        if (!d.ok) {
+            var extra = d.error === 'GSTIN_EXISTS' && d.vendor_code ? '<div class="rm-dim">That GSTIN belongs to vendor ' + esc59(d.vendor_code) + '.</div>' : '';
+            rmSetMsg('ve-msg', rmMsgHtml(d) + extra);
+            if (d.error === 'STALE' && id) rmCall('rm_vendor_detail', { p_vendor_id: id }, { read: true }).then(function (x) { if (x.ok) { RM.form._upd = x.vendor.updated_at; RM.form._orig = {}; RM_VENDOR_FIELDS.forEach(function (k) { RM.form._orig[k] = x.vendor[k] == null ? '' : String(x.vendor[k]); }); } });
+            return;
+        }
+        logEvent('', 'Raw material vendor ' + (d.vendor_code || '') + (id ? ' updated' : ' created'));
+        RM.data.vendors = null; RM.sum = null;
+        RM.stack.pop(); RM.view = 'vendor'; RM.params = { vendor_id: Number(d.vendor_id) }; RM.form = {}; RM.data.vendor = null;
+        rmRender(true);
+    });
+}
+
+// ---- item <-> vendor link -----------------------------------------------------------------------------
+function rmView_linkVendor(fetch) {
+    var body = rmEl('rm-body'), P = RM.params, F = RM.form;
+    function draw() {
+        var D = RM.data.item, it = (D && D.item) || {}, u = esc59(it.base_uom_code || '');
+        var html = '<div class="rm-note">Item <b>' + esc59(it.item_code) + '</b> ' + esc59(it.item_name) + '. Quoted rate is per <b>' + u + '</b>, before GST.</div>';
+        if (P.vendor_id) { var cur = null; ((D && D.vendors) || []).forEach(function (v) { if (Number(v.vendor_id) === Number(P.vendor_id)) cur = v; }); if (cur && !F._init) { F._init = 1; F['lv-v'] = cur; F['lv-pref'] = !!cur.preferred; F['lv-rate'] = cur.quoted_rate == null ? '' : String(cur.quoted_rate); F['lv-lead'] = cur.lead_time_days == null ? '' : String(cur.lead_time_days); F['lv-moq'] = cur.min_order_qty == null ? '' : String(cur.min_order_qty); } }
+        html += rmPickerHtml('lv-v', 'vendor', 'Vendor') +
+            '<label class="rm-chk"><input type="checkbox" id="lv-pref"' + rmChk('lv-pref') + ' onchange="rmF(this)"> Preferred vendor for this item</label>' +
+            '<div class="rm-2"><div>' + rmLabel('Quoted rate per ' + u + ' (&#8377;)') + rmInput('lv-rate', 'blank = keep', { num: true }) + '</div><div>' + rmLabel('Lead time (days)') + rmInput('lv-lead', 'blank = keep', { num: true }) + '</div></div>' +
+            rmLabel('Minimum order qty (' + u + ')') + rmInput('lv-moq', 'blank = keep', { num: true }) +
+            '<button class="settings-btn rm-big" style="background:#1B7A3A" onclick="rmLinkSave(false)">&#10003; Save link</button>' +
+            (P.vendor_id ? '<button class="settings-btn rm-big" style="background:#888" onclick="rmLinkSave(true)">Remove this link</button>' : '') + '<div id="lv-msg"></div>';
+        body.innerHTML = html;
+    }
+    if (RM.data.item && Number(RM.data.item.item.item_id) === Number(P.item_id)) { draw(); return; }
+    rmLoading();
+    rmLoad('rm_item_detail', { p_item_id: Number(P.item_id) }, function (d) { if (!d.ok) { rmLoadErr(d, 'rmRender(true)'); return; } RM.data.item = d; draw(); });
+}
+function rmLinkSave(remove) {
+    var F = RM.form, v = F['lv-v'];
+    if (!v || typeof v !== 'object') { rmSetMsg('lv-msg', '<div class="move-result err">Choose the vendor.</div>'); return; }
+    var r = String(F['lv-rate'] || '').trim(), l = String(F['lv-lead'] || '').trim(), m = String(F['lv-moq'] || '').trim();
+    var rn = r === '' ? null : rmNum(r, 4), ln = l === '' ? null : rmNum(l, 0), mn = m === '' ? null : rmNum(m, 3);
+    if ((rn !== null && isNaN(rn)) || (ln !== null && isNaN(ln)) || (mn !== null && isNaN(mn))) { rmSetMsg('lv-msg', '<div class="move-result err">Rate, lead time and minimum order must be numbers (or blank).</div>'); return; }
+    if (_rmBusy.lv) return;
+    if (remove && !confirm('Remove the link between this item and ' + v.vendor_code + '?')) return;
+    _rmBusy.lv = 1;
+    rmCall('rm_item_vendor_set', { p_item_id: Number(RM.params.item_id), p_vendor_id: Number(v.vendor_id), p_preferred: !!F['lv-pref'], p_quoted_rate: rn, p_lead_time_days: ln, p_min_order_qty: mn, p_remove: !!remove }).then(function (d) {
+        delete _rmBusy.lv;
+        if (!d.ok) { rmSetMsg('lv-msg', rmMsgHtml(d)); return; }
+        RM.data.item = null; rmBack();
+    });
+}
+
+// ---- merge (items or vendors) ---------------------------------------------------------------------------
+function rmView_merge(fetch) {
+    var body = rmEl('rm-body'), P = RM.params, F = RM.form, isItem = P.kind === 'item';
+    var src = isItem ? (RM.data.item && RM.data.item.item) : (RM.data.vendor && RM.data.vendor.vendor);
+    if (!src) { rmBack(); return; }
+    var html = '<div class="rm-card"><b>Merge ' + esc59(isItem ? src.item_code : src.vendor_code) + '</b> ' + esc59(isItem ? src.item_name : src.vendor_name) + ' into another ' + (isItem ? 'item' : 'vendor') + '.<div class="rm-dim">' +
+        (isItem ? 'Every entry, other name, quote, unit and vendor link moves to the target. This item stays as an archived pointer, and searches for its name land on the target. Both must use the same base unit.' : 'Every bill, entry, item link and quote moves to the target. The old name, code and GSTIN become other names of the target.') +
+        ' There is no undo in the app.</div></div>' +
+        rmPickerHtml('mg-to', isItem ? 'item' : 'vendor', 'Merge into (the one to keep)') +
+        rmLabel('Reason (required)') + rmInput('mg-reason', 'e.g. same canvas entered twice', { max: 500 }) +
+        (!isItem && F._needSame ? '<label class="rm-chk"><input type="checkbox" id="mg-same"' + rmChk('mg-same') + ' onchange="rmF(this)"> They are the same business (different GSTINs)</label>' : '') +
+        '<button class="settings-btn rm-big" style="background:#B3261E" onclick="rmMergeGo()">Merge</button><div id="mg-msg"></div>';
+    body.innerHTML = html;
+}
+function rmMergeGo() {
+    if (_rmBusy.mg) return;
+    var P = RM.params, F = RM.form, isItem = P.kind === 'item', to = F['mg-to'], rs = String(F['mg-reason'] || '').trim();
+    if (!to || typeof to !== 'object') { rmSetMsg('mg-msg', '<div class="move-result err">Choose the ' + (isItem ? 'item' : 'vendor') + ' to keep.</div>'); return; }
+    var toId = Number(isItem ? to.item_id : to.vendor_id);
+    if (toId === Number(P.from_id)) { rmSetMsg('mg-msg', '<div class="move-result err">Choose a different ' + (isItem ? 'item' : 'vendor') + '.</div>'); return; }
+    if (rs.length < 5) { rmSetMsg('mg-msg', '<div class="move-result err">Type a reason (at least 5 letters).</div>'); return; }
+    if (!confirm('Merge into ' + (isItem ? to.item_code : to.vendor_code) + '? This cannot be undone in the app.')) return;
+    _rmBusy.mg = 1;
+    var p = isItem ? rmCall('rm_item_merge', { p_from_item_id: Number(P.from_id), p_to_item_id: toId, p_reason: rs }, { timeout: 30000 })
+        : rmCall('rm_vendor_merge', { p_from_vendor_id: Number(P.from_id), p_to_vendor_id: toId, p_reason: rs, p_same_legal_entity: !!F['mg-same'] }, { timeout: 30000 });
+    p.then(function (d) {
+        delete _rmBusy.mg;
+        if (!d.ok) { if (d.error === 'GSTIN_DIFFERENT') { F._needSame = 1; rmRender(false); } rmSetMsg('mg-msg', rmMsgHtml(d)); return; }
+        logEvent('', 'Raw material ' + (isItem ? 'item ' + d.from_item_code + ' merged into ' + d.to_item_code : 'vendor ' + d.from_vendor_code + ' merged into ' + d.to_vendor_code));
+        alert('Merged. ' + rmQty(d.ledger_rows_moved, 0) + ' entries moved.');
+        RM.data = {}; RM.sum = null;
+        RM.stack = [{ view: 'home', params: {} }];
+        RM.view = isItem ? 'item' : 'vendor'; RM.params = isItem ? { item_id: toId } : { vendor_id: toId }; RM.form = {};
+        rmRender(true);
+    });
+}
+
+// ---- 9. history (ledger) -----------------------------------------------------------------------------------
+var RM_TXN_TYPES = ['OPENING', 'RECEIPT', 'ISSUE', 'LOSS', 'ADJUST', 'RETURN_TO_VENDOR', 'VOID_REVERSAL'];
+function rmView_ledger(fetch) {
+    var body = rmEl('rm-body'), P = RM.params, F = RM.form;
+    if (F._init === undefined) { F._init = 1; F['lg-type'] = ''; F['lg-from'] = ''; F['lg-to'] = ''; }
+    var L = RM.data.ledger || (RM.data.ledger = { rows: [], total: 0 });
+    function draw(errD) {
+        var L = RM.data.ledger || { rows: [], total: 0 };
+        var html = (P.item_id ? '<div class="rm-note">Item <b>' + esc59(P.item_code || P.item_id) + '</b> only.</div>' : '') + (P.vendor_id ? '<div class="rm-note">Vendor <b>' + esc59(P.vendor_code || P.vendor_id) + '</b> only.</div>' : '') +
+            '<div class="rm-filters">' + rmSelect('lg-type', [{ v: '', t: 'All entry types' }].concat(RM_TXN_TYPES.map(function (t) { return { v: t, t: t.replace(/_/g, ' ').toLowerCase() }; })), '') +
+            '<input type="date" class="settings-input rm-in" id="lg-from" value="' + rmV('lg-from') + '" onchange="rmF(this)" title="From (India date)">' +
+            '<input type="date" class="settings-input rm-in" id="lg-to" value="' + rmV('lg-to') + '" onchange="rmF(this)" title="To (India date)">' +
+            '<button class="settings-btn rm-sm" onclick="rmLedgerReload()">Show</button><button class="settings-btn rm-sm" style="background:#1B3F6B" onclick="rmExportLedger()">&#11015; CSV</button></div><div id="lg-xmsg"></div>';
+        if (errD) html += rmMsgHtml(errD);
+        else if (L.loading && !L.rows.length) html += '<div class="rm-note">Loading...</div>';
+        else {
+            html += rmShowing(L.rows.length, L.total, 'entr(ies), newest first');
+            if (!L.rows.length) html += '<div class="rm-note">No entries for these filters.</div>';
+            L.rows.forEach(function (r) { html += rmLedgerRowHtml(r); });
+            if (L.rows.length < L.total) html += '<button class="settings-btn rm-big" style="background:#888" onclick="rmLedgerMore()">' + (L.loading ? 'Loading...' : 'Show 100 more (' + rmQty(L.total - L.rows.length, 0) + ' left)') + '</button>';
+            if (L.moreErr) html += rmMsgHtml(L.moreErr);
+        }
+        body.innerHTML = html;
+        rmReopenBoxes();
+    }
+    RM.data.ledgerDraw = draw;
+    if (!fetch && L.rows.length) { draw(); return; }
+    rmLedgerReload();
+}
+function rmLedgerArgs(off, lim) {
+    var P = RM.params, F = RM.form;
+    return { p_item_id: P.item_id ? Number(P.item_id) : null, p_vendor_id: P.vendor_id ? Number(P.vendor_id) : null, p_txn_type: F['lg-type'] || null, p_from_date: F['lg-from'] || null, p_to_date: F['lg-to'] || null, p_limit: lim || 100, p_offset: off };
+}
+function rmLedgerReload() {
+    var F = RM.form;
+    if (F['lg-from'] && F['lg-to'] && F['lg-from'] > F['lg-to']) { RM.data.ledgerDraw({ ok: false, text: 'The "from" date is after the "to" date.' }); return; }
+    var L = RM.data.ledger = { rows: [], total: 0, loading: true };
+    if (RM.data.ledgerDraw) RM.data.ledgerDraw();
+    rmLoad('rm_ledger_list', rmLedgerArgs(0), function (d) {
+        L.loading = false;
+        if (!d.ok) { RM.data.ledgerDraw(d); return; }
+        L.rows = d.rows || []; L.total = Number(d.total) || 0; RM.data.ledgerDraw();
+    });
+}
+function rmLedgerMore() {
+    var L = RM.data.ledger; if (!L || L.loading) return;
+    L.loading = true; L.moreErr = null; RM.data.ledgerDraw();
+    rmLoad('rm_ledger_list', rmLedgerArgs(L.rows.length), function (d) {
+        L.loading = false;
+        if (!d.ok) { L.moreErr = d; RM.data.ledgerDraw(); return; }
+        L.rows = L.rows.concat(d.rows || []); L.total = Number(d.total) || L.total; RM.data.ledgerDraw();
+    });
+}
+
+// ---- exports ----------------------------------------------------------------------------------------------
+function rmSaveBlob(blob, name) {
+    var u = URL.createObjectURL(blob), a = document.createElement('a');
+    a.href = u; a.download = name; document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    setTimeout(function () { URL.revokeObjectURL(u); }, 1500);
+}
+function rmStamp() { return rmTodayIst().replace(/-/g, ''); }
+// read every page of a list, sequentially. cap = most rows to read. -> Promise { ok, rows, total, d }
+function rmReadAll(fn, argsFn, key, page, cap, onProgress) {
+    var rows = [], total = null;
+    function step() {
+        return rmCall(fn, argsFn(rows.length, page), { read: true, timeout: 30000 }).then(function (d) {
+            if (!d.ok) return { ok: false, d: d, rows: rows };
+            total = Number(d.total) || 0;
+            rows = rows.concat(d[key] || []);
+            if (onProgress) onProgress(rows.length, total);
+            if (rows.length < total && rows.length < cap && (d[key] || []).length) return step();
+            return { ok: true, rows: rows.slice(0, cap), total: total };
+        });
+    }
+    return step();
+}
+var RM_LEDGER_COLS = ['txn_id', 'created_at_ist', 'txn_type', 'item_code', 'item_name', 'base_uom_code', 'qty_base', 'entered_qty', 'entered_uom_code', 'to_base', 'rate_ex_gst', 'value_ex_gst', 'gst_rate', 'gst_amount', 'line_total', 'vendor_code', 'vendor_name', 'invoice_no', 'invoice_date', 'receipt_id', 'batch_no', 'reason_code', 'reason_label', 'work_order_ref', 'sku_code', 'reverses_txn_id', 'is_voided', 'voided_by_txn_id', 'void_reason', 'note', 'employee_code', 'entry_source', 'location_code'];
+function rmExportLedger(msgId) {
+    msgId = msgId || 'lg-xmsg';
+    if (_rmBusy.xl) return; _rmBusy.xl = 1;
+    rmSetMsg(msgId, '<div class="move-result">Reading history...</div>');
+    var cap = 20000, filt = rmLedgerArgs(0, 1000);
+    rmReadAll('rm_ledger_list', function (off, page) { var a = {}; for (var k in filt) a[k] = filt[k]; a.p_offset = off; a.p_limit = page; return a; }, 'rows', 1000, cap, function (n, t) { rmSetMsg(msgId, '<div class="move-result">Reading history... ' + rmQty(n, 0) + ' of ' + rmQty(t, 0) + '</div>'); }).then(function (r) {
+        delete _rmBusy.xl;
+        if (!r.ok) { rmSetMsg(msgId, rmMsgHtml(r.d)); return; }
+        var rows = r.rows.map(function (x) { return RM_LEDGER_COLS.map(function (c) { return x[c] == null ? '' : x[c]; }); });
+        rmSaveBlob(new Blob([rmCsv(RM_LEDGER_COLS.concat(['rate_basis']), rows.map(function (x) { return x.concat(['per base unit, before GST']); }))], { type: 'text/csv' }), 'ArtzFolio_RM_History_' + rmStamp() + '.csv');
+        rmSetMsg(msgId, '<div class="move-result ok">Saved ' + rmQty(rows.length, 0) + ' entr(ies)' + (r.total > rows.length ? ' - the first ' + rmQty(rows.length, 0) + ' of ' + rmQty(r.total, 0) + ' (newest first). Narrow the dates to export the rest.' : '.') + '</div>');
+    });
+}
+var RM_ITEM_COLS = ['item_code', 'item_name', 'category_code', 'base_uom_code', 'spec', 'active', 'merged_into_item_code', 'on_hand', 'wac_rate', 'stock_value', 'reorder_level', 'reorder_qty', 'below_reorder', 'suggested_order_qty', 'used_30d', 'avg_daily_use', 'days_of_cover', 'lead_time_days', 'last_rate', 'last_received_at'];
+function rmExportItems(msgId) {
+    if (_rmBusy.xi) return; _rmBusy.xi = 1;
+    rmSetMsg(msgId, '<div class="move-result">Reading items...</div>');
+    rmReadAll('rm_list_items', function (off, page) { return { p_q: null, p_category: null, p_active_only: false, p_low_only: false, p_limit: page, p_offset: off }; }, 'items', 500, 50000, function (n, t) { rmSetMsg(msgId, '<div class="move-result">Reading items... ' + rmQty(n, 0) + ' of ' + rmQty(t, 0) + '</div>'); }).then(function (r) {
+        delete _rmBusy.xi;
+        if (!r.ok) { rmSetMsg(msgId, rmMsgHtml(r.d)); return; }
+        var rows = r.rows.map(function (x) { return RM_ITEM_COLS.map(function (c) { return x[c] == null ? '' : x[c]; }).concat([x.preferred_vendor ? x.preferred_vendor.vendor_code : '']); });
+        rmSaveBlob(new Blob([rmCsv(RM_ITEM_COLS.concat(['preferred_vendor_code']), rows)], { type: 'text/csv' }), 'ArtzFolio_RM_Items_' + rmStamp() + '.csv');
+        rmSetMsg(msgId, '<div class="move-result ok">Saved ' + rmQty(rows.length, 0) + ' item(s)' + (r.total > rows.length ? ' of ' + rmQty(r.total, 0) : '') + '. Value = on hand x weighted average rate, before GST; blank value with stock = rate missing.</div>');
+    });
+}
+function rmView_exportv() {
+    rmEl('rm-body').innerHTML = '<div class="rm-note">Files open in Excel. Rates and values are before GST, at the weighted average purchase rate.</div>' +
+        '<button class="settings-btn rm-big" onclick="rmExportItems(\'ex-msg\')">&#11015; All items with stock and value (CSV)</button>' +
+        '<button class="settings-btn rm-big" onclick="rmGo(\'ledger\',{})">&#11015; History (choose dates, then CSV)</button><div id="ex-msg"></div>';
+}
+
+// ---- 10. bulk load ----------------------------------------------------------------------------------------
+function rmTemplateSheets() {
+    var out = [];
+    ['items', 'vendors', 'opening'].forEach(function (k) {
+        var K = RM_BULK[k];
+        out.push({ name: K.sheet, header: true, widths: K.cols.map(function (c) { return Math.max(14, c.length + 4); }), rows: [K.cols, K.help.map(function (h, i) { return (i === 0 ? '# ' : '') + h; })] });
+    });
+    var cats = ((RM.lk && RM.lk.categories) || []).map(function (c) { return c.category_code; }).join(', ');
+    var uoms = ((RM.lk && RM.lk.uoms) || []).map(function (u) { return u.uom_code; }).join(', ');
+    out.push({ name: 'ReadMe', widths: [110], rows: [['ArtzFolio raw materials - bulk load template'], ['Fill one sheet at a time (Items, Vendors or OpeningBalance). Row 1 holds the column names: do not change them.'],
+        ['Row 2 (starting with #) explains each column and is skipped. Type your data from row 3. A row starting with # is always skipped.'],
+        ['A blank cell means "leave as it is" for an existing item or vendor. It never clears a value.'],
+        ['In the app: RAW > Bulk load > choose the type > choose this file > Preview. Nothing is saved until you press Save after the preview.'],
+        ['If any row has an error, nothing is saved. Fix the rows shown and upload again.'],
+        ['Opening balance: rate is in rupees per the unit typed, before GST. An item with an opening already needs mode ADD to add more.'],
+        ['Categories: ' + (cats || 'see the app')], ['Units: ' + (uoms || 'see the app')], ['Contact is a role (e.g. Sales desk), never a person\'s name.']] });
+    return out;
+}
+function rmDownloadTemplate(kind) {
+    try {
+        if (kind === 'xlsx') { rmSaveBlob(new Blob([rmXlsxBuild(rmTemplateSheets())], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }), 'ArtzFolio_RM_Bulk_Template_v1.0.xlsx'); return; }
+        var K = RM_BULK[kind]; if (!K) return;
+        var txt = '﻿# ArtzFolio raw materials - ' + K.label + '. Lines starting with # are skipped. A blank cell means leave as it is.\r\n' +
+            '# ' + K.cols.map(function (c, i) { return c + ': ' + K.help[i]; }).join(' | ').replace(/[\r\n]/g, ' ') + '\r\n' + K.cols.join(',') + '\r\n';
+        rmSaveBlob(new Blob([txt], { type: 'text/csv' }), 'ArtzFolio_RM_' + K.sheet + '_Template.csv');
+    } catch (e) { rmSetMsg('bk-msg', '<div class="move-result err">The template could not be made on this phone.</div>'); }
+}
+function rmView_bulk() {
+    var F = RM.form, B = RM.data.bulk || (RM.data.bulk = {});
+    if (!F['bk-kind']) F['bk-kind'] = 'items';
+    var K = RM_BULK[F['bk-kind']];
+    var html = '<div class="rm-note">Load many items, vendors or opening stock at once from Excel (.xlsx) or CSV. You always see a <b>preview first</b>; nothing is saved until you press Save, and if any row has an error nothing is saved at all.</div>' +
+        '<div class="rm-btns"><button class="settings-btn rm-sm" onclick="rmDownloadTemplate(\'xlsx\')">&#11015; Excel template (all three sheets)</button><button class="settings-btn rm-sm" style="background:#888" onclick="rmDownloadTemplate(RM.form[\'bk-kind\'])">&#11015; CSV template for ' + esc59(K.label) + '</button></div>' +
+        rmLabel('What are you loading?') + rmSelect('bk-kind', [{ v: 'items', t: 'Items (sheet Items)' }, { v: 'vendors', t: 'Vendors (sheet Vendors)' }, { v: 'opening', t: 'Opening balance (sheet OpeningBalance)' }], 'items', ';RM.data.bulk={};rmRender(false)') +
+        rmLabel('File (.xlsx or .csv)') + '<input type="file" id="bk-file" accept=".xlsx,.csv,.txt,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" class="settings-input rm-in" onchange="rmBulkFile(this)">';
+    if (B.fileName) html += '<div class="rm-note">File <b>' + esc59(B.fileName) + '</b>' + (B.sheet ? ', sheet ' + esc59(B.sheet) : '') + ': <b>' + rmQty((B.rows || []).length, 0) + '</b> row(s) read' + (B.headerRow ? ' (column names on row ' + B.headerRow + ')' : '') + '.</div>';
+    if (B.parseErr) html += '<div class="move-result err">' + B.parseErr.map(esc59).join('<br>') + '</div>';
+    if (B.rows && B.rows.length && !B.parseErr) {
+        html += '<div class="rm-btns"><button class="settings-btn rm-sm" onclick="rmBulkSend(true)">&#128065; Preview (nothing is saved)</button>' +
+            '<button class="settings-btn rm-sm" style="background:#1B7A3A" onclick="rmBulkSend(false)"' + (B.previewOk && B.fp === rmBulkFp() ? '' : ' disabled') + '>&#10003; Save these ' + rmQty(B.rows.length, 0) + ' row(s)</button></div>';
+    }
+    html += '<div id="bk-msg"></div><div id="bk-res"></div>';
+    rmEl('rm-body').innerHTML = html;
+    if (B.res) rmBulkShow(B.res, B.resDry);
+}
+function rmBulkFp() { var B = RM.data.bulk || {}; return (RM.form['bk-kind'] || '') + '|' + JSON.stringify(B.rows || []); }
+function rmBulkFile(input) {
+    var f = input && input.files && input.files[0]; if (!f) return;
+    var kind = RM.form['bk-kind'] || 'items', K = RM_BULK[kind];
+    var B = RM.data.bulk = { fileName: f.name };
+    rmSetMsg('bk-msg', '<div class="move-result">Reading the file...</div>');
+    var isX = /\.xlsx$/i.test(f.name);
+    var p = isX ? f.arrayBuffer().then(function (ab) {
+        if (typeof DecompressionStream === 'undefined') return { ok: false, message: 'This phone cannot read Excel files. Save the sheet as CSV and upload that.' };
+        return rmXlsxReadSheet(new Uint8Array(ab), [K.sheet, K.label]);
+    }) : f.text().then(function (t) { return { ok: true, matrix: rmParseCsv(t) }; });
+    p.then(function (r) {
+        if (RM.data.bulk !== B) return;
+        if (!r.ok) { B.parseErr = [r.message]; rmRender(false); return; }
+        B.sheet = r.sheet || '';
+        var s = rmSheetToRows(kind, r.matrix);
+        B.headerRow = s.header_row; B.rows = s.rows;
+        if (!s.ok) B.parseErr = s.errors;
+        else if (!s.rows.length) B.parseErr = ['The file has column names but no rows filled in.'];
+        else if (s.rows.length > 5000) B.parseErr = ['At most 5,000 rows in one upload. This file has ' + rmQty(s.rows.length, 0) + '. Split it into smaller files.'];
+        else if (JSON.stringify(s.rows).length > 4500000) B.parseErr = ['The file is too large (over 5 MB of data). Split it into smaller files.'];
+        rmRender(false);
+    }).catch(function () { if (RM.data.bulk === B) { B.parseErr = ['This file could not be read.']; rmRender(false); } });
+    input.value = '';
+}
+function rmBulkSend(dry) {
+    var B = RM.data.bulk, kind = RM.form['bk-kind'], K = RM_BULK[kind];
+    if (!B || !B.rows || !B.rows.length || _rmBusy.bk) return;
+    if (!dry) {
+        if (!B.previewOk || B.fp !== rmBulkFp()) { rmSetMsg('bk-msg', '<div class="move-result err">Press Preview again - the file or type changed after the preview.</div>'); return; }
+        if (!confirm('Save ' + B.rows.length + ' row(s) of ' + K.label + ' to the database?\nThis is recorded in the Audit Log.')) return;
+    }
+    _rmBusy.bk = 1;
+    rmSetMsg('bk-msg', '<div class="move-result">' + (dry ? 'Checking every row (nothing is saved)...' : 'Saving...') + '</div>');
+    var sent = B.rows, fp = rmBulkFp();
+    rmCall(K.fn, { p_rows: sent, p_dry_run: !!dry, p_source: 'APP' }, { timeout: 120000, read: false }).then(function (d) {
+        delete _rmBusy.bk;
+        if (RM.data.bulk !== B) return;
+        if (!d.rows && !d.totals) { B.previewOk = false; rmSetMsg('bk-msg', rmMsgHtml(d)); return; }   // refused before the rows were looked at
+        B.res = d; B.resDry = !!dry; B.sent = sent;
+        if (dry) { B.previewOk = !!d.ok && !d.written; B.fp = fp; }
+        else { B.previewOk = false; if (d.ok && d.written) { logEvent('', 'Raw materials bulk ' + kind + ': ' + sent.length + ' row(s) saved'); RM.sum = null; RM.data.items = null; RM.data.vendors = null; } }
+        rmRender(false);
+        var m = dry ? (d.ok ? '<div class="move-result ok">Preview: every row is fine. Check the table, then press Save.</div>' : rmMsgHtml(d))
+            : (d.ok && d.written ? '<div class="move-result ok">&#10003; Saved ' + rmQty(sent.length, 0) + ' row(s).</div>' : rmMsgHtml(d) + '<div class="rm-dim">Nothing was saved.</div>');
+        rmSetMsg('bk-msg', m);
+    });
+}
+function rmBulkShow(d, dry) {
+    var el = rmEl('bk-res'), B = RM.data.bulk || {}; if (!el) return;
+    var t = d.totals || {}, keys = Object.keys(t);
+    var html = '<div class="rm-card"><b>' + (dry ? 'Preview' : (d.written ? 'Saved' : 'Not saved')) + '</b>: ' + keys.map(function (k) { return esc59(k.replace(/_/g, ' ')) + ' <b>' + (k === 'value_ex_gst' || k === 'total' ? rmInr(t[k]) : rmQty(t[k])) + '</b>'; }).join(' &middot; ') + '</div>';
+    var rows = (d.rows || []).slice();
+    var errs = rows.filter(function (r) { return r.status === 'ERROR'; });
+    var order = errs.concat(rows.filter(function (r) { return r.status !== 'ERROR'; }));
+    var MAX = 300, shown = order.slice(0, MAX);
+    if (order.length > MAX) html += '<div class="rm-note">Showing ' + MAX + ' of ' + rmQty(order.length, 0) + ' rows (errors first). <button class="settings-btn rm-xs" onclick="rmBulkResultCsv()">&#11015; All rows as CSV</button></div>';
+    else if (order.length) html += '<div class="rm-note"><button class="settings-btn rm-xs" onclick="rmBulkResultCsv()">&#11015; Result as CSV</button></div>';
+    html += '<div class="rm-tablewrap"><table class="rm-table"><tr><th>File row</th><th>Key</th><th>Result</th><th>Detail</th></tr>' + shown.map(function (r) {
+        var src = (B.sent || [])[Number(r.row) - 1] || {};
+        var st = String(r.status || ''), cls = st === 'ERROR' ? 'red' : (st === 'UNCHANGED' || st === 'BLOCKED' ? 'grey' : 'green');
+        var det = st === 'ERROR' ? (r.message || r.error || '') : (r.changed ? 'changed: ' + [].concat(r.changed).join(', ') : (r.value_ex_gst != null ? rmInr(r.value_ex_gst) : ''));
+        return '<tr><td>' + esc59(src._row || r.row) + '</td><td>' + esc59(r.key || '') + '</td><td><span class="rm-badge ' + cls + '">' + esc59(st) + '</span></td><td>' + esc59(det) + (r.error && st === 'ERROR' ? ' <span class="rm-dim">(' + esc59(r.error) + ')</span>' : '') + '</td></tr>';
+    }).join('') + '</table></div>';
+    el.innerHTML = html;
+}
+function rmBulkResultCsv() {
+    var B = RM.data.bulk || {}, d = B.res; if (!d) return;
+    var rows = (d.rows || []).map(function (r) { var src = (B.sent || [])[Number(r.row) - 1] || {}; return [src._row || r.row, r.key || '', r.status || '', r.error || '', r.message || '', r.changed ? [].concat(r.changed).join(' ') : '']; });
+    rmSaveBlob(new Blob([rmCsv(['file_row', 'key', 'status', 'error', 'message', 'changed'], rows)], { type: 'text/csv' }), 'ArtzFolio_RM_Bulk_Result_' + rmStamp() + '.csv');
+}
+
+// ---- away / sign-out ----------------------------------------------------------------------------------------
+// Rates and values leave the screen while the app is in the background (the recent-apps picture cannot show them),
+// and come back on return within the hold time. Away longer: the PIN is forgotten and the loaded figures are cleared.
+function rmAway(hide, awayMs) {
+    var body = rmEl('rm-body');
+    if (hide) {
+        try { rmPinCancel(); } catch (e) {}
+        if (body && body.innerHTML) { RM.away = 1; body.innerHTML = '<div class="rm-note">Paused while you are away.</div>'; }
+        return;
+    }
+    if (!RM.away) return;
+    RM.away = null;
+    if (awayMs >= DBD_HOLD_MINUTES * 60000) { rmReset('Cleared while you were away.'); return; }
+    if (state.tab === 'rm') rmRender(false);
+}
+function rmReset(note) {
+    rmForgetPin();
+    RM.lk = null; RM.data = {}; RM.sum = null; RM.sumErr = null; RM.form = {}; RM.pick = {}; RM.stack = []; RM.view = 'home'; RM.params = {};
+    var body = rmEl('rm-body'), w = rmEl('rm-who');
+    if (w) w.innerHTML = '';
+    if (body) body.innerHTML = note ? '<div class="rm-note">' + esc59(note) + '</div><button class="settings-btn rm-big" onclick="rmLoadLookups()">&#128274; Sign in to raw materials</button>' : '';
+}
+function applyRawMaterialsVisibility() {
+    var b = rmEl('tab-rm'); if (!b) return;
+    if (canRawMaterials()) b.classList.remove('tab-hidden'); else b.classList.add('tab-hidden');
+    if (state.tab === 'rm' && !canRawMaterials()) { try { switchTab('pick'); } catch (e) {} }
+}
+// ══ end v118 raw materials ═══════════════════════════════════════════════════════════════
 
 // ══ v117 (2026-10-12): QUICK ADD PRICING, TAX PANEL, FIX-IT CENTRE, BULK GST ═══
 // While the app is in the background, cost and price figures are removed from the screen (so the phone's recent-apps picture
@@ -16101,14 +18072,14 @@ function switchTab(tab) {
     if (state.session) {
         var permCheck = effectivePermissions();
         // v96: the DATABASE tab is not a stored permission - it follows the role.
-        var allowedTab = (tab === 'db') ? isListingManager() : ((tab === 'dash') ? (permCheck.dash === true || canAnalytics()) : (permCheck[tab] === true));   // v112: DASH also opens for the analytics permission
+        var allowedTab = (tab === 'db') ? isListingManager() : ((tab === 'rm') ? canRawMaterials() : ((tab === 'dash') ? (permCheck.dash === true || canAnalytics()) : (permCheck[tab] === true)));   // v112: DASH also opens for the analytics permission; v118: RAW follows raw_materials
         if (!allowedTab) {
             console.warn('Role ' + state.session.role + ' cannot access tab: ' + tab);
             return;
         }
     }
     state.tab = tab;
-    var tabs = ['pick', 'move', 'stock', 'log', 'guide', 'settings', 'dash', 'db'];
+    var tabs = ['pick', 'move', 'stock', 'log', 'guide', 'settings', 'dash', 'db', 'rm'];   // v118: rm
     for (var i = 0; i < tabs.length; i++) {
         var tc = document.getElementById(tabs[i] + '-tab');
         var tb = document.getElementById('tab-' + tabs[i]);
@@ -16159,6 +18130,9 @@ function switchTab(tab) {
     }
     if (tab === 'db') {
         enterDbTab();   // v96
+    }
+    if (tab === 'rm') {
+        try { rmEnter(); } catch (e) {}   // v118
     }
 }
 
@@ -19646,6 +21620,23 @@ try { a12DeepRead(); } catch (e) {}
     <div class="move-result" id="rs-msg"></div>
     <div id="rs-list"></div>
   </div>
+</div>
+<!-- v118: raw materials - the person's own code + PIN (masked text box, never a password box) -->
+<div class="emp-modal-bg" id="rm-pin-bg">
+    <div class="emp-modal">
+        <h2>&#128274; Your code and PIN</h2>
+        <p id="rm-pin-reason" style="font-size:13px;">Raw materials: type your own employee code and PIN.</p>
+        <input type="text" id="rm-pin-code" class="mgr-pin-code" placeholder="Your employee code" autocomplete="off" autocorrect="off" autocapitalize="characters" spellcheck="false" data-lpignore="true" data-1p-ignore="true" data-form-type="other"
+               style="width:100%;font-size:16px;padding:10px;border:1px solid #E2E8F0;border-radius:10px;margin-bottom:8px;text-transform:uppercase;box-sizing:border-box;" onkeydown="if(event.key==='Enter')document.getElementById('rm-pin-input').focus();">
+        <input type="text" inputmode="numeric" pattern="[0-9]*" maxlength="4" id="rm-pin-input" name="oms-rm-code-x" class="pin-mask" placeholder="&bull;&bull;&bull;&bull;" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" data-lpignore="true" data-1p-ignore="true" data-bwignore="true" data-form-type="other"
+               style="width:100%;font-size:22px;letter-spacing:10px;text-align:center;padding:10px;border:1px solid #E2E8F0;border-radius:10px;box-sizing:border-box;"
+               onkeydown="if(event.key==='Enter')rmPinOk();">
+        <div id="rm-pin-err" style="color:#B3261E;font-size:12px;font-weight:700;min-height:16px;margin-top:6px;"></div>
+        <div style="display:flex;gap:8px;margin-top:10px;">
+            <button class="settings-btn" style="flex:1;min-height:46px;" onclick="rmPinOk()">Confirm</button>
+            <button class="settings-btn" style="flex:1;min-height:46px;background:#888" onclick="rmPinCancel()">Cancel</button>
+        </div>
+    </div>
 </div>
 <div class="emp-modal-bg" id="mgr-pin-bg">
     <div class="emp-modal">
