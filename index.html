@@ -2959,6 +2959,19 @@ var qrcode = function() {
         .rm-picked{display:flex;justify-content:space-between;gap:8px;align-items:center;background:#EEF2F8;border-radius:10px;padding:8px 10px;font-size:13px}
         .rm-pickrow{padding:10px;min-height:44px}
         .rm-pv{font-size:12px;color:#1B3F6B;margin:6px 0;min-height:4px}
+        /* v122: raw materials purchasing */
+        .rm-chips{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0}
+        .rm-chip{background:#fff;border:1px solid #CBD5E1;color:#1B3F6B;border-radius:16px;padding:6px 12px;font-size:12px;font-weight:700;min-height:34px;cursor:pointer;touch-action:manipulation}
+        .rm-chip.on{background:#1B4F8A;border-color:#1B4F8A;color:#fff}
+        .rm-chip-n{font-weight:800;opacity:.8;margin-left:2px}
+        .rm-rowc{cursor:default}
+        .rm-bell{position:relative}
+        .rm-bell-n{background:#B3261E;color:#fff;border-radius:10px;font-size:10px;font-weight:800;padding:0 5px;margin-left:3px;min-width:14px;text-align:center;display:inline-block;line-height:15px}
+        .rm-seg{display:flex;gap:0;margin:6px 0;border:1px solid #1B4F8A;border-radius:10px;overflow:hidden}
+        .rm-seg button{flex:1;background:#fff;color:#1B4F8A;border:none;padding:10px 6px;font-size:13px;font-weight:700;min-height:42px;cursor:pointer;touch-action:manipulation}
+        .rm-seg button.on{background:#1B4F8A;color:#fff}
+        .rm-pre{white-space:pre-wrap;word-break:break-word;background:#fff;border:1px solid #E2E8F0;border-radius:8px;padding:8px;font-size:12px;margin:6px 0;font-family:inherit}
+        .rm-overdue{border-color:#B3261E}
         .rm-tablewrap{overflow-x:auto;max-width:100%}
         .rm-table{border-collapse:collapse;font-size:11px;width:100%}
         .rm-table th{background:#0A1628;color:#fff;text-align:left;padding:4px 6px}
@@ -3412,7 +3425,7 @@ body.a12-lock{overflow:hidden}
 </style>
 </head>
 <body>
-<div class="ver-corner" id="verCornerBadge" onclick="handleVerBadgeTap()">v121</div>
+<div class="ver-corner" id="verCornerBadge" onclick="handleVerBadgeTap()">v122</div>
 <!-- v112: the full-screen SKU page (opened by a12OpenSku) -->
 <div class="a12-skupage" id="a12-skupage"><div class="a12-sphead"><button type="button" onclick="a12CloseSku()">&larr; Back</button><div id="a12-sp-title" style="flex:1"></div><button type="button" onclick="shOpen('sku')" aria-label="Share this product page">&#128228; Share</button></div><div class="a12-spbody" id="a12-sp-body"></div></div>
 <!-- v63: Gap 2 — offline write-queue indicator. Hidden (display:none) unless
@@ -3442,6 +3455,7 @@ body.a12-lock{overflow:hidden}
         <div class="header-right">
             <button class="demo-btn" onclick="loadDemo()" title="Load single-SKU demo">&#9654; Demo</button>
             <button class="demo-btn" onclick="loadDemoMulti()" title="Load multi-SKU demo">&#9654; Multi</button>
+            <button class="demo-btn rm-bell" id="rm-bell-main" style="display:none" onclick="rmBellTap()" title="Inbox" aria-label="Inbox">&#128276;<span class="rm-bell-n" style="display:none"></span></button>
             <button class="demo-btn" onclick="logout()" title="Logout">&#128274; Logout</button>
         </div>
     </div>
@@ -4112,6 +4126,7 @@ body.a12-lock{overflow:hidden}
                 <button class="csv-btn" id="rm-back" style="display:none" onclick="rmBack()">&#8592; Back</button>
                 <div id="rm-title" style="font-weight:800;color:#0A1628;font-size:15px;flex:1;">&#127981; Raw materials</div>
                 <button class="csv-btn" onclick="rmHome()">&#127968;</button>
+                <button class="csv-btn rm-bell" id="rm-bell-rm" style="display:none" onclick="rmBellTap()" title="Inbox" aria-label="Inbox">&#128276;<span class="rm-bell-n" style="display:none"></span></button>
                 <button class="csv-btn" id="rm-share" style="display:none" onclick="shOpen('rm')" aria-label="Share this list">&#128228;</button>
                 <button class="csv-btn" onclick="rmRefresh()">&#8635; Refresh</button>
             </div>
@@ -4577,8 +4592,8 @@ body.a12-lock{overflow:hidden}
 
             <!-- Version -->
             <div class="ver-badge">
-                <div class="ver-name">&#128230; ArtzFolio Scan-Pick-Pack v121</div>
-                <div class="ver-sub">Search suggestions in Database, % shown properly, listing sheet kept for 3 minutes, copy buttons, refreshed Guide. Full changelog available on request.</div>
+                <div class="ver-name">&#128230; ArtzFolio Scan-Pick-Pack v122</div>
+                <div class="ver-sub">Raw materials: purchasing, procurement requests, vendor and item pages, one search box, an inbox, bill register and import / export. Needs database step M18. Full changelog available on request.</div>
             </div>
         </div>
     </div>
@@ -5416,6 +5431,8 @@ function clearResumeSession() {
 // cost figures cannot show in the phone's recent-apps picture) and shown again on return. Away longer
 // than that, everything is closed and the PIN forgotten, exactly as before. The PIN is never stored on disk.
 var DBD_HOLD_MINUTES = 3;
+// v122r2: raw materials keeps its own, longer away time. Every other module keeps DBD_HOLD_MINUTES (3).
+var RM_AWAY_MINUTES = 10;
 var _hiddenAt = 0;
 var _dbdLive = null;
 function dbdSetHidden(on) {
@@ -5464,7 +5481,7 @@ function onAppHidden() {
     _holdTimer = setTimeout(function () {
         _holdTimer = null; _dbdStash = null;
         try { forgetManagerPin(); mgrPinCancel(); closeListingDetail(true); closePickSheet(); } catch (e) {}
-        try { rmForgetPin(); } catch (e) {}   // v118: the raw-materials PIN goes after the same hold time
+        // v122r2: the raw-materials PIN is forgotten by its own timer in rmAway (RM_AWAY_MINUTES), not here
         try { xmForgetPin('crm'); xmForgetPin('prd'); } catch (e) {}   // v121
     }, DBD_HOLD_MINUTES * 60000);
     dbdSetHidden(true);
@@ -6203,8 +6220,8 @@ function renderReconciliation(r) {
     }
 
     h += '<div style="display:flex;gap:8px;margin-top:12px;">' +
-         '<button class="settings-btn" style="flex:1" onclick="commitScanSession(\'' + r.session_id + '\')">&#10003; Commit</button>' +
-         '<button class="settings-btn" style="flex:1;background:#a33;" onclick="voidScanSession(\'' + r.session_id + '\',' + (r.scan_count || 0) + ')">&#8630; Reverse</button>' +
+         '<button class="settings-btn" style="flex:1" onclick="commitScanSession(\'' + v110Js(r.session_id) + '\')">&#10003; Commit</button>' +
+         '<button class="settings-btn" style="flex:1;background:#a33;" onclick="voidScanSession(\'' + v110Js(r.session_id) + '\',' + (r.scan_count || 0) + ')">&#8630; Reverse</button>' +
          '</div>' +
          '<div style="font-size:11px;color:#666;margin-top:6px;">Commit accepts the entries as they are &mdash; they are already live, so nothing else changes. ' +
          'Reverse writes one balancing entry for each one, backing the batch out. The original entries stay in the log either way.</div>' +
@@ -6370,7 +6387,7 @@ function renderAdminEmpTable() {
         // omit the button entirely rather than showing a disabled one.
         var isLocked = !!(e.locked_until && new Date(e.locked_until).getTime() > Date.now());
         var unlockBtn = isLocked
-            ? '<button class="settings-btn danger" onclick="adminUnlockEmployee(\'' + e.employee_code + '\')">&#128275; Unlock</button>'
+            ? '<button class="settings-btn danger" onclick="adminUnlockEmployee(\'' + v110Js(e.employee_code) + '\')">&#128275; Unlock</button>'
             : '';
         html += '<div class="admin-emp-row">' +
             '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;">' +
@@ -6381,8 +6398,8 @@ function renderAdminEmpTable() {
                 (isLocked ? ' &bull; <strong style="color:#c0392b;">Locked until ' + new Date(e.locked_until).toLocaleString('en-IN') + '</strong>' : '') +
             '</div>' +
             '<div class="admin-emp-actions">' +
-                '<button class="settings-btn" onclick="adminToggleActive(\'' + e.employee_code + '\',' + (e.active ? 'true' : 'false') + ')">' + (e.active ? 'Deactivate' : 'Reactivate') + '</button>' +
-                '<button class="settings-btn" onclick="adminShowResetPin(\'' + e.employee_code + '\')">Reset PIN</button>' +
+                '<button class="settings-btn" onclick="adminToggleActive(\'' + v110Js(e.employee_code) + '\',' + (e.active ? 'true' : 'false') + ')">' + (e.active ? 'Deactivate' : 'Reactivate') + '</button>' +
+                '<button class="settings-btn" onclick="adminShowResetPin(\'' + v110Js(e.employee_code) + '\')">Reset PIN</button>' +
                 unlockBtn +
             '</div>' +
             '<div id="admin-resetpin-' + e.employee_code + '" style="display:none;margin-top:8px;"></div>' +
@@ -6449,7 +6466,7 @@ function adminShowResetPin(code) {
         '<div class="settings-row">' +
             // v97: masked text box, not a password box - see .pin-mask
             '<input type="text" inputmode="numeric" pattern="[0-9]*" maxlength="4" class="settings-input pin-mask" id="admin-resetpin-input-' + code + '" name="oms-reset-code-' + code + '" placeholder="New 4-digit PIN" style="max-width:140px" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" data-lpignore="true" data-1p-ignore="true" data-bwignore="true" data-form-type="other">' +
-            '<button class="settings-btn" onclick="adminSubmitResetPin(\'' + code + '\')">Save</button>' +
+            '<button class="settings-btn" onclick="adminSubmitResetPin(\'' + v110Js(code) + '\')">Save</button>' +
         '</div>' +
         '<div class="move-result" id="admin-resetpin-result-' + code + '"></div>';
     container.style.display = 'block';
@@ -7429,8 +7446,8 @@ function refreshTodaysCountList() {
                     rows.forEach(function(r) {
                         html += '<div style="display:flex;align-items:center;justify-content:space-between;padding:6px 0;border-bottom:1px solid #f0f0f0;">' +
                             '<div><strong>' + r.sku_code + '</strong><br><span style="color:#888;">' + (names[r.sku_code] || '') + '</span></div>' +
-                            '<div><button class="settings-btn" style="font-size:11px;padding:6px 8px;" onclick="countThisSku(\'' + r.sku_code.replace(/'/g, "\\'") + '\')">Count</button> ' +
-                            '<button class="settings-btn" style="font-size:11px;padding:6px 8px;background:#888;" onclick="skipCountRow(\'' + r.sku_code.replace(/'/g, "\\'") + '\')">Skip</button></div></div>';
+                            '<div><button class="settings-btn" style="font-size:11px;padding:6px 8px;" onclick="countThisSku(\'' + v110Js(r.sku_code) + '\')">Count</button> ' +
+                            '<button class="settings-btn" style="font-size:11px;padding:6px 8px;background:#888;" onclick="skipCountRow(\'' + v110Js(r.sku_code) + '\')">Skip</button></div></div>';
                     });
                     listEl.innerHTML = html;
                 });
@@ -9503,7 +9520,7 @@ function canRawMaterials() {
 function rmCanManage() { return !!(RM.lk && RM.lk.actor && RM.lk.actor.can_manage); }
 
 // ---- pure helpers (unit-tested in t118.js) ----------------------------------------------------
-var RM_PIN_MINUTES = 5;
+var RM_PIN_MINUTES = 30;   // v122: idle minutes (every accepted call slides it); the hard limit is RM_PIN_MAX_MINUTES
 // Indian grouping for quantities: up to 3 decimals, no trailing zeros. null/blank -> '-'
 function rmQty(n, dec) {
     if (n === null || n === undefined || n === '' || !isFinite(Number(n))) return '-';
@@ -9647,6 +9664,15 @@ function rmErrText(d) {
         case 'OFFLINE': return 'No connection to the database right now. Nothing was saved. Try again when you are back online.';
         case 'NETWORK': return d.read ? 'Could not load - check the connection and try again.' : 'Could not save - check the connection and try again. If you are not sure it was saved, check History before entering it again.';
         case 'CANCELLED': return 'Cancelled - nothing was changed.';
+        case 'NO_M18': return 'Database step M18 is not applied yet' + (d.fn ? ' (the function ' + d.fn + ' is missing)' : '') + '. Ask the Admin to apply it. Everything that worked before still works.';
+        case 'PIN_NEEDED': return 'Type your PIN to see this.';
+        case 'BAD_QUERY': return msg || 'Type at least 3 letters.';
+        case 'BAD_TRANSITION': return 'That request cannot be changed that way now: its status is different. The list has been refreshed.';
+        case 'STILL_RECEIVED': return 'The material received so far already covers this request, so it cannot be reopened.';
+        case 'BARCODE_TAKEN': return 'That barcode already belongs to ' + (d.item_code ? 'item ' + d.item_code : 'another active item') + '. Nothing was saved.';
+        case 'BAD_QTY': return msg || 'Type the quantity as a number above 0.';
+        case 'BAD_DATE': return msg || 'That date is not valid.';
+        case 'BAD_VENDOR': return msg || 'That vendor is not valid (it may be archived).';
         case 'NOT_ALLOWED_APP': return 'Raw materials are not switched on for your account. Ask an Admin to tick "Raw materials" for you.';
     }
     return msg || ('Not done (' + (e || 'unknown reason') + '). Nothing was saved.');
@@ -9753,6 +9779,7 @@ function rmSheetToRows(kind, matrix) {
     else K.need.forEach(function (n) { if (!seen[n]) errors.push('The column "' + n + '" is missing.'); });
     if (kind === 'vendors' && hdr && !seen.vendor_code && !seen.gstin) errors.push('The file needs a vendor_code or a gstin column.');
     if (unknown.length) errors.push('These columns are not known: ' + unknown.join(', ') + '. Use the template\'s column names (or start a column name with _ to have it ignored).');
+    rows = rm8NormRows(kind, rows, errors);   // v122: bill dates and rows without a vendor
     return { ok: !errors.length, rows: rows, header_row: hdrRow, unknown: unknown, errors: errors, skipped: skipped };
 }
 // A cell for a CSV file: quotes when needed, and a leading ' when Excel would read it as a formula.
@@ -9888,11 +9915,11 @@ function rmUuid() {
 function rmTodayIst() { try { return istDateStr(Date.now()); } catch (e) { return new Date().toISOString().slice(0, 10); } }
 
 // ---- the call wrapper -------------------------------------------------------------------------
-var RM_PIN = { code: null, pin: null, at: 0 };
+var RM_PIN = { code: null, pin: null, at: 0, since: 0 };
 var _rmPinEpoch = 0;
 var _rmCredWait = null;     // { promise, resolve } while the sheet is open
-function rmForgetPin() { RM_PIN = { code: null, pin: null, at: 0 }; _rmPinEpoch++; }
-function rmPinFresh() { return !!(RM_PIN.pin && (Date.now() - RM_PIN.at) < RM_PIN_MINUTES * 60000); }
+function rmForgetPin() { RM_PIN = { code: null, pin: null, at: 0, since: 0 }; _rmPinEpoch++; try { rm8BellPaint(); } catch (e) {} }
+function rmPinFresh() { var n = Date.now(); return !!(RM_PIN.pin && (n - RM_PIN.at) < RM_PIN_MINUTES * 60000 && (n - (RM_PIN.since || RM_PIN.at)) < RM_PIN_MAX_MINUTES * 60000); }
 function rmGetCreds(reason) {
     if (rmPinFresh()) return Promise.resolve({ code: RM_PIN.code, pin: RM_PIN.pin });
     if (RM_PIN.pin) rmForgetPin();
@@ -9902,9 +9929,10 @@ function rmGetCreds(reason) {
     _rmCredWait = w;
     var bg = document.getElementById('rm-pin-bg'), ci = document.getElementById('rm-pin-code'), pi = document.getElementById('rm-pin-input');
     var rs = document.getElementById('rm-pin-reason'), er = document.getElementById('rm-pin-err');
-    if (rs) rs.textContent = reason || 'Raw materials: type your own employee code and PIN. It is remembered on this phone for 5 minutes, in memory only.';
+    if (rs) rs.textContent = reason || 'Raw materials: type your own employee code and PIN. It is remembered on this phone in memory only: for 30 minutes after your last raw-materials action, and never longer than 4 hours.';
     if (er) er.textContent = '';
     if (ci) ci.value = sessionEmployeeCode();
+    try { rm8PinSheet(); } catch (e) {}   // v122: 'Type your PIN' when the code is already known
     if (pi) pi.value = '';
     if (bg) bg.classList.add('active');
     setTimeout(function () { try { (ci && !ci.value ? ci : pi).focus(); } catch (e) {} }, 60);
@@ -9934,19 +9962,25 @@ function rmCall(fn, args, opts) {
     function fail(code, extra) { var d = { ok: false, error: code, read: !!opts.read }; for (var k in (extra || {})) d[k] = extra[k]; d.text = rmErrText(d); return d; }
     if (!canRawMaterials()) return Promise.resolve(fail('NOT_ALLOWED_APP'));
     if (!db) return Promise.resolve(fail('OFFLINE'));
+    if (opts.quiet && !rmPinFresh()) return Promise.resolve(fail('PIN_NEEDED'));   // v122: background reads never open the PIN sheet
     return rmGetCreds(opts.reason).then(function (c) {
         if (!c) return fail('CANCELLED', { cancelled: true });
         var epoch = _rmPinEpoch;   // v121: taken after the PIN is known (an expired PIN typed again is remembered again)
         var payload = { p_employee_code: c.code, p_pin: c.pin };
         for (var k in (args || {})) { if (Object.prototype.hasOwnProperty.call(args, k) && args[k] !== undefined) payload[k] = args[k]; }
         return withTimeout(db.rpc(fn, payload), opts.timeout || 20000, 'Raw materials').then(function (res) {
-            if (res && res.error) return rmIsMissing(res.error, res.status) ? fail('NO_M15', { fn: fn }) : fail('NETWORK');
+            if (res && res.error) return rmIsMissing(res.error, res.status) ? fail(RM18_FN[fn] ? 'NO_M18' : 'NO_M15', { fn: fn }) : fail('NETWORK');
             var d = res ? res.data : null;
             if (!d || typeof d !== 'object' || Array.isArray(d)) return fail('NETWORK');
             if (d.ok === true) {
-                if (epoch === _rmPinEpoch && !(RM_PIN.pin === c.pin && RM_PIN.code === c.code)) RM_PIN = { code: c.code, pin: c.pin, at: Date.now() };   // the 5 minutes start once, never extended
+                var newPin = false;   // v122: sliding window - every accepted call (not a quiet background read) extends it; the 4 hour limit counts from when it was typed
+                if (epoch === _rmPinEpoch) {
+                    if (!(RM_PIN.pin === c.pin && RM_PIN.code === c.code)) { RM_PIN = { code: c.code, pin: c.pin, at: Date.now(), since: Date.now() }; newPin = true; }
+                    else if (!opts.quiet) RM_PIN.at = Date.now();
+                }
                 if (fn === 'rm_lookups') { if (RM.lk && d.actor) { RM.lk = d; try { rmWho(); } catch (e) {} } }
                 else if (RM.lk && RM.lk.actor && String(RM.lk.actor.employee_code || '').toUpperCase() !== c.code) rmActorChanged(c.code);   // v119 M1
+                try { if (newPin || (!opts.read && !opts.quiet)) rm8BellSoon(); else rm8BellPaint(); } catch (e) {}   // v122: the inbox bell follows saves
                 return d;
             }
             if (d.error === 'PIN_REJECTED' || d.error === 'LOCKED') rmForgetPin();
@@ -9996,6 +10030,7 @@ function rmLoadLookups() {
         RM.lk = d;
         rmWho();
         RM.view = 'home'; RM.stack = []; RM.params = {};
+        try { rm8OpenAfterLookups(); } catch (e) {}   // v122: the bell opened raw materials
         rmRender();
     });
 }
@@ -10005,7 +10040,8 @@ function rmWho() {
     w.innerHTML = 'Signed in for raw materials as <strong>' + esc59(a.employee_code) + '</strong> (' + esc59(String(a.role || '').toLowerCase()) + (a.can_manage ? ', can archive, merge and void' : '') + '). Stock value uses the ' + esc59(RM.lk.valuation_basis || 'weighted average purchase rate') + '.';
 }
 function rmGo(view, params) {
-    RM.stack.push({ view: RM.view, params: RM.params });
+    if (RM18.draft && view !== 'vendorEdit' && RM.view !== 'vendorEdit') RM18.draft = null;   // v122: the voucher draft only survives a vendor registration
+    RM.stack.push({ view: RM.view, params: RM.params, gsq: RM.view === 'home' ? String(RM.form['rm-gs'] || '') : '' });
     RM.view = view; RM.params = params || {}; RM.form = {}; RM.pick = {};
     rmRender(true);
     try { var c = document.querySelector('.content'); if (c) c.scrollTop = 0; } catch (e) {}
@@ -10013,14 +10049,16 @@ function rmGo(view, params) {
 function rmBack() {
     var p = RM.stack.pop();
     if (!p) { RM.view = 'home'; RM.params = {}; } else { RM.view = p.view; RM.params = p.params; }
-    RM.form = {}; RM.pick = {};
+    var gq = p && p.view === 'home' && p.gsq; RM.form = {}; RM.pick = {};
+    if (gq) RM.form['rm-gs'] = gq;   // v122: coming back to home keeps the search text and its results
     rmRender(true);
 }
-function rmHome() { RM.stack = []; RM.view = 'home'; RM.params = {}; RM.form = {}; RM.pick = {}; rmRender(true); }
+function rmHome() { RM18.draft = null; RM.stack = []; RM.view = 'home'; RM.params = {}; RM.form = {}; RM.pick = {}; rmRender(true); }
 function rmRefresh() { if (!RM.lk) { rmLoadLookups(); return; } rmRender(true); }
 var RM_TITLES = { home: 'Raw materials', items: 'Items', item: 'Item', itemEdit: 'Item', vendors: 'Vendors', vendor: 'Vendor', vendorEdit: 'Vendor',
     receive: 'Receive stock', issue: 'Issue to production', loss: 'Loss / wastage', adjust: 'Adjust stock', count: 'Stock count', ledger: 'History',
-    bulk: 'Bulk load', exportv: 'Export', merge: 'Merge', linkVendor: 'Link a vendor' };
+    bulk: 'Bulk load', exportv: 'Import / Export', merge: 'Merge', linkVendor: 'Link a vendor',
+    inbox: 'Inbox', learn: 'Learned suggestions', proc: 'Procurement', register: 'Purchase register', bill: 'Bill' };
 // fetch = true reloads the data the view needs; false redraws from what is already in memory (after "away")
 function rmRender(fetch) {
     var body = rmEl('rm-body'), t = rmEl('rm-title'), b = rmEl('rm-back');
@@ -10030,6 +10068,7 @@ function rmRender(fetch) {
     if (b) b.style.display = RM.view === 'home' ? 'none' : '';
     var f = window['rmView_' + RM.view];
     if (typeof f !== 'function') { RM.view = 'home'; f = rmView_home; }
+    try { rm8HistSync(); } catch (e) {}   // v122: Android Back inside raw materials
     f(fetch !== false);
 }
 // Run a read for the current view; a newer view or reload makes an older answer be thrown away.
@@ -10050,6 +10089,7 @@ function rmF(el) {
     if (!el || !el.id) return;
     RM.form[el.id] = (el.type === 'checkbox') ? el.checked : el.value;
     try { rmLive(); } catch (e) {}
+    try { rm8OnType(el); } catch (e) {}   // v122: type-ahead in the item / vendor pickers
 }
 function rmV(id, def) { var v = RM.form[id]; return esc59(v === undefined || v === null ? (def == null ? '' : def) : v); }
 function rmChk(id, def) { var v = RM.form[id]; return (v === undefined ? !!def : !!v) ? ' checked' : ''; }
@@ -10088,14 +10128,14 @@ function rmShowing(n, total, what) {
 }
 
 // ---- 1. home -------------------------------------------------------------------------------------
-function rmView_home(fetch) {
+function rmView_homeV121(fetch) {
     var body = rmEl('rm-body');
     function draw() {
         var s = RM.sum || {};
         var tile = function (label, val, sub, onclick, warn) {
             return '<button class="rm-tile' + (warn ? ' warn' : '') + '" onclick="' + onclick + '"><div class="rm-tile-n">' + val + '</div><div class="rm-tile-l">' + esc59(label) + '</div>' + (sub ? '<div class="rm-tile-s">' + sub + '</div>' : '') + '</button>';
         };
-        var html = '<div class="rm-search"><input type="text" class="settings-input rm-in" id="rm-home-q" placeholder="Search items: code, name, old name" autocomplete="off" value="' + rmV('rm-home-q') + '" oninput="rmF(this)" onkeydown="if(event.key===\'Enter\')rmHomeSearch()"><button class="settings-btn" onclick="rmHomeSearch()">Search</button></div>';
+        var html = (RM.data.homeBanner || '') + '<div class="rm-search"><input type="text" class="settings-input rm-in" id="rm-home-q" placeholder="Search items: code, name, old name" autocomplete="off" value="' + rmV('rm-home-q') + '" oninput="rmF(this)" onkeydown="if(event.key===\'Enter\')rmHomeSearch()"><button class="settings-btn" onclick="rmHomeSearch()">Search</button></div>';
         if (RM.sum) {
             html += '<div class="rm-tiles">' +
                 tile('Items', rmQty(s.items_active, 0), rmQty(s.items_in_stock, 0) + ' in stock', "rmGo('items',{})") +
@@ -10128,13 +10168,13 @@ function rmView_home(fetch) {
 function rmHomeSearch() { var q = String(RM.form['rm-home-q'] || '').trim(); rmGo('items', { q: q }); }
 
 // ---- 2. items list --------------------------------------------------------------------------------
-function rmView_items(fetch) {
+function rmView_itemsV121(fetch) {
     var body = rmEl('rm-body'), P = RM.params;
     if (RM.form['ri-q'] === undefined) { RM.form['ri-q'] = P.q || ''; RM.form['ri-low'] = !!P.low; RM.form['ri-act'] = true; RM.form['ri-cat'] = P.cat || ''; }
     var L = RM.data.items || (RM.data.items = { rows: [], total: 0 });
     function draw(errD) {
         var L = RM.data.items || { rows: [], total: 0 };
-        var html = '<div class="rm-search">' + rmInput('ri-q', 'Code, name, spec or old name', { enter: 'rmItemsReload()' }) + '<button class="settings-btn" onclick="rmItemsReload()">Search</button></div>' +
+        var html = (RM.data.itemsBanner || '') + '<div class="rm-search">' + rmInput('ri-q', 'Code, name, spec or old name', { enter: 'rmItemsReload()' }) + '<button class="settings-btn" onclick="rmItemsReload()">Search</button></div>' +
             '<div class="rm-filters">' + rmSelect('ri-cat', rmCatOptions(true), '', ';rmItemsReload()') +
             '<label class="rm-chk"><input type="checkbox" id="ri-low"' + rmChk('ri-low') + ' onchange="rmF(this);rmItemsReload()"> Low stock only</label>' +
             '<label class="rm-chk"><input type="checkbox" id="ri-act"' + rmChk('ri-act', true) + ' onchange="rmF(this);rmItemsReload()"> Active only</label></div>' +
@@ -10244,6 +10284,7 @@ function rmVoidReceipt(rid, key) {
 }
 function rmView_item(fetch) {
     var body = rmEl('rm-body'), id = Number(RM.params.item_id);
+    if (fetch) RM.data.i360 = null;   // v122: the 360 block is read again on a refresh
     function draw() {
         var D = RM.data.item; if (!D) return;
         var it = D.item || {}, man = rmCanManage(), u = esc59(it.base_uom_code);
@@ -10276,6 +10317,7 @@ function rmView_item(fetch) {
             (man && !it.merged_into_item_code ? '<button class="settings-btn rm-sm" style="background:#9A6700" onclick="rmAskReason(\'arch\')">' + (it.active === false ? 'Restore&hellip;' : 'Archive&hellip;') + '</button>' : '') +
             (man && actv ? '<button class="settings-btn rm-sm" style="background:#B3261E" onclick="rmGo(\'merge\',{kind:\'item\',from_id:' + id + '})">Merge&hellip;</button>' : '') +
             '</div>' + (man ? rmReasonBox('arch', (it.active === false ? 'Why restore' : 'Why archive') + ' this item? (at least 5 letters)', 'rmItemActive(' + id + ',' + (it.active === false) + ')', it.active === false ? 'Confirm restore' : 'Confirm archive') : '');
+        html += '<div id="rm-360">' + rm360Html() + '</div>';   // v122: item 360
         // conversions
         html += '<div class="rm-sec">Units</div><div class="rm-dim">Stock is kept in ' + u + '. Other units this item can be entered in:</div>';
         (D.conversions || []).forEach(function (c, i) {
@@ -10308,6 +10350,7 @@ function rmView_item(fetch) {
         html += '<div id="rm-item-msg"></div>';
         body.innerHTML = html;
         rmReopenBoxes();
+        rm360Kick(id);
     }
     if (!fetch && RM.data.item && Number(RM.data.item.item.item_id) === id) { draw(); return; }
     rmLoading();
@@ -10508,8 +10551,9 @@ function rmPickSet(slot, kind, i) {
         rmRender(false);
     });
 }
-function rmPickClear(slot) { delete RM.form[slot]; delete RM.pick[slot]; rmRender(false); }
+function rmPickClear(slot) { delete RM.form[slot]; delete RM.pick[slot]; try { rm8OnClear(slot); } catch (e) {} rmRender(false); }
 function rmOnPick(slot) {
+    try { rm8OnPicked(slot); } catch (e) {}   // v122
     var it = RM.form[slot];
     var m = /^rl([0-9]+)-item$/.exec(slot);
     if (m && it && typeof it === 'object') {   // a receipt line: default GST from the item
@@ -10534,7 +10578,9 @@ function rmUnitSelect(id, it) {
 // ---- 5. receive stock --------------------------------------------------------------------------------
 function rmView_receive(fetch) {
     var body = rmEl('rm-body'), F = RM.form;
+    if (RM18.draft) { rm8RestoreDraft(); F = RM.form; }   // v122: back from registering a vendor
     if (F._lines === undefined) { F._lines = 1; F['rc-date'] = rmTodayIst(); }
+    if (RM.params.vendor && !F['rc-vendor'] && !F._vpre) { F._vpre = 1; F['rc-vendor'] = RM.params.vendor; }   // v122: opened from a vendor
     if (RM.params.receipt) F._addTo = RM.params.receipt;   // add lines to an existing bill
     if (RM.params.item_id) rmPreloadItem('rl0-item');
     var add = F._addTo;
@@ -10543,7 +10589,7 @@ function rmView_receive(fetch) {
         html += '<div class="rm-card"><b>Adding lines to bill ' + esc59(add.invoice_no) + '</b> from ' + esc59(add.vendor_code || '') + (add.invoice_date ? ' dated ' + esc59(add.invoice_date) : '') +
             '<div class="rm-dim">Vendor, invoice number and date stay as they are on that bill.</div><button class="settings-btn rm-xs" style="background:#888" onclick="RM.form._addTo=null;RM.params.receipt=null;rmRender(false)">Enter a new bill instead</button></div>';
     } else {
-        html += rmPickerHtml('rc-vendor', 'vendor', 'Vendor (required)') +
+        html += rmPickerHtml('rc-vendor', 'vendor', 'Vendor (required)') + rm8VoucherVendorExtras() +
             '<div class="rm-2"><div>' + rmLabel('Invoice no. (required)') + rmInput('rc-inv', 'as printed on the bill', { max: 60 }) + '</div><div>' + rmLabel('Invoice date') + '<input type="date" class="settings-input rm-in" id="rc-date" value="' + rmV('rc-date') + '" max="' + esc59(rmTodayIst()) + '" onchange="rmF(this)"></div></div>' +
             '<div class="rm-2"><div>' + rmLabel('PO no.') + rmInput('rc-po', 'optional', { max: 60 }) + '</div><div>' + rmLabel('Freight (&#8377;, kept on the bill, not in the rate)') + rmInput('rc-frt', '0', { num: true }) + '</div></div>';
     }
@@ -10555,7 +10601,7 @@ function rmView_receive(fetch) {
             html += '<div class="rm-2"><div>' + rmLabel('Quantity') + rmInput('rl' + i + '-qty', 'e.g. 25', { num: true }) + '</div><div>' + rmLabel('Unit') + rmUnitSelect('rl' + i + '-uom', it) + '</div></div>' +
                 '<div class="rm-2"><div>' + rmLabel('Rate before GST, per unit typed (&#8377;)') + rmInput('rl' + i + '-rate', it.last_rate != null ? 'last ' + rmQty(it.last_rate, 4) + '/' + it.base_uom_code : 'e.g. 120', { num: true }) + '</div><div>' + rmLabel('GST %') + rmInput('rl' + i + '-gst', 'e.g. 12', { num: true }) + '</div></div>' +
                 rmLabel('Batch / lot') + rmInput('rl' + i + '-batch', 'optional', { max: 60 }) +
-                '<div class="rm-pv" id="rl' + i + '-pv"></div>';
+                '<div class="rm-pv" id="rl' + i + '-pv"></div>' + rm8LineHint(i);
         }
         html += '<div id="rl' + i + '-err"></div></div>';
     }
@@ -10565,6 +10611,7 @@ function rmView_receive(fetch) {
         '<button class="settings-btn rm-big" style="background:#1B7A3A" onclick="rmRcvSave()">&#10003; Save receipt</button><div id="rc-msg"></div>';
     body.innerHTML = html;
     rmLive();
+    rm8VoucherKick();   // v122: earlier vendors of the item / earlier items of the vendor
 }
 function rmRcvAdd() { if (RM.form._lines >= 200) return; RM.form._lines++; rmRender(false); }
 function rmRcvDel(i) {
@@ -10593,6 +10640,7 @@ function rmRcvLine(i) {
 }
 function rmLive() {
     var F = RM.form;
+    if (RM.view === 'issue' && F._imode === 'proc') { try { rm8ProcPv(); } catch (e) {} return; }   // v122: procurement mode of the Issue screen
     if (RM.view === 'receive') {
         var tv = 0, tg = 0, ok = 0;
         for (var i = 0; i < F._lines; i++) {
@@ -10603,7 +10651,8 @@ function rmLive() {
                 'Value ' + rmInr(L.value) + ' + GST ' + rmInr(L.gst) + ' = <b>' + rmInr(L.total) + '</b>' + (L.uom !== L.it.base_uom_code ? ' &middot; ' + rmRate(L.perBase) + '/' + esc59(L.it.base_uom_code) : '');
         }
         var tt = rmEl('rc-total');   // (bill total)
-        if (tt) tt.innerHTML = ok ? 'Bill total (' + ok + ' line' + (ok > 1 ? 's' : '') + '): ' + rmInr(Math.round(tv * 100) / 100) + ' + GST ' + rmInr(Math.round(tg * 100) / 100) + ' = <b>' + rmInr(Math.round((tv + tg) * 100) / 100) + '</b>' : '';
+        var frv = (!F._addTo && String(F['rc-frt'] == null ? '' : F['rc-frt']).trim() !== '') ? rmNum(F['rc-frt'], 2) : 0; if (!isFinite(frv) || frv < 0) frv = 0;   // v122: freight in the live total
+        if (tt) tt.innerHTML = ok ? 'Bill total (' + ok + ' line' + (ok > 1 ? 's' : '') + '): ' + rmInr(Math.round(tv * 100) / 100) + ' + GST ' + rmInr(Math.round(tg * 100) / 100) + ' = <b>' + rmInr(Math.round((tv + tg) * 100) / 100) + '</b>' + (frv > 0 ? ' + freight ' + rmInr(frv) + ' = <b>' + rmInr(Math.round((tv + tg + frv) * 100) / 100) + '</b>' : '') : '';
     }
     if (RM.view === 'vendorEdit') rmGstinPreview();
     if (RM.view === 'issue' || RM.view === 'loss' || RM.view === 'adjust' || RM.view === 'count') {
@@ -10688,6 +10737,7 @@ function rmRcvSave() {
         }
         logEvent('', 'Raw materials received: bill ' + (d.invoice_no || '') + ', ' + (d.line_count || 0) + ' line(s)');
         RM.sum = null; RM.data.items = null;
+        try { RM18.viu = {}; RM18.ivu = {}; } catch (e) {}
         var keepVendor = !add && RM.form['rc-vendor'];
         RM.form = { _lines: 1, 'rc-date': rmTodayIst() };
         if (keepVendor) RM.form['rc-vendor'] = keepVendor;
@@ -10800,7 +10850,7 @@ function rmMoveForm(kind) {
     body.innerHTML = html;
     rmLive();
 }
-function rmView_issue() { rmMoveForm('issue'); }
+function rmView_issue() { rm8IssueView(); }
 function rmView_loss() { rmMoveForm('loss'); }
 function rmView_adjust() { rmMoveForm('adjust'); }
 function rmView_count() { rmMoveForm('count'); }
@@ -10850,7 +10900,7 @@ function rmMoveSave(kind) {
 }
 
 // ---- 4. vendors -------------------------------------------------------------------------------------------
-function rmView_vendors(fetch) {
+function rmView_vendorsV121(fetch) {
     var body = rmEl('rm-body');
     if (RM.form['rv-act'] === undefined) RM.form['rv-act'] = true;
     var L = RM.data.vendors || (RM.data.vendors = { rows: [], total: 0 });
@@ -10898,6 +10948,7 @@ function rmVendorsMore() {
 }
 function rmView_vendor(fetch) {
     var body = rmEl('rm-body'), id = Number(RM.params.vendor_id);
+    if (fetch) RM.data.v360 = null;   // v122
     function draw() {
         var D = RM.data.vendor; if (!D) return;
         var v = D.vendor || {}, man = rmCanManage(), actv = v.active !== false && !v.merged_into_vendor_code;
@@ -10914,6 +10965,7 @@ function rmView_vendor(fetch) {
             (man && !v.merged_into_vendor_code ? '<button class="settings-btn rm-sm" style="background:#9A6700" onclick="rmAskReason(\'varch\')">' + (v.active === false ? 'Restore&hellip;' : 'Archive&hellip;') + '</button>' : '') +
             (man && actv ? '<button class="settings-btn rm-sm" style="background:#B3261E" onclick="rmGo(\'merge\',{kind:\'vendor\',from_id:' + id + '})">Merge&hellip;</button>' : '') + '</div>' +
             (man ? rmReasonBox('varch', (v.active === false ? 'Why restore' : 'Why archive') + ' this vendor? (at least 5 letters)', 'rmVendorActive(' + id + ',' + (v.active === false) + ')', v.active === false ? 'Confirm restore' : 'Confirm archive') : '');
+        html += '<div id="rm-360">' + rm360vHtml() + '</div>';   // v122: vendor 360
         html += '<div class="rm-sec">Items supplied</div>';
         (D.items || []).forEach(function (x) { html += '<button class="rm-row" onclick="rmOpenItem(' + Number(x.item_id) + ')"><b>' + esc59(x.item_code) + '</b> ' + esc59(x.item_name) + (x.preferred ? ' <span class="rm-badge green">PREFERRED</span>' : '') + (x.quoted_rate != null ? '<div class="rm-dim">Quote ' + rmRate(x.quoted_rate) + ' per base unit</div>' : '') + '</button>'; });
         if (!(D.items || []).length) html += '<div class="rm-dim">None linked.</div>';
@@ -10930,6 +10982,7 @@ function rmView_vendor(fetch) {
         if (!(D.receipts || []).length) html += '<div class="rm-dim">No bills yet.</div>';
         body.innerHTML = html;
         rmReopenBoxes();
+        rm360vKick(id);
     }
     if (!fetch && RM.data.vendor && Number(RM.data.vendor.vendor.vendor_id) === id) { draw(); return; }
     rmLoading();
@@ -11041,7 +11094,8 @@ function rmVendorSave() {
             return;
         }
         logEvent('', 'Raw material vendor ' + (d.vendor_code || '') + (id ? ' updated' : ' created'));
-        RM.data.vendors = null; RM.sum = null;
+        RM.data.vendors = null; RM.sum = null; RM.data.vrRows = null;
+        if (!id && RM18.draft) { rm8VendorCreatedBack(d, f); return; }   // v122
         RM.stack.pop(); RM.view = 'vendor'; RM.params = { vendor_id: Number(d.vendor_id) }; RM.form = {}; RM.data.vendor = null;
         rmRender(true);
     });
@@ -11221,7 +11275,7 @@ function rmExportItems(msgId) {
         rmSetMsg(msgId, '<div class="move-result ok">Saved ' + rmQty(rows.length, 0) + ' item(s)' + (r.total > rows.length ? ' of ' + rmQty(r.total, 0) : '') + '. Value = on hand x weighted average rate, before GST; blank value with stock = rate missing.</div>');
     });
 }
-function rmView_exportv() {
+function rmView_exportvV121() {
     rmEl('rm-body').innerHTML = '<div class="rm-note">Files open in Excel. Rates and values are before GST, at the weighted average purchase rate.</div>' +
         '<button class="settings-btn rm-big" onclick="rmExportItems(\'ex-msg\')">&#11015; All items with stock and value (CSV)</button>' +
         '<button class="settings-btn rm-big" onclick="rmGo(\'ledger\',{})">&#11015; History (choose dates, then CSV)</button><div id="ex-msg"></div>';
@@ -11260,7 +11314,7 @@ function rmView_bulk() {
     var K = RM_BULK[F['bk-kind']];
     var html = '<div class="rm-note">Load many items, vendors or opening stock at once from Excel (.xlsx) or CSV. You always see a <b>preview first</b>; nothing is saved until you press Save, and if any row has an error nothing is saved at all.</div>' +
         '<div class="rm-btns"><button class="settings-btn rm-sm" onclick="rmDownloadTemplate(\'xlsx\')">&#11015; Excel template (all three sheets)</button><button class="settings-btn rm-sm" style="background:#888" onclick="rmDownloadTemplate(RM.form[\'bk-kind\'])">&#11015; CSV template for ' + esc59(K.label) + '</button></div>' +
-        rmLabel('What are you loading?') + rmSelect('bk-kind', [{ v: 'items', t: 'Items (sheet Items)' }, { v: 'vendors', t: 'Vendors (sheet Vendors)' }, { v: 'opening', t: 'Opening balance (sheet OpeningBalance)' }], 'items', ';RM.data.bulk={};rmRender(false)') +
+        rmLabel('What are you loading?') + rmSelect('bk-kind', [{ v: 'items', t: 'Items (sheet Items)' }, { v: 'vendors', t: 'Vendors (sheet Vendors)' }, { v: 'opening', t: 'Opening balance (sheet OpeningBalance)' }, { v: 'bills', t: 'Purchase bills (sheet PurchaseBills)' }, { v: 'barcodes', t: 'Barcodes (sheet Barcodes)' }], 'items', ';RM.data.bulk={};rmRender(false)') +
         rmLabel('File (.xlsx or .csv)') + '<input type="file" id="bk-file" accept=".xlsx,.csv,.txt,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" class="settings-input rm-in" onchange="rmBulkFile(this)">';
     if (B.fileName) html += '<div class="rm-note">File <b>' + esc59(B.fileName) + '</b>' + (B.sheet ? ', sheet ' + esc59(B.sheet) : '') + ': <b>' + rmQty((B.rows || []).length, 0) + '</b> row(s) read' + (B.headerRow ? ' (column names on row ' + B.headerRow + ')' : '') + '.' + rmSkippedNote(B.skipped) + '</div>';
     if (B.parseErr) html += '<div class="move-result err">' + B.parseErr.map(esc59).join('<br>') + '</div>';
@@ -11291,7 +11345,7 @@ function rmBulkFile(input) {
         B.headerRow = s.header_row; B.rows = s.rows; B.skipped = s.skipped || [];
         if (!s.ok) B.parseErr = s.errors;
         else if (!s.rows.length) B.parseErr = ['The file has column names but no rows filled in.'];
-        else if (s.rows.length > 5000) B.parseErr = ['At most 5,000 rows in one upload. This file has ' + rmQty(s.rows.length, 0) + '. Split it into smaller files.'];
+        else if (s.rows.length > (K.max || 5000)) B.parseErr = ['At most ' + rmQty(K.max || 5000, 0) + ' rows in one upload. This file has ' + rmQty(s.rows.length, 0) + '. Split it into smaller files.'];
         else if (JSON.stringify(s.rows).length > 4500000) B.parseErr = ['The file is too large (over 5 MB of data). Split it into smaller files.'];
         rmRender(false);
     }).catch(function () { if (RM.data.bulk === B) { B.parseErr = ['This file could not be read.']; rmRender(false); } });
@@ -11313,7 +11367,7 @@ function rmBulkSend(dry) {
         if (!d.rows && !d.totals) { B.previewOk = false; rmSetMsg('bk-msg', rmMsgHtml(d)); return; }   // refused before the rows were looked at
         B.res = d; B.resDry = !!dry; B.sent = sent;
         if (dry) { B.previewOk = !!d.ok && !d.written; B.fp = fp; }
-        else { B.previewOk = false; if (d.ok && d.written) { logEvent('', 'Raw materials bulk ' + kind + ': ' + sent.length + ' row(s) saved'); RM.sum = null; RM.data.items = null; RM.data.vendors = null; } }
+        else { B.previewOk = false; if (d.ok && d.written) { logEvent('', 'Raw materials bulk ' + kind + ': ' + sent.length + ' row(s) saved'); RM.sum = null; RM.data.items = null; RM.data.vendors = null; RM.data.itfRows = null; RM.data.vrRows = null; RM.data.dash = null; RM.data.rgRows = null; } }
         rmRender(false);
         var m = dry ? (d.ok ? '<div class="move-result ok">Preview: every row is fine. Check the table, then press Save.</div>' : rmMsgHtml(d))
             : (d.ok && d.written ? '<div class="move-result ok">&#10003; Saved ' + rmQty(sent.length, 0) + ' row(s).</div>' : rmMsgHtml(d) + '<div class="rm-dim">Nothing was saved.</div>');
@@ -11334,7 +11388,7 @@ function rmBulkShow(d, dry) {
         var src = (B.sent || [])[Number(r.row) - 1] || {};
         var st = String(r.status || ''), cls = st === 'ERROR' ? 'red' : (st === 'UNCHANGED' || st === 'BLOCKED' ? 'grey' : 'green');
         var det = st === 'ERROR' ? (r.message || r.error || '') : (r.changed ? 'changed: ' + [].concat(r.changed).join(', ') : (r.value_ex_gst != null ? rmInr(r.value_ex_gst) : ''));
-        return '<tr><td>' + esc59(src._row || r.row) + '</td><td>' + esc59(r.key || '') + '</td><td><span class="rm-badge ' + cls + '">' + esc59(st) + '</span></td><td>' + esc59(det) + (r.error && st === 'ERROR' ? ' <span class="rm-dim">(' + esc59(r.error) + ')</span>' : '') + '</td></tr>';
+        return '<tr><td>' + esc59(src._row || r.row) + '</td><td>' + esc59(r.key || r.item_code || r.invoice_no || '') + '</td><td><span class="rm-badge ' + cls + '">' + esc59(st) + '</span></td><td>' + esc59(det) + (r.error && st === 'ERROR' ? ' <span class="rm-dim">(' + esc59(r.error) + ')</span>' : '') + '</td></tr>';
     }).join('') + '</table></div>';
     el.innerHTML = html;
 }
@@ -11344,23 +11398,1616 @@ function rmBulkResultCsv() {
     rmSaveBlob(new Blob([rmCsv(['file_row', 'key', 'status', 'error', 'message', 'changed'], rows)], { type: 'text/csv' }), 'ArtzFolio_RM_Bulk_Result_' + rmStamp() + '.csv');
 }
 
+
+// ══ v122 (2026-10-14): PURCHASING, PROCUREMENT, ITEM / VENDOR 360, SEARCH, INBOX (database step M18) ═════════════
+// Everything below is added to the raw-materials module. The database functions it calls are the M18 ones
+// (rm_dashboard, rm_search, rm_items_filter, rm_item_360, rm_vendor_360, rm_purchase_register, rm_proc_*, rm_learn_*,
+// rm_inbox*, rm_item_vendors_used, rm_vendor_items_used, rm_item_set_barcode, rm_bulk_set_barcodes) plus the M15 ones.
+// A missing M18 function shows "Database step M18 is not applied yet" and nothing else breaks.
+// PIN: sliding window (every accepted call extends it, 30 idle minutes, never longer than 4 hours since it was typed),
+// memory only. Background polling (the bell) never opens the PIN sheet and never extends the window.
+var RM_PIN_MAX_MINUTES = 240;
+var RM18_FN = {};
+['rm_proc_create', 'rm_proc_create_many', 'rm_proc_list', 'rm_proc_detail', 'rm_proc_set_status', 'rm_proc_share', 'rm_search', 'rm_items_filter',
+    'rm_purchase_register', 'rm_item_vendors_used', 'rm_vendor_items_used', 'rm_vendor_360', 'rm_item_360', 'rm_dashboard', 'rm_item_set_barcode',
+    'rm_bulk_set_barcodes', 'rm_learn_suggestions', 'rm_learn_accept', 'rm_inbox', 'rm_inbox_dismiss'].forEach(function (n) { RM18_FN[n] = 1; });
+var RM18 = { deb: {}, bell: { known: false, total: 0, high: 0 }, bellSeq: 0, trap: false, skip: 0, openAfter: false, draft: null, pollT: null, ivu: {}, viu: {} };
+
+// ---- small helpers -------------------------------------------------------------------------------------------
+function rm8Deb(key, ms, fn) {
+    if (RM18.deb[key]) clearTimeout(RM18.deb[key]);
+    RM18.deb[key] = setTimeout(function () { RM18.deb[key] = null; try { fn(); } catch (e) {} }, ms);
+}
+function rm8E(s) { return esc59(s); }
+function rm8Js(s) { return String(s == null ? '' : s).replace(/[\\'"&<>\r\n\u2028\u2029]/g, function (c) { var n = c.charCodeAt(0); return n > 255 ? '\\u' + ('0000' + n.toString(16)).slice(-4) : '\\x' + ('0' + n.toString(16)).slice(-2); }); }
+// the rows of a list answer, whatever the list is called
+function rm8Rows(d, pref) { return (pref && d && d[pref]) || (d && (d.rows || d.items || d.vendors || d.suggestions || d.entries)) || []; }
+var RM8_MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+function rm8Date(ymd) {
+    var m = /^([0-9]{4})-([0-9]{2})-([0-9]{2})/.exec(String(ymd || ''));
+    return m ? (m[3] + '-' + RM8_MON[Number(m[2]) - 1] + '-' + m[1]) : String(ymd == null ? '' : ymd);
+}
+function rm8AddDays(ymd, n) {
+    var m = /^([0-9]{4})-([0-9]{2})-([0-9]{2})$/.exec(String(ymd || '')); if (!m) return ymd;
+    var d = new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3]) + n));
+    return d.getUTCFullYear() + '-' + p2(d.getUTCMonth() + 1) + '-' + p2(d.getUTCDate());
+}
+function rm8Age(days) {
+    var n = Number(days); if (!isFinite(n)) return '';
+    return n < 1 ? 'today' : (n === 1 ? '1 day' : rmQty(n, 0) + ' days');
+}
+function rm8Money(n) { return n == null || n === '' ? '-' : rmInr(n); }
+// money for a CSV / sheet cell: a plain number
+function rm8Cell(v) { return v == null ? '' : v; }
+function rm8Link(href, label, cls, extra) { return '<a class="settings-btn ' + (cls || 'rm-sm') + '" style="text-decoration:none;display:inline-flex;align-items:center;justify-content:center;' + (extra || '') + '" href="' + esc59(href) + '" target="_blank" rel="noopener">' + label + '</a>'; }
+function rm8Chip(label, on, onclick, count) {
+    return '<button type="button" class="rm-chip' + (on ? ' on' : '') + '" onclick="' + onclick + '">' + esc59(label) + (count != null ? ' <span class="rm-chip-n">' + rmQty(count, 0) + '</span>' : '') + '</button>';
+}
+function rm8Sev(s) { return s === 'HIGH' ? 'red' : (s === 'MEDIUM' ? '' : 'grey'); }
+// a plain-words box for a list that is empty
+function rm8Empty(what, hint) { return '<div class="rm-card"><b>' + esc59(what) + '</b><div class="rm-dim">' + esc59(hint) + '</div></div>'; }
+// "Showing the best N of M" for any list
+function rm8Showing(n, total, what) {
+    total = Number(total) || 0;
+    if (!total) return '';
+    return '<div class="rm-note">' + (n < total ? 'Showing the best <strong>' + rmQty(n, 0) + '</strong> of <strong>' + rmQty(total, 0) + '</strong> ' + what + '.' : '<strong>' + rmQty(total, 0) + '</strong> ' + what + '.') + '</div>';
+}
+// read every page of a list (the key of the rows may be rows, items or vendors); cap = most rows to read
+function rm8ReadAll(fn, argsFn, page, cap, onProgress) {
+    var rows = [], total = null;
+    function step() {
+        return rmCall(fn, argsFn(rows.length, page), { read: true, timeout: 30000 }).then(function (d) {
+            if (!d.ok) return { ok: false, d: d, rows: rows };
+            total = Number(d.total) || 0;
+            var got = rm8Rows(d);
+            rows = rows.concat(got);
+            if (onProgress) onProgress(rows.length, total);
+            if (rows.length < total && rows.length < cap && got.length) return step();
+            return { ok: true, rows: rows.slice(0, cap), total: total };
+        });
+    }
+    return step();
+}
+// a file of what is on the screen: kind = 'csv' | 'xlsx'. cols = names, rows = arrays
+function rm8SaveTable(kind, base, cols, rows, sheetName) {
+    var name = 'ArtzFolio_RM_' + base + '_' + rmStamp();
+    if (kind === 'xlsx') {
+        try {
+            var widths = cols.map(function (c) { return Math.max(12, String(c).length + 4); });
+            rmSaveBlob(new Blob([rmXlsxBuild([{ name: sheetName || base, header: true, widths: widths, rows: [cols].concat(rows) }])], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }), name + '.xlsx');
+            return true;
+        } catch (e) { return false; }
+    }
+    rmSaveBlob(new Blob([rmCsv(cols, rows)], { type: 'text/csv' }), name + '.csv');
+    return true;
+}
+function rm8DlBtns(fn) {
+    return '<div class="rm-btns"><button class="settings-btn rm-xs" style="background:#888" onclick="' + fn + '(\'csv\')">&#11015; CSV</button><button class="settings-btn rm-xs" style="background:#888" onclick="' + fn + '(\'xlsx\')">&#11015; Excel</button></div>';
+}
+
+// ---- the sign-in sheet --------------------------------------------------------------------------------------------
+function rm8PinSheet() {
+    var h = document.getElementById('rm-pin-title'), ci = document.getElementById('rm-pin-code');
+    if (h) h.innerHTML = (ci && ci.value) ? '&#128274; Type your PIN' : '&#128274; Your code and PIN';
+}
+
+// ---- the bell ------------------------------------------------------------------------------------------------------------
+function rm8BellPaint() {
+    var show = false;
+    try { show = !!(state && state.session && canRawMaterials()); } catch (e) {}
+    var fresh = rmPinFresh(), B = RM18.bell;
+    var txt = (show && fresh && B.known && B.total > 0) ? (B.total > 99 ? '99+' : String(B.total)) : '';
+    ['rm-bell-main', 'rm-bell-rm'].forEach(function (id) {
+        var b = document.getElementById(id); if (!b) return;
+        b.style.display = show ? '' : 'none';
+        var n = b.querySelector('.rm-bell-n');
+        if (n) { n.textContent = txt; n.style.display = txt ? '' : 'none'; }
+        b.title = fresh ? 'Inbox: things that need your attention' : 'Inbox (type your PIN to see what is waiting)';
+        b.setAttribute('aria-label', txt ? ('Inbox, ' + txt + ' waiting') : 'Inbox');
+    });
+}
+// a quiet read: never opens the PIN sheet, never extends the PIN window
+function rm8BellRefresh() {
+    try { if (!canRawMaterials()) { rm8BellPaint(); return; } } catch (e) { return; }
+    if (!rmPinFresh()) { rm8BellPaint(); return; }
+    var my = ++RM18.bellSeq;
+    rmCall('rm_inbox', { p_include_dismissed: false }, { read: true, quiet: true }).then(function (d) {
+        if (my !== RM18.bellSeq) return;
+        if (d && d.ok) { var c = d.counts || {}; RM18.bell = { known: true, total: Number(c.total) >= 0 && c.total != null ? Number(c.total) : rm8Rows(d, 'entries').length, high: Number(c.high) || 0 }; }
+        rm8BellPaint();
+    });
+}
+function rm8BellSoon() { rm8Deb('bell', 800, rm8BellRefresh); }
+function rm8BellTick() {
+    try { if (document.visibilityState === 'hidden') return; } catch (e) {}
+    rm8BellRefresh();
+}
+function rm8PollStart() { if (!RM18.pollT) RM18.pollT = setInterval(rm8BellTick, 300000); }
+function rmBellTap() {
+    if (!canRawMaterials()) return;
+    var wasTab = state.tab;
+    if (state.tab !== 'rm') { RM18.openAfter = true; switchTab('rm'); if (RM.lk) { RM18.openAfter = false; rm8OpenInbox(); } return; }
+    if (!RM.lk) { RM18.openAfter = true; rmLoadLookups(); return; }
+    rm8OpenInbox();
+}
+function rm8OpenInbox() {
+    if (RM.view === 'inbox') { rmRender(true); return; }
+    RM.stack = [{ view: 'home', params: {} }]; RM.view = 'inbox'; RM.params = {}; RM.form = {}; RM.pick = {};
+    rmRender(true);
+}
+function rm8OpenAfterLookups() {
+    if (!RM18.openAfter) return false;
+    RM18.openAfter = false;
+    RM.stack = [{ view: 'home', params: {} }]; RM.view = 'inbox'; RM.params = {};
+    return true;
+}
+
+// ---- Android Back inside raw materials ---------------------------------------------------------------------------------------
+// One history entry (the "trap") is kept while a screen deeper than the home screen is showing. Back pops it, the screen
+// goes one level back (rmBack) and a new entry is added if the new screen is still not the home screen. On the home screen
+// no entry is left, so Back leaves the page exactly as before.
+function rm8HistWanted() { try { return !!(state.tab === 'rm' && RM.lk && RM.view !== 'home'); } catch (e) { return false; } }
+function rm8HistSync() {
+    try {
+        var want = rm8HistWanted();
+        if (want && !RM18.trap) { history.pushState({ omsRmTrap: 1 }, '', location.href); RM18.trap = true; }
+        else if (!want && RM18.trap) rm8HistDrop();
+    } catch (e) {}
+}
+function rm8HistDrop() {
+    if (!RM18.trap) return;
+    RM18.trap = false;
+    try { if (history.state && history.state.omsRmTrap) { RM18.skip++; history.back(); } } catch (e) {}
+}
+window.addEventListener('popstate', function () {
+    if (RM18.skip > 0) { RM18.skip--; return; }
+    if (RM18.trap && !(history.state && history.state.omsRmTrap)) {
+        RM18.trap = false;
+        if (rm8HistWanted()) { try { rmBack(); } catch (e) {} }
+    }
+});
+
+// ---- type-ahead in the item / vendor pickers ----------------------------------------------------------------------------------
+// Called from rmF after every key: ids like rc-vendor-q, rl0-item-q, mv-item-q, rg-vendor-q.
+function rm8OnType(el) {
+    var m = /^(.+-(item|vendor))-q$/.exec(el.id || ''); if (!m) return;
+    var slot = m[1], kind = m[2], q = String(el.value || '').trim();
+    if (q.length < 3) { rm8Deb('pk' + slot, 0, function () {}); return; }
+    rm8Deb('pk' + slot, 250, function () { rm8PickLive(slot, kind, q); });
+}
+function rm8PickListHtml(slot, kind, st) {
+    var list = '';
+    if (st.loading) return '<div class="rm-dim">Searching...</div>';
+    if (st.err) return rmMsgHtml(st.err);
+    list = (st.total > st.rows.length ? '<div class="rm-dim">Best ' + st.rows.length + ' of ' + rmQty(st.total, 0) + ' - type more to narrow down.</div>' : '');
+    if (!st.rows.length) list += '<div class="rm-dim">Nothing matches.' + (kind === 'item' ? ' Add the item first (Items &rsaquo; Add an item).' : ' Add the vendor first (Vendors &rsaquo; Add a vendor).') + '</div>';
+    st.rows.forEach(function (r, i) {
+        list += '<button class="rm-row rm-pickrow" onclick="rmPickSet(\'' + slot + '\',\'' + kind + '\',' + i + ')"><b>' + esc59(kind === 'item' ? r.item_code : r.vendor_code) + '</b> ' + esc59(kind === 'item' ? r.item_name : r.vendor_name) +
+            (kind === 'item' ? ' <span class="rm-dim">(' + rmQty(r.on_hand) + ' ' + esc59(r.base_uom_code) + ')</span>' : (r.gstin ? ' <span class="rm-dim">' + esc59(r.gstin) + '</span>' : '')) + '</button>';
+    });
+    return list;
+}
+// updates only the result list under the box: the box itself is never redrawn, so typing is never interrupted
+function rm8PickLive(slot, kind, q) {
+    var inp = document.getElementById(slot + '-q');
+    if (!inp || String(inp.value || '').trim() !== q) return;
+    var st = RM.pick[slot] = { loading: true, rows: [], total: 0 }, view = RM.view, box = document.getElementById(slot + '-res');
+    if (box) box.innerHTML = rm8PickListHtml(slot, kind, st);
+    rmCall(kind === 'item' ? 'rm_list_items' : 'rm_list_vendors', { p_q: q, p_active_only: true, p_limit: 20, p_offset: 0 }, { read: true }).then(function (d) {
+        if (RM.pick[slot] !== st || RM.view !== view) return;   // a newer search or another screen: this answer is thrown away
+        var now = document.getElementById(slot + '-q');
+        if (now && String(now.value || '').trim() !== q) return;
+        st.loading = false;
+        if (!d.ok) st.err = d; else { st.rows = (kind === 'item' ? d.items : d.vendors) || []; st.total = Number(d.total) || 0; }
+        var b2 = document.getElementById(slot + '-res'); if (b2) b2.innerHTML = rm8PickListHtml(slot, kind, st);
+    });
+}
+// after a pick or a clear on a filter screen: reload it
+function rm8OnPicked(slot) {
+    if (slot === 'rg-vendor' || slot === 'rg-item') { try { rm8RegReload(); } catch (e) {} }
+    if (slot === 'rc-vendor') { try { rm8VoucherKick(); } catch (e) {} }
+}
+
+// ══ v122: HOME DASHBOARD, GLOBAL SEARCH, INBOX, LEARNED SUGGESTIONS ═══════════════════════════════════════════════
+// ---- the home "galaxy" ---------------------------------------------------------------------------------------------
+function rm8Tile(label, val, sub, onclick, warn) {
+    return '<button class="rm-tile' + (warn ? ' warn' : '') + '" onclick="' + onclick + '"><div class="rm-tile-n">' + val + '</div><div class="rm-tile-l">' + esc59(label) + '</div>' + (sub ? '<div class="rm-tile-s">' + sub + '</div>' : '') + '</button>';
+}
+function rm8HomeActs() {
+    return '<div class="rm-acts">' +
+        '<button class="rm-act" onclick="rmGo(\'receive\',{})">&#128229; Purchase / Receive stock</button>' +
+        '<button class="rm-act" onclick="rmGo(\'issue\',{})">&#128228; Issue / Send for procurement</button>' +
+        '<button class="rm-act" onclick="rmGo(\'proc\',{})">&#128722; Procurement</button>' +
+        '<button class="rm-act" onclick="rmGo(\'register\',{preset:\'30D\'})">&#128209; Purchase register</button>' +
+        '<button class="rm-act" onclick="rmGo(\'items\',{})">&#128230; Items</button>' +
+        '<button class="rm-act" onclick="rmGo(\'vendors\',{})">&#127970; Vendors</button>' +
+        '<button class="rm-act" onclick="rmGo(\'inbox\',{})">&#128276; Inbox</button>' +
+        '<button class="rm-act" onclick="rmGo(\'learn\',{})">&#128161; Learned suggestions</button>' +
+        '<button class="rm-act" onclick="rmGo(\'loss\',{})">&#128465; Loss / wastage</button>' +
+        '<button class="rm-act" onclick="rmGo(\'adjust\',{})">&#9878; Adjust</button>' +
+        '<button class="rm-act" onclick="rmGo(\'count\',{})">&#128290; Stock count</button>' +
+        '<button class="rm-act" onclick="rmGo(\'ledger\',{})">&#128220; History</button>' +
+        '<button class="rm-act" onclick="rmGo(\'bulk\',{})">&#128228; Import (bulk load)</button>' +
+        '<button class="rm-act" onclick="rmGo(\'exportv\',{})">&#11015; Export</button>' +
+        '</div>';
+}
+function rm8SearchBox() {
+    return '<div class="rm-search"><input type="text" class="settings-input rm-in" id="rm-gs" placeholder="Search everything: items, vendors, bills, requests, notes" autocomplete="off" autocorrect="off" spellcheck="false" value="' + rmV('rm-gs') + '" oninput="rm8GsType(this)" onkeydown="if(event.key===\'Enter\')rm8GsNow()"></div><div id="rm-gs-res"></div>';
+}
+function rmView_home(fetch) {
+    var body = rmEl('rm-body');
+    if (RM.data.homeNoM18 && fetch === false) { rmView_homeV121(false); return; }
+    function draw() {
+        var D = RM.data.dash || {}, T = D.tiles || {};
+        var html = rm8SearchBox();
+        html += '<div class="rm-tiles">' +
+            rm8Tile('Items', rmQty(T.items_active, 0), rmQty(T.items_in_stock, 0) + ' in stock', "rmGo('items',{})") +
+            rm8Tile('Low stock', rmQty(T.low_stock, 0), 'at or below reorder level', "rmGo('items',{stock:'LOW'})", Number(T.low_stock) > 0) +
+            rm8Tile('Out of stock', rmQty(T.out_of_stock, 0), 'nothing on hand', "rmGo('items',{stock:'OUT'})", Number(T.out_of_stock) > 0) +
+            rm8Tile('Stock value', rmInr(T.stock_value), (Number(T.missing_rate) > 0 ? '<span style="color:#B3261E;">' + rmQty(T.missing_rate, 0) + ' item(s) have stock but no rate - not counted</span>' : 'weighted average rate, before GST'), "rmGo('items',{sort:'STOCK_VALUE_DESC'})") +
+            (Number(T.missing_rate) > 0 ? rm8Tile('No rate', rmQty(T.missing_rate, 0), 'stock but no purchase rate', "rmGo('items',{stock:'NORATE'})", true) : '') +
+            rm8Tile('Vendors', rmQty(T.vendors_active, 0), rmQty(T.entries_today, 0) + ' entries today', "rmGo('vendors',{})") +
+            rm8Tile('Open procurement', rmQty(T.open_requests, 0), 'requested, ordered or partly received', "rmGo('proc',{scope:'OPEN'})") +
+            rm8Tile('Overdue', rmQty(T.overdue_requests, 0), 'past the date they were expected', "rmGo('proc',{scope:'OPEN',overdue:true})", Number(T.overdue_requests) > 0) +
+            rm8Tile('Learned suggestions', rmQty(T.learn_suggestions, 0), 'from your buying pattern', "rmGo('learn',{})") +
+            rm8Tile('Spend, last 30 days', rmInr(T.spend_30d), 'before GST', "rmGo('register',{preset:'30D'})") +
+            rm8Tile('Bills, last 30 days', rmQty(T.bills_30d, 0), 'open the purchase register', "rmGo('register',{preset:'30D'})") +
+            '</div><div class="rm-note">' + esc59(D.as_of_ist ? 'As of ' + D.as_of_ist + ' India time' : '') + '</div>';
+        // lists, every row opens the thing it names
+        var tv = D.top_vendors_90d || [];
+        html += '<div class="rm-sec">Top vendors, last 90 days</div>';
+        if (!tv.length) html += '<div class="rm-dim">No purchases in the last 90 days yet.</div>';
+        tv.forEach(function (v) { html += '<button class="rm-row" onclick="rmGo(\'vendor\',{vendor_id:' + Number(v.vendor_id) + '})"><div class="rm-row-top"><b>' + esc59(v.vendor_name) + '</b><span>' + rmInr(v.spend) + '</span></div></button>'; });
+        var ti = D.top_items_90d || [];
+        html += '<div class="rm-sec">Top items by spend, last 90 days</div>';
+        if (!ti.length) html += '<div class="rm-dim">No purchases in the last 90 days yet.</div>';
+        ti.forEach(function (x) { html += '<button class="rm-row" onclick="rmOpenItem(' + Number(x.item_id) + ')"><div class="rm-row-top"><span><b>' + esc59(x.item_code) + '</b> ' + esc59(x.item_name) + '</span><span>' + rmInr(x.spend) + '</span></div></button>'; });
+        var cv = D.stock_value_by_category || [];
+        html += '<div class="rm-sec">Stock value by category</div>';
+        if (!cv.length) html += '<div class="rm-dim">No stock value yet.</div>';
+        else {
+            html += xmChart('hbar', cv.map(function (c) { return { key: c.category_code, label: c.category_name || c.category_code, value: Number(c.stock_value) || 0 }; }), { title: 'Stock value by category', desc: 'Stock value by category, before GST', measure: 'value', money: true });
+            cv.forEach(function (c) { html += '<button class="rm-row" onclick="rmGo(\'items\',{cat:\'' + rm8Js(c.category_code) + '\'})"><div class="rm-row-top"><span><b>' + esc59(c.category_name || c.category_code) + '</b> <span class="rm-dim">' + rmQty(c.items, 0) + ' item(s)</span></span><span>' + rmInr(c.stock_value) + '</span></div></button>'; });
+        }
+        var lo = D.low_items || [];
+        html += '<div class="rm-sec">Running low: the most urgent</div>';
+        if (!lo.length) html += '<div class="rm-dim">Nothing is below its reorder level.</div>';
+        lo.forEach(function (x, i) {
+            html += '<div class="rm-row rm-rowc"><div onclick="rmOpenItem(' + Number(x.item_id) + ')"><div class="rm-row-top"><span><b>' + esc59(x.item_code) + '</b> ' + esc59(x.item_name) + '</span></div>' +
+                '<div class="rm-dim">On hand ' + rmQty(x.on_hand) + ' &middot; reorder at ' + rmQty(x.reorder_level) + (Number(x.suggested_order_qty) > 0 ? ' &middot; suggested order ' + rmQty(x.suggested_order_qty) : '') + '</div></div>' +
+                '<div class="rm-btns">' + (x.open_request_id ? '<button class="settings-btn rm-xs" style="background:#1B7A3A" onclick="rmGo(\'proc\',{item_id:' + Number(x.item_id) + '})">On the procurement list</button>' :
+                    '<button class="settings-btn rm-xs" onclick="rm8ProcQuick(' + Number(x.item_id) + ',' + (Number(x.suggested_order_qty) > 0 ? Number(x.suggested_order_qty) : 'null') + ',\'LOW_STOCK\',\'hl' + i + '\')">Send for procurement</button>') + '</div><div id="rm-hl' + i + '"></div></div>';
+        });
+        html += rm8HomeActs();
+        body.innerHTML = html;
+        rm8GsRestore();
+    }
+    if (!fetch && RM.data.dash) { draw(); return; }
+    if (!RM.data.dash) rmLoading('Loading the dashboard...'); else draw();
+    rmLoad('rm_dashboard', {}, function (d) {
+        if (d.ok) { RM.data.dash = d; RM.data.homeBanner = ''; RM.data.homeNoM18 = false; draw(); return; }
+        RM.data.dash = null;
+        if (d.error === 'NO_M18') {   // the old home screen still works without M18
+            RM.data.homeNoM18 = true;
+            RM.data.homeBanner = '<div class="move-result err">' + esc59(d.text) + ' The new dashboard needs it; the summary below still works.</div>';
+            rmView_homeV121(true); return;
+        }
+        body.innerHTML = rmMsgHtml(d) + '<button class="settings-btn rm-big" onclick="rmRender(true)">&#8635; Try again</button>' + rm8HomeActs();
+    });
+}
+// a one-tap "send for procurement" with the answer shown under the row
+function rm8ProcQuick(itemId, qty, reason, msgKey) {
+    if (_rmBusy['pq' + itemId]) return; _rmBusy['pq' + itemId] = 1;
+    rmSetMsg('rm-' + msgKey, '<div class="move-result">Saving...</div>');
+    rmCall('rm_proc_create', { p_item_id: Number(itemId), p_qty: qty, p_reason: reason || 'MANUAL', p_client_queue_id: rmUuid() }).then(function (d) {
+        delete _rmBusy['pq' + itemId];
+        if (!d.ok) { rmSetMsg('rm-' + msgKey, rmMsgHtml(d)); return; }
+        RM.data.dash = null; RM.data.items = null; RM.data.itfRows = null;
+        rmSetMsg('rm-' + msgKey, '<div class="move-result ok">' + (d.duplicate ? 'Already on the procurement list' + (d.status ? ' (' + esc59(d.status) + ')' : '') + '.' : '&#10003; Sent for procurement.') + ' <a href="#" onclick="rmGo(\'proc\',{item_id:' + Number(itemId) + '});return false;">Open the list</a></div>');
+        logEvent('', 'Raw material sent for procurement: item #' + itemId);
+    });
+}
+function rm8OpenItemByCode(code) {
+    rmCall('rm_list_items', { p_q: code, p_active_only: false, p_limit: 5, p_offset: 0 }, { read: true }).then(function (d) {
+        if (!d.ok) { alert(d.text); return; }
+        var hit = null; (d.items || []).forEach(function (r) { if (String(r.item_code).toUpperCase() === String(code).toUpperCase()) hit = r; });
+        if (hit) rmOpenItem(Number(hit.item_id)); else alert('That item could not be found.');
+    });
+}
+
+// ---- global search -------------------------------------------------------------------------------------------------------
+RM18.gsSeq = 0;
+function rm8GsType(el) {
+    RM.form['rm-gs'] = el.value;
+    var q = String(el.value || '').trim();
+    RM18.gsSeq++;                                     // any answer that is still on its way is now stale
+    if (q === '') { RM.data.gs = null; rmSetMsg('rm-gs-res', ''); rm8Deb('gs', 0, function () {}); return; }
+    if (q.length < 3) { RM.data.gs = null; rm8Deb('gs', 0, function () {}); rmSetMsg('rm-gs-res', '<div class="rm-dim">Type at least 3 letters.</div>'); return; }
+    rm8Deb('gs', 250, function () { rm8GsRun(q); });
+}
+function rm8GsNow() {
+    var q = String(RM.form['rm-gs'] || '').trim();
+    if (q.length < 3) { rmSetMsg('rm-gs-res', '<div class="rm-dim">Type at least 3 letters.</div>'); return; }
+    rm8Deb('gs', 0, function () {}); rm8GsRun(q);
+}
+function rm8GsRun(q) {
+    var my = ++RM18.gsSeq;
+    rmSetMsg('rm-gs-res', '<div class="rm-dim">Searching...</div>');
+    rmCall('rm_search', { p_q: q, p_limit_per_kind: 8 }, { read: true }).then(function (d) {
+        if (my !== RM18.gsSeq || RM.view !== 'home') return;   // an older answer, or another screen: thrown away
+        if (!d.ok) { RM.data.gs = null; rmSetMsg('rm-gs-res', rmMsgHtml(d)); return; }
+        RM.data.gs = { q: q, d: d };
+        rmSetMsg('rm-gs-res', rm8GsHtml(d));
+    });
+}
+function rm8GsRestore() {
+    var q = String(RM.form['rm-gs'] || '').trim(), G = RM.data.gs;
+    if (G && G.q === q && q.length >= 3) rmSetMsg('rm-gs-res', rm8GsHtml(G.d));
+    else if (q.length > 0 && q.length < 3) rmSetMsg('rm-gs-res', '<div class="rm-dim">Type at least 3 letters.</div>');
+}
+function rm8GsHtml(d) {
+    var h = '', any = false;
+    function sec(title, K, rowFn) {
+        var rows = (K && K.rows) || [], tot = K ? Number(K.total) || rows.length : 0;
+        if (!rows.length) return;
+        any = true;
+        h += '<div class="rm-sec" style="margin-top:8px">' + esc59(title) + ' <span class="rm-dim">' + (tot > rows.length ? 'best ' + rows.length + ' of ' + rmQty(tot, 0) : rmQty(tot, 0)) + '</span></div>';
+        rows.forEach(rowFn);
+    }
+    sec('Items', d.items, function (r) {
+        h += '<button class="rm-row" onclick="rmOpenItem(' + Number(r.item_id) + ')"><div class="rm-row-top"><span class="rm-code">' + esc59(r.item_code) + '</span>' + (r.below_reorder ? '<span class="rm-badge red">LOW</span>' : '') + (r.active === false ? '<span class="rm-badge grey">ARCHIVED</span>' : '') + '</div>' +
+            '<div class="rm-row-name">' + esc59(r.item_name) + '</div><div class="rm-dim">' + rmQty(r.on_hand) + ' ' + esc59(r.base_uom_code) + (r.matched && r.matched !== 'name' ? ' &middot; matched on ' + esc59(r.matched) : '') + '</div></button>';
+    });
+    sec('Vendors', d.vendors, function (r) {
+        h += '<button class="rm-row" onclick="rmGo(\'vendor\',{vendor_id:' + Number(r.vendor_id) + '})"><div class="rm-row-top"><span class="rm-code">' + esc59(r.vendor_code) + '</span>' + (r.active === false ? '<span class="rm-badge grey">ARCHIVED</span>' : '') + '</div>' +
+            '<div class="rm-row-name">' + esc59(r.vendor_name) + '</div><div class="rm-dim">' + [r.gstin ? 'GSTIN ' + esc59(r.gstin) : '', r.phone ? esc59(r.phone) : '', r.matched && r.matched !== 'name' ? 'matched on ' + esc59(r.matched) : ''].filter(Boolean).join(' &middot; ') + '</div></button>';
+    });
+    sec('Bills', d.receipts, function (r) {
+        h += '<button class="rm-row" onclick="rmGo(\'bill\',{receipt_id:' + Number(r.receipt_id) + ',invoice_no:\'' + rm8Js(r.invoice_no) + '\',vendor_name:\'' + rm8Js(r.vendor_name) + '\'})"><div class="rm-row-top"><b>Bill ' + esc59(r.invoice_no) + '</b><span>' + (r.total == null ? '' : rmInr(r.total)) + '</span></div>' +
+            '<div class="rm-dim">' + esc59(r.vendor_name || '') + (r.invoice_date ? ' &middot; ' + esc59(rm8Date(r.invoice_date)) : '') + (r.po_no ? ' &middot; PO ' + esc59(r.po_no) : '') + '</div></button>';
+    });
+    sec('Requests', d.requests, function (r) {
+        h += '<button class="rm-row" onclick="rmGo(\'proc\',{q:\'' + rm8Js(r.item_name) + '\',scope:\'ALL\'})"><div class="rm-row-top"><b>' + esc59(r.item_name) + '</b><span class="rm-badge">' + esc59(rm8ProcStatusLabel(r.status)) + '</span></div><div class="rm-dim">' + esc59(r.vendor_name || 'no vendor yet') + '</div></button>';
+    });
+    sec('Notes in the history', d.notes, function (r) {
+        h += '<button class="rm-row" onclick="rm8OpenItemByCode(\'' + rm8Js(r.item_code) + '\')"><div class="rm-row-top"><span><b>' + esc59(r.item_code) + '</b> ' + esc59(r.item_name) + '</span><span class="rm-dim">' + esc59(r.created_at_ist || '') + '</span></div>' +
+            '<div class="rm-dim">' + esc59(String(r.txn_type || '').replace(/_/g, ' ')) + (r.note ? ' &middot; &ldquo;' + esc59(r.note) + '&rdquo;' : '') + (r.work_order_ref ? ' &middot; WO ' + esc59(r.work_order_ref) : '') + (r.sku_code ? ' &middot; SKU ' + esc59(r.sku_code) : '') + '</div></button>';
+    });
+    if (!any) return '<div class="rm-card"><b>Nothing found for &ldquo;' + esc59(d.q || '') + '&rdquo;.</b><div class="rm-dim">Try fewer or different words, or part of a code. Search looks at item names and old names, vendors, bills, requests and notes.</div></div>';
+    return h;
+}
+
+// ---- inbox ---------------------------------------------------------------------------------------------------------------
+function rm8MakeNowCount() {
+    try {
+        var c = A12 && A12.cache && A12.cache.forecast;
+        if (c && c.ok && c.data && c.data.length != null) { var n = 0; c.data.forEach(function (r) { if (r && r.make_now === 'YES - MAKE') n++; }); return n; }
+    } catch (e) {}
+    return null;
+}
+var RM8_IB_BTN = { PROCURE: 'Send for procurement', OPEN_REQUEST: 'Open the request', RECEIVE: 'Receive stock', REVIEW_RATE: 'Check the rate', ACCEPT_LEARNED: 'Review the suggestion', OPEN_ITEM: 'Open the item' };
+function rmView_inbox(fetch) {
+    var body = rmEl('rm-body');
+    function draw() {
+        var D = RM.data.inbox || { entries: [], counts: {} }, E = D.entries || [], html = '';
+        var mk = rm8MakeNowCount();
+        if (mk && mk > 0 && xmCan('prd')) html += '<div class="rm-card"><b>Production: make now</b><div class="rm-dim">' + rmQty(mk, 0) + ' product(s) are marked MAKE NOW on the production list.</div><div class="rm-btns"><button class="settings-btn rm-sm" onclick="switchTab(\'prd\')">Open the MAKE tab</button></div></div>';
+        var c = D.counts || {};
+        html += '<div class="rm-note"><strong>' + rmQty(E.length, 0) + '</strong> thing(s) need your attention' + (Number(c.high) > 0 ? ' &middot; <span style="color:#B3261E;font-weight:700;">' + rmQty(c.high, 0) + ' urgent</span>' : '') + '. Snooze hides one for 7 days.' + (D.truncated ? ' Only the first 200 are shown.' : '') + '</div>';
+        if (!E.length) html += rm8Empty('Nothing is waiting for you.', 'When stock runs low, a request is overdue or a pattern is learned from your buying, it shows here and on the bell. Nothing to do right now.');
+        ['HIGH', 'MEDIUM', 'LOW'].forEach(function (sev) {
+            var part = []; E.forEach(function (e, i) { if (e.severity === sev) part.push(i); });
+            if (!part.length) return;
+            html += '<div class="rm-sec">' + (sev === 'HIGH' ? 'Urgent' : (sev === 'MEDIUM' ? 'Soon' : 'For information')) + ' <span class="rm-dim">' + part.length + '</span></div>';
+            part.forEach(function (i) {
+                var e = E[i];
+                html += '<div class="rm-card"><div onclick="rm8IbOpen(' + i + ')" style="cursor:pointer"><div class="rm-row-top"><span class="rm-badge ' + rm8Sev(e.severity) + '">' + esc59(e.severity || '') + '</span><span class="rm-dim">' + (e.since ? esc59(fmtIst(e.since)) : '') + '</span></div>' +
+                    '<div class="rm-h">' + esc59(e.title) + '</div><div class="rm-dim">' + esc59(e.detail || '') + '</div></div>' +
+                    '<div class="rm-btns"><button class="settings-btn rm-sm" style="background:#1B7A3A" onclick="rm8IbAct(' + i + ')">' + esc59(RM8_IB_BTN[e.action] || 'Open') + '</button>' +
+                    '<button class="settings-btn rm-sm" style="background:#888" onclick="rm8IbSnooze(' + i + ')">Snooze 7 days</button></div><div id="rm-ib' + i + '"></div></div>';
+            });
+        });
+        if (E.length) html += rm8DlBtns('rm8InboxDl');
+        body.innerHTML = html;
+    }
+    if (!fetch && RM.data.inbox) { draw(); return; }
+    rmLoading('Loading your inbox...');
+    rmLoad('rm_inbox', { p_include_dismissed: false }, function (d) {
+        if (!d.ok) { rmLoadErr(d, 'rmRender(true)'); return; }
+        RM.data.inbox = d;
+        var cc = d.counts || {}; RM18.bell = { known: true, total: Number(cc.total) >= 0 && cc.total != null ? Number(cc.total) : (d.entries || []).length, high: Number(cc.high) || 0 }; rm8BellPaint();
+        draw();
+    });
+}
+function rm8IbEntry(i) { var D = RM.data.inbox; return D && D.entries ? D.entries[i] : null; }
+function rm8IbOpen(i) {
+    var e = rm8IbEntry(i); if (!e) return;
+    if (e.item_id) rmOpenItem(Number(e.item_id));
+    else if (e.vendor_id) rmGo('vendor', { vendor_id: Number(e.vendor_id) });
+    else if (e.request_id) rmGo('proc', { scope: 'ALL' });
+}
+function rm8IbAct(i) {
+    var e = rm8IbEntry(i); if (!e) return;
+    switch (e.action) {
+        case 'PROCURE':
+            if (_rmBusy['ib' + i]) return; _rmBusy['ib' + i] = 1;
+            rmSetMsg('rm-ib' + i, '<div class="move-result">Saving...</div>');
+            rmCall('rm_proc_create', { p_item_id: Number(e.item_id), p_qty: Number(e.qty) > 0 ? Number(e.qty) : null, p_reason: 'LOW_STOCK', p_client_queue_id: rmUuid() }).then(function (d) {
+                delete _rmBusy['ib' + i];
+                if (!d.ok) { rmSetMsg('rm-ib' + i, rmMsgHtml(d)); return; }
+                rm8IbRemove(e, d.duplicate ? 'Already on the procurement list.' : 'Sent for procurement.');
+                logEvent('', 'Raw material sent for procurement from the inbox: item #' + e.item_id);
+            });
+            return;
+        case 'OPEN_REQUEST': rmGo('proc', e.item_id ? { item_id: Number(e.item_id), scope: 'OPEN' } : { scope: 'OPEN' }); return;
+        case 'RECEIVE': rmGo('receive', e.item_id ? { item_id: Number(e.item_id) } : {}); return;
+        case 'ACCEPT_LEARNED': rmGo('learn', e.item_id ? { item_id: Number(e.item_id) } : {}); return;
+        case 'REVIEW_RATE': case 'OPEN_ITEM': default: rm8IbOpen(i);
+    }
+}
+function rm8IbRemove(e, msg) {
+    var D = RM.data.inbox; if (!D) return;
+    D.entries = (D.entries || []).filter(function (x) { return x !== e; });
+    if (D.counts) { D.counts.total = Math.max(0, (Number(D.counts.total) || 1) - 1); if (e.severity === 'HIGH') D.counts.high = Math.max(0, (Number(D.counts.high) || 1) - 1); }
+    RM18.bell = { known: true, total: D.entries.length, high: Number((D.counts || {}).high) || 0 }; rm8BellPaint();
+    rmRender(false);
+    var el = rmEl('rm-body'); if (el) el.insertAdjacentHTML('afterbegin', '<div class="move-result ok">&#10003; ' + esc59(msg) + '</div>');
+    rm8BellSoon();
+}
+function rm8IbSnooze(i) {
+    var e = rm8IbEntry(i); if (!e || _rmBusy['sz' + i]) return; _rmBusy['sz' + i] = 1;
+    rmSetMsg('rm-ib' + i, '<div class="move-result">Saving...</div>');
+    rmCall('rm_inbox_dismiss', { p_key: e.key, p_snooze_days: 7 }).then(function (d) {
+        delete _rmBusy['sz' + i];
+        if (!d.ok) { rmSetMsg('rm-ib' + i, rmMsgHtml(d)); return; }
+        rm8IbRemove(e, 'Snoozed for 7 days.');
+    });
+}
+function rm8InboxDl(kind) {
+    var E = (RM.data.inbox && RM.data.inbox.entries) || [];
+    rm8SaveTable(kind, 'Inbox', ['severity', 'kind', 'title', 'detail', 'item_id', 'vendor_id', 'request_id', 'qty', 'since', 'action'],
+        E.map(function (e) { return [e.severity, e.kind, e.title, e.detail, rm8Cell(e.item_id), rm8Cell(e.vendor_id), rm8Cell(e.request_id), rm8Cell(e.qty), e.since || '', e.action || '']; }), 'Inbox');
+}
+
+// ---- learned suggestions -------------------------------------------------------------------------------------------------
+function rm8LearnRows(d) { return d.learned ? [d.learned] : rm8Rows(d); }
+function rmView_learn(fetch) {
+    var body = rmEl('rm-body'), P = RM.params;
+    function draw() {
+        var L = RM.data.learn || { rows: [], total: 0 }, html = '';
+        html += '<div class="rm-note">From your own receipts: how often and how much you usually buy each item. Accept sets the reorder level and quantity on the item to the suggestion; Not now hides it for 7 days. Nothing changes until you accept.</div>';
+        if (L.reason === 'NOT_ENOUGH_HISTORY') html += rm8Empty('Not enough history for this item yet.', 'A pattern needs at least 3 separate days of buying' + (L.purchase_days != null ? ' (this item has ' + rmQty(L.purchase_days, 0) + ')' : '') + '.');
+        else if (!L.rows.length) html += rm8Empty('No suggestions yet.', 'A suggestion appears for an item after you have bought it on at least 3 separate days. Keep entering receipts and this fills in by itself.');
+        html += rm8Showing(L.rows.length, L.total, 'suggestion(s)');
+        L.rows.forEach(function (r, i) {
+            var u = esc59(r.base_uom_code || '');
+            html += '<div class="rm-card"><div class="rm-row-top"><span onclick="rmOpenItem(' + Number(r.item_id) + ')" style="cursor:pointer"><span class="rm-code">' + esc59(r.item_code) + '</span> ' + esc59(r.item_name) + '</span>' +
+                '<span>' + (r.confidence ? '<span class="rm-badge ' + (r.confidence === 'HIGH' ? 'green' : '') + '">' + esc59(r.confidence) + ' confidence</span>' : '') + (r.dismissed ? ' <span class="rm-badge grey">Not now</span>' : '') + (r.accepted ? ' <span class="rm-badge green">Accepted</span>' : '') + '</span></div>' +
+                '<div style="margin-top:6px">Usually bought every <b>' + rmQty(r.typical_gap_days, 0) + '</b> days, about <b>' + rmQty(r.typical_qty_base) + '</b> ' + u +
+                (r.next_expected_on ? '; next expected <b>' + esc59(rm8Date(r.next_expected_on)) + '</b>' : '') + (r.avg_daily_use_90d != null ? '; you use about <b>' + rmQty(r.avg_daily_use_90d, 2) + '</b> ' + u + ' per day' : '') + '.</div>' +
+                '<div style="margin-top:4px">Suggested alert: reorder level <b>' + (r.suggested_reorder_level == null ? 'no change (no usage yet)' : rmQty(r.suggested_reorder_level)) + '</b>, reorder quantity <b>' + rmQty(r.suggested_reorder_qty) + '</b>.</div>' +
+                '<div class="rm-dim">Now on the item: level ' + rmQty(r.current_reorder_level) + ', quantity ' + rmQty(r.current_reorder_qty) + ' &middot; based on ' + rmQty(r.purchase_days, 0) + ' buying days</div>' +
+                (r.accepted ? '' : '<div class="rm-btns"><button class="settings-btn rm-sm" style="background:#1B7A3A" onclick="rm8LearnAccept(' + i + ')">Accept</button><button class="settings-btn rm-sm" style="background:#888" onclick="rm8LearnLater(' + i + ')">Not now</button></div>') +
+                '<div id="rm-ln' + i + '"></div></div>';
+        });
+        if (L.rows.length < L.total) html += '<button class="settings-btn rm-big" style="background:#888" onclick="rm8LearnMore()">' + (L.loading ? 'Loading...' : 'Show 50 more (' + rmQty(L.total - L.rows.length, 0) + ' left)') + '</button>';
+        if (L.moreErr) html += rmMsgHtml(L.moreErr);
+        if (L.rows.length) html += rm8DlBtns('rm8LearnDl');
+        body.innerHTML = html;
+    }
+    if (!fetch && RM.data.learn) { draw(); return; }
+    rmLoading('Reading your buying pattern...');
+    rmLoad('rm_learn_suggestions', { p_item_id: P.item_id ? Number(P.item_id) : null, p_limit: 50, p_offset: 0 }, function (d) {
+        if (!d.ok) { rmLoadErr(d, 'rmRender(true)'); return; }
+        var rows = rm8LearnRows(d);
+        RM.data.learn = { rows: rows, total: Number(d.total) || rows.length, reason: (d.learned === null || (!rows.length && d.reason)) ? d.reason : null, purchase_days: d.purchase_days };
+        draw();
+    });
+}
+function rm8LearnMore() {
+    var L = RM.data.learn; if (!L || L.loading) return;
+    L.loading = true; L.moreErr = null; rmRender(false);
+    rmLoad('rm_learn_suggestions', { p_item_id: RM.params.item_id ? Number(RM.params.item_id) : null, p_limit: 50, p_offset: L.rows.length }, function (d) {
+        L.loading = false;
+        if (!d.ok) { L.moreErr = d; rmRender(false); return; }
+        L.rows = L.rows.concat(rm8LearnRows(d)); L.total = Number(d.total) || L.total; rmRender(false);
+    });
+}
+function rm8LearnAccept(i) {
+    var L = RM.data.learn, r = L && L.rows[i]; if (!r || _rmBusy['ln' + i]) return;
+    var lvl = r.suggested_reorder_level != null ? Number(r.suggested_reorder_level) : (r.current_reorder_level != null ? Number(r.current_reorder_level) : 0), qty = Number(r.suggested_reorder_qty);
+    if (!(qty >= 0) || !(lvl >= 0)) { rmSetMsg('rm-ln' + i, '<div class="move-result err">This suggestion has no usable numbers. Nothing was saved.</div>'); return; }
+    if (!confirm('Set the reorder level of ' + r.item_code + ' to ' + rmQty(lvl) + ' and the reorder quantity to ' + rmQty(qty) + ' ' + (r.base_uom_code || '') + '?')) return;
+    _rmBusy['ln' + i] = 1; rmSetMsg('rm-ln' + i, '<div class="move-result">Saving...</div>');
+    rmCall('rm_learn_accept', { p_item_id: Number(r.item_id), p_reorder_level: lvl, p_reorder_qty: qty }).then(function (d) {
+        delete _rmBusy['ln' + i];
+        if (!d.ok) { rmSetMsg('rm-ln' + i, rmMsgHtml(d)); return; }
+        r.accepted = true; r.current_reorder_level = lvl; r.current_reorder_qty = qty; RM.data.items = null; RM.data.dash = null; RM.data.inbox = null; RM.data.itfRows = null;
+        logEvent('', 'Raw material reorder alert accepted: ' + r.item_code);
+        rmRender(false); rm8BellSoon();
+        rmSetMsg('rm-ln' + i, '<div class="move-result ok">&#10003; Saved: level ' + rmQty(lvl) + ', quantity ' + rmQty(qty) + '.</div>');
+    });
+}
+function rm8LearnLater(i) {
+    var L = RM.data.learn, r = L && L.rows[i]; if (!r || _rmBusy['lt' + i]) return; _rmBusy['lt' + i] = 1;
+    rmCall('rm_inbox_dismiss', { p_key: 'LEARN:' + Number(r.item_id), p_snooze_days: 7 }).then(function (d) {
+        delete _rmBusy['lt' + i];
+        if (!d.ok) { rmSetMsg('rm-ln' + i, rmMsgHtml(d)); return; }
+        r.dismissed = true; RM.data.inbox = null; rmRender(false); rm8BellSoon();
+    });
+}
+function rm8LearnDl(kind) {
+    var L = (RM.data.learn && RM.data.learn.rows) || [];
+    rm8SaveTable(kind, 'Learned_Suggestions', ['item_code', 'item_name', 'base_uom_code', 'purchase_days', 'typical_gap_days', 'typical_qty_base', 'next_expected_on', 'avg_daily_use_90d', 'current_reorder_level', 'current_reorder_qty', 'suggested_reorder_level', 'suggested_reorder_qty', 'confidence'],
+        L.map(function (r) { return [r.item_code, r.item_name, r.base_uom_code, r.purchase_days, r.typical_gap_days, r.typical_qty_base, r.next_expected_on || '', rm8Cell(r.avg_daily_use_90d), rm8Cell(r.current_reorder_level), rm8Cell(r.current_reorder_qty), rm8Cell(r.suggested_reorder_level), rm8Cell(r.suggested_reorder_qty), r.confidence || '']; }), 'Suggestions');
+}
+
+// ══ v122: ITEMS LIST (server-side filters), ITEM 360, VENDOR REGISTRY, VENDOR 360, BILL PAGE ══════════════════════
+// ---- items list ------------------------------------------------------------------------------------------------
+var RM8_STOCK = [['ALL', 'All'], ['IN', 'In stock'], ['OUT', 'Out of stock'], ['LOW', 'Low stock'], ['NORATE', 'No rate'], ['NOPROC', 'Low, not requested'], ['PROC', 'On procurement']];
+var RM8_SORT = [['NAME', 'Name'], ['CODE', 'Code'], ['STOCK_VALUE_DESC', 'Stock value, highest first'], ['ON_HAND_ASC', 'On hand, lowest first'], ['DAYS_OF_COVER_ASC', 'Days of cover, fewest first'], ['LAST_RECEIVED_DESC', 'Last received, newest first'], ['USED_30D_DESC', 'Used in 30 days, most first']];
+function rm8ItfSeed() {
+    var P = RM.params;
+    if (RM.data.itf && P._seeded) return;
+    RM.data.itf = { q: P.q || '', cat: P.cat || '', vendor: P.vendor_id ? String(P.vendor_id) : '', stock: P.stock || (P.low ? 'LOW' : 'ALL'), active: P.active || 'ACTIVE', sort: P.sort || 'NAME' };
+    RM.data.itfRows = null; P._seeded = true;
+}
+function rm8ItfArgs(off, lim) {
+    var S = RM.data.itf;
+    return { p_q: String(S.q || '').trim() || null, p_category: S.cat || null, p_vendor_id: S.vendor ? Number(S.vendor) : null, p_stock: S.stock || 'ALL', p_active: S.active || 'ACTIVE', p_sort: S.sort || 'NAME', p_limit: lim || 50, p_offset: off };
+}
+function rm8ItfAny() { var S = RM.data.itf; return !!(String(S.q || '').trim() || S.cat || S.vendor || (S.stock && S.stock !== 'ALL') || (S.active && S.active !== 'ACTIVE')); }
+function rmView_items(fetch) {
+    var body = rmEl('rm-body');
+    if (RM.data.itfNoM18 && fetch === false) { rmView_itemsV121(false); return; }
+    RM.data.itfNoM18 = false;
+    rm8ItfSeed();
+    var S = RM.data.itf;
+    body.innerHTML = '<div class="rm-search"><input type="text" class="settings-input rm-in" id="itf-q" placeholder="Search: code, name, spec, old name, HSN, barcode" autocomplete="off" autocorrect="off" spellcheck="false" value="' + esc59(S.q) + '" oninput="rm8ItfType(this)" onkeydown="if(event.key===\'Enter\')rm8ItfGo()"><button class="settings-btn" onclick="rm8ItfGo()">Search</button></div>' +
+        '<div id="itf-ctl"></div><button class="settings-btn rm-big" style="background:#1B7A3A" onclick="rmGo(\'itemEdit\',{})">&#10133; Add an item</button><div id="itf-res"></div>';
+    var R = RM.data.itfRows;
+    if (!fetch && R && !R.loading && !R.err) { rm8ItfDraw(); return; }
+    rm8ItfReload();
+}
+function rm8ItfCtl() {
+    var S = RM.data.itf, R = RM.data.itfRows || {}, F = R.facets || {}, fs = F.stock || {}, h = '<div class="rm-chips">';
+    RM8_STOCK.forEach(function (x) { h += rm8Chip(x[1], S.stock === x[0], 'rm8ItfSet(\'stock\',\'' + x[0] + '\')', fs[x[0]] != null ? fs[x[0]] : null); });
+    h += '</div><div class="rm-filters">';
+    var cats = F.categories || [], co = '<option value="">All categories</option>', seenC = false;
+    cats.forEach(function (c) { if (c.category_code === S.cat) seenC = true; co += '<option value="' + esc59(c.category_code) + '"' + (c.category_code === S.cat ? ' selected' : '') + '>' + esc59(c.category_name || c.category_code) + ' (' + rmQty(c.count, 0) + ')</option>'; });
+    if (S.cat && !seenC) co += '<option value="' + esc59(S.cat) + '" selected>' + esc59(S.cat) + '</option>';
+    h += '<select class="settings-input rm-in" aria-label="Category" onchange="rm8ItfSet(\'cat\',this.value)">' + co + '</select>';
+    var vs = F.vendors || [], vo = '<option value="">All vendors</option>', seenV = false;
+    vs.forEach(function (v) { if (String(v.vendor_id) === String(S.vendor)) seenV = true; vo += '<option value="' + esc59(v.vendor_id) + '"' + (String(v.vendor_id) === String(S.vendor) ? ' selected' : '') + '>' + esc59(v.vendor_name) + ' (' + rmQty(v.count, 0) + ')</option>'; });
+    if (S.vendor && !seenV) vo += '<option value="' + esc59(S.vendor) + '" selected>Chosen vendor</option>';
+    h += '<select class="settings-input rm-in" aria-label="Vendor" onchange="rm8ItfSet(\'vendor\',this.value)">' + vo + '</select>';
+    var fa = F.active || {};
+    h += '<select class="settings-input rm-in" aria-label="Active or archived" onchange="rm8ItfSet(\'active\',this.value)">' +
+        [['ACTIVE', 'Active' + (fa.ACTIVE != null ? ' (' + rmQty(fa.ACTIVE, 0) + ')' : '')], ['ARCHIVED', 'Archived' + (fa.ARCHIVED != null ? ' (' + rmQty(fa.ARCHIVED, 0) + ')' : '')], ['ALL', 'Active and archived']].map(function (x) { return '<option value="' + x[0] + '"' + (S.active === x[0] ? ' selected' : '') + '>' + esc59(x[1]) + '</option>'; }).join('') + '</select>';
+    h += '<select class="settings-input rm-in" aria-label="Sort" onchange="rm8ItfSet(\'sort\',this.value)">' + RM8_SORT.map(function (x) { return '<option value="' + x[0] + '"' + (S.sort === x[0] ? ' selected' : '') + '>Sort: ' + esc59(x[1]) + '</option>'; }).join('') + '</select></div>';
+    if (rm8ItfAny()) h += '<div class="rm-btns"><button class="settings-btn rm-xs" style="background:#9A6700" onclick="rm8ItfClear()">&#10005; Clear all filters</button></div>';
+    return h;
+}
+function rm8ItfDraw() {
+    var ctl = rmEl('itf-ctl'), res = rmEl('itf-res'), R = RM.data.itfRows || { rows: [], total: 0 };
+    if (!ctl || !res) return;
+    ctl.innerHTML = rm8ItfCtl();
+    var html = '';
+    if (R.err) html += rmMsgHtml(R.err) + '<button class="settings-btn rm-big" onclick="rm8ItfReload()">&#8635; Try again</button>';
+    else if (R.loading && !R.rows.length) html += '<div class="rm-note">Loading...</div>';
+    else {
+        html += rm8Showing(R.rows.length, R.total, 'item(s)');
+        if (!R.rows.length) html += rm8Empty('No item matches.', 'Check the spelling, tap Clear all filters, or add the item.');
+        R.rows.forEach(function (r) {
+            var id = Number(r.item_id), actv = r.active !== false && !r.merged_into_item_code, oh = Number(r.on_hand) || 0;
+            html += '<div class="rm-row rm-rowc"><div onclick="rmOpenItem(' + id + ')" style="cursor:pointer"><div class="rm-row-top"><span class="rm-code">' + esc59(r.item_code) + '</span><span>' +
+                (r.below_reorder ? '<span class="rm-badge red">LOW</span> ' : '') + (oh <= 0 && actv ? '<span class="rm-badge red">OUT</span> ' : '') + (oh > 0 && r.stock_value == null ? '<span class="rm-badge red">NO RATE</span> ' : '') +
+                (r.open_request ? '<span class="rm-badge green">' + esc59(rm8ProcStatusLabel(r.open_request.status)) + '</span> ' : '') + (r.active === false ? '<span class="rm-badge grey">ARCHIVED</span> ' : '') + (r.merged_into_item_code ? '<span class="rm-badge grey">MERGED &rarr; ' + esc59(r.merged_into_item_code) + '</span>' : '') + '</span></div>' +
+                '<div class="rm-row-name">' + esc59(r.item_name) + (r.spec ? ' <span class="rm-dim">' + esc59(r.spec) + '</span>' : '') + '</div>' +
+                '<div class="rm-row-nums"><span><strong>' + rmQty(r.on_hand) + '</strong> ' + esc59(r.base_uom_code) + '</span>' + '<span>' + (r.wac_rate == null ? '' : 'rate ' + rmRate(r.wac_rate)) + '</span><span>' + (r.stock_value == null ? (oh > 0 ? '<span style="color:#B3261E">Rate missing</span>' : '-') : rmInr(r.stock_value)) + '</span><span>' + (r.days_of_cover == null ? '' : rmQty(r.days_of_cover, 0) + ' days cover') + '</span></div></div>';
+            if (actv) html += '<div class="rm-btns">' + (r.open_request ? '<button class="settings-btn rm-xs" style="background:#1B7A3A" onclick="rmGo(\'proc\',{item_id:' + id + '})">On the list</button>' : '<button class="settings-btn rm-xs" onclick="rm8ProcQuick(' + id + ',null,\'' + (r.below_reorder ? 'LOW_STOCK' : 'MANUAL') + '\',\'iq' + id + '\')">Send for procurement</button>') +
+                '<button class="settings-btn rm-xs" style="background:#1B7A3A" onclick="rmGo(\'receive\',{item_id:' + id + '})">Receive</button><button class="settings-btn rm-xs" onclick="rmGo(\'issue\',{item_id:' + id + '})">Issue</button></div>';
+            html += '<div id="rm-iq' + id + '"></div></div>';
+        });
+        if (R.rows.length < R.total) html += '<button class="settings-btn rm-big" style="background:#888" onclick="rm8ItfMore()">' + (R.loading ? 'Loading...' : 'Show 50 more (' + rmQty(R.total - R.rows.length, 0) + ' left)') + '</button>';
+        if (R.moreErr) html += rmMsgHtml(R.moreErr);
+        if (R.rows.length) html += '<div class="rm-note">Download everything that matches the filters (the first 5,000):</div>' + rm8DlBtns('rm8ItfDl') + '<div id="itf-dlmsg"></div>';
+    }
+    res.innerHTML = html;
+}
+function rm8ItfReload() {
+    var old = RM.data.itfRows, R = RM.data.itfRows = { rows: [], total: 0, loading: true, facets: old ? old.facets : null };
+    rm8ItfDraw();
+    rmLoad('rm_items_filter', rm8ItfArgs(0), function (d) {
+        R.loading = false;
+        if (RM.data.itfRows !== R) return;
+        if (!d.ok) {
+            if (d.error === 'NO_M18') { RM.data.itfNoM18 = true; RM.data.itemsBanner = '<div class="move-result err">' + esc59(d.text) + ' The new filters need it; the plain list below still works.</div>'; RM.form['ri-q'] = RM.data.itf.q; RM.form['ri-low'] = RM.data.itf.stock === 'LOW'; RM.form['ri-act'] = RM.data.itf.active !== 'ALL'; RM.form['ri-cat'] = RM.data.itf.cat; rmView_itemsV121(true); return; }
+            R.err = d; rm8ItfDraw(); return;
+        }
+        R.rows = rm8Rows(d, 'items'); R.total = Number(d.total) || R.rows.length; R.facets = d.facets || R.facets;
+        rm8ItfDraw();
+    });
+}
+function rm8ItfMore() {
+    var R = RM.data.itfRows; if (!R || R.loading) return;
+    R.loading = true; R.moreErr = null; rm8ItfDraw();
+    rmLoad('rm_items_filter', rm8ItfArgs(R.rows.length), function (d) {
+        R.loading = false;
+        if (!d.ok) { R.moreErr = d; rm8ItfDraw(); return; }
+        R.rows = R.rows.concat(rm8Rows(d, 'items')); R.total = Number(d.total) || R.total; R.facets = d.facets || R.facets; rm8ItfDraw();
+    });
+}
+function rm8ItfType(el) { RM.data.itf.q = el.value; rm8Deb('itf', 300, rm8ItfGo); }
+function rm8ItfGo() { rm8Deb('itf', 0, function () {}); rm8ItfReload(); }
+function rm8ItfSet(k, v) { RM.data.itf[k] = v; rm8ItfReload(); }
+function rm8ItfClear() {
+    RM.data.itf = { q: '', cat: '', vendor: '', stock: 'ALL', active: 'ACTIVE', sort: RM.data.itf.sort || 'NAME' };
+    var q = rmEl('itf-q'); if (q) q.value = '';
+    rm8ItfReload();
+}
+function rm8ItfDl(kind) {
+    if (_rmBusy.itd) return; _rmBusy.itd = 1;
+    rmSetMsg('itf-dlmsg', '<div class="move-result">Reading items...</div>');
+    rm8ReadAll('rm_items_filter', function (off, page) { return rm8ItfArgs(off, page); }, 200, 5000, function (n, t) { rmSetMsg('itf-dlmsg', '<div class="move-result">Reading items... ' + rmQty(n, 0) + ' of ' + rmQty(t, 0) + '</div>'); }).then(function (r) {
+        delete _rmBusy.itd;
+        if (!r.ok) { rmSetMsg('itf-dlmsg', rmMsgHtml(r.d)); return; }
+        var cols = ['item_code', 'item_name', 'category_code', 'base_uom_code', 'on_hand', 'wac_rate', 'stock_value', 'reorder_level', 'reorder_qty', 'days_of_cover', 'used_30d', 'hsn', 'barcode', 'active', 'open_request_status', 'last_vendor'];
+        var rows = r.rows.map(function (x) { return [x.item_code, x.item_name, x.category_code || '', x.base_uom_code, rm8Cell(x.on_hand), rm8Cell(x.wac_rate), rm8Cell(x.stock_value), rm8Cell(x.reorder_level), rm8Cell(x.reorder_qty), rm8Cell(x.days_of_cover), rm8Cell(x.used_30d), x.hsn || '', x.barcode || '', x.active === false ? 'NO' : 'YES', x.open_request ? x.open_request.status : '', x.last_vendor ? x.last_vendor.vendor_name : '']; });
+        var ok = rm8SaveTable(kind, 'Items_Filtered', cols, rows, 'Items');
+        rmSetMsg('itf-dlmsg', ok ? '<div class="move-result ok">Saved ' + rmQty(rows.length, 0) + ' item(s)' + (r.total > rows.length ? ' - the first ' + rmQty(rows.length, 0) + ' of ' + rmQty(r.total, 0) + '. Narrow the filters to get the rest.' : '.') + ' Value = on hand x weighted average rate, before GST.</div>' : '<div class="move-result err">The file could not be made on this phone.</div>');
+    });
+}
+
+// ---- item 360 (added under the item header; the older sections stay below it) -------------------------------------------------
+function rm360Html() {
+    var C = RM.data.i360, id = Number(RM.params.item_id);
+    if (!C || C.id !== id || C.loading) return '<div class="rm-note">Loading purchase history, usage and patterns...</div>';
+    if (C.err) {
+        if (C.err.error === 'NO_M18') return '<div class="rm-note">' + esc59(C.err.text) + ' The purchase history, usage and learned-pattern cards on this page need it.</div>';
+        return rmMsgHtml(C.err) + '<button class="settings-btn rm-sm" onclick="RM.data.i360=null;rm360Kick(' + id + ')">&#8635; Try again</button>';
+    }
+    var D = C.d, it = D.item || {}, st = D.stock || {}, pu = D.purchases || {}, us = D.usage || {}, bu = (RM.data.item && RM.data.item.item && RM.data.item.item.base_uom_code) || it.base_uom_code || '', u = esc59(bu);
+    var actv = (RM.data.item && RM.data.item.item) ? (RM.data.item.item.active !== false && !RM.data.item.item.merged_into_item_code) : true;
+    var h = '';
+    // barcode
+    h += '<div class="rm-card"><div class="rm-row-top"><span>Barcode: <b>' + (it.barcode ? esc59(it.barcode) + copyChipHtml(it.barcode) : 'not set') + '</b></span>' +
+        (actv ? '<button class="settings-btn rm-xs" onclick="rm360Bc()">' + (it.barcode ? 'Change' : 'Set') + '</button>' : '') + '</div>' +
+        '<div id="rm-bcbox" style="display:' + (RM.form._bcopen ? 'block' : 'none') + '">' + rmInput('ib-bc', 'letters, digits - . _ / (4 to 60). Blank clears it.', { upper: true, max: 60, def: it.barcode || '' }) + '<button class="settings-btn rm-sm" style="margin-top:4px" onclick="rm360BcSave()">Save barcode</button></div><div id="rm-bcmsg"></div></div>';
+    // stock facts
+    h += '<div class="rm-sec">Stock and use</div><div class="rm-kv">' +
+        '<div><span>Used, 30 days</span><b>' + rmQty(st.used_30d) + ' ' + u + '</b></div><div><span>Used, 90 days</span><b>' + rmQty(st.used_90d) + ' ' + u + '</b></div>' +
+        '<div><span>Average per day</span><b>' + (st.avg_daily_use == null ? '-' : rmQty(st.avg_daily_use, 2) + ' ' + u) + '</b></div><div><span>Days of cover</span><b>' + (st.days_of_cover == null ? '-' : rmQty(st.days_of_cover, 0)) + '</b></div>' +
+        '<div><span>Suggested order</span><b>' + (Number(st.suggested_order_qty) > 0 ? rmQty(st.suggested_order_qty) + ' ' + u : '-') + '</b></div><div><span>Stock value</span><b>' + (st.stock_value == null ? '-' : rmInr(st.stock_value)) + '</b></div></div>';
+    (st.by_location || []).forEach(function (l) { h += '<div class="rm-li">' + esc59(l.location_code || l.location_name || 'Location') + ': <b>' + rmQty(l.on_hand != null ? l.on_hand : l.qty_base) + '</b> ' + u + '</div>'; });
+    // open request
+    var oq = D.open_request;
+    h += '<div class="rm-sec">Procurement</div>';
+    if (oq) {
+        h += '<div class="rm-card"><div class="rm-row-top"><b>On the procurement list</b><span class="rm-badge green">' + esc59(rm8ProcStatusLabel(oq.status)) + '</span>' + (oq.is_overdue ? '<span class="rm-badge red">OVERDUE</span>' : '') + '</div>' +
+            '<div>Need <b>' + rmQty(oq.qty_requested) + '</b> ' + u + (Number(oq.received_qty_base) > 0 ? ', received so far ' + rmQty(oq.received_qty_base) : '') + (oq.vendor && oq.vendor.vendor_name ? ' from ' + esc59(oq.vendor.vendor_name) : '') + '</div>' +
+            '<div class="rm-dim">Asked ' + esc59(oq.requested_at_ist || '') + (oq.age_days != null ? ' (' + rm8Age(oq.age_days) + ' ago)' : '') + (oq.expected_by ? ' &middot; expected by ' + esc59(rm8Date(oq.expected_by)) : '') + '</div>' +
+            '<div class="rm-btns"><button class="settings-btn rm-sm" onclick="rmGo(\'proc\',{item_id:' + Number(RM.params.item_id) + '})">Open the request</button></div></div>';
+    } else if (actv) h += '<div class="rm-btns"><button class="settings-btn rm-sm" onclick="rm8ProcQuick(' + Number(RM.params.item_id) + ',null,\'' + (RM.data.item && RM.data.item.item && RM.data.item.item.below_reorder ? 'LOW_STOCK' : 'MANUAL') + '\',\'i360\')">Send for procurement</button></div><div id="rm-i360"></div>';
+    // learned pattern
+    var L = D.learned;
+    if (L) {
+        h += '<div class="rm-card"><div class="rm-row-top"><b>Learned buying pattern</b>' + (L.confidence ? '<span class="rm-badge ' + (L.confidence === 'HIGH' ? 'green' : '') + '">' + esc59(L.confidence) + '</span>' : '') + '</div>' +
+            '<div>Usually bought every <b>' + rmQty(L.typical_gap_days, 0) + '</b> days, about <b>' + rmQty(L.typical_qty_base) + '</b> ' + u + (L.next_expected_on ? '; next expected <b>' + esc59(rm8Date(L.next_expected_on)) + '</b>' : '') + (L.avg_daily_use_90d != null ? '; you use about <b>' + rmQty(L.avg_daily_use_90d, 2) + '</b> ' + u + ' per day' : '') + '.</div>' +
+            '<div>Suggested alert: reorder level <b>' + (L.suggested_reorder_level == null ? 'no change' : rmQty(L.suggested_reorder_level)) + '</b>, reorder quantity <b>' + rmQty(L.suggested_reorder_qty) + '</b>.</div>' +
+            (L.differs && !L.dismissed && actv ? '<div class="rm-btns"><button class="settings-btn rm-sm" style="background:#1B7A3A" onclick="rm360LearnAccept()">Accept</button><button class="settings-btn rm-sm" style="background:#888" onclick="rm360LearnLater()">Not now</button></div>' : '<div class="rm-dim">' + (L.dismissed ? 'You chose Not now for this one.' : 'Matches what is set on the item.') + '</div>') + '<div id="rm-i360l"></div></div>';
+    }
+    // purchases
+    h += '<div class="rm-sec">Purchases</div>';
+    if (!Number(pu.times_bought)) h += rm8Empty('Never bought yet.', 'When you receive this item against a bill, its purchase history shows here.');
+    else {
+        h += '<div class="rm-kv"><div><span>Times bought</span><b>' + rmQty(pu.times_bought, 0) + '</b></div><div><span>Total bought</span><b>' + rmQty(pu.total_qty_base) + ' ' + u + '</b></div>' +
+            '<div><span>Total value</span><b>' + rmInr(pu.total_value_ex_gst) + '</b></div><div><span>First / last purchase</span><b>' + esc59(rm8Date(pu.first_purchase_on)) + ' / ' + esc59(rm8Date(pu.last_purchase_on)) + '</b></div>' +
+            '<div><span>Last rate</span><b>' + (pu.last_rate == null ? '-' : rmRate(pu.last_rate) + '/' + u) + '</b></div><div><span>Lowest / highest</span><b>' + (pu.min_rate == null ? '-' : rmRate(pu.min_rate)) + ' / ' + (pu.max_rate == null ? '-' : rmRate(pu.max_rate)) + '</b></div></div>';
+        var bv = pu.by_vendor || [];
+        if (bv.length) {
+            h += '<div class="rm-dim" style="margin-top:8px">By vendor (tap to open)</div><div class="rm-tablewrap"><table class="rm-table"><tr><th>Vendor</th><th>Times</th><th>Qty</th><th>Value</th><th>Avg rate</th><th>Last</th></tr>' +
+                bv.map(function (v) { return '<tr onclick="rmGo(\'vendor\',{vendor_id:' + Number(v.vendor_id) + '})" style="cursor:pointer"><td>' + esc59(v.vendor_name) + (v.preferred ? ' <span class="rm-badge green">PREF</span>' : '') + '</td><td>' + rmQty(v.times_bought, 0) + '</td><td>' + rmQty(v.total_qty_base) + '</td><td>' + rmInr(v.total_value_ex_gst) + '</td><td>' + (v.avg_rate == null ? '-' : rmRate(v.avg_rate)) + '</td><td>' + esc59(rm8Date(v.last_received_on)) + '</td></tr>'; }).join('') + '</table></div>';
+        }
+        var bm = pu.by_month || [];
+        h += '<div class="rm-dim" style="margin-top:8px">Bought per month (value before GST)</div>' + xmChart('bar', bm.map(function (m) { return { key: m.month, label: m.month, value: Number(m.value_ex_gst) || 0 }; }), { title: 'Purchases per month', desc: 'Value bought each month, before GST', measure: 'value', money: true });
+        h += '<div class="rm-dim">Average rate per month</div>' + xmChart('line', bm.filter(function (m) { return m.avg_rate != null; }).map(function (m) { return { key: m.month, label: m.month, value: Number(m.avg_rate) || 0 }; }), { title: 'Average rate per month', desc: 'Average purchase rate per base unit, per month', measure: 'value', money: true });
+        h += '<div class="rm-dim" style="margin-top:8px">Recent purchases</div>';
+        (pu.recent || []).forEach(function (r) {
+            h += '<div class="rm-led' + (r.is_voided ? ' voided' : '') + '"><div class="rm-row-top"><span><b onclick="rmGo(\'bill\',{invoice_no:\'' + rm8Js(r.invoice_no) + '\',vendor_name:\'' + rm8Js(r.vendor_name) + '\'})" style="cursor:pointer;text-decoration:underline">Bill ' + esc59(r.invoice_no || '-') + '</b></span><span class="rm-dim">' + esc59(rm8Date(r.received_on) || r.created_at_ist || '') + '</span>' + (r.is_voided ? '<span class="rm-badge grey">VOIDED</span>' : '') + '</div>' +
+                '<div>' + rmQty(r.qty_base) + ' ' + u + (r.entered_uom_code && r.entered_uom_code !== bu ? ' <span class="rm-dim">(' + rmQty(r.entered_qty) + ' ' + esc59(r.entered_uom_code) + ')</span>' : '') + ' @ ' + (r.rate_ex_gst_per_base == null ? '-' : rmRate(r.rate_ex_gst_per_base)) + ' = ' + rmInr(r.line_total) + '</div>' +
+                '<div class="rm-dim">' + esc59(r.vendor_name || r.vendor_code || '') + ' &middot; by ' + esc59(r.received_by || '-') + '</div></div>';
+        });
+    }
+    // usage
+    h += '<div class="rm-sec">Where it was used</div>';
+    var um = us.by_month || [];
+    if (!um.length && !(us.recent || []).length) h += rm8Empty('No issues yet.', 'When this item is issued to production, the work order and product (SKU) show here.');
+    else {
+        h += xmChart('bar', um.map(function (m) { return { key: m.month, label: m.month, value: Number(m.issued_base) || 0 }; }), { title: 'Issued per month', desc: 'Quantity issued to production each month', measure: 'value', money: false });
+        var ts = us.top_sku_codes || [];
+        if (ts.length) { h += '<div class="rm-dim">Used most for these products (SKU)</div>'; ts.forEach(function (s) { h += '<div class="rm-li">' + rm8SkuLink(s.sku_code) + ' <span class="rm-dim">' + rmQty(s.qty_base) + ' ' + u + '</span></div>'; }); }
+        h += '<div class="rm-dim" style="margin-top:6px">Recent issues and losses</div>';
+        (us.recent || []).forEach(function (r) {
+            h += '<div class="rm-led"><div class="rm-row-top"><span class="rm-badge">' + esc59(String(r.txn_type || '').replace(/_/g, ' ')) + '</span><span class="rm-dim">' + esc59(r.created_at_ist || '') + '</span></div>' +
+                '<div>' + rmQty(Math.abs(Number(r.qty_base))) + ' ' + u + (r.reason_label ? ' &middot; ' + esc59(r.reason_label) : '') + '</div><div class="rm-dim">' + [r.work_order_ref ? 'WO ' + esc59(r.work_order_ref) : '', r.sku_code ? 'SKU ' + rm8SkuLink(r.sku_code) : '', 'by ' + esc59(r.employee_code || '-')].filter(Boolean).join(' &middot; ') + '</div></div>';
+        });
+    }
+    (D.data_notes || []).forEach(function (n) { h += '<div class="rm-dim">' + esc59(n) + '</div>'; });
+    // requests history
+    var rh = D.requests_history || [];
+    if (rh.length) {
+        h += '<div class="rm-sec">Earlier requests</div>';
+        rh.forEach(function (r) {
+            h += '<div class="rm-li" onclick="rmGo(\'proc\',{item_id:' + Number(RM.params.item_id) + ',scope:\'ALL\'})" style="cursor:pointer"><span class="rm-badge">' + esc59(rm8ProcStatusLabel(r.status)) + '</span> ' + rmQty(r.qty_requested) + ' ' + u + ' asked ' + esc59(r.requested_at_ist || '') + (Number(r.received_qty_base) > 0 ? ', received ' + rmQty(r.received_qty_base) : '') + (/^AUTO_/.test(String(r.close_kind || '')) ? ' <span class="rm-badge green">Received automatically</span>' : '') + '</div>';
+        });
+    }
+    // buttons
+    if (actv) h += '<div class="rm-btns"><button class="settings-btn rm-sm" onclick="rm360AliasJump()">Add alias</button><button class="settings-btn rm-sm" onclick="rmGo(\'linkVendor\',{item_id:' + Number(RM.params.item_id) + '})">Link vendor</button></div>';
+    return h;
+}
+// a SKU that opens the product page when the person may see analytics
+function rm8SkuLink(code) {
+    var c = esc59(code || '');
+    try { if (typeof a12OpenSku === 'function' && canAnalytics()) return '<a href="#" onclick="a12OpenSku(\'' + rm8Js(code) + '\');return false;"><b>' + c + '</b></a>'; } catch (e) {}
+    return '<b>' + c + '</b>';
+}
+function rm360Kick(id) {
+    var C = RM.data.i360;
+    if (C && C.id === id && !C.loading) { rm360Fill(); return; }
+    if (C && C.id === id && C.loading) return;
+    var mine = RM.data.i360 = { id: id, loading: true };
+    rmLoad('rm_item_360', { p_item_id: id }, function (d) {
+        if (RM.data.i360 !== mine) return;
+        mine.loading = false;
+        if (!d.ok) mine.err = d; else mine.d = d;
+        rm360Fill();
+    });
+}
+function rm360Fill() { var el = rmEl('rm-360'); if (el && RM.view === 'item') el.innerHTML = rm360Html(); }
+function rm360Bc() { RM.form._bcopen = !RM.form._bcopen; var b = rmEl('rm-bcbox'); if (b) b.style.display = RM.form._bcopen ? 'block' : 'none'; var i = rmEl('ib-bc'); if (i && RM.form._bcopen) { try { i.focus(); } catch (e) {} } }
+function rm360BcSave() {
+    var id = Number(RM.params.item_id); if (_rmBusy.bc) return;
+    var v = String(RM.form['ib-bc'] == null ? ((RM.data.i360 && RM.data.i360.d && RM.data.i360.d.item && RM.data.i360.d.item.barcode) || '') : RM.form['ib-bc']).trim().toUpperCase().replace(/\s+/g, '');
+    if (v !== '' && !/^[A-Z0-9\-._\/]{4,60}$/.test(v)) { rmSetMsg('rm-bcmsg', '<div class="move-result err">A barcode is 4 to 60 characters: letters, digits and - . _ / only.</div>'); return; }
+    _rmBusy.bc = 1; rmSetMsg('rm-bcmsg', '<div class="move-result">Saving...</div>');
+    rmCall('rm_item_set_barcode', { p_item_id: id, p_barcode: v === '' ? null : v, p_source: 'APP' }).then(function (d) {
+        delete _rmBusy.bc;
+        if (!d.ok) { rmSetMsg('rm-bcmsg', rmMsgHtml(d)); return; }
+        var C = RM.data.i360; if (C && C.d && C.d.item) C.d.item.barcode = d.barcode || null;
+        RM.form._bcopen = false; RM.data.itfRows = null;
+        rm360Fill();
+        rmSetMsg('rm-bcmsg', '<div class="move-result ok">&#10003; ' + (d.status === 'CLEARED' ? 'Barcode cleared.' : (d.status === 'UNCHANGED' ? 'No change.' : 'Barcode saved.')) + '</div>');
+    });
+}
+function rm360AliasJump() { var el = rmEl('ra-t'); if (el) { try { el.scrollIntoView({ block: 'center' }); el.focus(); } catch (e) {} } }
+function rm360LearnAccept() {
+    var C = RM.data.i360, L = C && C.d && C.d.learned; if (!L || _rmBusy.l360) return;
+    var lvl = L.suggested_reorder_level != null ? Number(L.suggested_reorder_level) : (L.current_reorder_level != null ? Number(L.current_reorder_level) : 0), qty = Number(L.suggested_reorder_qty);
+    if (!confirm('Set the reorder level to ' + rmQty(lvl) + ' and the reorder quantity to ' + rmQty(qty) + '?')) return;
+    _rmBusy.l360 = 1; rmSetMsg('rm-i360l', '<div class="move-result">Saving...</div>');
+    rmCall('rm_learn_accept', { p_item_id: Number(RM.params.item_id), p_reorder_level: lvl, p_reorder_qty: qty }).then(function (d) {
+        delete _rmBusy.l360;
+        if (!d.ok) { rmSetMsg('rm-i360l', rmMsgHtml(d)); return; }
+        L.differs = false; L.current_reorder_level = lvl; L.current_reorder_qty = qty; RM.data.items = null; RM.data.itfRows = null; RM.data.dash = null; RM.data.inbox = null; RM.data.learn = null;
+        rm8BellSoon(); rm360Fill();
+        rmSetMsg('rm-i360l', '<div class="move-result ok">&#10003; Saved. Reload this page to see the new values in the box above.</div>');
+    });
+}
+function rm360LearnLater() {
+    var C = RM.data.i360, L = C && C.d && C.d.learned; if (!L || _rmBusy.l360n) return; _rmBusy.l360n = 1;
+    rmCall('rm_inbox_dismiss', { p_key: 'LEARN:' + Number(RM.params.item_id), p_snooze_days: 7 }).then(function (d) {
+        delete _rmBusy.l360n;
+        if (!d.ok) { rmSetMsg('rm-i360l', rmMsgHtml(d)); return; }
+        L.dismissed = true; RM.data.inbox = null; RM.data.learn = null; rm8BellSoon(); rm360Fill();
+    });
+}
+
+// ---- vendor registry (all vendors read once, then search / filter / sort on the phone) --------------------------------------------
+var RM8_VSORT = [['NAME', 'Name'], ['CODE', 'Code'], ['LAST_BILL', 'Last bill, newest first'], ['ITEMS', 'Items supplied, most first']];
+function rm8VrSeed() {
+    var P = RM.params;
+    if (RM.data.vr && P._seeded) return;
+    RM.data.vr = { q: P.q || '', show: P.show || 'ACTIVE', gst: 'ALL', sort: 'NAME' }; RM.data.vrRows = null; P._seeded = true;
+}
+function rmView_vendors(fetch) {
+    var body = rmEl('rm-body');
+    rm8VrSeed();
+    var S = RM.data.vr;
+    body.innerHTML = '<div class="rm-search"><input type="text" class="settings-input rm-in" id="vr-q" placeholder="Search: code, name, GSTIN, phone" autocomplete="off" autocorrect="off" spellcheck="false" value="' + esc59(S.q) + '" oninput="rm8VrType(this)"></div>' +
+        '<div id="vr-ctl"></div><button class="settings-btn rm-big" style="background:#1B7A3A" onclick="rmGo(\'vendorEdit\',{})">&#10133; Add a vendor (register new vendor)</button><div id="vr-res"></div>';
+    if (!fetch && RM.data.vrRows && !RM.data.vrRows.loading && !RM.data.vrRows.err) { rm8VrDraw(); return; }
+    rm8VrReload();
+}
+function rm8VrReload() {
+    var R = RM.data.vrRows = { rows: [], loading: true };
+    rm8VrDraw();
+    rmLoad('rm_list_vendors', { p_q: null, p_active_only: false, p_limit: 500, p_offset: 0 }, function (d) {
+        if (RM.data.vrRows !== R) return;
+        R.loading = false;
+        if (!d.ok) { R.err = d; rm8VrDraw(); return; }
+        R.rows = (d.vendors || []); R.total = Number(d.total) || R.rows.length;
+        if (R.rows.length < R.total) {   // read the rest, 500 at a time (a registry is small)
+            var more = function () {
+                rmLoad('rm_list_vendors', { p_q: null, p_active_only: false, p_limit: 500, p_offset: R.rows.length }, function (x) {
+                    if (RM.data.vrRows !== R) return;
+                    if (!x.ok) { R.moreErr = x; rm8VrDraw(); return; }
+                    var got = x.vendors || []; R.rows = R.rows.concat(got);
+                    if (got.length && R.rows.length < R.total && R.rows.length < 5000) more(); else rm8VrDraw();
+                });
+            };
+            more(); rm8VrDraw(); return;
+        }
+        rm8VrDraw();
+    });
+}
+function rm8VrFiltered() {
+    var S = RM.data.vr, R = RM.data.vrRows || { rows: [] }, q = String(S.q || '').trim().toLowerCase(), words = q ? q.split(/\s+/) : [];
+    var rows = R.rows.filter(function (v) {
+        if (S.show === 'ACTIVE' && v.active === false) return false;
+        if (S.show === 'ARCHIVED' && v.active !== false) return false;
+        if (S.gst === 'HAS' && !v.gstin) return false;
+        if (S.gst === 'NONE' && v.gstin) return false;
+        if (!words.length) return true;
+        var hay = [v.vendor_code, v.vendor_name, v.gstin, v.phone, v.email].join(' ').toLowerCase();
+        return words.every(function (w) { return hay.indexOf(w) >= 0; });
+    });
+    var cmp = { NAME: function (a, b) { return String(a.vendor_name).toLowerCase() < String(b.vendor_name).toLowerCase() ? -1 : 1; },
+        CODE: function (a, b) { return String(a.vendor_code) < String(b.vendor_code) ? -1 : 1; },
+        LAST_BILL: function (a, b) { return String(b.last_invoice_date || '') < String(a.last_invoice_date || '') ? -1 : (String(b.last_invoice_date || '') > String(a.last_invoice_date || '') ? 1 : 0); },
+        ITEMS: function (a, b) { return (Number(b.items_supplied) || 0) - (Number(a.items_supplied) || 0); } }[S.sort] || null;
+    if (cmp) rows = rows.slice().sort(cmp);
+    return rows;
+}
+function rm8VrDraw() {
+    var ctl = rmEl('vr-ctl'), res = rmEl('vr-res'), S = RM.data.vr, R = RM.data.vrRows || { rows: [] };
+    if (!ctl || !res) return;
+    var all = R.rows, cnt = function (f) { return all.filter(f).length; };
+    ctl.innerHTML = '<div class="rm-chips">' + rm8Chip('Active', S.show === 'ACTIVE', 'rm8VrSet(\'show\',\'ACTIVE\')', cnt(function (v) { return v.active !== false; })) + rm8Chip('Archived', S.show === 'ARCHIVED', 'rm8VrSet(\'show\',\'ARCHIVED\')', cnt(function (v) { return v.active === false; })) + rm8Chip('All', S.show === 'ALL', 'rm8VrSet(\'show\',\'ALL\')', all.length) +
+        rm8Chip('Has GSTIN', S.gst === 'HAS', 'rm8VrSet(\'gst\',\'' + (S.gst === 'HAS' ? 'ALL' : 'HAS') + '\')', cnt(function (v) { return !!v.gstin; })) + rm8Chip('No GSTIN', S.gst === 'NONE', 'rm8VrSet(\'gst\',\'' + (S.gst === 'NONE' ? 'ALL' : 'NONE') + '\')', cnt(function (v) { return !v.gstin; })) + '</div>' +
+        '<div class="rm-filters"><select class="settings-input rm-in" aria-label="Sort" onchange="rm8VrSet(\'sort\',this.value)">' + RM8_VSORT.map(function (x) { return '<option value="' + x[0] + '"' + (S.sort === x[0] ? ' selected' : '') + '>Sort: ' + esc59(x[1]) + '</option>'; }).join('') + '</select></div>' +
+        ((String(S.q || '').trim() || S.show !== 'ACTIVE' || S.gst !== 'ALL') ? '<div class="rm-btns"><button class="settings-btn rm-xs" style="background:#9A6700" onclick="rm8VrClear()">&#10005; Clear all filters</button></div>' : '');
+    var html = '';
+    if (R.err) html += rmMsgHtml(R.err) + '<button class="settings-btn rm-big" onclick="rm8VrReload()">&#8635; Try again</button>';
+    else if (R.loading) html += '<div class="rm-note">Loading the vendors...</div>';
+    else {
+        var rows = rm8VrFiltered();
+        html += rm8Showing(rows.length, rows.length, 'vendor(s)') + (R.rows.length > rows.length ? '<div class="rm-dim">of ' + rmQty(R.rows.length, 0) + ' in the registry.</div>' : '');
+        if (!rows.length) html += rm8Empty('No vendor matches.', 'Check the spelling, tap Clear all filters, or register the vendor.');
+        rows.forEach(function (v) {
+            var id = Number(v.vendor_id), actv = v.active !== false && !v.merged_into_vendor_code;
+            html += '<div class="rm-row rm-rowc"><div onclick="rmGo(\'vendor\',{vendor_id:' + id + '})" style="cursor:pointer"><div class="rm-row-top"><span class="rm-code">' + esc59(v.vendor_code) + '</span><span>' + (v.active === false ? '<span class="rm-badge grey">ARCHIVED</span>' : '') + (v.merged_into_vendor_code ? '<span class="rm-badge grey">MERGED &rarr; ' + esc59(v.merged_into_vendor_code) + '</span>' : '') + '</span></div>' +
+                '<div class="rm-row-name">' + esc59(v.vendor_name) + '</div><div class="rm-dim">' + [v.gstin ? 'GSTIN ' + esc59(v.gstin) : 'No GSTIN', rmQty(v.items_supplied, 0) + ' item(s)', v.last_invoice_date ? 'last bill ' + esc59(rm8Date(v.last_invoice_date)) : 'no bill yet'].filter(Boolean).join(' &middot; ') + '</div></div>' +
+                (actv ? '<div class="rm-btns"><button class="settings-btn rm-xs" style="background:#1B7A3A" onclick="rm8NewPurchase(' + id + ')">New purchase</button></div>' : '') + '</div>';
+        });
+        if (R.moreErr) html += rmMsgHtml(R.moreErr);
+        if (rows.length) html += '<div class="rm-note">Download these vendors:</div>' + rm8DlBtns('rm8VrDl');
+    }
+    res.innerHTML = html;
+}
+function rm8VrType(el) { RM.data.vr.q = el.value; rm8Deb('vr', 200, rm8VrDraw); }
+function rm8VrSet(k, v) { RM.data.vr[k] = v; rm8VrDraw(); }
+function rm8VrClear() { RM.data.vr = { q: '', show: 'ACTIVE', gst: 'ALL', sort: RM.data.vr.sort || 'NAME' }; var q = rmEl('vr-q'); if (q) q.value = ''; rm8VrDraw(); }
+function rm8VrDl(kind) {
+    var rows = rm8VrFiltered();
+    rm8SaveTable(kind, 'Vendors', ['vendor_code', 'vendor_name', 'gstin', 'phone', 'email', 'active', 'items_supplied', 'last_invoice_date'],
+        rows.map(function (v) { return [v.vendor_code, v.vendor_name, v.gstin || '', v.phone || '', v.email || '', v.active === false ? 'NO' : 'YES', rm8Cell(v.items_supplied), v.last_invoice_date || '']; }), 'Vendors');
+}
+// open the purchase voucher with this vendor already chosen
+function rm8NewPurchase(vendorId) {
+    var R = RM.data.vrRows, v = null;
+    if (R) R.rows.forEach(function (x) { if (Number(x.vendor_id) === Number(vendorId)) v = x; });
+    var D = RM.data.vendor; if (!v && D && D.vendor && Number(D.vendor.vendor_id) === Number(vendorId)) v = D.vendor;
+    if (!v) { rmGo('receive', {}); return; }
+    rmGo('receive', { vendor: { vendor_id: Number(v.vendor_id), vendor_code: v.vendor_code, vendor_name: v.vendor_name, gstin: v.gstin || null } });
+}
+
+// ---- vendor 360 (added under the vendor header; the older sections stay below it) --------------------------------------------------------
+function rm8VContact(v) {
+    var ph = String(v.phone || '').trim(), wa = shWaNum(ph), em = String(v.email || '').trim(), h = '';
+    if (wa) h += rm8Link('tel:+' + wa, '&#128222; Call', 'rm-sm') + rm8Link('https://wa.me/' + wa, 'WhatsApp', 'rm-sm', 'background:#1B7A3A;');
+    if (em) h += rm8Link('mailto:' + em, '&#9993; Email', 'rm-sm', 'background:#1B3F6B;');
+    return h;
+}
+function rm360vHtml() {
+    var C = RM.data.v360, id = Number(RM.params.vendor_id);
+    if (!C || C.id !== id || C.loading) return '<div class="rm-note">Loading buying history...</div>';
+    if (C.err) {
+        if (C.err.error === 'NO_M18') return '<div class="rm-note">' + esc59(C.err.text) + ' The buying history, charts and open requests on this page need it.</div>';
+        return rmMsgHtml(C.err) + '<button class="settings-btn rm-sm" onclick="RM.data.v360=null;rm360vKick(' + id + ')">&#8635; Try again</button>';
+    }
+    var D = C.d, v = D.vendor || {}, T = D.totals || {}, bp = D.buying_pattern || {}, h = '';
+    var old = (RM.data.vendor && RM.data.vendor.vendor) || {}, actv = old.active !== false && !old.merged_into_vendor_code;
+    h += '<div class="rm-btns">' + (actv ? '<button class="settings-btn rm-sm" style="background:#1B7A3A" onclick="rm8NewPurchase(' + id + ')">New purchase from this vendor</button>' : '') + rm8VContact(old.phone != null ? old : v) + '</div>';
+    h += '<div class="rm-kv"><div><span>Onboarded</span><b>' + esc59(rm8Date(v.onboarded_on)) + '</b></div><div><span>First / last purchase</span><b>' + esc59(rm8Date(v.first_purchase_on)) + ' / ' + esc59(rm8Date(v.last_purchase_on)) + '</b></div>' +
+        '<div><span>Days since last purchase</span><b>' + (v.days_since_last_purchase == null ? '-' : rmQty(v.days_since_last_purchase, 0)) + '</b></div><div><span>Bills</span><b>' + rmQty(T.bills, 0) + '</b></div>' +
+        '<div><span>Total before GST</span><b>' + rmInr(T.value_ex_gst) + '</b></div><div><span>GST</span><b>' + rmInr(T.gst_amount) + '</b></div><div><span>Freight</span><b>' + rmInr(T.freight) + '</b></div><div><span>Total paid / payable</span><b>' + rmInr(T.total) + '</b></div>' +
+        '<div><span>Average bill</span><b>' + rmInr(T.avg_bill_value) + '</b></div><div><span>Share of all spend</span><b>' + (T.share_of_all_spend_pct == null ? '-' : rmQty(T.share_of_all_spend_pct, 1) + '%') + '</b></div>' +
+        '<div><span>Last 90 days</span><b>' + rmInr(T.spend_90d) + '</b></div><div><span>Last 12 months</span><b>' + rmInr(T.spend_12m) + '</b></div></div>';
+    h += '<div class="rm-sec">Spend per month, last 12 months</div>' + xmChart('bar', (D.by_month || []).map(function (m) { return { key: m.month, label: m.month, value: Number(m.total) || 0 }; }), { title: 'Spend per month', desc: 'Bill totals per month, last 12 months', measure: 'value', money: true });
+    if (bp.typical_gap_days != null || bp.next_expected_on) h += '<div class="rm-card"><b>Buying pattern</b><div>You usually buy from this vendor every <b>' + (bp.typical_gap_days == null ? '-' : rmQty(bp.typical_gap_days, 0)) + '</b> days' + (bp.last_gap_days != null ? ' (last gap ' + rmQty(bp.last_gap_days, 0) + ' days)' : '') + (bp.next_expected_on ? '; next purchase expected around <b>' + esc59(rm8Date(bp.next_expected_on)) + '</b>' : '') + '.</div></div>';
+    var oq = D.open_requests || [];
+    h += '<div class="rm-sec">Open requests</div>';
+    if (!oq.length) h += '<div class="rm-dim">Nothing is waiting from this vendor.</div>';
+    oq.forEach(function (r) { h += '<div class="rm-li" onclick="rmGo(\'proc\',{vendor_id:' + id + '})" style="cursor:pointer"><span class="rm-badge ' + (r.is_overdue ? 'red' : 'green') + '">' + esc59(rm8ProcStatusLabel(r.status)) + (r.is_overdue ? ' - OVERDUE' : '') + '</span> <b>' + esc59(r.item_code) + '</b> ' + esc59(r.item_name) + ' &middot; ' + rmQty(r.qty_requested) + '</div>'; });
+    var its = D.items || [];
+    h += '<div class="rm-sec">Items bought from this vendor</div>';
+    if (!its.length) h += rm8Empty('No purchases yet.', 'Items appear here after the first bill from this vendor is entered.');
+    else h += '<div class="rm-tablewrap"><table class="rm-table"><tr><th>Item</th><th>Times</th><th>Last rate</th><th>Lowest</th><th>Highest</th><th>Average</th><th>Change</th></tr>' + its.map(function (x) {
+        return '<tr onclick="rmOpenItem(' + Number(x.item_id) + ')" style="cursor:pointer"><td><b>' + esc59(x.item_code) + '</b> ' + esc59(x.item_name) + '</td><td>' + rmQty(x.times_bought, 0) + '</td><td>' + (x.last_rate == null ? '-' : rmRate(x.last_rate)) + '</td><td>' + (x.min_rate == null ? '-' : rmRate(x.min_rate)) + '</td><td>' + (x.max_rate == null ? '-' : rmRate(x.max_rate)) + '</td><td>' + (x.avg_rate == null ? '-' : rmRate(x.avg_rate)) + '</td><td>' + (x.rate_change_pct == null ? '-' : '<span style="color:' + (Number(x.rate_change_pct) > 0 ? '#B3261E' : '#1B7A3A') + '">' + (Number(x.rate_change_pct) > 0 ? '+' : '') + rmQty(x.rate_change_pct, 1) + '%</span>') + '</td></tr>'; }).join('') + '</table></div><div class="rm-dim">Rates are per base unit, before GST. Change = last rate against the first rate.</div>';
+    var rr = D.recent_receipts || [];
+    h += '<div class="rm-sec">Recent bills (tap to open)</div>';
+    if (!rr.length) h += '<div class="rm-dim">No bills yet.</div>';
+    rr.forEach(function (r) { h += '<button class="rm-row" onclick="rmGo(\'bill\',{receipt_id:' + Number(r.receipt_id) + ',vendor_id:' + id + ',invoice_no:\'' + rm8Js(r.invoice_no) + '\',vendor_name:\'' + rm8Js(v.vendor_name || '') + '\'})"><div class="rm-row-top"><b>Bill ' + esc59(r.invoice_no) + '</b><span>' + rmInr(r.total) + '</span></div><div class="rm-dim">' + esc59(rm8Date(r.invoice_date)) + ' &middot; ' + rmQty(r.line_count, 0) + ' line(s)' + (r.po_no ? ' &middot; PO ' + esc59(r.po_no) : '') + (r.is_fully_voided ? ' &middot; VOIDED' : '') + '</div></button>'; });
+    (D.data_notes || []).forEach(function (n) { h += '<div class="rm-dim" style="margin-top:6px">' + esc59(n) + '</div>'; });
+    return h;
+}
+function rm360vKick(id) {
+    var C = RM.data.v360;
+    if (C && C.id === id && !C.loading) { rm360vFill(); return; }
+    if (C && C.id === id && C.loading) return;
+    var mine = RM.data.v360 = { id: id, loading: true };
+    rmLoad('rm_vendor_360', { p_vendor_id: id }, function (d) {
+        if (RM.data.v360 !== mine) return;
+        mine.loading = false;
+        if (!d.ok) mine.err = d; else mine.d = d;
+        rm360vFill();
+    });
+}
+function rm360vFill() { var el = rmEl('rm-360'); if (el && RM.view === 'vendor') el.innerHTML = rm360vHtml(); }
+
+// ---- a bill ------------------------------------------------------------------------------------------------------------------------------
+// params: receipt_id and vendor_id when known; otherwise invoice_no (+ vendor_name) and the register finds them.
+function rmView_bill(fetch) {
+    var body = rmEl('rm-body'), P = RM.params;
+    function draw() {
+        var B = RM.data.bill; if (!B) return;
+        var h = '<div class="rm-card"><div class="rm-row-top"><span class="rm-code">Bill ' + esc59(B.invoice_no || '') + '</span>' + (B.fully_voided ? '<span class="rm-badge grey">VOIDED</span>' : '') + '</div>' +
+            '<div class="rm-h" onclick="rmGo(\'vendor\',{vendor_id:' + Number(B.vendor_id) + '})" style="cursor:pointer;text-decoration:underline">' + esc59(B.vendor_name || '') + '</div>' +
+            '<div class="rm-dim">' + [B.invoice_date ? 'dated ' + esc59(rm8Date(B.invoice_date)) : '', B.po_no ? 'PO ' + esc59(B.po_no) : '', B.created_by ? 'entered by ' + esc59(B.created_by) : ''].filter(Boolean).join(' &middot; ') + '</div>' +
+            (B.total != null ? '<div class="rm-kv"><div><span>Before GST</span><b>' + rmInr(B.value_ex_gst) + '</b></div><div><span>GST</span><b>' + rmInr(B.gst_amount) + '</b></div><div><span>Freight</span><b>' + rmInr(B.freight) + '</b></div><div><span>Total</span><b>' + rmInr(B.total) + '</b></div></div>' : '') + '</div>';
+        if (!B.fully_voided) h += '<div class="rm-btns"><button class="settings-btn rm-sm" onclick="rmGo(\'receive\',{receipt:{receipt_id:' + Number(B.receipt_id) + ',invoice_no:\'' + rm8Js(B.invoice_no) + '\',invoice_date:\'' + rm8Js(B.invoice_date || '') + '\',vendor_code:\'' + rm8Js(B.vendor_code || '') + '\',vendor_id:' + Number(B.vendor_id) + '}})">Add missing lines</button></div>';
+        h += '<div class="rm-sec">Lines</div>';
+        if (B.truncated) h += '<div class="rm-note">This vendor has more entries than could be read; the lines of this bill may be incomplete. Use History for the full picture.</div>';
+        if (!B.lines.length) h += '<div class="rm-dim">No live lines on this bill.</div>';
+        B.lines.forEach(function (r) { h += rmLedgerRowHtml(r, {}); });
+        body.innerHTML = h; rmReopenBoxes();
+    }
+    if (!fetch && RM.data.bill) { draw(); return; }
+    rmLoading('Opening the bill...');
+    var mine = { keyp: P.receipt_id || P.invoice_no };
+    RM.data.bill = null;
+    var resolve = (P.receipt_id && P.vendor_id) ? Promise.resolve({ ok: true, row: { receipt_id: P.receipt_id, vendor_id: P.vendor_id } }) :
+        rmCall('rm_purchase_register', { p_from_date: rm8AddDays(rmTodayIst(), -3600), p_to_date: rmTodayIst(), p_q: P.invoice_no || null, p_limit: 50, p_offset: 0 }, { read: true }).then(function (d) {
+            if (!d.ok) return { ok: false, d: d };
+            var hit = null; rm8Rows(d).forEach(function (r) { if (!hit && (P.receipt_id ? Number(r.receipt_id) === Number(P.receipt_id) : (String(r.invoice_no) === String(P.invoice_no) && (!P.vendor_name || String(r.vendor_name) === String(P.vendor_name))))) hit = r; });
+            return hit ? { ok: true, row: hit } : { ok: false, d: { ok: false, text: 'That bill could not be found in the purchase register.' } };
+        });
+    var seq = ++RM.seq, view = RM.view;
+    resolve.then(function (r) {
+        if (seq !== RM.seq || view !== RM.view) return;
+        if (!r.ok) { rmLoadErr(r.d, 'rmRender(true)'); return; }
+        var row = r.row;
+        return rmBillLines(row.vendor_id, row.receipt_id).then(function (b) {
+            if (seq !== RM.seq || view !== RM.view) return;
+            if (!b.ok) { rmLoadErr(b.d, 'rmRender(true)'); return; }
+            var lines = b.lines, f = lines[0] || {};
+            RM.data.bill = { keyp: mine.keyp, receipt_id: Number(row.receipt_id), vendor_id: Number(row.vendor_id), invoice_no: row.invoice_no || f.invoice_no || P.invoice_no, invoice_date: row.invoice_date || f.invoice_date, po_no: row.po_no, vendor_name: row.vendor_name || P.vendor_name || f.vendor_name, vendor_code: row.vendor_code || f.vendor_code,
+                value_ex_gst: row.value_ex_gst, gst_amount: row.gst_amount, freight: row.freight, total: row.total, created_by: row.created_by, fully_voided: !!row.is_fully_voided, lines: lines, truncated: !b.complete };
+            draw();
+        });
+    });
+}
+
+// ══ v122: PURCHASE VOUCHER EXTRAS, PURCHASE REGISTER, PROCUREMENT, ISSUE / PROCUREMENT SWITCH ═══════════════════
+function rm8ProcStatusLabel(s) { return { REQUESTED: 'Requested', ORDERED: 'Ordered', PARTIAL: 'Partly received', RECEIVED: 'Received', CANCELLED: 'Cancelled' }[s] || String(s || ''); }
+
+// ---- the purchase voucher: vendor first or item first ---------------------------------------------------------------------------------
+function rm8VoucherVendorExtras() {
+    var v = RM.form['rc-vendor'];
+    if (v && typeof v === 'object') return '<div id="rc-viu"></div>';
+    return '<div class="rm-btns"><button class="settings-btn rm-sm" style="background:#1B7A3A" onclick="rm8RegVendor()">&#10133; Register new vendor</button></div><div id="rc-ivu"></div>';
+}
+function rm8VoucherKick() {
+    if (RM.view !== 'receive' || RM.form._addTo) return;
+    var v = RM.form['rc-vendor'];
+    if (v && typeof v === 'object') rm8ViuLoad(Number(v.vendor_id)); else rm8IvuKick();
+}
+// vendor chosen: the items bought from that vendor before
+function rm8ViuLoad(id) {
+    var C = RM18.viu[id];
+    if (C && !C.err) { rm8ViuDraw(); return; }
+    var mine = RM18.viu[id] = { loading: true };
+    rm8ViuDraw();
+    rmCall('rm_vendor_items_used', { p_vendor_id: id }, { read: true }).then(function (d) {
+        if (RM18.viu[id] !== mine) return;
+        mine.loading = false;
+        if (!d.ok) mine.err = d; else mine.items = d.items || [];
+        rm8ViuDraw();
+    });
+}
+function rm8ViuDraw() {
+    var el = rmEl('rc-viu'), v = RM.form['rc-vendor'];
+    if (!el || !v || typeof v !== 'object') return;
+    var C = RM18.viu[Number(v.vendor_id)] || {};
+    if (C.loading) { el.innerHTML = '<div class="rm-dim">Looking up what you bought from this vendor before...</div>'; }
+    else if (C.err) el.innerHTML = '<div class="rm-dim">' + esc59(C.err.text) + ' (Quick-add of earlier items is not available.)</div>';
+    else if (!(C.items || []).length) el.innerHTML = '<div class="rm-dim">Nothing bought from this vendor yet. Choose the items on the lines below.</div>';
+    else {
+        var all = !!RM.form._viuAll, list = all ? C.items : C.items.slice(0, 12);
+        el.innerHTML = '<div class="rm-dim">Items bought from this vendor before (tap to add a line):</div><div class="rm-chips">' + list.map(function (x, i) {
+            return '<button type="button" class="rm-chip" onclick="rm8ViuAdd(' + i + ')"><b>' + esc59(x.item_code) + '</b> ' + esc59(shCut(x.item_name, 22)) + '</button>';
+        }).join('') + (!all && C.items.length > 12 ? '<button type="button" class="rm-chip" onclick="RM.form._viuAll=1;rm8ViuDraw()">Show all ' + rmQty(C.items.length, 0) + '</button>' : '') + '</div>';
+    }
+    for (var i = 0; i < (RM.form._lines || 0); i++) { var h = rmEl('rl' + i + '-hint'); if (h) h.innerHTML = rm8LineHintText(i); }
+}
+function rm8ViuAdd(idx) {
+    var F = RM.form, v = F['rc-vendor']; if (!v || typeof v !== 'object') return;
+    var C = RM18.viu[Number(v.vendor_id)], x = C && C.items && ((F._viuAll ? C.items : C.items.slice(0, 12))[idx]); if (!x) return;
+    var j = -1;
+    for (var i = 0; i < F._lines; i++) { if (!(F['rl' + i + '-item'] && typeof F['rl' + i + '-item'] === 'object')) { j = i; break; } }
+    if (j < 0) { if (F._lines >= 200) return; j = F._lines; F._lines++; }
+    var slot = 'rl' + j + '-item';
+    RM.pick[slot] = { rows: [{ item_id: Number(x.item_id) }], total: 1 };
+    rmPickSet(slot, 'item', 0);
+}
+function rm8LineHintText(i) {
+    var F = RM.form, v = F['rc-vendor'], it = F['rl' + i + '-item'];
+    if (!v || typeof v !== 'object' || !it || typeof it !== 'object') return '';
+    var C = RM18.viu[Number(v.vendor_id)]; if (!C || !C.items) return '';
+    var hit = null; C.items.forEach(function (x) { if (Number(x.item_id) === Number(it.item_id)) hit = x; });
+    if (!hit || hit.last_rate_per_base == null) return '';
+    return 'Last bought from this vendor' + (hit.last_received_on ? ' on ' + esc59(rm8Date(hit.last_received_on)) : '') + ' at <b>' + rmRate(hit.last_rate_per_base) + '</b> per ' + esc59(it.base_uom_code) + (hit.times_bought ? ' (' + rmQty(hit.times_bought, 0) + ' time(s))' : '') + '.';
+}
+function rm8LineHint(i) { return '<div class="rm-dim" id="rl' + i + '-hint">' + rm8LineHintText(i) + '</div>'; }
+// item chosen first: the vendors it was bought from before
+function rm8IvuItemId() {
+    var F = RM.form;
+    for (var i = 0; i < (F._lines || 0); i++) { var it = F['rl' + i + '-item']; if (it && typeof it === 'object') return Number(it.item_id); }
+    return null;
+}
+function rm8IvuKick() {
+    var id = rm8IvuItemId();
+    if (!id) { rm8IvuDraw(); return; }
+    var C = RM18.ivu[id];
+    if (C && !C.err) { rm8IvuDraw(); return; }
+    var mine = RM18.ivu[id] = { loading: true };
+    rm8IvuDraw();
+    rmCall('rm_item_vendors_used', { p_item_id: id }, { read: true }).then(function (d) {
+        if (RM18.ivu[id] !== mine) return;
+        mine.loading = false;
+        if (!d.ok) mine.err = d; else mine.vendors = (d.vendors || []).filter(function (x) { return x.active !== false; });
+        rm8IvuDraw();
+    });
+}
+function rm8IvuDraw() {
+    var el = rmEl('rc-ivu'); if (!el) return;
+    var id = rm8IvuItemId();
+    if (!id) { el.innerHTML = '<div class="rm-dim">Not sure who to buy from? Choose an item on a line below first: the vendors you bought it from before show up here.</div>'; return; }
+    var C = RM18.ivu[id] || {};
+    if (C.loading) el.innerHTML = '<div class="rm-dim">Looking up who this item was bought from...</div>';
+    else if (C.err) el.innerHTML = '<div class="rm-dim">' + esc59(C.err.text) + ' (The list of earlier vendors is not available.)</div>';
+    else if (!(C.vendors || []).length) el.innerHTML = '<div class="rm-dim">This item has not been bought from anyone yet. Choose or register the vendor above.</div>';
+    else el.innerHTML = '<div class="rm-dim">Bought before from (tap to choose the vendor):</div><div class="rm-chips">' + C.vendors.map(function (x, i) {
+        return '<button type="button" class="rm-chip" onclick="rm8IvuPick(' + id + ',' + i + ')"><b>' + esc59(x.vendor_name) + '</b>' + (x.preferred ? ' &#9733;' : '') + (x.times_bought ? ' <span class="rm-chip-n">' + rmQty(x.times_bought, 0) + 'x' + (x.last_rate_per_base != null ? ', ' + rmRate(x.last_rate_per_base) : '') + '</span>' : ' <span class="rm-chip-n">linked</span>') + '</button>';
+    }).join('') + '</div>';
+}
+function rm8IvuPick(itemId, i) {
+    var C = RM18.ivu[itemId], x = C && C.vendors && C.vendors[i]; if (!x) return;
+    RM.form['rc-vendor'] = { vendor_id: Number(x.vendor_id), vendor_code: x.vendor_code, vendor_name: x.vendor_name, gstin: x.gstin || null };
+    delete RM.form['rc-vendor-q']; delete RM.pick['rc-vendor'];
+    rmRender(false);
+}
+// the draft bill is kept in memory (separate from RM.form, which every screen change clears) while a vendor is registered
+function rm8RegVendor() {
+    var snap = {}, k;
+    for (k in RM.form) if (Object.prototype.hasOwnProperty.call(RM.form, k)) snap[k] = RM.form[k];
+    RM18.draft = { form: snap };
+    rmGo('vendorEdit', { fromVoucher: true });
+}
+function rm8RestoreDraft() {
+    if (RM18.draft && RM.view === 'receive') { RM.form = RM18.draft.form; RM18.draft = null; }
+}
+function rm8VendorCreatedBack(d, f) {
+    var v = { vendor_id: Number(d.vendor_id), vendor_code: d.vendor_code, vendor_name: f.vendor_name, gstin: f.gstin || null };
+    RM.stack.pop(); RM.view = 'receive'; RM.params = {};
+    RM.form = RM18.draft.form; RM18.draft = null; RM.pick = {};
+    RM.form['rc-vendor'] = v; delete RM.form['rc-vendor-q'];
+    RM18.viu = {};
+    rmRender(false);
+    rmSetMsg('rc-msg', '<div class="move-result ok">&#10003; Vendor ' + esc59(v.vendor_code) + ' registered and chosen. Your bill is exactly as you left it.</div>');
+}
+
+// ---- purchase register -------------------------------------------------------------------------------------------------------------------
+var RM8_PRESETS = [['TODAY', 'Today'], ['7D', '7 days'], ['30D', '30 days'], ['MONTH', 'This month'], ['FY', 'This financial year'], ['CUSTOM', 'Custom dates']];
+function rm8RgRange(S) {
+    var t = rmTodayIst();
+    switch (S.preset) {
+        case 'TODAY': return [t, t];
+        case '7D': return [rm8AddDays(t, -6), t];
+        case '30D': return [rm8AddDays(t, -29), t];
+        case 'MONTH': return [t.slice(0, 8) + '01', t];
+        case 'FY': { var y = Number(t.slice(0, 4)), m = Number(t.slice(5, 7)); return [(m >= 4 ? y : y - 1) + '-04-01', t]; }
+        default: return [S.from || null, S.to || null];
+    }
+}
+function rm8RgSeed() {
+    var P = RM.params;
+    if (RM.data.rg && P._seeded) return;
+    RM.data.rg = { preset: P.preset || '30D', from: P.from || '', to: P.to || '', q: P.q || '', vendor: null, item: null, dopen: false }; RM.data.rgRows = null; P._seeded = true;
+}
+function rmView_register(fetch) {
+    var body = rmEl('rm-body');
+    rm8RgSeed();
+    var S = RM.data.rg;
+    if (S.vendor && !RM.form['rg-vendor']) RM.form['rg-vendor'] = S.vendor;
+    if (S.item && !RM.form['rg-item']) RM.form['rg-item'] = S.item;
+    body.innerHTML = '<div id="rg-ctl"></div><div id="rg-res"></div>';
+    rm8RgCtl();
+    var R = RM.data.rgRows;
+    if (!fetch && R && !R.loading && !R.err) { rm8RgDraw(); return; }
+    rm8RgReload();
+}
+function rm8RgCtl() {
+    var el = rmEl('rg-ctl'), S = RM.data.rg; if (!el) return;
+    var open = S.dopen || RM.form['rg-vendor'] || RM.form['rg-item'] || RM.pick['rg-vendor'] || RM.pick['rg-item'];
+    var h = '<div class="rm-chips">' + RM8_PRESETS.map(function (p) { return rm8Chip(p[1], S.preset === p[0], 'rm8RgPreset(\'' + p[0] + '\')'); }).join('') + '</div>';
+    var r = rm8RgRange(S);
+    if (S.preset === 'CUSTOM') h += '<div class="rm-2"><div>' + rmLabel('From') + '<input type="date" class="settings-input rm-in" id="rg-from" value="' + esc59(S.from) + '" max="' + esc59(rmTodayIst()) + '" onchange="rm8RgDate(\'from\',this.value)"></div><div>' + rmLabel('To') + '<input type="date" class="settings-input rm-in" id="rg-to" value="' + esc59(S.to) + '" max="' + esc59(rmTodayIst()) + '" onchange="rm8RgDate(\'to\',this.value)"></div></div>';
+    else h += '<div class="rm-dim">' + esc59(rm8Date(r[0])) + ' to ' + esc59(rm8Date(r[1])) + ' (India time)</div>';
+    h += '<div class="rm-search"><input type="text" class="settings-input rm-in" id="rg-q" placeholder="Search: bill no., PO no., vendor, item" autocomplete="off" autocorrect="off" spellcheck="false" value="' + esc59(S.q) + '" oninput="rm8RgType(this)"></div>' +
+        '<details' + (open ? ' open' : '') + ' ontoggle="RM.data.rg.dopen=this.open"><summary class="rm-dim" style="cursor:pointer;min-height:32px;display:flex;align-items:center;">Filter by vendor or item' + ((RM.form['rg-vendor'] || RM.form['rg-item']) ? ' (on)' : '') + '</summary>' +
+        rmPickerHtml('rg-vendor', 'vendor', 'Vendor') + rmPickerHtml('rg-item', 'item', 'Item') + '</details>';
+    el.innerHTML = h;
+}
+function rm8RgArgs(off, lim) {
+    var S = RM.data.rg, r = rm8RgRange(S), v = RM.form['rg-vendor'], it = RM.form['rg-item'];
+    return { p_from_date: r[0] || null, p_to_date: r[1] || null, p_vendor_id: v && typeof v === 'object' ? Number(v.vendor_id) : null, p_item_id: it && typeof it === 'object' ? Number(it.item_id) : null, p_q: String(S.q || '').trim() || null, p_limit: lim || 100, p_offset: off };
+}
+function rm8RgReload() {
+    var S = RM.data.rg;
+    if (S.preset === 'CUSTOM' && S.from && S.to && S.from > S.to) { RM.data.rgRows = { rows: [], total: 0, err: { ok: false, text: 'The "from" date is after the "to" date.' } }; rm8RgDraw(); return; }
+    var R = RM.data.rgRows = { rows: [], total: 0, loading: true };
+    rm8RgDraw();
+    rmLoad('rm_purchase_register', rm8RgArgs(0), function (d) {
+        if (RM.data.rgRows !== R) return;
+        R.loading = false;
+        if (!d.ok) { R.err = d; rm8RgDraw(); return; }
+        R.rows = rm8Rows(d); R.total = Number(d.total) || R.rows.length; R.totals = d.totals || {}; R.by_month = d.by_month || [];
+        rm8RgDraw();
+    });
+}
+function rm8RgDraw() {
+    var res = rmEl('rg-res'), R = RM.data.rgRows || { rows: [], total: 0 }; if (!res) return;
+    var h = '';
+    if (R.err) h += rmMsgHtml(R.err) + (R.err.error ? '<button class="settings-btn rm-big" onclick="rm8RgReload()">&#8635; Try again</button>' : '');
+    else if (R.loading) h += '<div class="rm-note">Loading...</div>';
+    else {
+        var T = R.totals || {};
+        h += '<div class="rm-tiles">' + rm8Tile('Bills', rmQty(T.bills, 0), rmQty(T.lines, 0) + ' line(s)', 'void 0') + rm8Tile('Value before GST', rmInr(T.value_ex_gst), '', 'void 0') + rm8Tile('GST', rmInr(T.gst_amount), '', 'void 0') + rm8Tile('Freight', rmInr(T.freight), '', 'void 0') + rm8Tile('Total', rmInr(T.total), 'voided lines left out', 'void 0') + '</div>';
+        var bm = R.by_month || [];
+        if (bm.length > 1) h += '<div class="rm-sec">By month</div>' + xmChart('bar', bm.map(function (m) { return { key: m.month, label: m.month, value: Number(m.total) || 0 }; }), { title: 'Purchases by month', desc: 'Bill totals by month', measure: 'value', money: true });
+        h += '<div class="rm-sec">Bills</div>' + rm8Showing(R.rows.length, R.total, 'bill(s)');
+        if (!R.rows.length) h += rm8Empty('No bills in this period.', 'Change the dates or clear the vendor / item filter. Bills appear here when stock is received with an invoice number.');
+        R.rows.forEach(function (r) {
+            h += '<button class="rm-row" onclick="rmGo(\'bill\',{receipt_id:' + Number(r.receipt_id) + ',vendor_id:' + Number(r.vendor_id) + ',invoice_no:\'' + rm8Js(r.invoice_no) + '\',vendor_name:\'' + rm8Js(r.vendor_name) + '\'})"><div class="rm-row-top"><b>Bill ' + esc59(r.invoice_no) + '</b><span><b>' + rmInr(r.total) + '</b></span></div>' +
+                '<div class="rm-row-name">' + esc59(r.vendor_name) + (r.is_fully_voided ? ' <span class="rm-badge grey">VOIDED</span>' : (Number(r.voided_lines) > 0 ? ' <span class="rm-badge">' + esc59(r.voided_lines) + ' line(s) voided</span>' : '')) + '</div>' +
+                '<div class="rm-dim">' + esc59(rm8Date(r.invoice_date)) + ' &middot; ' + rmQty(r.line_count, 0) + ' line(s) &middot; before GST ' + rmInr(r.value_ex_gst) + ' + GST ' + rmInr(r.gst_amount) + (Number(r.freight) > 0 ? ' + freight ' + rmInr(r.freight) : '') + (r.po_no ? ' &middot; PO ' + esc59(r.po_no) : '') + '</div></button>';
+        });
+        if (R.rows.length < R.total) h += '<button class="settings-btn rm-big" style="background:#888" onclick="rm8RgMore()">Show 100 more (' + rmQty(R.total - R.rows.length, 0) + ' left)</button>';
+        if (R.moreErr) h += rmMsgHtml(R.moreErr);
+        if (R.rows.length) h += '<div class="rm-note">Download every bill in this filter (the first 20,000):</div>' + rm8DlBtns('rm8RgDl') + '<div id="rg-dlmsg"></div>';
+    }
+    res.innerHTML = h;
+}
+function rm8RgMore() {
+    var R = RM.data.rgRows; if (!R || R.loading) return;
+    R.loading = true; rm8RgDraw();
+    rmLoad('rm_purchase_register', rm8RgArgs(R.rows.length), function (d) {
+        R.loading = false;
+        if (!d.ok) { R.moreErr = d; rm8RgDraw(); return; }
+        R.rows = R.rows.concat(rm8Rows(d)); R.total = Number(d.total) || R.total; rm8RgDraw();
+    });
+}
+function rm8RgPreset(p) { RM.data.rg.preset = p; rm8RgCtl(); if (p !== 'CUSTOM') rm8RgReload(); else if (RM.data.rg.from && RM.data.rg.to) rm8RgReload(); }
+function rm8RgDate(k, v) { RM.data.rg[k] = v; if (RM.data.rg.from && RM.data.rg.to) rm8RgReload(); }
+function rm8RgType(el) { RM.data.rg.q = el.value; rm8Deb('rg', 300, rm8RgReload); }
+function rm8RgPicked() { RM.data.rg.vendor = RM.form['rg-vendor'] && typeof RM.form['rg-vendor'] === 'object' ? RM.form['rg-vendor'] : null; RM.data.rg.item = RM.form['rg-item'] && typeof RM.form['rg-item'] === 'object' ? RM.form['rg-item'] : null; rm8RgCtl(); rm8RgReload(); }
+// called by rm8OnPicked
+function rm8RegReload() { if (RM.view === 'register' && RM.data.rg) rm8RgPicked(); }
+function rm8RgDl(kind) {
+    if (_rmBusy.rgd) return; _rmBusy.rgd = 1;
+    rmSetMsg('rg-dlmsg', '<div class="move-result">Reading bills...</div>');
+    rm8ReadAll('rm_purchase_register', function (off, page) { return rm8RgArgs(off, page); }, 200, 20000, function (n, t) { rmSetMsg('rg-dlmsg', '<div class="move-result">Reading bills... ' + rmQty(n, 0) + ' of ' + rmQty(t, 0) + '</div>'); }).then(function (r) {
+        delete _rmBusy.rgd;
+        if (!r.ok) { rmSetMsg('rg-dlmsg', rmMsgHtml(r.d)); return; }
+        var cols = ['received_on', 'invoice_date', 'invoice_no', 'po_no', 'vendor_code', 'vendor_name', 'line_count', 'voided_lines', 'value_ex_gst', 'gst_amount', 'freight', 'total', 'created_by'];
+        var rows = r.rows.map(function (x) { return [x.received_on || '', x.invoice_date || '', x.invoice_no, x.po_no || '', x.vendor_code || '', x.vendor_name || '', rm8Cell(x.line_count), rm8Cell(x.voided_lines), rm8Cell(x.value_ex_gst), rm8Cell(x.gst_amount), rm8Cell(x.freight), rm8Cell(x.total), x.created_by || '']; });
+        var ok = rm8SaveTable(kind, 'Purchase_Register', cols, rows, 'Purchase register');
+        rmSetMsg('rg-dlmsg', ok ? '<div class="move-result ok">Saved ' + rmQty(rows.length, 0) + ' bill(s)' + (r.total > rows.length ? ' - the first ' + rmQty(rows.length, 0) + ' of ' + rmQty(r.total, 0) + '. Narrow the dates to get the rest.' : '.') + ' Amounts are in rupees; voided lines are left out.</div>' : '<div class="move-result err">The file could not be made on this phone.</div>');
+    });
+}
+
+// ---- procurement ---------------------------------------------------------------------------------------------------------------------------
+function rm8PrSeed() {
+    var P = RM.params;
+    if (RM.data.pr && P._seeded) return;
+    RM.data.pr = { scope: P.scope || 'OPEN', q: P.q || '', vendor: P.vendor_id ? String(P.vendor_id) : '', item: P.item_id ? String(P.item_id) : '', overdue: !!P.overdue, sel: {}, vendors: {} };
+    RM.data.prRows = null; RM.data.prNote = ''; RM.data.prShare = null; P._seeded = true;
+}
+function rm8PrArgs(off) {
+    var S = RM.data.pr;
+    return { p_scope: S.scope, p_q: String(S.q || '').trim() || null, p_vendor_id: S.vendor ? Number(S.vendor) : null, p_item_id: S.item ? Number(S.item) : null, p_limit: 100, p_offset: off };
+}
+function rmView_proc(fetch) {
+    var body = rmEl('rm-body');
+    rm8PrSeed();
+    var S = RM.data.pr;
+    body.innerHTML = '<div class="rm-note">Receiving the material in Receive stock closes the request by itself, even if nobody taps Received.</div>' +
+        '<div class="rm-search"><input type="text" class="settings-input rm-in" id="pr-q" placeholder="Search: item, vendor, PO no., note" autocomplete="off" autocorrect="off" spellcheck="false" value="' + esc59(S.q) + '" oninput="rm8PrType(this)"></div>' +
+        '<div id="pr-ctl"></div><div id="pr-note">' + (RM.data.prNote || '') + '</div><div id="pr-share"></div><div id="pr-res"></div><div id="pr-bar"></div>';
+    var R = RM.data.prRows;
+    if (!fetch && R && !R.loading && !R.err) { rm8PrDraw(); rm8ShareDraw(); return; }
+    rm8PrReload();
+}
+function rm8PrReload() {
+    var old = RM.data.prRows, R = RM.data.prRows = { rows: [], total: 0, loading: true, counts: old ? old.counts : null };
+    rm8PrDraw();
+    rmLoad('rm_proc_list', rm8PrArgs(0), function (d) {
+        if (RM.data.prRows !== R) return;
+        R.loading = false;
+        if (!d.ok) { R.err = d; rm8PrDraw(); return; }
+        R.rows = rm8Rows(d); R.total = Number(d.total) || R.rows.length; R.counts = d.counts || R.counts || {};
+        R.rows.forEach(function (r) { if (r.vendor && r.vendor.vendor_id) RM.data.pr.vendors[r.vendor.vendor_id] = r.vendor.vendor_name; });
+        rm8PrDraw();
+    });
+}
+function rm8PrDraw() {
+    var ctl = rmEl('pr-ctl'), res = rmEl('pr-res'), S = RM.data.pr, R = RM.data.prRows || { rows: [], total: 0 }; if (!ctl || !res) return;
+    var C = R.counts || {};
+    var h = '<div class="rm-chips">' + rm8Chip('Open', S.scope === 'OPEN', 'rm8PrScope(\'OPEN\')', C.requested != null ? (Number(C.requested) + Number(C.ordered) + Number(C.partial)) : null) + rm8Chip('Closed', S.scope === 'CLOSED', 'rm8PrScope(\'CLOSED\')', C.closed_30d != null ? C.closed_30d : null) + rm8Chip('All', S.scope === 'ALL', 'rm8PrScope(\'ALL\')') + '</div>';
+    if (C.requested != null) h += '<div class="rm-dim">Requested ' + rmQty(C.requested, 0) + ' &middot; Ordered ' + rmQty(C.ordered, 0) + ' &middot; Partly received ' + rmQty(C.partial, 0) + ' &middot; <a href="#" onclick="rm8PrOverdue();return false;" style="color:' + (Number(C.overdue) > 0 ? '#B3261E' : 'inherit') + '"><b>Overdue ' + rmQty(C.overdue, 0) + '</b>' + (S.overdue ? ' (showing only these)' : '') + '</a> &middot; Closed in 30 days ' + rmQty(C.closed_30d, 0) + '</div>';
+    var vs = S.vendors || {}, vo = '<option value="">All vendors</option>';
+    Object.keys(vs).forEach(function (k) { vo += '<option value="' + esc59(k) + '"' + (String(S.vendor) === k ? ' selected' : '') + '>' + esc59(vs[k]) + '</option>'; });
+    if (S.vendor && !vs[S.vendor]) vo += '<option value="' + esc59(S.vendor) + '" selected>Chosen vendor</option>';
+    h += '<div class="rm-filters"><select class="settings-input rm-in" aria-label="Vendor" onchange="rm8PrSet(\'vendor\',this.value)">' + vo + '</select>' +
+        (S.item ? '<button class="settings-btn rm-xs" style="background:#9A6700" onclick="rm8PrSet(\'item\',\'\')">&#10005; One item only</button>' : '') +
+        ((String(S.q || '').trim() || S.vendor || S.item || S.overdue) ? '<button class="settings-btn rm-xs" style="background:#9A6700" onclick="rm8PrClear()">&#10005; Clear filters</button>' : '') + '</div>' +
+        '<div class="rm-btns"><button class="settings-btn rm-sm" style="background:#1B7A3A" onclick="rmGo(\'issue\',{mode:\'proc\'})">&#10133; New request</button></div>';
+    ctl.innerHTML = h;
+    var html = '';
+    if (R.err) html += rmMsgHtml(R.err) + '<button class="settings-btn rm-big" onclick="rm8PrReload()">&#8635; Try again</button>';
+    else if (R.loading && !R.rows.length) html += '<div class="rm-note">Loading...</div>';
+    else {
+        var rows = S.overdue ? R.rows.filter(function (r) { return r.is_overdue; }) : R.rows;
+        html += rm8Showing(rows.length, S.overdue ? rows.length : R.total, 'request(s)');
+        if (S.overdue && R.rows.length < R.total) html += '<div class="rm-dim">Overdue is checked among the ' + rmQty(R.rows.length, 0) + ' loaded; show more to load the rest.</div>';
+        if (!rows.length) html += rm8Empty(S.scope === 'OPEN' ? 'Nothing is waiting to be bought.' : 'No requests here.', S.scope === 'OPEN' ? 'Tap New request, or Send for procurement on any low item. Requests close by themselves when the material is received.' : 'Closed requests from the last months show here.');
+        rows.forEach(function (r) { html += rm8PrRow(r); });
+        if (R.rows.length < R.total) html += '<button class="settings-btn rm-big" style="background:#888" onclick="rm8PrMore()">' + (R.loading ? 'Loading...' : 'Show 100 more (' + rmQty(R.total - R.rows.length, 0) + ' left)') + '</button>';
+        if (R.moreErr) html += rmMsgHtml(R.moreErr);
+        if (rows.length) html += rm8DlBtns('rm8PrDl');
+    }
+    res.innerHTML = html;
+    rmReopenBoxes();
+    rm8PrBar();
+}
+function rm8PrRow(r) {
+    var id = Number(r.request_id), open = r.status === 'REQUESTED' || r.status === 'ORDERED' || r.status === 'PARTIAL', man = rmCanManage(), u = esc59(r.base_uom_code || '');
+    var h = '<div class="rm-card' + (r.is_overdue ? ' rm-overdue' : '') + '"><div class="rm-row-top"><span>' +
+        (open ? '<label class="rm-chk" style="display:inline-flex;margin:0 6px 0 0;min-height:30px;"><input type="checkbox" aria-label="Select request" ' + (RM.data.pr.sel[id] ? 'checked ' : '') + 'onchange="rm8PrSel(' + id + ',this.checked)"></label>' : '') +
+        '<span class="rm-code" onclick="rmOpenItem(' + Number(r.item_id) + ')" style="cursor:pointer">' + esc59(r.item_code) + '</span></span><span>' +
+        '<span class="rm-badge ' + (r.status === 'RECEIVED' ? 'green' : (r.status === 'CANCELLED' ? 'grey' : '')) + '">' + esc59(rm8ProcStatusLabel(r.status)) + '</span>' + (r.is_overdue ? ' <span class="rm-badge red">OVERDUE</span>' : '') + (/^AUTO_/.test(String(r.close_kind || '')) ? ' <span class="rm-badge green">Received automatically</span>' : '') + '</span></div>' +
+        '<div class="rm-row-name">' + esc59(r.item_name) + '</div>' +
+        '<div>Need <b>' + rmQty(r.qty_requested) + '</b> ' + u + (Number(r.received_qty_base) > 0 ? ' &middot; received ' + rmQty(r.received_qty_base) + ', still to come ' + rmQty(r.remaining_qty) : '') + '</div>' +
+        '<div class="rm-dim">' + [r.vendor && r.vendor.vendor_name ? 'Vendor ' + esc59(r.vendor.vendor_name) : 'No vendor chosen yet', open ? 'asked ' + rm8Age(r.age_days) + (Number(r.age_days) >= 1 ? ' ago' : '') : '', r.expected_by ? (open ? 'expected by ' : 'was expected by ') + esc59(rm8Date(r.expected_by)) : '', r.po_no ? 'PO ' + esc59(r.po_no) : ''].filter(Boolean).join(' &middot; ') + '</div>' +
+        '<div class="rm-dim">Requested by ' + esc59(r.requested_by || '-') + ' on ' + esc59(r.requested_at_ist || '') + (r.closed_at ? ' &middot; closed ' + esc59(fmtIst(r.closed_at)) : '') + (r.last_shared_at ? ' &middot; last shared ' + esc59(fmtIst(r.last_shared_at)) + (r.last_shared_channel ? ' by ' + esc59(String(r.last_shared_channel).toLowerCase()) : '') : '') + '</div>' +
+        (r.note ? '<div class="rm-dim">&ldquo;' + esc59(r.note) + '&rdquo;</div>' : '');
+    h += '<div class="rm-btns">';
+    if (open) {
+        if (r.status === 'REQUESTED') h += '<button class="settings-btn rm-xs" onclick="rmAskReason(\'po' + id + '\')">Mark ordered&hellip;</button>';
+        h += '<button class="settings-btn rm-xs" style="background:#1B3F6B" onclick="rm8ShareOpen([' + id + '])">Share</button><button class="settings-btn rm-xs" style="background:#1B7A3A" onclick="rm8PrReceived(' + id + ')">Mark received</button><button class="settings-btn rm-xs" style="background:#B3261E" onclick="rmAskReason(\'pc' + id + '\')">Cancel&hellip;</button>';
+    } else if (man && (r.status === 'RECEIVED' || r.status === 'CANCELLED')) h += '<button class="settings-btn rm-xs" style="background:#9A6700" onclick="rmAskReason(\'pn' + id + '\')">Reopen&hellip;</button>';
+    h += '</div>';
+    if (open) h += rmReasonBox('po' + id, 'PO number (optional)', 'rm8PrOrdered(' + id + ')', 'Confirm: ordered') + rmReasonBox('pc' + id, 'Why cancel this request? (at least 5 letters)', 'rm8PrCancel(' + id + ')', 'Confirm cancel');
+    else if (man) h += rmReasonBox('pn' + id, 'Why reopen it? (at least 5 letters)', 'rm8PrReopen(' + id + ')', 'Confirm reopen');
+    return h + '<div id="rm-pa' + id + '"></div></div>';
+}
+function rm8PrType(el) { RM.data.pr.q = el.value; rm8Deb('pr', 300, rm8PrReload); }
+function rm8PrSet(k, v) { RM.data.pr[k] = v; RM.data.pr.sel = {}; rm8PrReload(); }
+function rm8PrScope(s) { RM.data.pr.scope = s; RM.data.pr.sel = {}; rm8PrReload(); }
+function rm8PrOverdue() { RM.data.pr.overdue = !RM.data.pr.overdue; rm8PrDraw(); }
+function rm8PrClear() { var S = RM.data.pr; S.q = ''; S.vendor = ''; S.item = ''; S.overdue = false; S.sel = {}; var q = rmEl('pr-q'); if (q) q.value = ''; rm8PrReload(); }
+function rm8PrMore() {
+    var R = RM.data.prRows; if (!R || R.loading) return;
+    R.loading = true; R.moreErr = null; rm8PrDraw();
+    rmLoad('rm_proc_list', rm8PrArgs(R.rows.length), function (d) {
+        R.loading = false;
+        if (!d.ok) { R.moreErr = d; rm8PrDraw(); return; }
+        var got = rm8Rows(d); R.rows = R.rows.concat(got); R.total = Number(d.total) || R.total;
+        got.forEach(function (r) { if (r.vendor && r.vendor.vendor_id) RM.data.pr.vendors[r.vendor.vendor_id] = r.vendor.vendor_name; });
+        rm8PrDraw();
+    });
+}
+function rm8PrSel(id, on) { if (on) RM.data.pr.sel[id] = 1; else delete RM.data.pr.sel[id]; rm8PrBar(); }
+function rm8PrBar() {
+    var el = rmEl('pr-bar'); if (!el) return;
+    var ids = Object.keys(RM.data.pr.sel || {}).map(Number); if (!ids.length) { el.innerHTML = ''; return; }
+    var R = RM.data.prRows || { rows: [] }, vend = {}, none = 0;
+    R.rows.forEach(function (r) { if (RM.data.pr.sel[r.request_id]) { if (r.vendor && r.vendor.vendor_id) vend[r.vendor.vendor_id] = r.vendor.vendor_name; else none++; } });
+    var vk = Object.keys(vend), one = (vk.length === 1 && !none);
+    el.innerHTML = '<div class="rm-card" style="position:sticky;bottom:6px;border-color:#1B4F8A"><b>' + rmQty(ids.length, 0) + ' selected</b><div class="rm-btns"><button class="settings-btn rm-sm" style="background:#1B7A3A" onclick="rm8ShareOpen(' + JSON.stringify(ids) + ')">' + (one ? 'Send all to ' + esc59(vend[vk[0]]) : 'Share selected (one message per vendor)') + '</button><button class="settings-btn rm-sm" style="background:#888" onclick="RM.data.pr.sel={};rm8PrDraw()">Clear</button></div></div>';
+}
+function rm8PrDone(d, id, okMsg) {
+    RM.data.prNote = okMsg; RM.data.pr.sel = {}; RM.data.dash = null; RM.data.inbox = null;
+    var n = rmEl('pr-note'); if (n) n.innerHTML = okMsg;
+    rm8PrReload(); rm8BellSoon();
+}
+function rm8PrCall(id, action, note, po, okMsg, key) {
+    if (_rmBusy['ps' + id]) return; _rmBusy['ps' + id] = 1;
+    rmSetMsg('rm-pa' + id, '<div class="move-result">Saving...</div>');
+    var args = { p_request_id: id, p_action: action }; if (note) args.p_note = note; if (po) args.p_po_no = po;
+    rmCall('rm_proc_set_status', args).then(function (d) {
+        delete _rmBusy['ps' + id];
+        if (!d.ok) {
+            var txt = d.error === 'STALE' ? 'Someone else changed this request. The list has been refreshed - look again.' : null;
+            rmSetMsg('rm-pa' + id, txt ? '<div class="move-result err">' + esc59(txt) + '</div>' : rmMsgHtml(d));
+            if (d.error === 'STALE' || d.error === 'BAD_TRANSITION' || d.error === 'NOT_LATEST' || d.error === 'ALREADY_OPEN') rm8PrReload();
+            return;
+        }
+        var extra = '';
+        if (action === 'RECEIVED') {
+            var row = null; ((RM.data.prRows && RM.data.prRows.rows) || []).forEach(function (r) { if (Number(r.request_id) === id) row = r; });
+            extra = '<div class="move-result err" style="font-weight:700">' + esc59(d.warning || 'No stock was added.') + '</div>' + (d.warning && row ? '<div class="rm-btns"><button class="settings-btn rm-sm" style="background:#1B7A3A" onclick="rmGo(\'receive\',{item_id:' + Number(row.item_id) + '})">Receive stock now</button></div>' : '');
+        }
+        logEvent('', 'Raw material request #' + id + ' ' + action);
+        rm8PrDone(d, id, '<div class="move-result ok">&#10003; ' + esc59(okMsg) + (d.unchanged ? ' (it was already like that)' : '') + '</div>' + extra);
+    });
+}
+function rm8PrOrdered(id) { rm8PrCall(id, 'ORDERED', null, String(RM.form['rm-rsn-po' + id] || '').trim() || null, 'Marked as ordered.'); }
+function rm8PrReceived(id) {
+    if (!confirm('Mark this request as received?\n\nThis only closes the request. It does NOT add any stock: book the material with Receive stock.')) return;
+    rm8PrCall(id, 'RECEIVED', null, null, 'Request closed as received.');
+}
+function rm8PrCancel(id) { var rs = rmReasonVal('pc' + id, 'rm-rsm-pc' + id); if (rs === null) return; rm8PrCall(id, 'CANCELLED', rs, null, 'Request cancelled.'); }
+function rm8PrReopen(id) { var rs = rmReasonVal('pn' + id, 'rm-rsm-pn' + id); if (rs === null) return; rm8PrCall(id, 'REOPEN', rs, null, 'Request reopened.'); }
+function rm8PrDl(kind) {
+    var R = (RM.data.prRows && RM.data.prRows.rows) || [], S = RM.data.pr; if (S.overdue) R = R.filter(function (r) { return r.is_overdue; });
+    rm8SaveTable(kind, 'Procurement', ['request_id', 'status', 'item_code', 'item_name', 'qty_requested', 'received_qty_base', 'remaining_qty', 'base_uom_code', 'vendor', 'needed_by', 'expected_by', 'po_no', 'age_days', 'is_overdue', 'requested_by', 'requested_at_ist', 'closed_at', 'close_kind', 'note'],
+        R.map(function (r) { return [r.request_id, r.status, r.item_code, r.item_name, rm8Cell(r.qty_requested), rm8Cell(r.received_qty_base), rm8Cell(r.remaining_qty), r.base_uom_code || '', r.vendor ? r.vendor.vendor_name : '', r.needed_by || '', r.expected_by || '', r.po_no || '', rm8Cell(r.age_days), r.is_overdue ? 'YES' : 'NO', r.requested_by || '', r.requested_at_ist || '', r.closed_at || '', r.close_kind || '', r.note || '']; }), 'Procurement');
+}
+
+// ---- sharing a request with the vendor (one message per vendor) -------------------------------------------------------------------------------
+function rm8ShareOpen(ids) {
+    RM.data.prShare = { ids: ids, step: 'choose' };
+    rm8ShareDraw();
+    try { var el = rmEl('pr-share'); if (el && el.scrollIntoView) el.scrollIntoView({ block: 'nearest' }); } catch (e) {}
+}
+function rm8ShareDraw() {
+    var el = rmEl('pr-share'), Sh = RM.data.prShare; if (!el) return;
+    if (!Sh) { el.innerHTML = ''; return; }
+    var h = '<div class="rm-card" style="border-color:#1B4F8A"><div class="rm-row-top"><b>Share ' + rmQty(Sh.ids.length, 0) + ' request(s) with the vendor</b><button class="settings-btn rm-xs" style="background:#888" onclick="RM.data.prShare=null;rm8ShareDraw()">Close</button></div>';
+    if (Sh.step === 'choose') h += '<div class="rm-dim">Choose how to send it. One message is made for each vendor.</div><div class="rm-btns"><button class="settings-btn rm-sm" style="background:#1B7A3A" onclick="rm8ShareGo(\'WHATSAPP\')">WhatsApp</button><button class="settings-btn rm-sm" style="background:#1B3F6B" onclick="rm8ShareGo(\'EMAIL\')">Email</button><button class="settings-btn rm-sm" style="background:#888" onclick="rm8ShareGo(\'COPY\')">Copy text</button></div>';
+    else if (Sh.step === 'busy') h += '<div class="rm-dim">Making the message...</div>';
+    else if (Sh.err) h += rmMsgHtml(Sh.err) + '<div class="rm-btns"><button class="settings-btn rm-sm" onclick="RM.data.prShare.step=\'choose\';rm8ShareDraw()">Back</button></div>';
+    else {
+        (Sh.groups || []).forEach(function (g, gi) {
+            var wa = shWaNum(g.phone), em = String(g.email || '').trim();
+            h += '<div class="rm-li"><b>' + esc59(g.vendor_name || 'No vendor chosen yet') + '</b> <span class="rm-dim">' + rmQty((g.request_ids || []).length, 0) + ' item(s)' + (g.phone ? ' &middot; ' + esc59(g.phone) : '') + (em ? ' &middot; ' + esc59(em) : '') + '</span>' +
+                '<pre class="rm-pre">' + esc59(g.text) + '</pre><div class="rm-btns">';
+            if (Sh.channel === 'WHATSAPP') {
+                if (wa) h += rm8Link(shWaUrl(g.text, wa), 'Open WhatsApp for ' + esc59(shCut(g.vendor_name || 'vendor', 18)), 'rm-sm', 'background:#1B7A3A;');
+                else { h += '<button class="settings-btn rm-sm" style="background:#1B7A3A" onclick="rm8ShareNative(' + gi + ')">Share...</button>'; h += rm8Link(shWaUrl(g.text, ''), 'WhatsApp: pick a contact', 'rm-sm', 'background:#1B7A3A;'); h += '<div class="rm-dim">No phone number is saved for this vendor.</div>'; }
+            } else if (Sh.channel === 'EMAIL') {
+                h += rm8Link('mailto:' + em + '?subject=' + encodeURIComponent(g.subject || '') + '&body=' + encodeURIComponent(g.text || ''), '&#9993; Open email', 'rm-sm', 'background:#1B3F6B;');
+                if (!em) h += '<div class="rm-dim">No email address is saved for this vendor: choose the address in your mail app.</div>';
+            }
+            h += '<button class="settings-btn rm-sm" style="background:#888" onclick="rm8ShareCopy(' + gi + ',this)">Copy text</button></div></div>';
+        });
+        (Sh.skipped || []).forEach(function (s) { h += '<div class="move-result err">Request #' + esc59(s.request_id) + ' was left out: ' + esc59(s.error || '') + '</div>'; });
+        h += '<div class="rm-dim">The list below shows when each was last shared. Sharing is not ordering: tap Mark ordered when you place the order.</div>';
+    }
+    el.innerHTML = h + '</div>';
+}
+function rm8ShareGo(ch) {
+    var Sh = RM.data.prShare; if (!Sh || Sh.step === 'busy') return;
+    Sh.step = 'busy'; Sh.channel = ch; Sh.err = null; rm8ShareDraw();
+    rmCall('rm_proc_share', { p_request_ids: Sh.ids, p_channel: ch }).then(function (d) {
+        if (RM.data.prShare !== Sh) return;
+        Sh.step = 'done';
+        if (!d.ok) { Sh.err = d; Sh.step = 'err'; } else { Sh.groups = d.groups || []; Sh.skipped = d.skipped || []; logEvent('', 'Raw material requests shared: ' + ch + ', ' + Sh.ids.length); rm8PrReload(); }
+        rm8ShareDraw();
+    });
+}
+function rm8ShareNative(gi) {
+    var g = ((RM.data.prShare || {}).groups || [])[gi]; if (!g) return;
+    try { if (navigator.share) { navigator.share({ title: g.subject || 'Purchase request', text: g.text }).catch(function () {}); return; } } catch (e) {}
+    window.open(shWaUrl(g.text, ''), '_blank');
+}
+function rm8ShareCopy(gi, btn) { var g = ((RM.data.prShare || {}).groups || [])[gi]; if (!g) return; try { copyToClipboard(g.text, btn); } catch (e) {} }
+
+// ---- Issue screen: "Issue to production" | "Send for procurement" ------------------------------------------------------------------------------------
+function rm8IssueToggle() {
+    var m = RM.form._imode === 'proc' ? 'proc' : 'issue';
+    return '<div class="rm-seg"><button type="button" class="' + (m === 'issue' ? 'on' : '') + '" onclick="rm8IssueMode(\'issue\')">Issue to production</button><button type="button" class="' + (m === 'proc' ? 'on' : '') + '" onclick="rm8IssueMode(\'proc\')">Send for procurement</button></div>';
+}
+function rm8IssueMode(m) { RM.form._imode = m; rmRender(false); }
+function rm8IssueView() {
+    if (RM.params.mode === 'proc' && RM.form._imode === undefined) RM.form._imode = 'proc';
+    if (RM.form._imode === 'proc') { rm8ProcForm(); return; }
+    rmMoveForm('issue');
+    var body = rmEl('rm-body'); if (body) body.insertAdjacentHTML('afterbegin', rm8IssueToggle());
+}
+function rm8ProcForm() {
+    var body = rmEl('rm-body'), F = RM.form;
+    if (!F._cq) F._cq = rmUuid();
+    if (RM.params.item_id) rmPreloadItem('mv-item');
+    var it = F['mv-item'];
+    var html = rm8IssueToggle() + '<div class="rm-note">Ask for material to be bought. Nothing is taken out of stock. It closes by itself when the material is received.</div>' + rmPickerHtml('mv-item', 'item', 'Item (required)');
+    if (it && typeof it === 'object') {
+        html += '<div class="rm-2"><div>' + rmLabel('Quantity needed') + rmInput('mv-qty', 'e.g. 25', { num: true }) + '</div><div>' + rmLabel('Unit') + rmUnitSelect('mv-uom', it) + '</div></div><div class="rm-pv" id="pr-pv"></div>' +
+            rmPickerHtml('pr-vendor', 'vendor', 'Vendor (optional)') +
+            rmLabel('Needed by (optional)') + '<input type="date" class="settings-input rm-in" id="pr-needed" min="' + esc59(rmTodayIst()) + '" value="' + rmV('pr-needed') + '" onchange="rmF(this)">' +
+            rmLabel('Note') + rmInput('pr-note', 'optional', { max: 1000 }) +
+            '<button class="settings-btn rm-big" style="background:#1B7A3A" onclick="rm8ProcFormSave()">&#10003; Send for procurement</button>';
+    }
+    html += '<div id="mv-msg"></div>';
+    body.innerHTML = html;
+    rm8ProcPv();
+}
+function rm8ProcPv() {
+    var F = RM.form, it = F['mv-item'], pv = rmEl('pr-pv'); if (!pv || !it || typeof it !== 'object') return;
+    var q = rmNum(F['mv-qty'], 3), u = F['mv-uom'] || it.base_uom_code, t = '';
+    if (isFinite(q) && q > 0) { var cb = rmToBase(q, u, it.base_uom_code, it.conversions); t = cb.ok ? (u !== it.base_uom_code ? esc59(rmConvText(q, u, it.base_uom_code, it.conversions)) + '<br>' : '') + 'On hand now ' + rmQty(it.on_hand) + ' ' + esc59(it.base_uom_code) : esc59(cb.message); }
+    pv.innerHTML = t;
+}
+function rm8ProcFormSave() {
+    if (_rmBusy.pf) return;
+    var F = RM.form, it = F['mv-item'];
+    if (!it || typeof it !== 'object') { rmSetMsg('mv-msg', '<div class="move-result err">Choose the item.</div>'); return; }
+    var q = rmNum(F['mv-qty'], 3), u = F['mv-uom'] || it.base_uom_code;
+    if (!(q > 0)) { rmSetMsg('mv-msg', '<div class="move-result err">Type the quantity needed as a number above 0, up to 3 decimals.</div>'); return; }
+    var cb = rmToBase(q, u, it.base_uom_code, it.conversions);
+    if (!cb.ok) { rmSetMsg('mv-msg', '<div class="move-result err">' + esc59(cb.message) + '</div>'); return; }
+    var nd = String(F['pr-needed'] || '').trim();
+    if (nd && !/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(nd)) { rmSetMsg('mv-msg', '<div class="move-result err">Choose the needed-by date from the calendar.</div>'); return; }
+    var v = F['pr-vendor'];
+    if (!confirm('Send ' + rmQty(cb.base_qty) + ' ' + it.base_uom_code + ' of ' + it.item_code + ' for procurement?')) return;
+    _rmBusy.pf = 1; rmSetMsg('mv-msg', '<div class="move-result">Saving...</div>');
+    rmCall('rm_proc_create', { p_item_id: Number(it.item_id), p_qty: cb.base_qty, p_vendor_id: v && typeof v === 'object' ? Number(v.vendor_id) : null, p_needed_by: nd || null, p_reason: 'MANUAL', p_note: String(F['pr-note'] || '').trim() || null, p_client_queue_id: F._cq }).then(function (d) {
+        delete _rmBusy.pf;
+        if (!d.ok) { if (d.error === 'CQID_CONFLICT') RM.form._cq = rmUuid(); rmSetMsg('mv-msg', rmMsgHtml(d)); return; }
+        logEvent('', 'Raw material sent for procurement: ' + it.item_code);
+        RM.data.dash = null; RM.data.inbox = null; RM.data.prRows = null; RM.data.itfRows = null; rm8BellSoon();
+        var keep = { _imode: 'proc' }; RM.form = keep; RM.params = {};
+        rmRender(false);
+        rmSetMsg('mv-msg', '<div class="move-result ok">&#10003; ' + (d.duplicate ? 'Already on the procurement list' + (d.status ? ' (' + esc59(rm8ProcStatusLabel(d.status)) + ')' : '') + ' - not added twice.' : 'Sent for procurement.') + ' <a href="#" onclick="rmGo(\'proc\',{});return false;">Open the procurement list</a></div>');
+    });
+}
+
+// a picker was cleared (called by rmPickClear before the redraw)
+function rm8OnClear(slot) {
+    if (RM.view === 'register' && RM.data.rg && (slot === 'rg-vendor' || slot === 'rg-item')) {
+        RM.data.rg[slot === 'rg-vendor' ? 'vendor' : 'item'] = null;
+        setTimeout(function () { if (RM.view === 'register') rm8RgReload(); }, 0);
+    }
+}
+
+// ══ v122: MORE UPLOAD TYPES (purchase bills, barcodes), IN-APP TEMPLATES, IMPORT / EXPORT HUB ═══════════════════
+RM_BULK.bills = { fn: 'rm_bulk_receive', label: 'Purchase bills', sheet: 'PurchaseBills', key: 'invoice_no', max: 2000,
+    cols: ['vendor_code', 'gstin', 'invoice_no', 'invoice_date', 'po_no', 'item_code', 'qty', 'uom_code', 'rate_ex_gst', 'gst_rate', 'batch_no'],
+    num: ['qty', 'rate_ex_gst', 'gst_rate'],
+    need: ['invoice_no', 'invoice_date', 'item_code', 'qty', 'rate_ex_gst'],
+    help: ['vendor code (or leave blank and give the GSTIN)', 'optional if the vendor code is given', 'required. Rows with the same vendor + bill number form one bill', 'required, e.g. 2026-10-14 or 14-10-2026', 'optional', 'required, an existing item', 'required, above 0', 'optional, blank = base unit', 'required, rupees per the unit typed, before GST', 'optional, blank = the item\'s GST', 'optional'] };
+RM_BULK.barcodes = { fn: 'rm_bulk_set_barcodes', label: 'Barcodes', sheet: 'Barcodes', key: 'item_code', max: 500,
+    cols: ['item_code', 'barcode'], num: [], need: ['item_code', 'barcode'],
+    help: ['required, an existing item', 'required: 4 to 60 of A-Z 0-9 - . _ / (leave a cell blank in the file to skip the row; to clear a barcode use the Item page)'] };
+RM_ALIAS.bills = { vendor: 'vendor_code', supplier_code: 'vendor_code', gst_no: 'gstin', gst_number: 'gstin', invoice: 'invoice_no', bill_no: 'invoice_no', bill_number: 'invoice_no', invoice_number: 'invoice_no',
+    bill_date: 'invoice_date', date: 'invoice_date', po: 'po_no', po_number: 'po_no', code: 'item_code', item: 'item_code', quantity: 'qty', unit: 'uom_code', uom: 'uom_code', rate: 'rate_ex_gst', rate_before_gst: 'rate_ex_gst',
+    gst: 'gst_rate', gst_percent: 'gst_rate', batch: 'batch_no', lot: 'batch_no' };
+RM_ALIAS.barcodes = { code: 'item_code', item: 'item_code', sku: 'item_code', ean: 'barcode', upc: 'barcode', product_code: 'barcode', bar_code: 'barcode' };
+
+// a spreadsheet day number (46000) or 14-10-2026 / 14/10/2026 becomes 2026-10-14; anything else is left for the database to judge
+function rm8NormDate(v) {
+    var s = String(v == null ? '' : v).trim(), m;
+    if (/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(s)) return s;
+    if (/^[0-9]{5}(\.[0-9]+)?$/.test(s)) { var n = Math.floor(Number(s)); if (n > 20000 && n < 80000) { var d = new Date(Date.UTC(1899, 11, 30) + n * 86400000); return d.getUTCFullYear() + '-' + p2(d.getUTCMonth() + 1) + '-' + p2(d.getUTCDate()); } }
+    m = /^([0-9]{1,2})[-\/. ]([0-9]{1,2})[-\/. ]([0-9]{4})$/.exec(s);
+    if (m) return m[3] + '-' + p2(Number(m[2])) + '-' + p2(Number(m[1]));
+    return s;
+}
+function rm8NormRows(kind, rows, errors) {
+    if (kind === 'bills') {
+        rows.forEach(function (r) { if (r.invoice_date != null) r.invoice_date = rm8NormDate(r.invoice_date); if (r.invoice_no != null) r.invoice_no = String(r.invoice_no); });
+        var any = rows.some(function (r) { return r.vendor_code || r.gstin; });
+        if (rows.length && !any) errors.push('Every row needs a vendor_code or a gstin.');
+        else rows.forEach(function (r) { if (!r.vendor_code && !r.gstin && errors.length < 20) errors.push('Row ' + r._row + ': give a vendor_code or a gstin.'); });
+    }
+    if (kind === 'barcodes') rows.forEach(function (r) { if (r.barcode != null) r.barcode = String(r.barcode).toUpperCase(); });
+    return rows;
+}
+
+// ---- templates: one workbook per upload type, each with an Instructions sheet --------------------------------------------------------------
+var RM8_TPL_TXT = {
+    items: ['Items: add new raw-material items or update existing ones.', 'A new item needs item_code, item_name, category_code and base_uom_code. An existing item needs only item_code and the columns you want to change.', 'A blank cell leaves the value as it is; it never clears anything.'],
+    vendors: ['Vendors: add new vendors or update existing ones.', 'Give vendor_code, or leave it blank and give the GSTIN of an existing vendor. A new vendor needs vendor_name.', 'Contact is a role (e.g. Sales desk), never a person\'s name.'],
+    opening: ['Opening balance: the stock you already hold when you start.', 'One row per item. rate_ex_gst is rupees per the unit typed, before GST.', 'An item that already has an opening needs mode ADD to add more.'],
+    bills: ['Purchase bills: enter many old bills at once.', 'One row per bill line. Rows with the same vendor and bill number become one bill. If any line of a bill fails, the whole bill is skipped and shown as BLOCKED.', 'A bill number that is already booked for the vendor is refused (never booked twice). Rates are before GST.', 'At most 2,000 rows in one upload.'],
+    barcodes: ['Barcodes: attach the printed pack code to each item.', 'One row per item. A code can belong to only one active item.', 'At most 500 rows in one upload.']
+};
+function rm8TplSheets(kind) {
+    var K = RM_BULK[kind];
+    var inst = [['ArtzFolio raw materials - ' + K.label + ' template'], ['']].concat(RM8_TPL_TXT[kind].map(function (t) { return [t]; }));
+    inst.push([''], ['How to use it:'], ['1. Keep row 1 (the column names) exactly as it is.'], ['2. Row 2 (it starts with #) explains each column. It is skipped when you upload. Type your data from row 3.'],
+        ['3. In the app: RAW > Import / Export > Bulk load > choose "' + K.label + '" > choose this file > Preview. Nothing is saved until you press Save after a clean preview.'],
+        ['4. If any row has an error, nothing is saved. Fix the rows shown and upload again.'], [''], ['Columns:']);
+    K.cols.forEach(function (c, i) { inst.push([c + ': ' + K.help[i]]); });
+    return [{ name: K.sheet, header: true, widths: K.cols.map(function (c) { return Math.max(14, c.length + 4); }), rows: [K.cols, K.help.map(function (h, i) { return (i === 0 ? '# ' : '') + h; })] }, { name: 'Instructions', widths: [120], rows: inst }];
+}
+function rm8TplDownload(kind, msgId) {
+    try { rmSaveBlob(new Blob([rmXlsxBuild(rm8TplSheets(kind))], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }), 'ArtzFolio_RM_' + RM_BULK[kind].sheet + '_Template_v122.xlsx'); }
+    catch (e) { rmSetMsg(msgId || 'ex-msg', '<div class="move-result err">The template could not be made on this phone.</div>'); }
+}
+
+// ---- the Import / Export hub ---------------------------------------------------------------------------------------------------------------
+function rmView_exportv() {
+    var tpl = ['items', 'vendors', 'opening', 'bills', 'barcodes'].map(function (k) {
+        return '<div class="rm-li"><b>' + esc59(RM_BULK[k].label) + '</b><div class="rm-dim">' + esc59(RM8_TPL_TXT[k][0]) + '</div><div class="rm-btns"><button class="settings-btn rm-xs" onclick="rm8TplDownload(\'' + k + '\')">&#11015; Excel template</button><button class="settings-btn rm-xs" style="background:#888" onclick="rmDownloadTemplate(\'' + k + '\')">&#11015; CSV template</button></div></div>';
+    }).join('');
+    rmEl('rm-body').innerHTML = '<div class="rm-note">Files open in Excel. Rates and values are before GST, at the weighted average purchase rate.</div>' +
+        '<div class="rm-sec">Load data</div><button class="settings-btn rm-big" onclick="rmGo(\'bulk\',{})">&#11014; Bulk load (items, vendors, opening stock, bills, barcodes)</button>' +
+        '<div class="rm-sec">Templates (with instructions)</div>' + tpl +
+        '<div class="rm-sec">Download</div>' +
+        '<button class="settings-btn rm-big" onclick="rmExportItems(\'ex-msg\')">&#11015; All items with stock and value (CSV)</button>' +
+        '<button class="settings-btn rm-big" onclick="rm8ExportVendors(\'ex-msg\')">&#11015; All vendors (CSV)</button>' +
+        '<button class="settings-btn rm-big" onclick="rmGo(\'register\',{})">&#11015; Purchase register (choose dates, then CSV / Excel)</button>' +
+        '<button class="settings-btn rm-big" onclick="rmGo(\'proc\',{scope:\'ALL\'})">&#11015; Procurement requests (open the list, then CSV / Excel)</button>' +
+        '<button class="settings-btn rm-big" onclick="rmGo(\'ledger\',{})">&#11015; History (choose dates, then CSV)</button><div id="ex-msg"></div>';
+}
+function rm8ExportVendors(msgId) {
+    if (_rmBusy.xv) return; _rmBusy.xv = 1;
+    rmSetMsg(msgId, '<div class="move-result">Reading vendors...</div>');
+    rm8ReadAll('rm_list_vendors', function (off, page) { return { p_q: null, p_active_only: false, p_limit: page, p_offset: off }; }, 500, 20000, function (n, t) { rmSetMsg(msgId, '<div class="move-result">Reading vendors... ' + rmQty(n, 0) + ' of ' + rmQty(t, 0) + '</div>'); }).then(function (r) {
+        delete _rmBusy.xv;
+        if (!r.ok) { rmSetMsg(msgId, rmMsgHtml(r.d)); return; }
+        rm8SaveTable('csv', 'Vendors', ['vendor_code', 'vendor_name', 'gstin', 'phone', 'email', 'active', 'items_supplied', 'last_invoice_date'],
+            r.rows.map(function (v) { return [v.vendor_code, v.vendor_name, v.gstin || '', v.phone || '', v.email || '', v.active === false ? 'NO' : 'YES', rm8Cell(v.items_supplied), v.last_invoice_date || '']; }), 'Vendors');
+        rmSetMsg(msgId, '<div class="move-result ok">Saved ' + rmQty(r.rows.length, 0) + ' vendor(s)' + (r.total > r.rows.length ? ' of ' + rmQty(r.total, 0) : '') + '.</div>');
+    });
+}
+
+// start the quiet inbox poll (every 5 minutes, only while the page is visible and the PIN is fresh)
+rm8PollStart();
+// ══ end v122 raw materials purchasing ═══════════════════════════════════════════════════════════
+
 // ---- away / sign-out ----------------------------------------------------------------------------------------
 // Rates and values leave the screen while the app is in the background (the recent-apps picture cannot show them),
 // and come back on return within the hold time. Away longer: the PIN is forgotten and the loaded figures are cleared.
+var _rmAwayTimer = null;
+// v122r2: the 'last bought' hints must not outlive any successful receipt write (voucher, add lines, void, bulk)
+var _rmCallBase = rmCall;
+rmCall = function (fn, args, opts) {
+    var p = _rmCallBase(fn, args, opts);
+    if (/^(rm_receive|rm_receipt_add_lines|rm_void_receipt|rm_bulk_receive)$/.test(String(fn))) p.then(function (d) { if (d && d.ok) { try { RM18.viu = {}; RM18.ivu = {}; } catch (e) {} } });
+    return p;
+};
 function rmAway(hide, awayMs) {
     var body = rmEl('rm-body');
+    if (_rmAwayTimer) { clearTimeout(_rmAwayTimer); _rmAwayTimer = null; }
     if (hide) {
+        _rmAwayTimer = setTimeout(function () { _rmAwayTimer = null; try { rmForgetPin(); } catch (e) {} }, RM_AWAY_MINUTES * 60000);   // the PIN goes after RM_AWAY_MINUTES away
         try { rmPinCancel(); } catch (e) {}
         if (body && body.innerHTML) { RM.away = 1; body.innerHTML = '<div class="rm-note">Paused while you are away.</div>'; }
         return;
     }
     if (!RM.away) return;
     RM.away = null;
-    if (awayMs >= DBD_HOLD_MINUTES * 60000) { rmReset('Cleared while you were away.'); return; }
+    if (awayMs >= RM_AWAY_MINUTES * 60000) { rmReset('Cleared while you were away.'); return; }
     if (state.tab === 'rm') rmRender(false);
 }
 function rmReset(note) {
     rmForgetPin();
+    try { RM18.draft = null; RM18.ivu = {}; RM18.viu = {}; RM18.bell = { known: false, total: 0, high: 0 }; rm8HistDrop(); rm8BellPaint(); } catch (e) {}
     RM.lk = null; RM.data = {}; RM.sum = null; RM.sumErr = null; RM.form = {}; RM.pick = {}; RM.stack = []; RM.view = 'home'; RM.params = {};
     var body = rmEl('rm-body'), w = rmEl('rm-who');
     if (w) w.innerHTML = '';
@@ -11370,6 +13017,7 @@ function applyRawMaterialsVisibility() {
     var b = rmEl('tab-rm'); if (!b) return;
     if (canRawMaterials()) b.classList.remove('tab-hidden'); else b.classList.add('tab-hidden');
     if (state.tab === 'rm' && !canRawMaterials()) { try { switchTab('pick'); } catch (e) {} }
+    try { rm8BellPaint(); } catch (e) {}   // v122
 }
 // ══ end v118 raw materials ═══════════════════════════════════════════════════════════════
 
@@ -14110,11 +15758,11 @@ function runBinLookup_v109() {
                     (badgeHtml ? ('<div style="margin-top:5px;">' + badgeHtml + '</div>') : '') +
                     '<div style="margin-top:6px;">' + binsHtml + '</div>' +
                     '<div style="margin-top:5px;">' +
-                    '<button class="csv-btn" style="font-size:10px;padding:3px 8px;" onclick="toggleSkuHistory(\'' + g.sku_code.replace(/'/g, "\\'") + '\')">History &#9662;</button> ' +
+                    '<button class="csv-btn" style="font-size:10px;padding:3px 8px;" onclick="toggleSkuHistory(\'' + v110Js(g.sku_code) + '\')">History &#9662;</button> ' +
                     // v77 (Part 7): opens the full SKU Detail sheet (category, reorder
                     // reasoning, paginated history) alongside this card's own quick
                     // inline bins/badges/History toggle — additive, doesn't touch it.
-                    '<button class="csv-btn" style="font-size:10px;padding:3px 8px;" onclick="openSkuDetail(\'' + g.sku_code.replace(/'/g, "\\'") + '\')">Full Detail</button>' +
+                    '<button class="csv-btn" style="font-size:10px;padding:3px 8px;" onclick="openSkuDetail(\'' + v110Js(g.sku_code) + '\')">Full Detail</button>' +
                     '</div>' +
                     '<div id="sku-history-' + cssId(g.sku_code) + '" style="display:none;margin-top:6px;"></div>' +
                     '</div>';
@@ -14334,7 +15982,7 @@ function renderSkuDetailHistory_v109(skuCode) {
         html += '</div>';
         body.innerHTML = html;
         if (rows.length === limit && moreEl) {
-            moreEl.innerHTML = '<button class="csv-btn" style="font-size:11px;" onclick="skuDetailHistoryLimit[\'' + skuCode.replace(/'/g, "\\'") + '\'] = ' + (limit + 25) + '; renderSkuDetailHistory(\'' + skuCode.replace(/'/g, "\\'") + '\')">Load 25 more</button>';
+            moreEl.innerHTML = '<button class="csv-btn" style="font-size:11px;" onclick="skuDetailHistoryLimit[\'' + v110Js(skuCode) + '\'] = ' + (limit + 25) + '; renderSkuDetailHistory(\'' + v110Js(skuCode) + '\')">Load 25 more</button>';
         }
     }).catch(function(err) { body.innerHTML = '<div style="font-size:11px;color:#E74C3C;">' + String(err) + '</div>'; });
 }
@@ -18196,6 +19844,7 @@ function switchTab(tab) {
             return;
         }
     }
+    try { if (tab !== 'rm') rm8HistDrop(); rm8BellPaint(); } catch (e) {}   // v122: leaving raw materials drops the Back entry
     state.tab = tab;
     var tabs = ['pick', 'move', 'stock', 'log', 'guide', 'settings', 'dash', 'db', 'rm', 'crm', 'prd'];   // v118: rm; v121: crm, prd
     for (var i = 0; i < tabs.length; i++) {
@@ -22035,7 +23684,7 @@ if (typeof a12Hl === 'function') {
     a12Hl = function () { var r = _shA12Hl.apply(this, arguments); try { shDashReady(); } catch (e) {} return r; };
 }
 // raw materials: the Share button shows on lists, item / vendor pages and History - not on entry forms
-var SH_RM_VIEWS = { home: 1, items: 1, item: 1, vendors: 1, vendor: 1, ledger: 1 };
+var SH_RM_VIEWS = { home: 1, items: 1, item: 1, vendors: 1, vendor: 1, ledger: 1, register: 1, proc: 1, inbox: 1, learn: 1, bill: 1 };
 function shRmSync() { var b = document.getElementById('rm-share'); if (b) b.style.display = (typeof RM !== 'undefined' && SH_RM_VIEWS[RM.view]) ? '' : 'none'; }
 if (typeof rmRender === 'function') {
     var _shRmRender = rmRender;
@@ -24634,7 +26283,7 @@ try { a12DeepRead(); } catch (e) {}
 <!-- v118: raw materials - the person's own code + PIN (masked text box, never a password box) -->
 <div class="emp-modal-bg" id="rm-pin-bg">
     <div class="emp-modal">
-        <h2>&#128274; Your code and PIN</h2>
+        <h2 id="rm-pin-title">&#128274; Your code and PIN</h2>
         <p id="rm-pin-reason" style="font-size:13px;">Raw materials: type your own employee code and PIN.</p>
         <input type="text" id="rm-pin-code" class="mgr-pin-code" placeholder="Your employee code" autocomplete="off" autocorrect="off" autocapitalize="characters" spellcheck="false" data-lpignore="true" data-1p-ignore="true" data-form-type="other"
                style="width:100%;font-size:16px;padding:10px;border:1px solid #E2E8F0;border-radius:10px;margin-bottom:8px;text-transform:uppercase;box-sizing:border-box;" onkeydown="if(event.key==='Enter')document.getElementById('rm-pin-input').focus();">
