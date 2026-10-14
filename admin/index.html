@@ -2847,7 +2847,7 @@ tbody tr:hover{background:#f9fbfd}
     </ul>
     <div class="sidebar-footer">
       <button class="logout-btn" onclick="adminLogout()">⎋ Logout</button>
-      <div class="ver-footer">ArtzFolio Admin Panel v2.38</div>
+      <div class="ver-footer">ArtzFolio Admin Panel v2.39</div>
     </div>
   </div>
 
@@ -8133,15 +8133,15 @@ function clearEmployeeTwoFactor(code) {
 // v2.36 (2026-10-02): + reserved_stock - Admin and Supervisor presets ON, every
 // staff preset OFF (the founder decides per person). Matches App v107.
 var ROLE_PERMISSION_PRESETS = {
-  WAREHOUSE_STAFF:  { pick: true,  move: false, stock: false, log: true, logScope: 'own', guide: true, settings: false, dash: false, sessions: false, reserved_stock: false, analytics: false, raw_materials: false },
-  BILLING_OPERATOR: { pick: true,  move: false, stock: true,  log: true, logScope: 'own', guide: true, settings: false, dash: false, sessions: false, reserved_stock: false, analytics: false, raw_materials: false },
-  INVENTORY_LEAD:   { pick: true,  move: true,  stock: true,  log: true, logScope: 'all', guide: true, settings: false, dash: false, sessions: false, reserved_stock: false, analytics: false, raw_materials: false },
-  PRODUCTION_LEAD:  { pick: false, move: false, stock: true,  log: true, logScope: 'all', guide: true, settings: false, dash: false, sessions: false, reserved_stock: false, analytics: false, raw_materials: false },
-  ADMIN:            { pick: true,  move: true,  stock: true,  log: true, logScope: 'all', guide: true, settings: true,  dash: true, sessions: true, reserved_stock: true, analytics: true, raw_materials: true },
+  WAREHOUSE_STAFF:  { pick: true,  move: false, stock: false, log: true, logScope: 'own', guide: true, settings: false, dash: false, sessions: false, reserved_stock: false, analytics: false, raw_materials: false, customers: false, production: false },
+  BILLING_OPERATOR: { pick: true,  move: false, stock: true,  log: true, logScope: 'own', guide: true, settings: false, dash: false, sessions: false, reserved_stock: false, analytics: false, raw_materials: false, customers: false, production: false },
+  INVENTORY_LEAD:   { pick: true,  move: true,  stock: true,  log: true, logScope: 'all', guide: true, settings: false, dash: false, sessions: false, reserved_stock: false, analytics: false, raw_materials: false, customers: false, production: false },
+  PRODUCTION_LEAD:  { pick: false, move: false, stock: true,  log: true, logScope: 'all', guide: true, settings: false, dash: false, sessions: false, reserved_stock: false, analytics: false, raw_materials: false, customers: false, production: false },
+  ADMIN:            { pick: true,  move: true,  stock: true,  log: true, logScope: 'all', guide: true, settings: true,  dash: true, sessions: true, reserved_stock: true, analytics: true, raw_materials: true, customers: true, production: true },
   // v2.29: on the phone App a Supervisor gets the same sections as an Admin.
   // Everything a Supervisor must not reach lives in the Admin Panel and in the
   // database, not in these phone-App tick-boxes.
-  SUPERVISOR:       { pick: true,  move: true,  stock: true,  log: true, logScope: 'all', guide: true, settings: true,  dash: true, sessions: true, reserved_stock: true, analytics: true, raw_materials: true }
+  SUPERVISOR:       { pick: true,  move: true,  stock: true,  log: true, logScope: 'all', guide: true, settings: true,  dash: true, sessions: true, reserved_stock: true, analytics: true, raw_materials: true, customers: true, production: true }
 };
 // v2.17 (Master Prompt v21, Part 5): matches the App's own ROLE_PERMISSIONS.ADMIN
 // fix — the "off for everyone, including ADMIN" launch decision behind Scan
@@ -8168,7 +8168,10 @@ var PERMISSION_SECTIONS = [
   // v2.37 (2026-10-07): the phone App's DASH > Sales / Inventory / Forecast / Production views and the SKU page.
   { key: 'analytics', label: 'Analytics & forecasting (view)', help: 'Lets this person open DASH &rsaquo; Sales, Inventory, Forecast and Production in the phone App, and the full SKU page. View only: nothing here changes stock. An Admin always has this; a Supervisor has it unless you untick it; everyone else only when ticked.' },
   // v2.38 (2026-10-12): the phone App's Raw materials section (stock in / out / vendors).
-  { key: 'raw_materials', label: 'Raw materials (stock in / out / vendors)', help: 'Lets this person open the Raw materials section in the phone App: record raw material coming in and going out, and see vendors. An Admin always has this; a Supervisor has it unless you untick it; everyone else only when ticked.' }
+  { key: 'raw_materials', label: 'Raw materials (stock in / out / vendors)', help: 'Lets this person open the Raw materials section in the phone App: record raw material coming in and going out, and see vendors. An Admin always has this; a Supervisor has it unless you untick it; everyone else only when ticked.' },
+  // v2.39 (2026-10-13): the phone App's Customers / CRM and Production sections.
+  { key: 'customers', label: 'Customers / CRM (view, add, import)', help: 'Lets this person open the Customers section in the phone App: look up customers, add new ones and import a customer list. An Admin always has this; a Supervisor has it unless you untick it; everyone else only when ticked.' },
+  { key: 'production', label: 'Production (plan and mark done)', help: 'Lets this person open the Production section in the phone App: see the production plan and mark jobs done. An Admin always has this; a Supervisor has it unless you untick it; everyone else only when ticked.' }
 ];
 
 function buildPermissionUIHtml(prefix) {
@@ -8303,6 +8306,8 @@ function prefillPermissionUI(prefix, e) {
     if (el && s.key === 'reserved_stock' && perm.reserved_stock === undefined) el.checked = (e.role === 'ADMIN' || e.role === 'SUPERVISOR');
     if (el && s.key === 'analytics' && perm.analytics === undefined) el.checked = (e.role === 'ADMIN' || e.role === 'SUPERVISOR');   // v2.37
     if (el && s.key === 'raw_materials' && perm.raw_materials === undefined) el.checked = (e.role === 'ADMIN' || e.role === 'SUPERVISOR');   // v2.38
+    if (el && s.key === 'customers' && perm.customers === undefined) el.checked = (e.role === 'ADMIN' || e.role === 'SUPERVISOR');   // v2.39
+    if (el && s.key === 'production' && perm.production === undefined) el.checked = (e.role === 'ADMIN' || e.role === 'SUPERVISOR');   // v2.39
   });
   var scopeEl = document.querySelector('input[name="' + prefix + '-log-scope"][value="' + (perm.logScope || 'own') + '"]');
   if (scopeEl) scopeEl.checked = true;
