@@ -77,16 +77,33 @@
 // v33 (2026-10-08): bumped for App v114 (smart search, narrow-down buttons, clearer DASH screens).
 // v32 (2026-10-07): bumped for App v113 (review fixes: SKU link double-fire, stable export columns, Back button closes the SKU page, no units_2025 dependency, stable sales paging).
 // v31 (2026-10-07): bumped for App v112 (DASH analytics: Sales / Inventory / Forecast / Production, SKU page, richer inventory export).
-const CACHE_NAME = 'artzfolio-oms-shell-v39';
+// v56 (2026-10-18): cache name bumped for App v139.
+// v56 (2026-10-18, service-worker test lane, proven by sw_test.mjs against a GitHub-Pages-like host that sends
+// Cache-Control: max-age=600): five fixes, cache name unchanged.
+//  1. Shell fetches now revalidate (cache:'no-cache'). Before, fetch(event.request) was answered from the browser's
+//     HTTP cache for up to 10 minutes, so "network-first" still showed the PREVIOUS deploy after a normal visit.
+//  2. Install pre-cache uses cache:'reload' for the same reason - addAll() could store the previous deploy's index.html
+//     in the brand-new cache.
+//  3. Only a 200 'basic' response is stored. A 503/404 from the host during a deploy used to overwrite the good shell
+//     and then be served offline.
+//  4. A request carrying an Authorization header, or a PostgREST/auth/functions/storage path, is never touched.
+//  5. cache.put is kept alive with waitUntil and its failure is swallowed.
+// v57 (2026-10-19): cache name bumped because App v139 now carries the Content-Security-Policy meta (v56 was never deployed; same logic as v56).
+// v57 (2026-10-20, review F-07): only the shell files and the optional zxing files are stored, each under its exact path with no query string; lookups ignore the query string.
+// Before, every distinct URL (each ?rm=...&id=N or ?crm=...&id=N link opened online) stored another full copy of the 2.2 MB page and the cache had no cap.
+// v58 (2026-10-23): cache name bumped for App v145 (new bottom menu, one sign-in PIN, guide fixes).
+const CACHE_NAME = 'artzfolio-oms-shell-v58';
 const OPTIONAL_FILES = ['./zxing_reader_3.1.4.js', './zxing_reader_3.1.4.wasm'];
 const SHELL_FILES = ['./index.html', './manifest.json', './icon.svg'];
 
 self.addEventListener('install', function (event) {
   event.waitUntil(
     caches.open(CACHE_NAME).then(function (cache) {
-      return cache.addAll(SHELL_FILES).then(function () {
+      return Promise.all(SHELL_FILES.map(function (f) {
+        return fetch(new Request(f, { cache: 'reload' })).then(function (r) { if (!r.ok) throw new Error('shell file ' + f + ' ' + r.status); return cache.put(f, r); });
+      })).then(function () {
         return Promise.all(OPTIONAL_FILES.map(function (f) {
-          return fetch(f).then(function (r) { if (r.ok) return cache.put(f, r); }).catch(function () {});
+          return fetch(new Request(f, { cache: 'reload' })).then(function (r) { if (r.ok) return cache.put(f, r); }).catch(function () {});
         }));
       });
     }).then(function () { return self.skipWaiting(); })
@@ -101,26 +118,44 @@ self.addEventListener('activate', function (event) {
   );
 });
 
+// The cache key for a URL, or null when it is not one of the files this worker keeps. The app page itself (the folder root or index.html, with or without a query) is kept as './index.html'.
+function cacheKeyFor(url) {
+  var p;
+  try { p = new URL(url).pathname; } catch (e) { return null; }
+  var scopePath = new URL('./', self.location.href).pathname;
+  if (p === scopePath || p === scopePath + 'index.html') return './index.html';
+  var all = SHELL_FILES.concat(OPTIONAL_FILES);
+  for (var i = 0; i < all.length; i++) { if (new URL(all[i], self.location.href).pathname === p) return all[i]; }
+  return null;
+}
+
 self.addEventListener('fetch', function (event) {
+  if (event.request.method !== 'GET') return;   // v51: only reads are kept in the cache
   var url = event.request.url;
   // Never intercept Supabase (or any cross-origin) traffic - always real network.
   if (url.indexOf(location.origin) !== 0) return;
   if (url.indexOf('supabase.co') !== -1) return;
+  if (event.request.headers.has('authorization')) return;   // 2026-10-18: never touch an authenticated request
+  if (/\/(rest|auth|functions|storage|realtime)\/v1\//.test(url)) return;
 
   // App shell: network-first (so a real deploy is picked up immediately on
   // the next successful load) with a cache fallback for genuinely offline.
   event.respondWith(
-    fetch(event.request).then(function (resp) {
-      var copy = resp.clone();
-      caches.open(CACHE_NAME).then(function (cache) { cache.put(event.request, copy); });
+    fetch(event.request.url, { cache: 'no-cache', credentials: 'same-origin' }).then(function (resp) {
+      var key = cacheKeyFor(url);
+      if (key && resp && resp.status === 200 && resp.type === 'basic') {
+        var copy = resp.clone();
+        event.waitUntil(caches.open(CACHE_NAME).then(function (cache) { return cache.put(key, copy); }).catch(function () {}));
+      }
       return resp;
     }).catch(function () {
-      return caches.match(event.request).then(function (cached) {
+      var key2 = cacheKeyFor(url);
+      return caches.match(key2 || event.request, { ignoreSearch: true }).then(function (cached) {
         if (cached) return cached;
         // v20: only pages fall back to the app shell - a missing script or
         // .wasm must fail plainly, never come back as the HTML page.
         if (/\.(js|wasm)(\?|$)/.test(url)) return Response.error();
-        return caches.match('./index.html');
+        return caches.match('./index.html', { ignoreSearch: true });
       });
     })
   );
