@@ -27,7 +27,7 @@
          ZXing was absent, but ZXing's CDN script loads on essentially every
          device, so native detection was permanently unreachable dead code —
          every scan went through ZXing's lower-recall pure-JS matching alone,
-         even on Rajat's confirmed-sharp, correctly ROI-cropped shots. Also
+         even on the owner's confirmed-sharp, correctly ROI-cropped shots. Also
          adds an opt-in "Remember this device for 30 days" login checkbox
          (localStorage-backed, unchecked by default — shared-tablet behavior
          unchanged unless explicitly opted in) addressing frequent unwanted
@@ -3510,7 +3510,7 @@ body.a12-lock{overflow:hidden}
 </style>
 </head>
 <body>
-<div class="ver-corner" id="verCornerBadge">v181</div>
+<div class="ver-corner" id="verCornerBadge">v182</div>
 <!-- v112: the full-screen SKU page (opened by a12OpenSku) -->
 <div class="a12-skupage" id="a12-skupage"><div class="a12-sphead"><button type="button" onclick="a12CloseSku()">&larr; Back</button><div id="a12-sp-title" style="flex:1"></div><button type="button" onclick="shOpen('sku')" aria-label="Share this product page">&#128228; Share</button></div><div class="a12-spbody" id="a12-sp-body"></div></div>
 <!-- v63: Gap 2 — offline write-queue indicator. Hidden (display:none) unless
@@ -4711,7 +4711,7 @@ body.a12-lock{overflow:hidden}
 
             <!-- Version -->
             <div class="ver-badge">
-                <div class="ver-name">&#128230; ArtzFolio Scan-Pick-Pack v181</div>
+                <div class="ver-name">&#128230; ArtzFolio Scan-Pick-Pack v182</div>
                 <div class="ver-sub">Tap the button below for the plain-words list of what is new in this version and what is finished.</div>
                 <button class="settings-btn" style="min-height:46px" onclick="wnOpen()">What is new and what is done</button>
             </div>
@@ -4872,7 +4872,7 @@ body.a12-lock{overflow:hidden}
         </div>
         <div class="emp-field">
             <label for="setup-name-input">Display Name</label>
-            <input type="text" id="setup-name-input" placeholder="e.g. Rajat K" autocomplete="off">
+            <input type="text" id="setup-name-input" placeholder="e.g. A. Kumar" autocomplete="off">
         </div>
         <div class="emp-field">
             <label for="setup-pin1-input">4-Digit PIN</label>
@@ -5055,7 +5055,7 @@ body.a12-lock{overflow:hidden}
 
 // ── LIVE DATABASE CONFIG ─────────────────────────────────────
 // Points at the "oms" schema, currently co-located inside the ArtzFolio
-// HRMS Supabase project pending Rajat's org plan upgrade to a dedicated
+// HRMS Supabase project pending the owner's org plan upgrade to a dedicated
 // project (see 2026-07-25 decision log). To migrate: create the new
 // project, re-run the same "oms_live_inventory_foundation" migration
 // there, then change ONLY the two constants below — nothing else in this
@@ -5472,7 +5472,7 @@ function clearSessionStorage() {
 // unchecked by default on login), backed by localStorage so it survives the
 // tab actually closing (unlike sessionStorage, which mobile Chrome also wipes
 // whenever it kills a backgrounded tab under memory pressure — the likely
-// real cause of Rajat's frequent unwanted logouts on a device he never
+// real cause of the owner's frequent unwanted logouts on a device he never
 // intentionally closed). REMEMBER_ME_DAYS is a plain constant so it's easy to
 // change later without hunting through logic.
 var OMS_REMEMBER_KEY  = 'oms_remember_session';
@@ -7523,7 +7523,7 @@ function refreshMoveTab() {
     refreshScanSessionState();
     refreshTodaysCountList();
 }
-// v57 NEW: warehouse-wide fallback bin for brand-new stock. Rajat has
+// v57 NEW: warehouse-wide fallback bin for brand-new stock. the owner has
 // consolidated the physical warehouse so A1 is now the default landing
 // spot for anything inbounded without a specific bin chosen — used ONLY
 // as the last resort (see prefillMoveBin below), and always shown as an
@@ -16418,7 +16418,7 @@ function renderBulkResults(results, resultEl) {
     resultEl.innerHTML = html;
     if (typeof logEvent === 'function') logEvent('BULK_UPLOAD', okCount + ' pushed, ' + failCount + ' failed from CSV upload');
 }
-// v52: Bin Lookup rewritten into a full detail view — per Rajat's
+// v52: Bin Lookup rewritten into a full detail view — per the owner's
 // 2026-08-20 request. Groups results by SKU (not one flat row per bin),
 // and enriches each SKU card with a live activity breakdown
 // (oms_sku_activity_breakdown) and, when the search is a bin-code lookup,
@@ -16672,7 +16672,7 @@ function openLabelWindow(skuCode, productName) {
         '.label-name{font-size:12px;color:#555;margin-top:3px;max-width:230px;word-wrap:break-word}' +
         '.print-btn{margin-top:18px;padding:11px 26px;font-size:14px;font-weight:700;background:#1B4F8A;color:#fff;border:none;border-radius:8px;cursor:pointer}' +
         '.qr-fail{color:#c0392b;font-size:11px;margin-bottom:6px;}' +
-        /* Printer/label size assumption: Rajat's exact label stock is unknown,
+        /* Printer/label size assumption: the owner's exact label stock is unknown,
            so this targets a common small adhesive/thermal product label,
            roughly 50mm x 30mm. If a different size is used, adjust the
            .label-box width/height and font sizes below. */
@@ -18505,7 +18505,7 @@ function initDecoders() {
     // Previously this was gated on `!zxingDecoder`, which made the native
     // ML-Kit-backed decoder permanently unreachable dead code on any device
     // where the ZXing CDN script loaded — i.e. essentially every device,
-    // including Rajat's phone. Which decoder actually runs each tick is now
+    // including the owner's phone. Which decoder actually runs each tick is now
     // decided by priority order in startScanLoop() (native tried first), not
     // by which one happened to initialize.
     // v101: which decoder runs is decided by initScanEngine() - the phone's
@@ -19258,7 +19258,7 @@ function startScanLoop(video) {
 // misdirect real warehouse stock movements. Root cause confirmed by direct
 // code read: onCodeDetected() previously fired the instant ANY single scan
 // tick decoded ANYTHING, with zero requirement for a repeat/consistent read
-// and zero checksum validation. Both of Rajat's confirmed wrong reads
+// and zero checksum validation. Both of the owner's confirmed wrong reads
 // (000443000490 / 899504430006, against the chips box's real, hand-verified
 // 8906103041990) were single-frame misreads that each happened to pass their
 // own checksum — so checksum alone would NOT have caught them; only
