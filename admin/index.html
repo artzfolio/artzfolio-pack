@@ -2846,7 +2846,7 @@ input[type=tel],input[type=email],input[type=search],input:not([type]),textarea{
          mirrors the App's own "remember this device" checkbox and
          localStorage pattern.
          v2.17 (Master Prompt v21, Part 3) — folded "stay signed in" into
-         this same checkbox rather than adding a second one (Rajat expressed
+         this same checkbox rather than adding a second one (the owner expressed
          no preference either way; the prompt's own default is to combine):
          checking it now ALSO exempts this device from the 30-minute idle
          auto-logout for the chosen number of days, not just from re-entering
@@ -2893,7 +2893,7 @@ input[type=tel],input[type=email],input[type=search],input:not([type]),textarea{
     </ul>
     <div class="sidebar-footer">
       <button class="logout-btn" onclick="adminLogout()">⎋ Logout</button>
-      <div class="ver-footer">ArtzFolio Admin Panel v2.49</div>
+      <div class="ver-footer">ArtzFolio Admin Panel v2.50</div>
     </div>
   </div>
 
@@ -4561,7 +4561,7 @@ function clearAdminSecret() {
 // server-side on load rather than blindly trusted (see bootstrap() below).
 var ADMIN_REMEMBER_KEY = 'oms_admin_remember_secret';
 var ADMIN_REMEMBER_DAYS_DEFAULT = 7;
-// v2.17 (Part 3): days is now Rajat's own choice, typed at login (default 7,
+// v2.17 (Part 3): days is now the owner's own choice, typed at login (default 7,
 // suggested by the prompt) rather than a fixed 30 -- clamped to a sane
 // 1..365 range regardless of what reaches this function.
 // v2.29 SECURITY FIX. "Keep me signed in" used to remember only the password,
