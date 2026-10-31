@@ -92,7 +92,8 @@
 // v57 (2026-10-20, review F-07): only the shell files and the optional zxing files are stored, each under its exact path with no query string; lookups ignore the query string.
 // Before, every distinct URL (each ?rm=...&id=N or ?crm=...&id=N link opened online) stored another full copy of the 2.2 MB page and the cache had no cap.
 // v58 (2026-10-23): cache name bumped for App v145 (new bottom menu, one sign-in PIN, guide fixes).
-const CACHE_NAME = 'artzfolio-oms-shell-v58';
+// v59 (2026-10-31): cache name bumped for App v183 / Admin Panel v2.51; nothing else changed.
+const CACHE_NAME = 'artzfolio-oms-shell-v59';
 const OPTIONAL_FILES = ['./zxing_reader_3.1.4.js', './zxing_reader_3.1.4.wasm'];
 const SHELL_FILES = ['./index.html', './manifest.json', './icon.svg'];
 
