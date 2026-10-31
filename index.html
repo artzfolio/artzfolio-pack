@@ -3700,7 +3700,7 @@ body.a12-lock{overflow:hidden}
 </style>
 </head>
 <body>
-<div class="ver-corner" id="verCornerBadge">v183</div>
+<div class="ver-corner" id="verCornerBadge">v184</div>
 <!-- v112: the full-screen SKU page (opened by a12OpenSku) -->
 <div class="a12-skupage" id="a12-skupage"><div class="a12-sphead"><button type="button" onclick="a12CloseSku()">&larr; Back</button><div id="a12-sp-title" style="flex:1"></div><button type="button" onclick="shOpen('sku')" aria-label="Share this product page">&#128228; Share</button></div><div class="a12-spbody" id="a12-sp-body"></div></div>
 <!-- v63: Gap 2 — offline write-queue indicator. Hidden (display:none) unless
@@ -4913,7 +4913,7 @@ body.a12-lock{overflow:hidden}
 
             <!-- Version -->
             <div class="ver-badge">
-                <div class="ver-name">&#128230; ArtzFolio Scan-Pick-Pack v183</div>
+                <div class="ver-name">&#128230; ArtzFolio Scan-Pick-Pack v184</div>
                 <div class="ver-sub">Tap the button below for the plain-words list of what is new in this version and what is finished.</div>
                 <button class="settings-btn" style="min-height:46px" onclick="wnOpen()">What is new and what is done</button>
             </div>
@@ -23453,7 +23453,7 @@ function enterLedgerHistory() {
     initLedgerHistory();
     try { lhRenderVoidStatus(); } catch (e) {}   // v107
     if (!LH.lastQuery) runLedgerHistory();
-    else if (LH.m8 === null) lhProbeM8(false);    // v107: a failed check is asked again on every open
+    else { try { runLedgerHistory(); } catch (e) {} if (LH.m8 === null) lhProbeM8(false); }   // v184 (E10 item 4): coming back to the log shows what was saved meanwhile, so the newest entry can be voided at once    // v107: a failed check is asked again on every open
 }
 
 // ── 4. Void + reverse one entry ───────────────────────────────────────────
@@ -23471,7 +23471,7 @@ function voidPlanText(x) {
 }
 function openVoidEntry(txnId) {
     var x = LH.rows[txnId];
-    if (!x) return;
+    if (!x) { openVoidFromAnywhere(txnId); return; }   // v184 (E10 item 4): an entry the list does not hold (made after the list was drawn) is read fresh, never a silent nothing
     _vd = { txn: txnId, row: x, step: 1, busy: false, pair: null };
     var yb = document.getElementById('void-yes'); if (yb) yb.style.display = '';
     var pb = document.getElementById('void-pair'); if (pb) { pb.innerHTML = ''; pb.className = ''; }
@@ -27325,7 +27325,11 @@ function lbLogin(why) {   // PIN once -> token (8 hours, memory only). The PIN i
     return LB.loginP;
 }
 function lbLogin0(why) {
-    return rmGetCreds(why || 'Label Studio: type your own employee code and PIN once. You then stay signed in here for 8 hours.', true).then(function (c) {
+    // v184 (E10 item 2): PIN once. When this person's own PIN is already remembered from the OMS sign-in, the Studio signs in with it (token 8 hours) and asks nothing.
+    // Only the step-up actions (Print and record, Count as printed, Reprint, shared presets) ask again, through lbStepCreds (force = true).
+    var mine = false;
+    try { mine = rmPinFresh() && RM_PIN.code && String(RM_PIN.code).toUpperCase() === String(sessionEmployeeCode() || '').toUpperCase(); } catch (e) { mine = false; }
+    return rmGetCreds(why || 'Label Studio: type your own employee code and PIN once. You then stay signed in here for 8 hours.', !mine).then(function (c) {
         if (!c) return false;
         return lbFetch({ action: 'login', code: c.code, pin: c.pin }).then(function (r) {
             c = null;
