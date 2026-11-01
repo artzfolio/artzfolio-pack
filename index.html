@@ -2816,11 +2816,11 @@ var qrcode = function() {
         .scan-bar:focus-within{border-color:#F39C12;box-shadow:0 2px 14px rgba(243,156,18,.2)}
         .scan-bar-icon{color:#1B4F8A;opacity:.6;flex-shrink:0}
         .scan-bar input{flex:1;border:none;background:transparent;font-size:calc(13px*var(--fs,1));color:#222;outline:none;min-width:0;padding:7px 0;caret-color:#1B4F8A}
-        .scan-bar input::placeholder{color:#aaa;font-size:calc(12px*var(--fs,1))}
+        .scan-bar input::placeholder{color:#6B7280;font-size:calc(12px*var(--fs,1))}
         .scan-cam-btn{background:#1B4F8A;border:none;border-radius:22px;width:44px;height:44px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:background .15s,transform .1s,opacity .15s;touch-action:manipulation}
         .scan-cam-btn:active{background:#153C6E;transform:scale(.93)}
         .scan-cam-btn svg{width:22px;height:22px;fill:#fff}
-        .scan-hint{text-align:center;font-size:calc(10px*var(--fs,1));color:#999;margin-top:5px;margin-bottom:2px}
+        .scan-hint{text-align:center;font-size:calc(10px*var(--fs,1));color:#5B6470;margin-top:5px;margin-bottom:2px}
         /* CONTENT */
         .content{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:10px 14px calc(96px + env(safe-area-inset-bottom,0px))}
         /* v108: the phone browser's own pull-to-reload must not fight the app's pull-to-refresh,
@@ -2833,7 +2833,7 @@ var qrcode = function() {
         .offline-queue-badge{position:fixed;top:6px;left:8px;z-index:150;background:#1B4F8A;color:#fff;font-size:calc(11px*var(--fs,1));font-family:sans-serif;padding:3px 12px;min-height:44px;box-sizing:border-box;display:flex;align-items:center;border-radius:10px;letter-spacing:.3px;cursor:pointer;box-shadow:0 2px 6px rgba(0,0,0,.2)}
         .offline-queue-badge.failed{background:#c0392b}
         .tab-nav{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:520px;display:flex;background:#fff;border-top:1px solid #e0e0e0;z-index:100}
-        .tab-btn{flex:1;padding:10px 4px 8px;border:none;background:transparent;cursor:pointer;font-size:calc(11px*var(--fs,1));border-top:3px solid transparent;transition:all .15s;color:#888;touch-action:manipulation}
+        .tab-btn{flex:1;padding:10px 4px 8px;border:none;background:transparent;cursor:pointer;font-size:calc(11px*var(--fs,1));border-top:3px solid transparent;transition:all .15s;color:#5B6470;touch-action:manipulation}
         .tab-btn.active{border-top-color:#1B4F8A;color:#1B4F8A;font-weight:700;background:#f7f9ff}
         /* v121: up to 11 tabs - each keeps a tappable width and the bar scrolls sideways inside itself */
         /* v140 (U-01): at most 5 buttons in the bar, the rest in a grouped "More" sheet. No sideways scrolling, nothing clipped. */
@@ -2875,8 +2875,8 @@ var qrcode = function() {
         /* STEPS */
         .steps{display:flex;align-items:center;gap:6px;margin-bottom:8px}
         .step{flex:1;background:#e8edf4;border-radius:8px;padding:7px 4px;text-align:center;font-size:calc(10px*var(--fs,1));font-weight:700;color:#666;transition:all .25s}
-        .step.active{background:#F39C12;color:#fff;box-shadow:0 2px 6px rgba(243,156,18,.4)}
-        .step.done{background:#27AE60;color:#fff}
+        .step.active{background:#9A6700;color:#fff;box-shadow:0 2px 6px rgba(243,156,18,.4)}
+        .step.done{background:#1E8449;color:#fff}
         .step-arrow{color:#ccc;font-size:calc(12px*var(--fs,1));flex-shrink:0}
         /* GROUP PROGRESS */
         .group-progress{display:none;flex-direction:column;gap:7px;margin-bottom:8px;background:linear-gradient(135deg,#EBF5FB,#D6EAF8);border:2px solid #2980B9;border-radius:12px;padding:10px 14px}
@@ -3007,8 +3007,8 @@ var qrcode = function() {
         .actions{display:flex;gap:8px;margin-top:10px}
         .btn{flex:1;padding:14px;border:none;border-radius:10px;font-size:calc(14px*var(--fs,1));font-weight:700;cursor:pointer;transition:all .15s;touch-action:manipulation}
         .btn:active{transform:scale(.97)}
-        .btn-confirm{background:#27AE60;color:#fff}
-        .btn-issue{background:#E74C3C;color:#fff}
+        .btn-confirm{background:#1E8449;color:#fff}
+        .btn-issue{background:#C0392B;color:#fff}
         .btn-reset{background:#BDC3C7;color:#333}
         /* LOG */
         .log-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
@@ -3016,11 +3016,11 @@ var qrcode = function() {
         .log-list{list-style:none}
         .log-item{padding:8px 0;border-bottom:1px solid #eee;font-size:calc(11px*var(--fs,1))}
         .log-row1{display:flex;gap:6px;align-items:center;margin-bottom:2px}
-        .log-time{color:#999;font-size:calc(10px*var(--fs,1));flex-shrink:0;font-family:monospace}
+        .log-time{color:#5B6470;font-size:calc(10px*var(--fs,1));flex-shrink:0;font-family:monospace}
         .log-emp{color:#7E57C2;font-weight:700;font-size:calc(10px*var(--fs,1));flex-shrink:0}
         .log-order{font-weight:700;color:#1B4F8A;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
         .log-action{color:#444;font-size:calc(11px*var(--fs,1));padding-left:2px}
-        .log-meta{color:#888;font-size:calc(10px*var(--fs,1));font-family:monospace;padding-left:2px}
+        .log-meta{color:#5B6470;font-size:calc(10px*var(--fs,1));font-family:monospace;padding-left:2px}
         .csv-btn{background:#1B4F8A;color:#fff;border:none;padding:7px 14px;border-radius:8px;font-size:calc(12px*var(--fs,1));font-weight:700;cursor:pointer;touch-action:manipulation}
         .csv-btn:active{background:#153C6E}
         /* GUIDE */
@@ -3067,11 +3067,11 @@ var qrcode = function() {
         @supports not (-webkit-text-security:disc){ .pin-mask{font-family:'OmsPinMask' !important;letter-spacing:.12em} }
         .settings-btn{background:#1B4F8A;color:#fff;border:none;padding:9px 14px;border-radius:8px;font-size:calc(12px*var(--fs,1));font-weight:700;cursor:pointer;white-space:nowrap;touch-action:manipulation}
         .settings-btn:active{background:#153C6E}
-        .settings-btn.danger{background:#E74C3C}
+        .settings-btn.danger{background:#C0392B}
         .settings-btn.danger:active{background:#c0392b}
         .settings-info{font-size:calc(12px*var(--fs,1));color:#555;margin-bottom:6px;line-height:1.5}
         .settings-chip{display:inline-block;background:#1B4F8A;color:#fff;padding:3px 10px;border-radius:12px;font-size:calc(12px*var(--fs,1));font-weight:700;margin-bottom:8px}
-        .settings-notice{font-size:calc(11px*var(--fs,1));color:#888;margin-top:6px;line-height:1.5}
+        .settings-notice{font-size:calc(11px*var(--fs,1));color:#5B6470;margin-top:6px;line-height:1.5}
         /* MOVE / STOCK TABS (live inventory) */
         .db-offline-banner{display:none;background:#fdedec;border:2px solid #c0392b;border-radius:10px;padding:10px 12px;margin-bottom:10px;font-size:calc(12px*var(--fs,1));color:#7b241c;font-weight:600}
         .db-offline-banner.visible{display:block}
@@ -3235,13 +3235,13 @@ var qrcode = function() {
         .stock-status-badge.in{color:#1e8449;background:#eafaf1}
         .stock-status-badge.low{color:#b7791f;background:#fef3d6}
         .stock-status-badge.out{color:#c0392b;background:#fdedec}
-        .stock-cat{font-size:calc(10px*var(--fs,1));color:#aaa}
+        .stock-cat{font-size:calc(10px*var(--fs,1));color:#5B6470}
         .stock-name{font-size:calc(11px*var(--fs,1));color:#444;margin:1px 0}
 
         .stock-search{flex:1;border:1.5px solid #c5d0de;border-radius:8px;padding:9px 11px;font-size:calc(12px*var(--fs,1));outline:none}
         .stock-row{display:flex;justify-content:space-between;align-items:center;padding:9px 10px;border-bottom:1px solid #f0f2f5;font-size:calc(12px*var(--fs,1));cursor:pointer}
         .stock-sku{font-weight:700;color:#1B4F8A}
-        .stock-asin{font-size:calc(10px*var(--fs,1));color:#888;font-family:monospace}
+        .stock-asin{font-size:calc(10px*var(--fs,1));color:#5B6470;font-family:monospace}
         .stock-qty{font-size:calc(15px*var(--fs,1));font-weight:800;color:#1e8449;padding:3px 10px;border-radius:8px;background:#eafaf1}
         /* v77: SKU Detail slide-in sheet (Part 7) — same rounded-panel/backdrop
            idiom as the camera overlay elsewhere in this file, not a new pattern. */
@@ -3405,7 +3405,7 @@ var qrcode = function() {
            inline style or stale class ordering can never leave a forbidden
            tab visible. */
         .tab-hidden{display:none!important}
-        .login-alt-link{font-size:calc(11px*var(--fs,1));color:#888;text-decoration:underline;cursor:pointer}
+        .login-alt-link{font-size:calc(11px*var(--fs,1));color:#5B6470;text-decoration:underline;cursor:pointer}
         .admin-emp-row{border-bottom:1px solid #eee;padding:10px 0}
         .admin-emp-row:last-child{border-bottom:none}
         .admin-emp-actions{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
@@ -3423,9 +3423,9 @@ var qrcode = function() {
            condensed for a phone screen — stacked single column, native
            <details> for the filter bar instead of a full inline form). */
         .dash-chart-card{margin-bottom:14px}
-        .dash-chart-card .chart-caption{display:block;font-size:calc(10.5px*var(--fs,1));font-weight:400;color:#888;margin-top:2px}
+        .dash-chart-card .chart-caption{display:block;font-size:calc(10.5px*var(--fs,1));font-weight:400;color:#5B6470;margin-top:2px}
         .dash-chart-canvas-wrap{position:relative;height:220px;margin-top:8px}
-        .dash-chart-empty-note{color:#999;font-size:calc(11.5px*var(--fs,1));text-align:center;padding:30px 0}
+        .dash-chart-empty-note{color:#5B6470;font-size:calc(11.5px*var(--fs,1));text-align:center;padding:30px 0}
         .dash-chart-toggle-btns{display:flex;gap:6px;margin-top:8px}
         .dash-chart-toggle-btn{font-size:calc(10.5px*var(--fs,1));font-weight:700;padding:4px 10px;border-radius:20px;border:1px solid #ccd6e2;background:#fff;color:#556}
         .dash-chart-toggle-btn.active{background:#1B4F8A;border-color:#1B4F8A;color:#fff}
@@ -3498,7 +3498,7 @@ var qrcode = function() {
         .lh-actions{display:flex;gap:6px;margin-top:8px}
         .lh-actions .settings-btn{flex:1;padding:9px 4px;font-size:calc(12px*var(--fs,1))}
         .lh-sum{font-size:calc(12px*var(--fs,1));color:#1A1A1A;padding:8px 0 4px;border-bottom:1px solid #E2E8F0}
-        .lh-empty{text-align:center;color:#999;font-size:calc(12px*var(--fs,1));padding:14px 0}
+        .lh-empty{text-align:center;color:#5B6470;font-size:calc(12px*var(--fs,1));padding:14px 0}
         .lh-row .log-row1{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
         .lh-name{font-size:calc(10px*var(--fs,1));color:#6B7280}
         .lh-id{margin-left:auto;font-size:calc(10px*var(--fs,1));color:#6B7280}
@@ -3607,7 +3607,7 @@ var qrcode = function() {
 .a12-kv{font-size:calc(18px*var(--fs,1));font-weight:800;color:#1B4F8A;line-height:1.2;overflow-wrap:anywhere}
 .a12-kpi.warn .a12-kv{color:#d68910}.a12-kpi.bad .a12-kv{color:#c0392b}
 .a12-kl{font-size:calc(10px*var(--fs,1));color:#666;text-transform:uppercase;font-weight:700;margin-top:3px;letter-spacing:.3px}
-.a12-ks{font-size:calc(10px*var(--fs,1));color:#888;margin-top:2px}
+.a12-ks{font-size:calc(10px*var(--fs,1));color:#5B6470;margin-top:2px}
 .a12-chips{display:flex;gap:6px;flex-wrap:wrap;margin:6px 0}
 .a12-chip{font-size:calc(11.5px*var(--fs,1));font-weight:700;padding:6px 11px;border-radius:20px;border:1px solid #ccd6e2;background:#fff;color:#556;touch-action:manipulation}
 .a12-chip.on{background:#1B4F8A;border-color:#1B4F8A;color:#fff}
@@ -3697,10 +3697,14 @@ body.a12-lock{overflow:hidden}
   #sh-print tr{break-inside:avoid}
 }
 .a12-spbody{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:4px 12px calc(30px + env(safe-area-inset-bottom,0px));overscroll-behavior:contain}
+/* v185 (E16): keyboard focus ring, tap targets of at least 44 px, login links */
+button:focus-visible,select:focus-visible,input:focus-visible,textarea:focus-visible,summary:focus-visible,[role="button"]:focus-visible,[tabindex]:focus-visible,a:focus-visible{outline:3px solid #1B4F8A!important;outline-offset:2px}
+.xm-filt summary,.a12-helpd summary,.a12-filt summary,.rs-seg button,.rs-filters select,.hs-btn,.lh-vstat button,.sl-chip,.e2-undo{min-height:44px}
+.login-alt-link{display:inline-block;min-height:44px;line-height:44px;padding:0 6px}
 </style>
 </head>
 <body>
-<div class="ver-corner" id="verCornerBadge">v184</div>
+<div class="ver-corner" id="verCornerBadge">v187</div>
 <!-- v112: the full-screen SKU page (opened by a12OpenSku) -->
 <div class="a12-skupage" id="a12-skupage"><div class="a12-sphead"><button type="button" onclick="a12CloseSku()">&larr; Back</button><div id="a12-sp-title" style="flex:1"></div><button type="button" onclick="shOpen('sku')" aria-label="Share this product page">&#128228; Share</button></div><div class="a12-spbody" id="a12-sp-body"></div></div>
 <!-- v63: Gap 2 — offline write-queue indicator. Hidden (display:none) unless
@@ -3730,8 +3734,8 @@ body.a12-lock{overflow:hidden}
         <div class="header-right">
             <button class="demo-btn" id="us-btn" onclick="usOpen()" title="Search everything" aria-label="Search everything" style="min-width:44px;min-height:44px">&#128269;</button>
             <button class="demo-btn" id="af-fs-btn" onclick="afFontOpen()" title="Text size" aria-label="Text size" style="min-width:44px;min-height:44px;font-weight:800">Aa</button>
-            <button class="demo-btn" onclick="loadDemo()" title="Load single-SKU demo">&#9654; Demo</button>
-            <button class="demo-btn" onclick="loadDemoMulti()" title="Load multi-SKU demo">&#9654; Multi</button>
+            <button class="demo-btn" style="display:none" onclick="loadDemo()" title="Load single-SKU demo">&#9654; Demo</button>
+            <button class="demo-btn" style="display:none" onclick="loadDemoMulti()" title="Load multi-SKU demo">&#9654; Multi</button>
             <button class="demo-btn rm-bell" id="rm-bell-main" style="display:none" onclick="rmBellTap()" title="Inbox" aria-label="Inbox">&#128276;<span class="rm-bell-n" style="display:none"></span></button>
             <button class="demo-btn" onclick="logout()" title="Logout">&#128274; Logout</button>
         </div>
@@ -3741,14 +3745,14 @@ body.a12-lock{overflow:hidden}
     <div class="scan-bar-wrap" id="scan-bar-wrap">
         <div class="scan-bar">
             <span class="scan-bar-icon">
-                <svg viewBox="0 0 24 24" width="16" height="16" fill="#1B4F8A" opacity="0.65">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="#1B4F8A" opacity="0.65" aria-hidden="true">
                     <path d="M2 4h2v16H2zm3 0h1v16H5zm2 0h2v16H7zm3 0h1v16h-1zm2 0h1v16h-1zm2 0h2v16h-2zm3 0h1v16h-1zm2 0h2v16h-2z"/>
                 </svg>
             </span>
-            <input type="text" id="scan-input"
+            <input type="text" id="scan-input" aria-label="Scan or type a code"
                 placeholder="Tap &#128247; to scan &mdash; or use Bluetooth scanner..."
                 autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
-            <button class="scan-cam-btn" id="cam-btn" onclick="openCamera()" title="Open camera scanner">
+            <button class="scan-cam-btn" id="cam-btn" onclick="openCamera()" title="Open camera scanner" aria-label="Open camera scanner">
                 <svg viewBox="0 0 24 24"><path d="M12 9a4 4 0 1 0 4 4 4 4 0 0 0-4-4zm0 6a2 2 0 1 1 2-2 2 2 0 0 1-2 2z"/><path d="M20 4h-2.76l-1.63-2H8.39L6.76 4H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2zm0 15H4V6h3.56L9.19 4h5.62l1.63 2H20z"/></svg>
             </button>
         </div>
@@ -3945,11 +3949,11 @@ body.a12-lock{overflow:hidden}
                  only ever decides WHAT to count; the actual count still goes through
                  the same submitMoveTransaction()/MANUAL_CORRECTION path as always. -->
             <div class="settings-section" id="cycle-count-section" style="margin-bottom:10px;">
-                <h3 style="margin-top:0;cursor:pointer;" onclick="toggleTodaysCountList()">&#128203; Today's Cycle Count <span id="cycle-count-badge" style="font-size:calc(11px*var(--fs,1));color:#888;"></span> <span id="cycle-count-toggle-icon">&#9660;</span></h3>
+                <h3 style="margin-top:0;cursor:pointer;" onclick="toggleTodaysCountList()">&#128203; Daily stock check <span id="cycle-count-badge" style="font-size:calc(11px*var(--fs,1));color:#5B6470;"></span> <span id="cycle-count-toggle-icon">&#9660;</span></h3>
                 <!-- v77 (Part 10): plain-language explainer, worded honestly about the
                      current ABC-tier caveat (still all "C" today — see the reorder
                      threshold report — so it isn't yet doing real tier prioritization). -->
-                <div style="font-size:calc(11px*var(--fs,1));color:#888;margin:-4px 0 8px;">A small daily list of SKUs to physically recount, so drift gets caught early. Tap Count to enter what you actually find, or Skip for today.</div>
+                <div style="font-size:calc(11px*var(--fs,1));color:#5B6470;margin:-4px 0 8px;">A small daily list of SKUs to physically recount, so drift gets caught early. Tap Count to enter what you actually find, or Skip for today.</div>
                 <div id="cycle-count-body" style="display:none;">
                     <div id="cycle-count-list" style="font-size:calc(12px*var(--fs,1));"></div>
                 </div>
@@ -3957,17 +3961,17 @@ body.a12-lock{overflow:hidden}
             <details class="hs-help" style="margin:0 0 6px;">
                 <summary style="min-height:44px;">&#10067; Which button do I press?</summary>
                 <ul style="font-size:calc(12px*var(--fs,1));margin:4px 0 6px 18px;padding:0;">
-                    <li><strong>New Stock</strong> - new goods arrived. <strong>Returns</strong> - a customer sent something back.</li>
-                    <li><strong>Found</strong> - stock turned up that was not counted. <strong>Remove/Lost</strong> - lost, broken or stolen.</li>
-                    <li><strong>QC Hold</strong> - set aside for a quality check. <strong>QC Release</strong> - passed the check, put back on sale.</li>
-                    <li><strong>Set True Count</strong> - you counted a bin; type what is really there. <strong>Dispatch Out</strong> - an order leaves without a pick slip. <strong>Transfer</strong> - move stock from one bin to another.</li>
-                    <li>Changing the button clears the SKU, bin, quantity and note you typed.</li>
+                    <li><strong>Add stock received</strong> - new goods arrived. <strong>Customer return</strong> - a customer sent something back.</li>
+                    <li><strong>Add found stock</strong> - stock turned up that was not counted. <strong>Remove lost stock</strong> - lost, broken or stolen.</li>
+                    <li><strong>Hold for quality check</strong> - set aside for a quality check. <strong>Release from quality check</strong> - passed the check, put back on sale.</li>
+                    <li><strong>Correct the count</strong> - you counted a bin; type what is really there. <strong>Send out</strong> - an order leaves without a pick slip. <strong>Move between bins</strong> - move stock from one bin to another.</li>
+                    <li>Changing the button clears the product code, bin, quantity and note you typed.</li>
                 </ul>
             </details>
             <div class="pill-row">
-                <div class="pill-btn active" id="move-pill-NEW_STOCK_IN" onclick="setMoveMode('NEW_STOCK_IN')">&#128230; Add stock received</div>
-                <div class="pill-btn" id="move-pill-RETURN_IN" onclick="setMoveMode('RETURN_IN')">&#8617; Customer return</div>
-                <div class="pill-btn" id="move-pill-ADJUSTMENT_LOST_THEFT" onclick="setMoveMode('ADJUSTMENT_LOST_THEFT')">&#10134; Remove lost stock</div>
+                <div class="pill-btn active" id="move-pill-NEW_STOCK_IN" role="button" tabindex="0" onclick="setMoveMode('NEW_STOCK_IN')">&#128230; Add stock received</div>
+                <div class="pill-btn" id="move-pill-RETURN_IN" role="button" tabindex="0" onclick="setMoveMode('RETURN_IN')">&#8617; Customer return</div>
+                <div class="pill-btn" id="move-pill-ADJUSTMENT_LOST_THEFT" role="button" tabindex="0" onclick="setMoveMode('ADJUSTMENT_LOST_THEFT')">&#10134; Remove lost stock</div>
                 <!-- v50: 6th MOVE mode — QC Release. Mirrors QC Hold exactly (same shared
                      form below); previously this action was only reachable via Bulk CSV
                      upload (ACTION_TXN_MAP.QC_RELEASE). The mode key itself doubles as the
@@ -3975,7 +3979,7 @@ body.a12-lock{overflow:hidden}
                      deliberately named ADJUSTMENT_QC_RELEASE to match the same txn_type the
                      bulk path already writes — no special-casing needed. -->
                 <!-- v52: 7th MOVE mode — Set True Count (manual correction from a physical stock count). -->
-                <div class="pill-btn" id="move-pill-MANUAL_CORRECTION" onclick="setMoveMode('MANUAL_CORRECTION')">&#9878; Correct the count</div>
+                <div class="pill-btn" id="move-pill-MANUAL_CORRECTION" role="button" tabindex="0" onclick="setMoveMode('MANUAL_CORRECTION')">&#9878; Correct the count</div>
                 <!-- v81 (2026-09-17): 8th MOVE mode — Dispatch / Order Out.
                      WHY THIS EXISTS: the ledger had 2,702 stock-IN rows and
                      ZERO SCAN_OUT_ORDER rows, ever. The PICK tab does write
@@ -3986,7 +3990,7 @@ body.a12-lock{overflow:hidden}
                      tiers and reorder points were all dead. This pill records a
                      dispatch directly, no QR package needed. Same txn_type the
                      PICK tab writes, so both feed the same reports. -->
-                <div class="pill-btn" id="move-pill-SCAN_OUT_ORDER" onclick="setMoveMode('SCAN_OUT_ORDER')">&#128228; Send out</div>
+                <div class="pill-btn" id="move-pill-SCAN_OUT_ORDER" role="button" tabindex="0" onclick="setMoveMode('SCAN_OUT_ORDER')">&#128228; Send out</div>
                 <!-- v92 (2026-09-19): 9th MOVE mode — Transfer. Unlike every other
                      pill, this writes TWO ledger rows (BIN_TRANSFER_OUT then
                      BIN_TRANSFER_IN) instead of one, and needs a second bin field
@@ -4004,17 +4008,17 @@ body.a12-lock{overflow:hidden}
                      shows every bin, plus free text for a brand-new bin, exactly as before;
                      a brand-new destination bin was already accepted and auto-registered
                      by the database (oms_auto_register_bin), proven live on 2026-09-19. -->
-                <div class="pill-btn" id="move-pill-BIN_TRANSFER" onclick="setMoveMode('BIN_TRANSFER')">&#8646; Move between bins</div>
+                <div class="pill-btn" id="move-pill-BIN_TRANSFER" role="button" tabindex="0" onclick="setMoveMode('BIN_TRANSFER')">&#8646; Move between bins</div>
                 <details class="af-more" style="flex:1 1 100%"><summary>More actions</summary><div class="pill-row" style="margin-top:6px">
-                <div class="pill-btn" id="move-pill-ADJUSTMENT_FOUND" onclick="setMoveMode('ADJUSTMENT_FOUND')">&#10133; Add found stock</div>
-                <div class="pill-btn" id="move-pill-QC_HOLD" onclick="setMoveMode('QC_HOLD')">&#128295; Hold for quality check</div>
-                <div class="pill-btn" id="move-pill-ADJUSTMENT_QC_RELEASE" onclick="setMoveMode('ADJUSTMENT_QC_RELEASE')">&#128275; Release from quality check</div>
+                <div class="pill-btn" id="move-pill-ADJUSTMENT_FOUND" role="button" tabindex="0" onclick="setMoveMode('ADJUSTMENT_FOUND')">&#10133; Add found stock</div>
+                <div class="pill-btn" id="move-pill-QC_HOLD" role="button" tabindex="0" onclick="setMoveMode('QC_HOLD')">&#128295; Hold for quality check</div>
+                <div class="pill-btn" id="move-pill-ADJUSTMENT_QC_RELEASE" role="button" tabindex="0" onclick="setMoveMode('ADJUSTMENT_QC_RELEASE')">&#128275; Release from quality check</div>
                 </div></details>
             </div>
             <div class="settings-section">
-                <h3 id="move-mode-title">&#128230; New Stock In</h3>
-                <div class="settings-info" id="move-mode-desc">Scan or type the SKU or ASIN barcode of the product being brought into stock, enter the quantity, then submit. This adds to live stock immediately.</div>
-                <div class="field-label" id="move-sku-label">Product &mdash; scan or type the SKU or ASIN</div>
+                <h3 id="move-mode-title">&#128230; Add stock received</h3>
+                <div class="settings-info" id="move-mode-desc">Scan or type the product code or Amazon number of the product being brought into stock, enter the quantity, then submit. This adds to live stock immediately.</div>
+                <div class="field-label" id="move-sku-label">Product &mdash; scan or type the product code or Amazon number</div>
                 <div style="font-size:calc(11px*var(--fs,1));color:#6B7280;margin:-2px 0 4px;">A scanner gun types by itself. To type with the keyboard, tap the box once.</div>
                 <div class="settings-row">
                     <!-- v50: Enter-key support for Bluetooth scanner guns — a gun types the
@@ -4068,7 +4072,7 @@ body.a12-lock{overflow:hidden}
                      stale) oms_sku_master.default_bin registration. Lets staff see the
                      actual options before submitting instead of trusting an auto-fill that
                      can be wrong (root cause of the 2026-08-20 POD1 mismatch). -->
-                <div id="move-live-bin-hint" style="font-size:calc(10px*var(--fs,1));color:#888;margin:-4px 0 6px 2px;"></div>
+                <div id="move-live-bin-hint" style="font-size:calc(10px*var(--fs,1));color:#5B6470;margin:-4px 0 6px 2px;"></div>
                 <!-- v60: Returns grading (Gap 4) — only shown in Returns mode. "Good"
                      behaves exactly as before (single RETURN_IN, unchanged). "Damaged"
                      and "Wrong Item" write RETURN_IN immediately followed by a second
@@ -4092,7 +4096,7 @@ body.a12-lock{overflow:hidden}
 <div class="settings-row" id="move-return-grade-row" style="display:none;">
                     <select class="settings-input" id="move-return-grade">
                         <option value="GOOD">&#9989; Good — sellable, add back to stock</option>
-                        <option value="DAMAGED">&#9888; Damaged — hold for QC, not sellable</option>
+                        <option value="DAMAGED">&#9888; Damaged — hold for quality check, not sellable</option>
                         <option value="WRONG_ITEM">&#10067; Wrong item — flag for manual review, not restocked</option>
                     </select>
                 </div>
@@ -4215,8 +4219,8 @@ body.a12-lock{overflow:hidden}
              a refresh here within moments. -->
         <div id="stock-tab" class="tab-content">
             <div class="db-offline-banner" id="stock-offline-banner">&#9888; Live database not reachable right now. Showing no data until this reconnects.</div>
-            <div class="settings-info" style="margin:0 0 8px;">Stock: see how many units of each product are on the shelf and in which bin. Stock Search, Product catalogue and Live Stock below each have their own search box. <strong>Reorder point</strong> = the stock level at which you should buy more. <strong>A / B / C tier</strong> = A sells fastest, C sells slowest.</div>
-            <div class="settings-section" id="af-stock-acts" style="margin-bottom:10px;"><h3 style="margin-bottom:4px;">&#128260; Move stock</h3><div class="settings-info" style="margin-bottom:6px;">Stock coming in, going out or moving between bins. Tap one, then scan the product. More choices are under Move stock in the menu.</div><div class="pill-row"><div class="pill-btn" onclick="afMoveGo('NEW_STOCK_IN')">&#128230; Add stock received</div><div class="pill-btn" onclick="afMoveGo('SCAN_OUT_ORDER')">&#128228; Send out</div><div class="pill-btn" onclick="afMoveGo('BIN_TRANSFER')">&#8646; Move between bins</div><div class="pill-btn" onclick="afMoveGo('RETURN_IN')">&#8617; Customer return</div><div class="pill-btn" onclick="afMoveGo('ADJUSTMENT_LOST_THEFT')">&#10134; Remove lost stock</div><div class="pill-btn" onclick="afMoveGo('MANUAL_CORRECTION')">&#9878; Correct the count</div></div></div>
+            <div class="settings-info" style="margin:0 0 8px;">Stock: see how many units of each product are on the shelf and in which bin. <strong>Reorder level</strong> = the stock level at which you should buy more. <strong>Sales speed</strong>: A sells fastest, C sells slowest.</div>
+            <div class="settings-section" id="af-stock-acts" style="margin-bottom:10px;"><h3 style="margin-bottom:4px;">&#128260; Move stock</h3><div class="settings-info" style="margin-bottom:6px;">Stock coming in, going out or moving between bins. Tap one, then scan the product. More choices are under Move stock in the menu.</div><div class="pill-row"><div class="pill-btn" role="button" tabindex="0" onclick="afMoveGo('NEW_STOCK_IN')">&#128230; Add stock received</div><div class="pill-btn" role="button" tabindex="0" onclick="afMoveGo('SCAN_OUT_ORDER')">&#128228; Send out</div><div class="pill-btn" role="button" tabindex="0" onclick="afMoveGo('BIN_TRANSFER')">&#8646; Move between bins</div><div class="pill-btn" role="button" tabindex="0" onclick="afMoveGo('RETURN_IN')">&#8617; Customer return</div><div class="pill-btn" role="button" tabindex="0" onclick="afMoveGo('ADJUSTMENT_LOST_THEFT')">&#10134; Remove lost stock</div><div class="pill-btn" role="button" tabindex="0" onclick="afMoveGo('MANUAL_CORRECTION')">&#9878; Correct the count</div></div></div>
 
             <!-- v45: Bin Lookup — answers "which bin(s) hold this SKU" and "what's in
                  this bin", from the live oms_bin_stock view (a running total per
@@ -4272,7 +4276,7 @@ body.a12-lock{overflow:hidden}
                 </div>
             </div>
             <div style="text-align:right;font-size:calc(11px*var(--fs,1));color:#6B7280;margin-bottom:2px;">Export Full Inventory saves every product that has stock (up to 20,000 rows) as one CSV file.</div>
-            <div id="full-export-progress" style="text-align:right;font-size:calc(10px*var(--fs,1));color:#888;margin-bottom:4px;"></div>
+            <div id="full-export-progress" style="text-align:right;font-size:calc(10px*var(--fs,1));color:#5B6470;margin-bottom:4px;"></div>
             <div class="stock-toolbar">
                 <input type="text" class="stock-search" id="stock-search-input" placeholder="Search SKU, ASIN, name or size, e.g. photo frame 4 by 6" autocomplete="off" autocorrect="off" autocapitalize="characters" spellcheck="false" style="text-transform:uppercase;display:none" aria-hidden="true" tabindex="-1" oninput="forceUpperInput(this, event);onStockSearchInput();onStockSearchTyping()">
                 <!-- v88: camera scan-to-filter, same as Bin Lookup. Scanning a
@@ -4328,7 +4332,7 @@ body.a12-lock{overflow:hidden}
                 <button class="stock-filter-clear" onclick="clearStockFilters()">&times; Clear filters</button>
             </div>
             <div id="stock-narrow"></div>
-            <div id="stock-list"><div style="text-align:center;color:#aaa;font-size:calc(12px*var(--fs,1));padding:20px 0;">Loading...</div></div>
+            <div id="stock-list"><div style="text-align:center;color:#5B6470;font-size:calc(12px*var(--fs,1));padding:20px 0;">Loading...</div></div>
             <!-- v43 fix: Prev/Next pagination controls for the (now paginated) stock list -->
             <div id="stock-pagination"></div>
         </div>
@@ -4336,7 +4340,7 @@ body.a12-lock{overflow:hidden}
         <!-- LOG TAB -->
         <div id="log-tab" class="tab-content">
             <div class="log-header">
-                <h2>&#128220; Scan Log (<span id="log-count">0</span>)</h2>
+                <h2>&#128220; This phone&rsquo;s scan log (<span id="log-count">0</span>)</h2>
                 <div style="display:flex;gap:6px;">
                     <!-- v78: top-of-page refresh, same csv-btn pattern as STOCK/DASH/MOVE.
                          Pulls both this device's own log (loadServerActivity(), previously
@@ -4422,7 +4426,7 @@ body.a12-lock{overflow:hidden}
             <h3 style="font-size:calc(13px*var(--fs,1));color:#1B3F6B;margin:10px 0 4px;">&#128241; This phone&rsquo;s own scan log</h3>
             <div style="font-size:calc(12px*var(--fs,1));color:#6B7280;margin-bottom:4px;">Every scan made on this phone, newest first. It is kept on this phone only; the Stock history above is the full record.</div>
             <ul class="log-list" id="log-list">
-                <li style="text-align:center;color:#aaa;font-size:calc(12px*var(--fs,1));padding:20px 0;">No scans yet. Scan a pick slip in PICK, or record stock in ACTIONS, and it will appear here.</li>
+                <li style="text-align:center;color:#5B6470;font-size:calc(12px*var(--fs,1));padding:20px 0;">No scans yet. Scan a pick slip in PICK, or record stock in ACTIONS, and it will appear here.</li>
             </ul>
         </div>
 
@@ -4494,7 +4498,7 @@ body.a12-lock{overflow:hidden}
                     <div class="settings-row" style="align-items:center;gap:6px;"><label for="ml-onoff" style="font-size:calc(12px*var(--fs,1));color:#6B7280;">Show</label><select class="settings-input" id="ml-onoff" style="max-width:190px;" onchange="mlOnOff()"><option value="">All listings found</option><option value="ON">Only switched ON</option><option value="OFF">Only switched OFF</option></select></div>
                     <div class="move-result" id="ml-result"></div>
                     <div id="ml-results"></div>
-                    <div style="font-weight:800;color:#0A1628;font-size:calc(13px*var(--fs,1));margin:16px 0 6px;border-top:1px solid #E2E8F0;padding-top:12px;" id="ml-add-heading">&#10133; Quick Add Listing</div>
+                    <div style="font-weight:800;color:#0A1628;font-size:calc(13px*var(--fs,1));margin:16px 0 6px;border-top:1px solid #E2E8F0;padding-top:12px;" id="ml-add-heading">&#10133; Add a product (new listing)</div>
                     <div class="settings-info">Only for a product that is <strong>not in the list at all</strong>. It is created switched ON. <strong>MRP, selling price, cost before tax and GST % are required.</strong> <strong>Bin and opening stock are optional</strong> &mdash; leave them blank and inbound the stock later from Actions &rsaquo; New Stock. All other fields can be filled in afterwards with <strong>Open</strong>.</div>
                     <div class="settings-row">
                         <input type="text" class="settings-input" id="qa-title-input" placeholder="Product title (required)">
@@ -4708,7 +4712,7 @@ body.a12-lock{overflow:hidden}
                     <li><strong>Amazon orders (laptop):</strong> on the laptop run the print step (<em>2_MERGE_AND_STAMP</em>) and print the QR file. Printing an invoice <strong>holds its stock</strong> until the slip is scanned.</li>
                     <li><strong>Pick orders:</strong> tap the camera and scan the pick QR on the slip. Go to the bin, scan the product, the slip finishes with a green <strong>Picked &#10003;</strong>.</li>
                     <li><strong>Other sales</strong> (Shopify, Flipkart, Myntra, direct, referral): <strong>Move stock &rarr; Send out</strong>. Channel is compulsory; the order reference is compulsory for Amazon channels. One sale is booked in <strong>one</strong> place only.</li>
-                    <li><strong>Stock coming in, returns, found, lost, QC hold / release, transfers, counts:</strong> Move stock. A bin is needed on every movement, including Correct the count.</li>
+                    <li><strong>Stock coming in, returns, found, lost, quality-check hold / release, moves between bins, counts:</strong> Move stock. A bin is needed on every movement, including Correct the count.</li>
                     <li><strong>Raw materials (Raw Materials):</strong> items, vendors, receiving, bills and raw-material stock. <strong>Making (Make Orders):</strong> production jobs and what they use. <strong>Customers (Customers):</strong> customer list, orders, warranty and quotes. <strong>Reports (Dashboard):</strong> sales, stock, forecast and production figures. Each opens with a short line saying what it is for. Admin and Supervisor see them; others only when the Admin switches them on. The lower menu shows Today, Stock, Orders, Labels and <strong>More</strong> (you only see the groups your role may open).</li>
                     <li><strong>Finding stock:</strong> Find stock. Type a SKU, ASIN, name or size (4x6, 4 by 6). Suggestions appear as you type; tap a result for the full SKU page.</li>
                     <li><strong>Stock history:</strong> full stock history with filters. A wrong entry is corrected with <strong>Void</strong> (Supervisor / Admin PIN). Void <em>before</em> the Excel Daily Inventory Sync push.</li>
@@ -4742,11 +4746,11 @@ body.a12-lock{overflow:hidden}
             <div class="guide-section">
                 <h3 id="gd-gloss">&#128218; Glossary</h3>
                 <div class="glossary-term"><strong>Reserved / Held stock</strong> &mdash; Units kept aside for an order because its pick slip was printed. No other order can take them until the slip is picked or released</div>
-                <div class="glossary-term"><strong>QC (quality check)</strong> &mdash; Hold for quality check sets stock aside while it is checked; Release from quality check puts it back on sale after it passes</div>
+                <div class="glossary-term"><strong>Quality check</strong> &mdash; Hold for quality check sets stock aside while it is checked; Release from quality check puts it back on sale after it passes</div>
                 <div class="glossary-term"><strong>A / B / C tier</strong> &mdash; How fast a product sells: A sells fastest, C sells slowest or not at all yet</div>
                 <div class="glossary-term"><strong>Reorder point</strong> &mdash; The stock level at which it is time to buy or make more</div>
                 <div class="glossary-term"><strong>Make to order</strong> &mdash; A product with no stock when the slip was printed; it is made after the order comes in. The slip says DO NOT PICK</div>
-                <div class="glossary-term"><strong>Cycle count</strong> &mdash; A short daily list of products to recount on the shelf so mistakes are caught early</div>
+                <div class="glossary-term"><strong>Daily stock check</strong> &mdash; A short daily list of products to recount on the shelf so mistakes are caught early</div>
                 <div class="glossary-term"><strong>Buying pattern</strong> &mdash; In CUST: how often and how recently a customer buys (for example Champions, At risk)</div>
                 <div class="glossary-term"><strong>PIN</strong> &mdash; Your own secret number. It proves it is you before costs, customer details or stock changes are shown or saved. Ask the Admin if you forget it</div>
                 <div class="glossary-term"><strong>AF2</strong> &mdash; ArtzFolio pick-list QR format. All pick-list QR codes start with AF2|</div>
@@ -4765,10 +4769,10 @@ body.a12-lock{overflow:hidden}
                     <li><strong>&#128228; Send out</strong> &mdash; <strong>A button on the Move stock.</strong> Use it whenever stock physically leaves for a customer order. Scan the SKU, confirm the bin it came from, enter how many, and add the order number and channel.
                         <br><em>Why this matters:</em> low-stock alerts, the fast / slow seller tiers (A / B / C) and the forecast are all worked out from what leaves the warehouse. Book every dispatch here, or finish the pick on the Pick orders, so those figures stay right.</li>
                     <!-- v80: Quick Add New Listing -->
-                    <li><strong>&#128451; Product Listings</strong> (Admin / Supervisor) &mdash; find any listing, <strong>Open</strong> it to see and edit every field from Excel tab 6, switch it ON or OFF for stock, or use <strong>Quick Add Listing</strong> for a product that is <strong>not in the system yet</strong> (title, SKU, ASIN, product type; bin and opening stock optional). Every change is confirmed with your own PIN and recorded in the Audit Log. The <strong>Bins</strong> section lists every bin and lets you delete an empty one.
+                    <li><strong>&#128451; Product Listings</strong> (Admin / Supervisor) &mdash; find any listing, <strong>Open</strong> it to see and edit every field from Excel tab 6, switch it ON or OFF for stock, or use <strong>Add a product</strong> for a product that is <strong>not in the system yet</strong> (title, product code, Amazon number, product type; bin and opening stock optional). Every change is confirmed with your own PIN and recorded in the Audit Log. The <strong>Bins</strong> section lists every bin and lets you delete an empty one.
                         <br><em>What happens if you just scan an unknown code instead:</em> nothing is ever placed in a random bin. On <strong>New Stock</strong> or <strong>Returns</strong> an amber &ldquo;Register New SKU&rdquo; panel opens so you can add it and carry straight on. On <strong>Remove/Lost, Hold for quality check, Release from quality check or Correct the count</strong> the app refuses outright &mdash; counting or removing something that was never received is a mistake, not a new product.</li>
                     <!-- v50: Release from quality check used to be CSV/Bulk-only; note the new single-row screen -->
-                    <li><strong>Release from quality check</strong> &mdash; a pill on the Move stock, previously only reachable via Bulk Upload (CSV). Releases stock that was QC-Held back into sellable count, using the same SKU/Bin/Qty/Note form as the rest of this tab.</li>
+                    <li><strong>Release from quality check</strong> &mdash; a pill on the Move stock, previously only reachable via Bulk Upload (CSV). Releases stock that was held for a quality check back into sellable count, using the same product code / bin / quantity / note form as the rest of this tab.</li>
                     <li><strong>Transfer</strong> &mdash; a button on the Move stock. Moves existing stock from one bin to another &mdash; the SKU's total is unchanged. Enter the bin it's moving FROM (the usual Bin field), the bin it's moving INTO, and the quantity. Writes as two linked rows (stock out of the old bin, into the new one) &mdash; the same way a bulk-upload TRANSFER row already worked, just as a single-item action here. To move an entire scanned session's contents to a different bin in one go, use the Admin Panel's Scan Sessions page instead.</li>
                     <!-- v75: GENERATED from 03_SOPs/action_taxonomy_v1.json by
                          03_Scripts/2026.09.03_OMS_generate_action_taxonomy_outputs_v1.py
@@ -4913,7 +4917,7 @@ body.a12-lock{overflow:hidden}
 
             <!-- Version -->
             <div class="ver-badge">
-                <div class="ver-name">&#128230; ArtzFolio Scan-Pick-Pack v184</div>
+                <div class="ver-name">&#128230; ArtzFolio Scan-Pick-Pack v187</div>
                 <div class="ver-sub">Tap the button below for the plain-words list of what is new in this version and what is finished.</div>
                 <button class="settings-btn" style="min-height:46px" onclick="wnOpen()">What is new and what is done</button>
             </div>
@@ -4952,8 +4956,8 @@ body.a12-lock{overflow:hidden}
         <button class="tab-btn active" id="tab-pick"     onclick="switchTab('pick')">&#128230; Pick orders</button>
         <button class="tab-btn"        id="tab-move"     onclick="switchTab('move')">&#128260; Move stock</button>
         <button class="tab-btn"        id="tab-stock"    onclick="switchTab('stock')">&#128202; Find stock</button>
-        <button class="tab-btn tab-hidden" id="tab-rm"   onclick="switchTab('rm')">&#127981; Raw Materials</button>
-        <button class="tab-btn tab-hidden" id="tab-prd"  onclick="switchTab('prd')">&#128736; Make Orders</button>
+        <button class="tab-btn tab-hidden" id="tab-rm"   onclick="switchTab('rm')">&#127981; Materials &amp; Vendors</button>
+        <button class="tab-btn tab-hidden" id="tab-prd"  onclick="switchTab('prd')">&#128736; Make</button>
         <button class="tab-btn tab-hidden" id="tab-crm"  onclick="switchTab('crm')">&#128101; Customers</button>
         <button class="tab-btn tab-hidden" id="tab-db"   onclick="switchTab('db')">&#128451; Product Listings</button>
         <button class="tab-btn"        id="tab-log"      onclick="switchTab('log')">&#128220; Stock history</button>
@@ -4962,7 +4966,7 @@ body.a12-lock{overflow:hidden}
         <button class="tab-btn tab-hidden" id="tab-dash" onclick="switchTab('dash')">&#128200; Dashboard</button>
     </div>
     <div class="nv-ov" id="nv-more" hidden onclick="if(event.target===this)nvClose()">
-        <div class="nv-sheet" role="dialog" aria-label="Sections">
+        <div class="nv-sheet" role="dialog" aria-modal="true" aria-label="Sections">
             <div class="nv-top"><b id="nv-ttl">More</b><button class="nv-x" onclick="nvClose()" aria-label="Close">&#10005;</button></div>
             <div id="nv-body"></div>
         </div>
@@ -5044,7 +5048,7 @@ body.a12-lock{overflow:hidden}
         <div class="emp-err" id="login-err"></div>
         <div id="login-queue-note" style="display:none;font-size:calc(12px*var(--fs,1));color:#8a5a00;background:#fff6e0;border-radius:8px;padding:8px 10px;margin-top:10px;"></div>
         <div style="text-align:center;margin-top:14px;">
-            <span class="login-alt-link" onclick="showFirstTimeSetup()">First time setup &mdash; create Admin account</span>
+            <span class="login-alt-link" role="button" tabindex="0" onclick="showFirstTimeSetup()">First time setup &mdash; create Admin account</span>
         </div>
     </div>
     <!-- v84 (2026-09-18): the second step of sign-in, shown only for accounts
@@ -5087,7 +5091,7 @@ body.a12-lock{overflow:hidden}
         <button class="emp-save-btn" onclick="submitFirstTimeSetup()">&#10003;&nbsp; Create Admin Account</button>
         <div class="emp-err" id="setup-err"></div>
         <div style="text-align:center;margin-top:14px;">
-            <span class="login-alt-link" onclick="showLoginView()">&larr; Back to Login</span>
+            <span class="login-alt-link" role="button" tabindex="0" onclick="showLoginView()">&larr; Back to Login</span>
         </div>
     </div>
 </div>
@@ -6653,7 +6657,7 @@ function renderReconciliation(r) {
 
     var m = r.expected_not_scanned;
     if (m === null || typeof m === 'undefined') {
-        h += '<div style="margin-top:8px;font-size:calc(11px*var(--fs,1));color:#888;">No manifest was provided for this session, so &ldquo;missed items&rdquo; cannot be checked.</div>';
+        h += '<div style="margin-top:8px;font-size:calc(11px*var(--fs,1));color:#5B6470;">No manifest was provided for this session, so &ldquo;missed items&rdquo; cannot be checked.</div>';
     } else if (m.length) {
         h += '<div style="margin-top:8px;font-size:calc(12px*var(--fs,1));"><strong>&#9888;&#65039; On the manifest but never scanned</strong>';
         for (var j = 0; j < m.length; j++) {
@@ -6778,6 +6782,7 @@ function voidScanSession(sid, n) {
 function applyRolePermissions() {
     if (!state.session) return;
     try { afFontApply(); } catch (e) {}   // v183: this person's saved text size
+    try { var isAd = String(state.session.role || '').toUpperCase() === 'ADMIN'; Array.prototype.forEach.call(document.querySelectorAll('.header .demo-btn[onclick*="loadDemo"]'), function (b) { b.style.display = isAd ? '' : 'none'; }); } catch (e) {}   // v185: the two sample-item buttons are for the Admin only
     var perm = effectivePermissions();
     var tabMap = { pick: 'tab-pick', move: 'tab-move', stock: 'tab-stock', log: 'tab-log', guide: 'tab-guide', settings: 'tab-settings', dash: 'tab-dash' };
     for (var key in tabMap) {
@@ -6860,7 +6865,7 @@ function renderAdminEmpTable() {
                 '<div><strong style="color:#1B4F8A;">' + esc59(e.employee_code) + '</strong> &mdash; ' + esc59(e.display_name || '') + '</div>' +   // v139 (R2-05)
                 '<span class="settings-chip" style="margin-bottom:0;background:' + chipColor + ';">' + (e.active ? 'Active' : 'Inactive') + '</span>' +
             '</div>' +
-            '<div style="font-size:calc(11px*var(--fs,1));color:#888;margin:4px 0;">Role: ' + esc59(adminRoleWords(e.role)) + ' &bull; Last login: ' + esc59(lastLogin) +
+            '<div style="font-size:calc(11px*var(--fs,1));color:#5B6470;margin:4px 0;">Role: ' + esc59(adminRoleWords(e.role)) + ' &bull; Last login: ' + esc59(lastLogin) +
                 (isLocked ? ' &bull; <strong style="color:#c0392b;">Locked until ' + new Date(e.locked_until).toLocaleString('en-IN') + '</strong>' : '') +
             '</div>' +
             '<div class="admin-emp-actions">' +
@@ -7391,13 +7396,13 @@ function renderOfflineQueueList() {
     listEl.innerHTML = 'Loading...';
     getOfflineQueue().then(function (rows) {
         rows.sort(function (a, b) { return a.id - b.id; });
-        if (!rows.length) { listEl.innerHTML = '<div style="color:#888;">Nothing queued.</div>'; return; }
+        if (!rows.length) { listEl.innerHTML = '<div style="color:#5B6470;">Nothing queued.</div>'; return; }
         listEl.innerHTML = rows.map(function (r) {
             var o = r.opts;
             var line = idChip(o, { compact: true }) + ' (' + (o.qty_delta > 0 ? '+' : '') + esc59(o.qty_delta) + ', ' + esc59(o.txn_type) + ') @ ' + esc59(o.bin_code || '—') + (r.by ? ' &bull; ' + esc59(r.by) : '');   // v140 (R4-01): typed / scanned text is escaped; R4-10: who queued it
             var statusHtml = r.status === 'FAILED'
                 ? '<div style="color:#c0392b;font-size:calc(11px*var(--fs,1));margin-top:2px;">❌ Rejected: ' + esc59(plainErr({ message: r.error || '' })) + '</div>'   // v140 (R4-01): plain words, not the raw database message
-                : '<div style="color:#888;font-size:calc(11px*var(--fs,1));margin-top:2px;">⏳ Waiting to sync (queued ' + esc59(fmtQueueTime(r.createdAt)) + ')</div>';
+                : '<div style="color:#5B6470;font-size:calc(11px*var(--fs,1));margin-top:2px;">⏳ Waiting to sync (queued ' + esc59(fmtQueueTime(r.createdAt)) + ')</div>';
             var actions = r.status === 'FAILED'
                 ? '<button class="settings-btn" style="font-size:calc(11px*var(--fs,1));padding:5px 8px;margin-top:6px;margin-right:6px;" onclick="retryOfflineQueueItem(' + Number(r.id) + ')">Retry</button>' +
                   '<button class="settings-btn" style="font-size:calc(11px*var(--fs,1));padding:5px 8px;margin-top:6px;background:#888;" onclick="discardOfflineQueueItem(' + Number(r.id) + ')">Discard</button>'
@@ -7625,29 +7630,29 @@ function binMismatchNote(skuRow, usedBin) {
 
 // ── MOVE TAB (New Stock / Returns / Found / Lost-Theft) ─────────────────
 var MOVE_MODES = {
-    NEW_STOCK_IN:          { title: '&#128230; Add stock received',  desc: 'Scan or type the SKU or ASIN of the product being brought into stock, enter the quantity, then submit. This adds to live stock immediately.', sign: 1 },
-    RETURN_IN:             { title: '&#8617; Customer return',      desc: 'Scan or type the SKU or ASIN of a returned product, enter the quantity, then submit. This adds the returned units back to live stock immediately.', sign: 1 },
-    ADJUSTMENT_FOUND:      { title: '&#10133; Add found stock',     desc: 'Scan or type the SKU or ASIN of units found during a stock check that weren’t in the system. A note is recommended but not required.', sign: 1 },
-    ADJUSTMENT_LOST_THEFT: { title: '&#10134; Remove lost stock',    desc: 'Scan or type the SKU or ASIN of units to remove from live stock — lost, damaged beyond sale, stolen, or any other manual removal. This permanently reduces live stock; a note is recommended but not required. The system will not let this go below what is actually recorded in that bin or in total.', sign: -1 },
-    QC_HOLD:               { title: '&#128295; Hold for quality check',        desc: 'Remove stock found damaged or failing QC. Does not delete the units, just removes them from sellable count. A note is recommended but not required.', sign: -1 },
+    NEW_STOCK_IN:          { title: '&#128230; Add stock received',  desc: 'Scan or type the product code or Amazon number of the product being brought into stock, enter the quantity, then submit. This adds to live stock immediately.', sign: 1 },
+    RETURN_IN:             { title: '&#8617; Customer return',      desc: 'Scan or type the product code or Amazon number of a returned product, enter the quantity, then submit. This adds the returned units back to live stock immediately.', sign: 1 },
+    ADJUSTMENT_FOUND:      { title: '&#10133; Add found stock',     desc: 'Scan or type the product code or Amazon number of units found during a stock check that weren’t in the system. A note is recommended but not required.', sign: 1 },
+    ADJUSTMENT_LOST_THEFT: { title: '&#10134; Remove lost stock',    desc: 'Scan or type the product code or Amazon number of units to remove from live stock — lost, damaged beyond sale, stolen, or any other manual removal. This permanently reduces live stock; a note is recommended but not required. The system will not let this go below what is actually recorded in that bin or in total.', sign: -1 },
+    QC_HOLD:               { title: '&#128295; Hold for quality check',        desc: 'Remove stock found damaged or failing the quality check. Does not delete the units, just removes them from sellable count. A note is recommended but not required.', sign: -1 },
     // v50: QC Release — new 6th MOVE mode, single-row equivalent of the existing
     // Bulk CSV "QC_RELEASE" action. Key is ADJUSTMENT_QC_RELEASE (not QC_RELEASE)
     // on purpose: submitMoveTransaction() passes moveMode straight through as
     // txnType, and ACTION_TXN_MAP.QC_RELEASE.txnType is 'ADJUSTMENT_QC_RELEASE' —
     // using the same key here means this pill writes the identical txn_type the
     // bulk path already writes, with zero special-casing.
-    ADJUSTMENT_QC_RELEASE: { title: '&#128275; Release from quality check',    desc: 'Release previously-held stock back into sellable inventory. Scan or type the SKU/ASIN, confirm the bin, and submit.', sign: 1 },
+    ADJUSTMENT_QC_RELEASE: { title: '&#128275; Release from quality check',    desc: 'Release previously-held stock back into sellable inventory. Scan or type the product code or Amazon number, confirm the bin, and submit.', sign: 1 },
     // v81: Dispatch / Order Out. The mode key doubles as the txn_type, and
     // SCAN_OUT_ORDER is already an allowed value on the table's own check
     // constraint and is exactly what the PICK tab writes — so this needs no
     // special-casing at all, only sign: -1.
-    SCAN_OUT_ORDER:        { title: '&#128228; Send out (an order leaves)', desc: 'Stock physically leaving for a customer order. Scan or type the SKU/ASIN, confirm the bin it is picked from, enter how many, choose the sales channel, and add the order number (needed for Amazon). For an Amazon order that has a printed pick slip, the PICK tab is the better way. This is what makes sales velocity, ABC tiers and reorder alerts work — without it the system only ever sees stock coming in.', sign: -1 },
+    SCAN_OUT_ORDER:        { title: '&#128228; Send out (an order leaves)', desc: 'Stock physically leaving for a customer order. Scan or type the product code or Amazon number, confirm the bin it is picked from, enter how many, choose the sales channel, and add the order number (needed for Amazon). For an Amazon order that has a printed pick slip, Pick orders is the better way. This is what makes sales speed and low-stock alerts work — without it the system only ever sees stock coming in.', sign: -1 },
     // v92 (2026-09-19): 9th MOVE mode — Transfer. isTransfer (not sign) is
     // what submitMoveTransaction() branches on — it writes BIN_TRANSFER_OUT
     // from the Bin field and BIN_TRANSFER_IN into the new To-Bin field, so
     // there is no single txn_type or sign for this mode the way every other
     // pill has one.
-    BIN_TRANSFER:          { title: '&#8646; Move between bins', desc: 'Move existing stock from one bin to another — the total stays the same. Scan or type the SKU, confirm the bin it is moving FROM, enter the bin it is moving INTO, then the quantity.', isTransfer: true },
+    BIN_TRANSFER:          { title: '&#8646; Move between bins', desc: 'Move existing stock from one bin to another — the total stays the same. Scan or type the product code, confirm the bin it is moving FROM, enter the bin it is moving INTO, then the quantity.', isTransfer: true },
     // v52: Set True Count — for a physical stock count only, NOT daily use.
     // Unlike every other MOVE mode, the number typed here is not a delta to
     // add or subtract — it's the TRUE total quantity just counted, across all
@@ -7659,7 +7664,7 @@ var MOVE_MODES = {
     // (Seller Flex discipline: every transaction, every txn_type, tied to a
     // real bin, zero exceptions). isCorrection now only controls the
     // absolute-count-vs-delta math, not the bin requirement.
-    MANUAL_CORRECTION:     { title: '&#9878; Correct the count', desc: 'For a physical stock count only — not daily use. Enter the SKU\u2019s TRUE quantity in ONE bin. Type the bin you physically counted, then the number you found in that bin only. The app compares it against what that same bin currently shows and saves just the difference. Other bins are never touched. A note is recommended but not required.', isCorrection: true }
+    MANUAL_CORRECTION:     { title: '&#9878; Correct the count', desc: 'For a physical stock count only — not daily use. Enter the TRUE quantity of the product in ONE bin. Type the bin you physically counted, then the number you found in that bin only. The app compares it against what that same bin currently shows and saves just the difference. Other bins are never touched. A note is recommended but not required.', isCorrection: true }
 };
 var moveMode = 'NEW_STOCK_IN';
 // v61: Feature 8 — Dynamic New-SKU Registration. Holds the in-flight MOVE
@@ -7898,7 +7903,7 @@ function refreshTodaysCountList() {
     countQueueLoaded = true;
     var listEl = document.getElementById('cycle-count-list');
     var badgeEl = document.getElementById('cycle-count-badge');
-    listEl.innerHTML = '<div style="color:#888;">Loading...</div>';
+    listEl.innerHTML = '<div style="color:#5B6470;">Loading...</div>';
     withTimeout(db.from('oms_cycle_count_queue').select('sku_code,status')
         .eq('assigned_date', rmTodayIst()).eq('status', 'PENDING')   /* v139 (review F-09): the India date, not the UTC date */
         .order('queue_id'), 10000, 'Cycle count list')
@@ -7906,7 +7911,7 @@ function refreshTodaysCountList() {
             if (res.error || !res.data) { listEl.innerHTML = '<div style="color:#c0392b;">Could not load. The count list could not be read just now; nothing was changed.</div>' + gfTryBtn('refreshTodaysCountList()'); return; }
             var rows = res.data;
             badgeEl.textContent = rows.length ? ('(' + rows.length + ' pending today)') : '(none pending today)';
-            if (!rows.length) { listEl.innerHTML = '<div style="color:#888;">Nothing left to count today. &#127881;</div>'; return; }
+            if (!rows.length) { listEl.innerHTML = '<div style="color:#5B6470;">Nothing left to count today. &#127881;</div>'; return; }
             var skus = rows.map(function(r) { return r.sku_code; });
             return withTimeout(db.from('oms_sku_master').select('sku_code,product_name').in('sku_code', skus), 10000, 'Cycle count SKU names')
                 .then(function(nameRes) {
@@ -8658,7 +8663,7 @@ function showSkuGateBlock(kind, skuVal, sku, binVal, qtyVal, note) {
         resEl.innerHTML = '&#9940; <strong>"' + code + '" is not in the product database.</strong><br>' +
             'Nothing was scanned and no stock changed.' +
             (mgr ? '<div style="margin-top:8px;"><button class="settings-btn" style="width:100%" onclick="skuGateAddListing()">&#10133; Add as new listing</button></div>'
-                 : '<br>Ask an <strong>Admin or Supervisor</strong> to add it (Product Listings &rarr; Quick Add Listing), then scan again.');
+                 : '<br>Ask an <strong>Admin or Supervisor</strong> to add it (Product Listings &rarr; Add a product), then scan again.');
     } else {
         resEl.innerHTML = '&#9940; <strong>This product is switched OFF for stock.</strong><br>' +
             idChip(sku) + '<br>It is in the product list but not tracked, so nothing was scanned and no stock changed.' +
@@ -8744,7 +8749,7 @@ function runListingSearch() {
         if (!rows.length) {
             _mlRows = [];
             mlPaintBar(!!(FLS.res && FLS.res.all && FLS.res.all.length));
-            out.innerHTML = '<div style="color:#6B7280;font-size:calc(12px*var(--fs,1));padding:6px 0;">No listing matches "' + esc59(v) + '". Use Quick Add Listing below if it is genuinely new.</div>' +
+            out.innerHTML = '<div style="color:#6B7280;font-size:calc(12px*var(--fs,1));padding:6px 0;">No listing matches "' + esc59(v) + '". Use Add a product (new listing) below if it is genuinely new.</div>' +
                 (FLS.res ? smxNoResHtml('ml', FLS.res, LIX.skus, FLS.pick, v) : smxTipsHtml('ml', v));
             return;
         }
@@ -9127,7 +9132,7 @@ function proceedMoveWithSku(sku, binVal, qtyVal, note, resEl) {
     if (moveMode === 'RETURN_IN' && returnGrade !== 'GOOD') {
         resEl.textContent = 'Saving...';
         var holdType = returnGrade === 'DAMAGED' ? 'QC_HOLD' : 'RETURN_WRONG_ITEM';
-        var holdLabel = returnGrade === 'DAMAGED' ? 'Damaged return — auto QC-held, not sellable.' : 'Wrong item — flagged for manual review, not restocked.';
+        var holdLabel = returnGrade === 'DAMAGED' ? 'Damaged return — held for quality check automatically, not sellable.' : 'Wrong item — flagged for manual review, not restocked.';
         var combinedNote = holdLabel + (note ? ' ' + note : '');
         return writeLedgerTxn({
             sessionEligible: true,
@@ -9146,7 +9151,7 @@ function proceedMoveWithSku(sku, binVal, qtyVal, note, resEl) {
             }).then(function(result2) {
                 if (!result2.ok) {
                     resEl.className = 'move-result err';
-                    resEl.textContent = '⚠️ Return recorded as arrived, but could NOT be held (' + result2.reason + '). It is currently showing as sellable stock — go to MOVE › QC Hold and remove it manually, or ask an admin to check.';
+                    resEl.textContent = '⚠️ Return recorded as arrived, but could NOT be held (' + result2.reason + '). It is currently showing as sellable stock — go to Move stock › Hold for quality check and remove it manually, or ask an admin to check.';
                     return;
                 }
                 resEl.className = 'move-result ok';
@@ -9701,13 +9706,13 @@ function binChoices(role, holders, exclude) {
         seen[String(c).toUpperCase()] = true;
         if (skip(c)) return;
         out.push({ value: c, group: 'holds', qty: q, qc: qc,
-                   label: c + ' (' + (role === 'IN' ? 'already holds ' + q : q + ' on hand') + (qc ? ', QC hold' : '') + ')' });
+                   label: c + ' (' + (role === 'IN' ? 'already holds ' + q : q + ' on hand') + (qc ? ', held for quality check' : '') + ')' });
     });
     if (role !== 'OUT') {
         (BIN_LIST || []).forEach(function (b) {
             if (seen[String(b).toUpperCase()] || skip(b)) return;
             var qc = _binIsQcHold(b);
-            out.push({ value: b, group: 'other', qty: 0, qc: qc, label: b + ' (empty for this SKU' + (qc ? ', QC hold' : '') + ')' });
+            out.push({ value: b, group: 'other', qty: 0, qc: qc, label: b + ' (empty for this SKU' + (qc ? ', held for quality check' : '') + ')' });
         });
     }
     return out;
@@ -9768,10 +9773,10 @@ function openBinPicker(inputId) {
                 ch.forEach(function (c) {
                     if (c.group === 'holds') {
                         if (!headHold) { items.push({ sep: 'Bins holding ' + what + ' (least first)' }); headHold = true; }
-                        items.push(_binItem(c.value, (role === 'IN' ? 'already holds ' : 'holds ') + c.qty + ' of this product' + (c.qc ? ' • QC hold' : ''), c.qty + ' pcs'));
+                        items.push(_binItem(c.value, (role === 'IN' ? 'already holds ' : 'holds ') + c.qty + ' of this product' + (c.qc ? ' • held for quality check' : ''), c.qty + ' pcs'));
                     } else {
                         if (!headOther) { items.push({ sep: 'Other bins (empty for this SKU)' }); headOther = true; }
-                        items.push(_binItem(c.value, 'empty for this SKU' + (c.qc ? ' • QC hold' : ''), ''));
+                        items.push(_binItem(c.value, 'empty for this SKU' + (c.qc ? ' • held for quality check' : ''), ''));
                     }
                 });
                 if (role === 'OUT') empty = 'This product has no stock in any bin, so there is nothing to take out.';
@@ -10266,7 +10271,7 @@ var RM_BULK = {
         cols: ['item_code', 'item_name', 'category_code', 'base_uom_code', 'spec', 'hsn', 'gst_rate', 'reorder_level', 'reorder_qty', 'lead_time_days', 'notes'],
         num: ['gst_rate', 'reorder_level', 'reorder_qty', 'lead_time_days'],
         need: ['item_code'],
-        help: ['required. Letters, digits - _ . (max 40)', 'required for a new item', 'required for a new item, e.g. CANVAS', 'required for a new item, e.g. MTR', 'optional', 'optional, 4-8 digits', 'optional, 0-40', 'optional, in base unit (Admin/Supervisor to change an existing item)', 'optional, in base unit', 'optional, days', 'optional'] },
+        help: ['required. Letters, digits - _ . (max 40)', 'required for a new item', 'required for a new item, e.g. CANVAS', 'required for a new item, e.g. MTR (metres)', 'optional', 'optional, 4-8 digits', 'optional, 0-40', 'optional, in base unit (Admin/Supervisor to change an existing item)', 'optional, in base unit', 'optional, days', 'optional'] },
     vendors: { fn: 'rm_bulk_upsert_vendors', label: 'Vendors', sheet: 'Vendors', key: 'vendor_code',
         cols: ['vendor_code', 'vendor_name', 'gstin', 'pan', 'contact_role', 'phone', 'email', 'address', 'state_code', 'payment_terms_days', 'payment_terms_note', 'lead_time_days', 'notes'],
         num: ['payment_terms_days', 'lead_time_days'],
@@ -11968,7 +11973,7 @@ function rmView_bulk() {
     var K = RM_BULK[F['bk-kind']];
     var html = '<div class="rm-note">Load many items, vendors or opening stock at once from Excel (.xlsx) or CSV. You always see a <b>preview first</b>; nothing is saved until you press Save, and if any row has an error nothing is saved at all.</div>' +
         '<div class="rm-btns"><button class="settings-btn rm-sm" onclick="rmDownloadTemplate(\'xlsx\')">&#11015; Excel template (all three sheets)</button><button class="settings-btn rm-sm" style="background:#888" onclick="rmDownloadTemplate(RM.form[\'bk-kind\'])">&#11015; CSV template for ' + esc59(K.label) + '</button></div>' +
-        rmLabel('What are you loading?') + rmSelect('bk-kind', [{ v: 'items', t: 'Items (sheet Items)' }, { v: 'vendors', t: 'Vendors (sheet Vendors)' }, { v: 'opening', t: 'Opening balance (sheet OpeningBalance)' }, { v: 'bills', t: 'Purchase bills (sheet PurchaseBills)' }, { v: 'barcodes', t: 'Barcodes (sheet Barcodes)' }, { v: 'reorder', t: 'Reorder levels (sheet ReorderLevels)' }, { v: 'vendoritems', t: 'Vendor-item price list (sheet VendorItemPrices)' }, { v: 'bom', t: 'Bill of materials (sheet BillOfMaterials)' }], 'items', ';RM.data.bulk={};rmRender(false)') +
+        rmLabel('What are you loading?') + rmSelect('bk-kind', [{ v: 'items', t: 'Items (sheet Items)' }, { v: 'vendors', t: 'Vendors (sheet Vendors)' }, { v: 'opening', t: 'Opening balance (sheet OpeningBalance)' }, { v: 'bills', t: 'Purchase bills (sheet PurchaseBills)' }, { v: 'barcodes', t: 'Barcodes (sheet Barcodes)' }, { v: 'reorder', t: 'Reorder when stock falls to (sheet ReorderLevels)' }, { v: 'vendoritems', t: 'Vendor-item price list (sheet VendorItemPrices)' }, { v: 'bom', t: 'Bill of materials (sheet BillOfMaterials)' }], 'items', ';RM.data.bulk={};rmRender(false)') +
         rmLabel('File (.xlsx or .csv)') + '<input type="file" id="bk-file" accept=".xlsx,.csv,.txt,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" class="settings-input rm-in" onchange="rmBulkFile(this)">';
     if (B.fileName) html += '<div class="rm-note">File <b>' + esc59(B.fileName) + '</b>' + (B.sheet ? ', sheet ' + esc59(B.sheet) : '') + ': <b>' + rmQty((B.rows || []).length, 0) + '</b> row(s) read' + (B.headerRow ? ' (column names on row ' + esc59(B.headerRow) + ')' : '') + '.' + rmSkippedNote(B.skipped) + '</div>';
     if (B.parseErr) html += '<div class="move-result err">' + B.parseErr.map(esc59).join('<br>') + '</div>';
@@ -15853,7 +15858,7 @@ function loadStockTab(manualRefresh) {
     loadStockCategoryOptions();
     if (manualRefresh) {
         stockPage = 0;
-        document.getElementById('stock-list').innerHTML = '<div style="text-align:center;color:#aaa;font-size:calc(12px*var(--fs,1));padding:20px 0;">Refreshing...</div>';
+        document.getElementById('stock-list').innerHTML = '<div style="text-align:center;color:#5B6470;font-size:calc(12px*var(--fs,1));padding:20px 0;">Refreshing...</div>';
     }
     var searchVal = (document.getElementById('stock-search-input').value || '').trim();
     if (searchVal.length === 1) searchVal = '';   // v139 (lane 4, P3-05b): the Stock search starts at 2 letters (the bar says so)
@@ -16179,7 +16184,7 @@ function renderStockList() {
         var nr = '';
         if (stockSearchActive && SS.res && ssIndexReady()) { try { nr = smxNoResHtml('stockb', SS.res, LIX.skus, SS.pick, SS.key); } catch (e) { nr = ''; } }
         if (!nr && stockSearchActive && SS.key) nr = smxTipsHtml('stockb', SS.key);
-        list.innerHTML = '<div style="text-align:center;color:#aaa;font-size:calc(12px*var(--fs,1));padding:20px 0;">No matching SKUs.</div>' + nr;
+        list.innerHTML = '<div style="text-align:center;color:#5B6470;font-size:calc(12px*var(--fs,1));padding:20px 0;">No matching SKUs.</div>' + nr;
         renderStockPagination();
         return;
     }
@@ -16416,14 +16421,14 @@ function renderStockPagination() {
     // resolves; shown once available, omitted (not guessed) until then.
     if (stockSearchActive && SS.list) {
         var totM = SS.list.length, leftM = totM - stockData.length;
-        el.innerHTML = '<div style="text-align:center;color:#888;font-size:calc(11px*var(--fs,1));padding:6px 0;">Showing ' + stockData.length + ' of ' + totM.toLocaleString('en-IN') + ' matching' + esc59(SS.capNote) + '.</div>' +
+        el.innerHTML = '<div style="text-align:center;color:#5B6470;font-size:calc(11px*var(--fs,1));padding:6px 0;">Showing ' + stockData.length + ' of ' + totM.toLocaleString('en-IN') + ' matching' + esc59(SS.capNote) + '.</div>' +
             (leftM > 0 ? '<div style="text-align:center;margin:4px 0 10px;"><button class="settings-btn" style="min-height:40px;" onclick="ssMore()">Show 50 more (' + leftM.toLocaleString('en-IN') + ' left)</button></div>' : '');
         return;
     }
     if (stockSearchActive) {
         var searchTotalTxt = (stockTotalCount === null) ? '' :
             (' of ' + stockTotalCount + ' matching' + (stockTotalCount > stockData.length ? ' (showing first ' + stockData.length + ')' : ''));
-        el.innerHTML = '<div style="text-align:center;color:#888;font-size:calc(11px*var(--fs,1));padding:6px 0;">Showing ' + stockData.length + searchTotalTxt +
+        el.innerHTML = '<div style="text-align:center;color:#5B6470;font-size:calc(11px*var(--fs,1));padding:6px 0;">Showing ' + stockData.length + searchTotalTxt +
             ' &mdash; clear the search box to browse all stock by page.</div>';
         return;
     }
@@ -16547,7 +16552,7 @@ function uploadBulkCsv() {
         var startIdx = ((rows[0][0] || '').trim().toUpperCase() === 'ACTION') ? 1 : 0;
         var dataRows = rows.slice(startIdx).filter(function(r) { return (r[0] || '').trim(); });
         if (!dataRows.length) { resultEl.innerHTML = '<div class="move-result err">No data rows found (only a header, or an empty file).</div>'; return; }
-        resultEl.innerHTML = '<div style="text-align:center;color:#aaa;font-size:calc(12px*var(--fs,1));padding:8px 0;">Pushing ' + dataRows.length + ' rows...</div>';
+        resultEl.innerHTML = '<div style="text-align:center;color:#5B6470;font-size:calc(12px*var(--fs,1));padding:8px 0;">Pushing ' + dataRows.length + ' rows...</div>';
         processBulkRowsSequentially(dataRows, 0, emp.code, [], resultEl);
     };
     reader.onerror = function() {
@@ -16597,7 +16602,7 @@ function processBulkRowsSequentially(rows, idx, empCode, results, resultEl) {
         if (!skuRow) {
             // v95: listings are added only by an Admin/Supervisor (Actions >
             // Manage Listings). The CSV never creates one any more.
-            finish('FAILED - "' + sku + '" is not in the product database. An Admin or Supervisor must add it first (DATABASE tab > Quick Add Listing).');
+            finish('FAILED - "' + sku + '" is not in the product database. An Admin or Supervisor must add it first (Product Listings > Add a product).');
             return;
         }
         if (skuRow.active === false) {
@@ -16718,7 +16723,7 @@ function fmtSkuHistoryRowHtml(r) {
     var sign = r.qty_delta > 0 ? '+' : '';
     var color = r.qty_delta > 0 ? '#27AE60' : (r.qty_delta < 0 ? '#E74C3C' : '#888');
     return '<div style="font-size:calc(10px*var(--fs,1));color:#555;padding:3px 0;border-bottom:1px solid #f5f5f5;">' +
-        '<span style="color:#999;">' + esc59((r.created_at || '').replace('T', ' ').slice(0, 16)) + '</span> &bull; ' +
+        '<span style="color:#5B6470;">' + esc59((r.created_at || '').replace('T', ' ').slice(0, 16)) + '</span> &bull; ' +
         '<strong>' + esc59(r.txn_type || '') + '</strong> &bull; ' +
         '<span style="color:' + color + ';font-weight:700;">' + sign + esc59(r.qty_delta) + '</span> &bull; ' +
         'bin ' + esc59(r.bin_code || '—') + ' &bull; ' + esc59(r.employee_code || '—') +
@@ -16745,7 +16750,7 @@ function openSkuDetail(skuCode) {
     var sheet = document.getElementById('sku-detail-sheet');
     if (!overlay || !sheet) return;
     overlay.classList.add('open');
-    sheet.innerHTML = '<div style="text-align:center;color:#aaa;font-size:calc(12px*var(--fs,1));padding:24px 0;">Loading…</div>';
+    sheet.innerHTML = '<div style="text-align:center;color:#5B6470;font-size:calc(12px*var(--fs,1));padding:24px 0;">Loading…</div>';
     skuDetailHistoryLimit[skuCode] = 25;
     if (!db) { sheet.innerHTML = skuDetailCloseBtn() + '<div class="move-result err">No live database connection.</div>'; return; }
 
@@ -17050,7 +17055,7 @@ function renderSkuDetailSheet(r, bin) {
         '<div style="min-width:0;">' + idChip(r) + '<div class="stock-sku" style="font-size:calc(15px*var(--fs,1));"><span class="stock-status-badge ' + badgeCls + '">' + badgeText + '</span>' + abcBadge + '</div>' +
         (r.product_type ? ('<div class="stock-cat">' + esc59(r.product_type) + '</div>') : '') +
         '</div>' +
-        '<div class="stock-qty">' + esc59(r.qty_on_hand) + '<div style="font-size:calc(9px*var(--fs,1));color:#999;font-weight:400;text-align:center;">on hand</div></div>' +
+        '<div class="stock-qty">' + esc59(r.qty_on_hand) + '<div style="font-size:calc(9px*var(--fs,1));color:#5B6470;font-weight:400;text-align:center;">on hand</div></div>' +
         '</div>' +
         reorderLine + binLine +
         '<div style="margin-top:12px;font-size:calc(12px*var(--fs,1));font-weight:700;color:#444;border-top:1px solid #eee;padding-top:8px;">Transaction history</div>' +
@@ -20040,7 +20045,7 @@ function renderLog() {
     if (countEl) countEl.textContent = rows.length;
 
     if (!rows.length) {
-        ul.innerHTML = '<li style="text-align:center;color:#aaa;font-size:calc(12px*var(--fs,1));padding:20px;">No scans yet. Scan a pick slip in PICK, or record stock in ACTIONS, and it will appear here.</li>';
+        ul.innerHTML = '<li style="text-align:center;color:#5B6470;font-size:calc(12px*var(--fs,1));padding:20px;">No scans yet. Scan a pick slip in PICK, or record stock in ACTIONS, and it will appear here.</li>';
         return;
     }
     var html = '';
@@ -21275,7 +21280,7 @@ var E2_WORDS_A = [
     [/\bB2B customers\b/g, 'business customers'], [/\bB2B buyers\b/g, 'business buyers'],
     [/\bQC Hold\b/g, 'Hold for quality check'], [/\bQC Release\b/g, 'Release from quality check'], [/\bQC\b/g, 'quality check'],
     [/\bSet True Count\b/g, 'Correct the count'], [/\bDispatch Out\b/g, 'Send out'], [/\bNew Stock\b/g, 'Add stock received'],
-    [/\bScan Session(s?)\b/g, 'Batch scan$1'], [/\bFix-It Centre\b/g, 'Listing problems'], [/\bToday's Cycle Count\b/g, 'Today’s stock check'],
+    [/\bScan Session(s?)\b/g, 'Batch scan$1'], [/\bFix-It Centre\b/g, 'Listing problems'], [/\bToday's Cycle Count\b/g, 'Daily stock check'],
     [/\bCycle Count\b/g, 'Daily stock check'], [/\bCycle count\b/g, 'Weekly Count List'], [/\bABC Tier\b/g, 'Sales speed'], [/\bABC tiers\b/g, 'sales speeds'], [/\bABC tier\b/g, 'sales speed'],
     [/\bReorder point\b/g, 'Reorder when stock falls to'], [/\breorder point\b/g, 'reorder when stock falls to'], [/\bReorder level\b/g, 'Reorder when stock falls to'],
     [/\bSwitch ON\b/g, 'Allow scanning'], [/\bSwitch OFF\b/g, 'Stop scanning'], [/\bRTO\b/g, 'Returned to origin (courier return)'],
@@ -21325,6 +21330,16 @@ function e2Words(root) {
         }
     });
 }
+// v185 (W12 item 4): the unit codes LTR / MTR shown on their own in raw-material screens (table cells, lists) are written as Litres / Metres; codes inside longer codes and inside brackets stay
+function e2Units(root) {
+    var tw = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, null), n;
+    while ((n = tw.nextNode())) {
+        var v = n.nodeValue; if (!v || !/LTR|MTR/.test(v)) continue;
+        var p = n.parentNode; if (!p || !p.closest || /^(SCRIPT|STYLE|TEXTAREA|TITLE)$/.test(p.tagName) || p.closest('input, textarea, [contenteditable], .e2-keep, canvas, svg')) continue;
+        var w = v.replace(/(^|[^A-Za-z0-9_(-])(LTR|MTR)(?![A-Za-z0-9_-])/g, function (m, a, c) { return a + (c === 'LTR' ? 'Litres' : 'Metres'); });
+        if (w !== v) n.nodeValue = w;
+    }
+}
 // ---- run ----
 function e2Pass() {
     if (E2.busy) return; E2.busy = true;
@@ -21332,7 +21347,7 @@ function e2Pass() {
         ['qc-box', 'sku-box'].forEach(function (id) { var q = document.getElementById(id); if (q && !q.getAttribute('data-dbg')) q.setAttribute('data-dbg', 'add'); });   // Database: the two tools added by code belong with Add a product
         E2_ROOTS.forEach(function (k) {
             var r = document.getElementById(k + '-tab'); if (!r || !e2Vis(r)) return;
-            e2Purpose(k, r); e2Search(k, r); e2Words(r); e2Fold(r);
+            e2Purpose(k, r); e2Search(k, r); e2Words(r); if (k === 'rm') e2Units(r); e2Fold(r);
         });
         ['sh-bg', 'rs-bg'].forEach(function (pid) { var pe = document.getElementById(pid); if (pe && e2Vis(pe)) e2Fold(pe); });   // only the two sheets that hold many choices; never a PIN pad or a yes/no question
     } catch (e) { try { console.warn('e2Pass', e); } catch (e2) {} }
@@ -21370,7 +21385,7 @@ var NV_GRP = [
     { id: 'labels', label: 'Labels', icon: '🏷', sp: 'labels' },
     { id: 'make', label: 'Make', icon: '🛠', keys: ['prd'] },
     { id: 'mat', label: 'Materials & Vendors', short: 'Materials', icon: '🏭', keys: ['rm'] },
-    { id: 'db', label: 'Database', icon: '🗃', keys: ['db'] },
+    { id: 'db', label: 'Product Listings', icon: '🗃', keys: ['db'] },
     { id: 'rep', label: 'Reports', icon: '📈', keys: ['dash', 'log'] },
     { id: 'admin', label: 'Admin', icon: '⚙', keys: ['settings'] },
     { id: 'help', label: 'Help', icon: '❓', keys: ['guide'] }
@@ -21384,7 +21399,7 @@ function nvInfo(k) {
 }
 function nvBtn(cls, i, onclick) {
     var n = i.badge ? '<span class="nv-n">' + esc59(i.badge) + '</span>' : '';
-    return '<button class="' + cls + (i.active ? ' active' : '') + '" title="' + esc59(i.label) + '" onclick="' + onclick + '"' + (i.active ? ' aria-current="page"' : '') + '><span class="nv-i">' + esc59(i.icon) + '</span><span class="nv-l">' + esc59(i.label) + '</span>' + n + '</button>';
+    return '<button class="' + cls + (i.active ? ' active' : '') + '" title="' + esc59(i.label) + '" onclick="' + onclick + '"' + (i.active ? ' aria-current="page"' : '') + '><span class="nv-i" aria-hidden="true">' + esc59(i.icon) + '</span><span class="nv-l">' + esc59(i.label) + '</span>' + n + '</button>';
 }
 // the groups this person may see, each with its allowed items (sections or the two special entries)
 function nvGroups() {
@@ -21395,7 +21410,7 @@ function nvGroups() {
     NV_GRP.forEach(function (g) {
         var items = [];
         if (g.sp === 'today') { if (any.move || any.stock || any.dash || any.rm || any.prd || any.crm || any.db) items.push({ sp: 'today', icon: g.icon, label: 'Today’s to-do' }); }
-        else if (g.sp === 'labels') { var lb = false; try { lb = lbCan(); } catch (e) {} if (lb) items.push({ sp: 'labels', icon: g.icon, label: 'Label Studio' }); }
+        else if (g.sp === 'labels') { var lb = false; try { lb = lbCan(); } catch (e) {} if (lb) items.push({ sp: 'labels', icon: g.icon, label: 'Label Studio' }); var sd = false; try { sd = stdCan(); } catch (e) {} if (sd) items.push({ sp: 'stdsticker', icon: g.icon, label: 'Sticker designer' }); }
         else g.keys.forEach(function (k) { if (any[k]) items.push(any[k]); });
         if (!items.length) return;
         var label = g.label;
@@ -21407,7 +21422,7 @@ function nvGroups() {
     });
     return out;
 }
-function nvItemJs(i) { return i.sp === 'today' ? 'nvTodo()' : (i.sp === 'labels' ? 'lbFromMenu()' : "nvGo('" + rm8Js(i.k) + "')"); }
+function nvItemJs(i) { return i.sp === 'today' ? 'nvTodo()' : (i.sp === 'labels' ? 'lbFromMenu()' : (i.sp === 'stdsticker' ? 'stdFromMenu()' : "nvGo('" + rm8Js(i.k) + "')")); }
 function nvPaint() {
     var bar = document.getElementById('tab-nav'); if (!bar) return;
     var groups = nvGroups();
@@ -21436,7 +21451,7 @@ function nvPaint() {
             var todoIn = main.some(function (g) { return g.id === 'today'; });
             body.innerHTML = e2AddBtn() + '<div class="af-fs-more"><div class="af-fs-t">Text size</div>' + afFontCtl() + '</div>' +
                 (todoIn ? '' : '<button type="button" class="settings-btn" style="min-height:48px;margin:2px 0 4px;background:#1B4F8A;width:100%" onclick="nvTodo()">&#128203; Today&rsquo;s to-do</button>') +
-                (main.some(function (g) { return g.id === 'labels'; }) ? '' : lbMenuBtn()) +
+                (main.some(function (g) { return g.id === 'labels'; }) ? '' : lbMenuBtn() + stdMenuBtn()) +
                 rest.filter(function (g) { return g.id !== 'labels' && g.id !== 'today'; }).map(function (g) {
                     return '<div class="nv-h">' + esc59(g.label) + '</div><div class="nv-grid">' + g.items.map(function (i) { return nvBtn('nv-g', i, nvItemJs(i)); }).join('') + '</div>';
                 }).join('');
@@ -23012,14 +23027,14 @@ var LH_CAP = 20000, LH_PAGE = 50;
 var LH = { ids: [], rows: {}, shown: 0, voids: {}, voidsByBal: {}, emps: null, sessions: null, m8: null, busy: 0, lastQuery: null };
 var LH_ACTIONS = [
     ['', 'Every action'],
-    ['STOCK_IN', 'Stock in (new stock)'],
-    ['DISPATCH', 'Dispatch out (sale)'],
+    ['STOCK_IN', 'Add stock received'],
+    ['DISPATCH', 'Send out (sale)'],
     ['PICK', 'Pick slip (Amazon)'],
-    ['TRANSFER', 'Transfer between bins'],
+    ['TRANSFER', 'Move between bins'],
     ['ADJUST', 'Adjust (found / lost / rejected)'],
-    ['RETURN', 'Returns'],
-    ['QC', 'QC hold / release'],
-    ['COUNT', 'Set true count / correction'],
+    ['RETURN', 'Customer returns'],
+    ['QC', 'Quality-check hold / release'],
+    ['COUNT', 'Correct the count'],
     ['VOID', 'Void reversals (single entry)'],
     ['BATCH_REV', 'Batch reversals (whole batch)'],
     ['OPENING', 'Opening balance / Excel sync']
@@ -23979,9 +23994,9 @@ function slCardHtml(g) {
     return '<div class="sl-card" data-sku="' + esc59(g.sku_code) + '" style="padding:8px 10px;border-bottom:1px solid #f2f2f2;">' +
         '<div style="display:flex;justify-content:space-between;align-items:flex-start;">' +
         '<div style="min-width:0;">' + idChip(g, { open: true }) +
-        '<div style="font-size:calc(10px*var(--fs,1));color:#888;margin-top:2px;">' + (g.type ? esc59(g.type) + ' &bull; ' : '') + 'Updated: ' + fmtRelTime(slMove(g)) + '</div></div>' +
-        '<div class="stock-qty" style="text-align:right;">' + esc59(q) + '<div style="font-size:calc(9px*var(--fs,1));color:#999;font-weight:400;">' + (SL.isBin ? 'in ' + esc59(SL.raw) : 'total') + '</div>' +
-        (SL.isBin ? '<div style="font-size:calc(9px*var(--fs,1));color:#999;font-weight:400;">all bins ' + esc59(g.total) + '</div>' : '') + '</div></div>' +
+        '<div style="font-size:calc(10px*var(--fs,1));color:#5B6470;margin-top:2px;">' + (g.type ? esc59(g.type) + ' &bull; ' : '') + 'Updated: ' + fmtRelTime(slMove(g)) + '</div></div>' +
+        '<div class="stock-qty" style="text-align:right;">' + esc59(q) + '<div style="font-size:calc(9px*var(--fs,1));color:#5B6470;font-weight:400;">' + (SL.isBin ? 'in ' + esc59(SL.raw) : 'total') + '</div>' +
+        (SL.isBin ? '<div style="font-size:calc(9px*var(--fs,1));color:#5B6470;font-weight:400;">all bins ' + esc59(g.total) + '</div>' : '') + '</div></div>' +
         '<div style="margin-top:4px;"><span class="sl-lvl" style="color:' + lvCls + ';border-color:' + lvCls + ';">' + SL_LEVEL_WORDS[lvl] + (g.thr > 0 ? ' (reorder at ' + esc59(g.thr) + ')' : '') + '</span>' +
         (held > 0 ? ' <span class="sl-lvl" style="color:#9A6700;border-color:#9A6700;">' + esc59(held) + ' held for orders' + (q - held >= 0 ? ', ' + (q - held) + ' free' : '') + '</span>' : '') + '</div>' +
         (badgeHtml ? ('<div style="margin-top:5px;">' + badgeHtml + '</div>') : '') +
@@ -24002,7 +24017,7 @@ function slApply() {
         if (ob && SL.openHist[sku] && ob.innerHTML && ob.innerHTML.indexOf('lg-wrap') > -1) SL.histHtml[sku] = ob.innerHTML;
     });
     box.innerHTML = list.length ? list.map(slCardHtml).join('') :
-        '<div style="text-align:center;color:#888;font-size:calc(12px*var(--fs,1));padding:14px 8px;">Nothing matches these filters. <button type="button" class="csv-btn" onclick="slClear()">Clear filters</button></div>';
+        '<div style="text-align:center;color:#5B6470;font-size:calc(12px*var(--fs,1));padding:14px 8px;">Nothing matches these filters. <button type="button" class="csv-btn" onclick="slClear()">Clear filters</button></div>';
     var sh = v110El('sl-showing'); if (sh) sh.textContent = 'Showing ' + list.length + ' of ' + SL.groups.length;
     var fc = v110El('sl-fcount'); var n = slFilterCount(); if (fc) fc.textContent = n ? '(' + n + ')' : '';
     try { FB.paint('reserved'); } catch (e) {}   // v123: the shared filter bar
@@ -24033,11 +24048,11 @@ function runBinLookup() {
     // v114: typed words / sizes need the product list; load it first (once per search text)
     if (raw && !LIX.loaded && _blWaited !== raw) {
         _blWaited = raw;
-        el.innerHTML = '<div style="text-align:center;color:#aaa;font-size:calc(12px*var(--fs,1));padding:10px 0;">Searching...</div>';
+        el.innerHTML = '<div style="text-align:center;color:#5B6470;font-size:calc(12px*var(--fs,1));padding:10px 0;">Searching...</div>';
         loadListingIndex().then(function () { if (!LIX.loaded) _blWaited = ''; if (String(v110El('bin-lookup-input').value || '').trim().toUpperCase() === raw) runBinLookup(); });
         return;
     }
-    el.innerHTML = '<div style="text-align:center;color:#aaa;font-size:calc(12px*var(--fs,1));padding:10px 0;">Searching...</div>';
+    el.innerHTML = '<div style="text-align:center;color:#5B6470;font-size:calc(12px*var(--fs,1));padding:10px 0;">Searching...</div>';
     lastBinLookupRows = []; SL.groups = []; SL.shown = [];   // v111: a failed search must not leave the old list to export
     var seq = ++_binLookupSeq;
     var q = db.from('oms_bin_stock').select('sku_code,product_name,asin,bin_code,qty_on_hand,last_movement_at').order('sku_code').order('bin_code');
@@ -24062,7 +24077,7 @@ function runBinLookup() {
         if (res.error) { lastBinLookupRows = []; SL.groups = []; SL.shown = []; el.innerHTML = '<div class="move-result err">' + esc59(plainErr(res.error)) + '</div>'; return; }
         var rows = res.data || [];
         if (!rows.length) {
-            el.innerHTML = '<div style="text-align:center;color:#aaa;font-size:calc(12px*var(--fs,1));padding:10px 0;">' + (raw ? ('No stock found for "' + esc59(raw) + '".') : 'No bin stock recorded yet.') + '</div>' + (raw ? (_blRes ? smxNoResHtml('bin', _blRes, LIX.skus, {}, raw) : smxTipsHtml('bin', raw)) : '');
+            el.innerHTML = '<div style="text-align:center;color:#5B6470;font-size:calc(12px*var(--fs,1));padding:10px 0;">' + (raw ? ('No stock found for "' + esc59(raw) + '".') : 'No bin stock recorded yet.') + '</div>' + (raw ? (_blRes ? smxNoResHtml('bin', _blRes, LIX.skus, {}, raw) : smxTipsHtml('bin', raw)) : '');
             lastBinLookupRows = []; SL.groups = []; SL.shown = [];
             return;
         }
@@ -24119,7 +24134,7 @@ function runBinLookup() {
             if (SL.heldFail) html += '<div class="sl-warn">Held units could not be read just now, so held numbers show as 0.</div>';
             html += slBarHtml();
             html += '<div id="sl-list" style="max-height:420px;overflow-y:auto;border:1px solid #eee;border-radius:8px;margin-top:4px;"></div>';
-            if (rows.length === 500) html += '<div style="text-align:center;color:#888;font-size:calc(10px*var(--fs,1));padding:4px 0;">Showing first 500 matches — search a specific SKU or bin to narrow this down.</div>';
+            if (rows.length === 500) html += '<div style="text-align:center;color:#5B6470;font-size:calc(10px*var(--fs,1));padding:4px 0;">Showing first 500 matches — search a specific SKU or bin to narrow this down.</div>';
             html += '<div style="text-align:right;margin-top:6px;"><button class="csv-btn sh-btn" onclick="shOpen(\'stock\')">&#128228; Share</button> <button class="csv-btn" onclick="exportBinLookupCSV()">&#8595; Export CSV (what is shown)</button></div>';
             el.innerHTML = html;
             slApply();
@@ -24155,7 +24170,7 @@ var LG_SRC = { APP: 'App', EXCEL: 'Excel', ADMIN_PANEL: 'Admin Panel', STAMP: 'S
 var LG_KIND = {   // icon, colour, short label
     IN: ['&#128229;', '#1B7A3A', 'Stock in'], OUT: ['&#128228;', '#B3261E', 'Out'], MOVE: ['&#8646;', '#1B4F8A', 'Transfer'],
     COUNT: ['&#9878;', '#9A6700', 'Count correction'], SYS: ['&#9881;', '#6B7280', 'System'], VOID: ['&#128683;', '#6B7280', 'Void'], REV: ['&#8617;', '#6B7280', 'Reversal'],
-    PICK: ['&#128203;', '#B3261E', 'Pick slip'], RET: ['&#8617;', '#1B7A3A', 'Return'], QC: ['&#128295;', '#9A6700', 'QC']
+    PICK: ['&#128203;', '#B3261E', 'Pick slip'], RET: ['&#8617;', '#1B7A3A', 'Return'], QC: ['&#128295;', '#9A6700', 'Quality check']
 };
 var LG_DISC_RE = /recount|re-count|count|not found|missing|short|discrep|mismatch|wrong qty|difference/i;
 function lgWho(x) {
@@ -24187,8 +24202,8 @@ function lgInfo(x, ctx) {
     else if (t === 'ADJUSTMENT_REJECTED') { k = 'OUT'; s = 'Rejected / damaged ' + V110_MINUS + a + ' from bin ' + esc59(bin); }
     else if (t === 'RETURN_IN') { k = 'RET'; s = 'Return +' + a + ' into bin ' + esc59(bin); }
     else if (t === 'RETURN_WRONG_ITEM') { k = 'RET'; s = 'Return (wrong item) ' + v110Sg(q) + ' in bin ' + esc59(bin); }
-    else if (t === 'QC_HOLD') { k = 'QC'; s = 'QC hold ' + v110Sg(q) + ' in bin ' + esc59(bin) + ' (set aside, not sellable)'; }
-    else if (t === 'ADJUSTMENT_QC_RELEASE') { k = 'QC'; s = 'QC release ' + v110Sg(q) + ' in bin ' + esc59(bin) + ' (sellable again)'; }
+    else if (t === 'QC_HOLD') { k = 'QC'; s = 'Held for quality check ' + v110Sg(q) + ' in bin ' + esc59(bin) + ' (set aside, not sellable)'; }
+    else if (t === 'ADJUSTMENT_QC_RELEASE') { k = 'QC'; s = 'Released from quality check ' + v110Sg(q) + ' in bin ' + esc59(bin) + ' (sellable again)'; }
     else if (t === 'MANUAL_CORRECTION') { k = 'COUNT'; s = 'Count correction (manual) ' + v110Sg(q) + ' in bin ' + esc59(bin); }
     else if (t === 'OPENING_BALANCE') { k = 'SYS'; s = 'Opening stock seed ' + v110Sg(q) + ' in bin ' + esc59(bin) + ' (starting figure, not a real movement)'; }
     else if (t === 'INVENTORY_SYNC') { k = 'SYS'; s = 'Excel daily sync ' + v110Sg(q) + ' in bin ' + esc59(bin); }
@@ -24274,7 +24289,7 @@ function lgView(sku, box, more, key) {
     var st = LG[key] = LG[key] || { limit: 25 };
     if (more) st.limit += 25;
     var limit = st.limit;
-    box.innerHTML = '<div style="text-align:center;color:#aaa;font-size:calc(11px*var(--fs,1));padding:6px 0;">Loading history&hellip;</div>';
+    box.innerHTML = '<div style="text-align:center;color:#5B6470;font-size:calc(11px*var(--fs,1));padding:6px 0;">Loading history&hellip;</div>';
     if (!db) { box.innerHTML = '<div style="font-size:calc(11px*var(--fs,1));color:#E74C3C;">No connection to the database.</div>'; return; }
     var skuU = String(sku).toUpperCase();
     var pRows = withTimeout(db.from('oms_inventory_transactions').select(LH_COLS).eq('sku_code', sku).order('created_at', { ascending: false }).order('txn_id', { ascending: false }).limit(limit), 10000, 'SKU history');
@@ -24283,7 +24298,7 @@ function lgView(sku, box, more, key) {
         var res = rr[0];
         if (res.error) throw res.error;
         var rows = res.data || [];
-        if (!rows.length) { box.innerHTML = '<div style="font-size:calc(11px*var(--fs,1));color:#aaa;padding:4px 0;">No history found.</div>'; return; }
+        if (!rows.length) { box.innerHTML = '<div style="font-size:calc(11px*var(--fs,1));color:#5B6470;padding:4px 0;">No history found.</div>'; return; }
         var voids = {}, rev = {};
         if (!rr[1].error) (rr[1].data || []).forEach(function (v) { voids[v.txn_id] = v; rev[v.balancing_txn_id] = v; PL.voided[v.txn_id] = v; PL.rev[v.balancing_txn_id] = v; });
         // balance after each entry: today's bin stock minus every NEWER entry. Exact only when the list
@@ -26741,6 +26756,7 @@ function usCanStock() { try { return effectivePermissions().stock === true || ca
 function usOpen() {
     if (!state.session) return;
     if (US.open) return;
+    if (NV.open) { NV.after = function () { usOpen(); }; nvClose(); return; }   // v185: the More sheet closes first, then Search opens
     var ov = document.getElementById('us-bg');
     if (!ov) {
         ov = document.createElement('div'); ov.id = 'us-bg'; ov.className = 'nv-ov'; ov.setAttribute('onclick', 'if(event.target===this)usClose()');
@@ -26829,7 +26845,7 @@ function usRun(q) {
             var lp = US.lim.p || 8, lb = US.lim.b || 8; US.res.p = prods.slice(0, lp); US.res.b = bins.slice(0, lb);
             st.p = US.res.p.map(function (x, i) { var e = x.e; return usRow('p', i, e.sku0 || e.sku, (LIX.qtyOk !== false ? shIN(e.qty || 0) + ' in stock' : '') + (e.active === false ? ' - switched off' : ''), e); }).join('');
             st.np = prods.length; st.nb = bins.length;
-            st.pm = prods.length > lp ? 'Showing ' + lp + ' of ' + prods.length + '. Open STOCK to see all.' : ''; st.bm = bins.length > lb ? 'Showing ' + lb + ' of ' + bins.length + '. Open STOCK to see all.' : '';
+            st.pm = prods.length > lp ? 'Showing ' + lp + ' of ' + prods.length + '. Open Find stock to see all.' : ''; st.bm = bins.length > lb ? 'Showing ' + lb + ' of ' + bins.length + '. Open Find stock to see all.' : '';
             st.b = US.res.b.map(function (x, i) { return usRow('b', i, x.b.bin, shIN(x.b.units || 0) + ' units, ' + shIN(x.b.skus || 0) + ' products'); }).join('');
             usDraw(st);
         };
@@ -26962,10 +26978,10 @@ function tdRun(done) {
     if (usCanStock() && db) guard(function () {
         fetchAllRows(function () { return db.from('oms_low_stock').select('sku_code'); }, 1000, 'Low stock').then(function (res) {
             if (my !== TD.seq) return;
-            if (res.error) add(0, { title: 'Low stock (finished goods)', err: true, n: 0, detail: 'This part could not be read. Tap Refresh to try again.' });
-            else { var n = (res.data || []).length; add(0, { title: 'Low stock (finished goods)', n: n, detail: n ? 'Products at or below their reorder point.' : '', btn: 'Open STOCK', go: function () { switchTab('stock'); } }); }
+            if (res.error) add(0, { title: 'Low stock (products you sell)', err: true, n: 0, detail: 'This part could not be read. Tap Refresh to try again.' });
+            else { var n = (res.data || []).length; add(0, { title: 'Low stock (products you sell)', n: n, detail: n ? 'Products that have fallen to their reorder level.' : '', btn: 'Show low-stock products', go: function () { jumpToLowStock(); } }); }
             fin();
-        }, function () { add(0, { title: 'Low stock (finished goods)', err: true, n: 0, detail: 'This part could not be read. Tap Refresh to try again.' }); fin(); });
+        }, function () { add(0, { title: 'Low stock (products you sell)', err: true, n: 0, detail: 'This part could not be read. Tap Refresh to try again.' }); fin(); });
     });
     // 2 held stock older than 2 days (no PIN)
     if (canReservedStock() && db) guard(function () {
@@ -28183,6 +28199,507 @@ function lbReprintGo() {
     });
 }
 /* LBS-END */
+/* STD-BEGIN */
+// ══ STD v3 (E20, 2026-11-01: M1 cap checked BEFORE any expansion, 300 lines / 1000 copies, 300 ms debounce, Esc closes, fast-Back guard) of STD v1 (E14, 2026-10-31, founder decision Q-K part 2): STICKER DESIGNER for SHELF / BIN / BOX stickers ONLY ═══════════════════════════════
+// NOT a product-label or pack-label engine (decision D11 stands: pack labels are made by the label service in Label Studio). This block:
+//  - prints only location codes: the app's own bin codes (BIN_LIST), racks and shelves worked out from them, box ids counted up by a prefix, or typed text;
+//  - draws the codes with a small LOCAL generator in this page: Code 128 (set B), EAN-13 (typed digits only), DataMatrix ECC 200 (square, ASCII mode) written here, and QR from the inlined qrcode-generator already in the app;
+//  - never calls the label service, never reads or writes an lbl_ table, never touches a database table, never stores anything (nothing is saved on the phone);
+//  - prints no stock, customer, order or invoice data: a sticker carries the code text and nothing else.
+var STD_ROLES = ['ADMIN', 'SUPERVISOR', 'INVENTORY_LEAD'];
+var STD_MAX_STICKERS = 600, STD_MAX_TEXT = 40, STD_MAX_PNG = 12, STD_MAX_PREVIEW = 6;
+var STD_SIZES = [
+    { k: '25x15', w: 25, h: 15, n: '25 x 15 mm' }, { k: '38x25', w: 38, h: 25, n: '38 x 25 mm' }, { k: '50x25', w: 50, h: 25, n: '50 x 25 mm' }, { k: '100x150', w: 100, h: 150, n: '100 x 150 mm' },
+    { k: 'a4-2x7', sheet: true, cols: 2, rows: 7, n: 'A4 sheet, 2 across x 7 down (14 per sheet)' }, { k: 'a4-3x8', sheet: true, cols: 3, rows: 8, n: 'A4 sheet, 3 across x 8 down (24 per sheet)' },
+    { k: 'a4-4x11', sheet: true, cols: 4, rows: 11, n: 'A4 sheet, 4 across x 11 down (44 per sheet)' }, { k: 'a4-5x13', sheet: true, cols: 5, rows: 13, n: 'A4 sheet, 5 across x 13 down (65 per sheet)' }
+];
+var STD_TYPES = [['qr', 'QR code'], ['c128', 'Code 128 (bars)'], ['dm', 'DataMatrix'], ['ean', 'EAN-13 (digits only)']];
+var STD_TSIZE = [['S', 'Small'], ['M', 'Medium'], ['L', 'Large'], ['N', 'No text']];
+var STD = { open: false, depth: 0, skip: 0, at: 0, src: 'bins', sel: {}, q: '', typed: '', bp: 'BOX-', bf: 1, bc: 10, bd: 4, type: 'qr', size: '38x25', land: true, tsz: 'M', copies: 1, skipn: 0, cut: false, prev: 3, urls: [], busy: false, t: 0 };
+
+// ─────────────────────────────── codes: Code 128 (set B), EAN-13, DataMatrix ECC 200, QR (existing generator) ───────────────────────────────
+var STD_C128 = ('212222 222122 222221 121223 121322 131222 122213 122312 132212 221213 221312 231212 112232 122132 122231 113222 123122 123221 223211 221132 221231 213212 223112 312131 311222 321122 321221 312212 322112 322211 212123 212321 232121 111323 131123 131321 112313 132113 132311 211313 231113 231311 112133 112331 132131 113123 113321 133121 313121 211331 231131 213113 213311 213131 311123 311321 331121 312113 312311 332111 314111 221411 431111 111224 111422 121124 121421 141122 141221 112214 112412 122114 122411 142112 142211 241211 221114 413111 241112 134111 111242 121142 121241 114212 124112 124211 411212 421112 421211 212141 214121 412121 111143 111341 131141 114113 114311 411113 411311 113141 114131 311141 411131 211412 211214 211232 2331112').split(' ');
+function stdAscii(t) { t = String(t == null ? '' : t); for (var i = 0; i < t.length; i++) { var c = t.charCodeAt(i); if (c < 32 || c > 126) return false; } return true; }
+function stdC128(text) {   // -> array of 0/1 modules (no quiet zone)
+    var codes = [104], sum = 104, i;
+    for (i = 0; i < text.length; i++) { var v = text.charCodeAt(i) - 32; codes.push(v); sum += v * (i + 1); }
+    codes.push(sum % 103); codes.push(106);
+    var m = [];
+    codes.forEach(function (c) { var p = STD_C128[c], dark = 1; for (var k = 0; k < p.length; k++) { for (var j = 0; j < Number(p.charAt(k)); j++) m.push(dark); dark = 1 - dark; } });
+    return m;
+}
+function stdEanCheck(d12) { var s = 0; for (var i = 0; i < 12; i++) s += Number(d12.charAt(i)) * (i % 2 ? 3 : 1); return (10 - s % 10) % 10; }
+function stdEan(text) {   // -> { digits, mods } or { err }
+    if (!/^[0-9]+$/.test(text)) return { err: 'EAN-13 takes digits only.' };
+    if (text.length !== 12 && text.length !== 13) return { err: 'EAN-13 needs 12 digits (the check digit is added) or 13 digits (the check digit is tested). This has ' + text.length + '.' };
+    var d = text;
+    if (text.length === 12) d = text + stdEanCheck(text);
+    else if (Number(text.charAt(12)) !== stdEanCheck(text.substr(0, 12))) return { err: 'The last digit is wrong. For these 12 digits it must be ' + stdEanCheck(text.substr(0, 12)) + '.' };
+    var L = ['0001101', '0011001', '0010011', '0111101', '0100011', '0110001', '0101111', '0111011', '0110111', '0001011'];
+    var par = ['LLLLLL', 'LLGLGG', 'LLGGLG', 'LLGGGL', 'LGLLGG', 'LGGLLG', 'LGGGLL', 'LGLGLG', 'LGLGGL', 'LGGLGL'];
+    function R(n) { return L[n].replace(/[01]/g, function (c) { return c === '0' ? '1' : '0'; }); }
+    function G(n) { return R(n).split('').reverse().join(''); }
+    var bits = '101', p = par[Number(d.charAt(0))], i;
+    for (i = 1; i <= 6; i++) { var dg = Number(d.charAt(i)); bits += p.charAt(i - 1) === 'L' ? L[dg] : G(dg); }
+    bits += '01010';
+    for (i = 7; i <= 12; i++) bits += R(Number(d.charAt(i)));
+    bits += '101';
+    var m = []; for (i = 0; i < bits.length; i++) m.push(bits.charAt(i) === '1' ? 1 : 0);
+    return { digits: d, mods: m };
+}
+// DataMatrix ECC 200, square symbols 10x10 .. 36x36, ASCII encodation (digit pairs packed), one Reed-Solomon block.   [size, regions per side, data cw, ecc cw]
+var STD_DMT = [[10, 1, 3, 5], [12, 1, 5, 7], [14, 1, 8, 10], [16, 1, 12, 12], [18, 1, 18, 14], [20, 1, 22, 18], [22, 1, 30, 20], [24, 1, 36, 24], [26, 1, 44, 28], [32, 2, 62, 36], [36, 2, 86, 42]];
+var STD_GF = null;
+function stdGf() {
+    if (STD_GF) return STD_GF;
+    var e = new Array(512), l = new Array(256), x = 1, i;
+    for (i = 0; i < 255; i++) { e[i] = x; l[x] = i; x <<= 1; if (x & 256) x ^= 0x12D; }
+    for (i = 255; i < 512; i++) e[i] = e[i - 255];
+    STD_GF = { e: e, l: l }; return STD_GF;
+}
+function stdRs(data, n) {
+    var g = stdGf(), gen = [1], i, j;
+    for (i = 1; i <= n; i++) { var nx = new Array(gen.length + 1); for (j = 0; j < nx.length; j++) nx[j] = 0; for (j = 0; j < gen.length; j++) { nx[j] ^= gen[j] ? g.e[g.l[gen[j]] + i] : 0; nx[j + 1] ^= gen[j]; } gen = nx; }   // gen[0] = x^0 coefficient .. gen[n] = 1
+    var r = new Array(n); for (i = 0; i < n; i++) r[i] = 0;
+    for (i = 0; i < data.length; i++) {
+        var f = data[i] ^ r[n - 1];
+        for (j = n - 1; j > 0; j--) r[j] = r[j - 1] ^ (f && gen[j] ? g.e[g.l[f] + g.l[gen[j]]] : 0);
+        r[0] = f && gen[0] ? g.e[g.l[f] + g.l[gen[0]]] : 0;
+    }
+    return r.reverse();   // highest-order ecc codeword first
+}
+function stdDmPlace(nrow, ncol) {   // ISO 16022 Annex F placement. arr[i] = codeword number * 10 + bit number, 0 = free; the fill pattern is stored as 1
+    var arr = new Array(nrow * ncol), i; for (i = 0; i < arr.length; i++) arr[i] = 0;
+    var chr = 1, row = 4, col = 0;
+    function mod(r, c, ch, b) { if (r < 0) { r += nrow; c += 4 - ((nrow + 4) % 8); } if (c < 0) { c += ncol; r += 4 - ((ncol + 4) % 8); } arr[r * ncol + c] = ch * 10 + b; }
+    function utah(r, c, ch) { mod(r - 2, c - 2, ch, 1); mod(r - 2, c - 1, ch, 2); mod(r - 1, c - 2, ch, 3); mod(r - 1, c - 1, ch, 4); mod(r - 1, c, ch, 5); mod(r, c - 2, ch, 6); mod(r, c - 1, ch, 7); mod(r, c, ch, 8); }
+    function c1(ch) { mod(nrow - 1, 0, ch, 1); mod(nrow - 1, 1, ch, 2); mod(nrow - 1, 2, ch, 3); mod(0, ncol - 2, ch, 4); mod(0, ncol - 1, ch, 5); mod(1, ncol - 1, ch, 6); mod(2, ncol - 1, ch, 7); mod(3, ncol - 1, ch, 8); }
+    function c2(ch) { mod(nrow - 3, 0, ch, 1); mod(nrow - 2, 0, ch, 2); mod(nrow - 1, 0, ch, 3); mod(0, ncol - 4, ch, 4); mod(0, ncol - 3, ch, 5); mod(0, ncol - 2, ch, 6); mod(0, ncol - 1, ch, 7); mod(1, ncol - 1, ch, 8); }
+    function c3(ch) { mod(nrow - 3, 0, ch, 1); mod(nrow - 2, 0, ch, 2); mod(nrow - 1, 0, ch, 3); mod(0, ncol - 2, ch, 4); mod(0, ncol - 1, ch, 5); mod(1, ncol - 1, ch, 6); mod(2, ncol - 1, ch, 7); mod(3, ncol - 1, ch, 8); }
+    function c4(ch) { mod(nrow - 1, 0, ch, 1); mod(nrow - 1, ncol - 1, ch, 2); mod(0, ncol - 3, ch, 3); mod(0, ncol - 2, ch, 4); mod(0, ncol - 1, ch, 5); mod(1, ncol - 3, ch, 6); mod(1, ncol - 2, ch, 7); mod(1, ncol - 1, ch, 8); }
+    do {
+        if (row === nrow && col === 0) c1(chr++);
+        if (row === nrow - 2 && col === 0 && ncol % 4) c2(chr++);
+        if (row === nrow - 2 && col === 0 && ncol % 8 === 4) c3(chr++);
+        if (row === nrow + 4 && col === 2 && !(ncol % 8)) c4(chr++);
+        do { if (row < nrow && col >= 0 && !arr[row * ncol + col]) utah(row, col, chr++); row -= 2; col += 2; } while (row >= 0 && col < ncol);
+        row += 1; col += 3;
+        do { if (row >= 0 && col < ncol && !arr[row * ncol + col]) utah(row, col, chr++); row += 2; col -= 2; } while (row < nrow && col >= 0);
+        row += 3; col += 1;
+    } while (row < nrow || col < ncol);
+    var fill = false;
+    if (!arr[nrow * ncol - 1]) { arr[nrow * ncol - 1] = 1; arr[nrow * ncol - ncol - 2] = 1; fill = true; }
+    return { arr: arr, fill: fill };
+}
+function stdDm(text) {   // -> { n, dark(r,c), size } or { err }
+    if (!stdAscii(text)) return { err: 'DataMatrix here takes plain keyboard characters only.' };
+    var cw = [], i;
+    for (i = 0; i < text.length; i++) {
+        var a = text.charCodeAt(i), b = i + 1 < text.length ? text.charCodeAt(i + 1) : 0;
+        if (a >= 48 && a <= 57 && b >= 48 && b <= 57) { cw.push(130 + (a - 48) * 10 + (b - 48)); i++; } else cw.push(a + 1);
+    }
+    var t = null; for (i = 0; i < STD_DMT.length; i++) if (STD_DMT[i][2] >= cw.length) { t = STD_DMT[i]; break; }
+    if (!t) return { err: 'Too long for DataMatrix on a sticker (most ' + (STD_DMT[STD_DMT.length - 1][2] * 2) + ' characters).' };
+    var size = t[0], reg = t[1], nd = t[2], ne = t[3];
+    if (cw.length < nd) { cw.push(129); while (cw.length < nd) { var pos = cw.length + 1, r = 129 + ((149 * pos) % 253) + 1; if (r > 254) r -= 254; cw.push(r); } }
+    var all = cw.concat(stdRs(cw, ne));
+    var side = size - 2 * reg, pl = stdDmPlace(side, side), data = [], r0, c0;
+    for (r0 = 0; r0 < side; r0++) { data.push([]); for (c0 = 0; c0 < side; c0++) { var v = pl.arr[r0 * side + c0], bit; if (v === 0) bit = 0; else if (v === 1) bit = 1; else bit = (all[Math.floor(v / 10) - 1] >> (8 - v % 10)) & 1; data[r0].push(bit); } }
+    var dsz = side / reg, w = dsz + 2, rows = [], R, C;
+    for (R = 0; R < size; R++) {
+        rows.push([]);
+        for (C = 0; C < size; C++) {
+            var rr = Math.floor(R / w), cc = Math.floor(C / w), i2 = R % w, j2 = C % w, d;
+            if (j2 === 0) d = 1; else if (i2 === w - 1) d = 1; else if (i2 === 0) d = (j2 % 2 === 0) ? 1 : 0; else if (j2 === w - 1) d = (i2 % 2 === 1) ? 1 : 0; else d = data[rr * dsz + i2 - 1][cc * dsz + j2 - 1];
+            rows[R].push(d);
+        }
+    }
+    return { n: size, dark: function (r, c) { return rows[r][c] === 1; }, size: size };
+}
+function stdQr(text) {
+    if (typeof qrcode !== 'function') return { err: 'The QR generator is not available in this page.' };
+    try { var q = qrcode(0, 'M'); q.addData(text); q.make(); var n = q.getModuleCount(); return { n: n, dark: function (r, c) { return q.isDark(r, c); } }; }
+    catch (e) { return { err: 'This text is too long for a QR code.' }; }
+}
+// one symbol for one text: { dim:1, mods, quiet, shown } or { dim:2, n, dark, quiet, shown } or { err }
+function stdSymbol(type, text) {
+    if (!text) return { err: 'Empty.' };
+    if (text.length > STD_MAX_TEXT) return { err: 'Longer than ' + STD_MAX_TEXT + ' characters.' };
+    if (!stdAscii(text)) return { err: 'Only plain keyboard characters (letters, digits, - _ . / space) are allowed.' };
+    if (type === 'c128') return { dim: 1, mods: stdC128(text), quiet: 10, shown: text };
+    if (type === 'ean') { var e = stdEan(text); if (e.err) return { err: e.err }; return { dim: 1, mods: e.mods, quiet: 9, shown: e.digits }; }
+    if (type === 'dm') { var d = stdDm(text); if (d.err) return d; return { dim: 2, n: d.n, dark: d.dark, quiet: 2, shown: text }; }
+    var q = stdQr(text); if (q.err) return q; return { dim: 2, n: q.n, dark: q.dark, quiet: 3, shown: text };
+}
+
+// ─────────────────────────────── layout: one sticker -> a list of rectangles and text, in millimetres ───────────────────────────────
+// op: { t:'r', x, y, w, h }  dark rectangle      { t:'t', x, y, size, s }  text, left edge x, baseline y (Courier Bold: each letter is 0.6 of the size wide)
+function stdWrap(s, cpl) { var out = []; for (var i = 0; i < s.length; i += cpl) out.push(s.substr(i, cpl)); return out; }
+function stdLayout(text, type, w, h, tsz) {
+    var sym = stdSymbol(type, text); if (sym.err) return { err: sym.err };
+    var pad = Math.max(0.8, Math.min(w, h) * 0.06), iw = w - 2 * pad, ih = h - 2 * pad, ops = [], warn = [];
+    var show = tsz !== 'N', fs = Math.min(14, Math.max(1.6, h * ({ S: 0.14, M: 0.2, L: 0.28 }[tsz] || 0.2))), shown = sym.shown, LH = 1.2, MINF = 1.6, mod, i, r, c;
+    function modCheck(m) { if (m < 0.17) return 'Too small to print or scan: each dot would be ' + m.toFixed(2) + ' mm. Use a bigger sticker, fewer characters or another code type.'; if (m < 0.22) warn.push('Dense: each dot is ' + m.toFixed(2) + ' mm. Do a test print and scan it before you print many.'); return ''; }
+    if (sym.dim === 1) {
+        var total = sym.mods.length + 2 * sym.quiet, lines = [], th = 0, gap = 0.6;
+        if (show) {
+            fs = Math.min(fs, iw / (shown.length * 0.6));
+            if (ih - fs * LH - gap < ih * 0.4) fs = Math.max(0, (ih * 0.6 - gap) / LH);
+            if (fs < MINF) return { err: 'The text does not fit this sticker. Pick a bigger sticker, shorter text, or "No text".' };
+            th = fs * LH + gap;
+        }
+        var barH = ih - th; if (barH < 2.5) return { err: 'No room for the bars on this sticker.' };
+        mod = iw / total; var bad = modCheck(mod); if (bad) return { err: bad };
+        var x0 = pad + (iw - sym.mods.length * mod) / 2, run = 0;
+        for (i = 0; i <= sym.mods.length; i++) {
+            if (i < sym.mods.length && sym.mods[i]) { run++; continue; }
+            if (run) { ops.push({ t: 'r', x: x0 + (i - run) * mod, y: pad, w: run * mod, h: barH }); run = 0; }
+        }
+        if (show) ops.push({ t: 't', x: pad + (iw - shown.length * 0.6 * fs) / 2, y: pad + barH + gap + fs * 0.85, size: fs, s: shown });
+        return { w: w, h: h, ops: ops, warn: warn, mod: mod, shown: shown };
+    }
+    var cnt = sym.n + 2 * sym.quiet, sq, sx, sy, tl = [], wide = show && iw >= ih * 1.5, cpl, tx = 0, tw = 0, ty = 0;
+    if (!show) { sq = Math.min(iw, ih); sx = pad + (iw - sq) / 2; sy = pad + (ih - sq) / 2; }
+    else if (wide) {
+        sq = ih; sx = pad; sy = pad; tx = pad + sq + Math.max(0.8, pad * 0.8); tw = w - pad - tx;
+        if (tw < 4) wide = false;
+        else {
+            while (true) { cpl = Math.floor(tw / (fs * 0.6)); if (cpl >= 1) { tl = stdWrap(shown, cpl); if (tl.length * fs * LH <= ih) break; } fs *= 0.92; if (fs < MINF) return { err: 'The text does not fit beside the code. Pick a bigger sticker, shorter text, or "No text".' }; }
+            ty = pad + (ih - tl.length * fs * LH) / 2;
+        }
+    }
+    if (show && !wide) {
+        while (true) { cpl = Math.floor(iw / (fs * 0.6)); if (cpl >= 1) { tl = stdWrap(shown, cpl); var thh = tl.length * fs * LH + 0.6; sq = Math.min(iw, ih - thh); if (sq >= Math.min(iw, ih) * 0.55 || sq >= 0.55 * ih) break; } fs *= 0.92; if (fs < MINF) return { err: 'The text does not fit under the code. Pick a bigger sticker, shorter text, or "No text".' }; }
+        sx = pad + (iw - sq) / 2; sy = pad; ty = pad + sq + 0.6;
+    }
+    mod = sq / cnt; var bad2 = modCheck(mod); if (bad2) return { err: bad2 };
+    for (r = 0; r < sym.n; r++) {
+        var run2 = 0;
+        for (c = 0; c <= sym.n; c++) {
+            if (c < sym.n && sym.dark(r, c)) { run2++; continue; }
+            if (run2) { ops.push({ t: 'r', x: sx + (sym.quiet + c - run2) * mod, y: sy + (sym.quiet + r) * mod, w: run2 * mod, h: mod }); run2 = 0; }
+        }
+    }
+    for (i = 0; i < tl.length; i++) {
+        var lw = tl[i].length * 0.6 * fs;
+        ops.push({ t: 't', x: wide ? tx : pad + (iw - lw) / 2, y: ty + i * fs * LH + fs * 0.85, size: fs, s: tl[i] });
+    }
+    return { w: w, h: h, ops: ops, warn: warn, mod: mod, shown: shown };
+}
+// the page list for the chosen size, orientation, copies and "skip the first cells"
+function stdCfgSize(cfg) {
+    var z = null; STD_SIZES.forEach(function (s) { if (s.k === cfg.size) z = s; }); if (!z) z = STD_SIZES[1];
+    if (z.sheet) {
+        var pw = cfg.land ? 297 : 210, ph = cfg.land ? 210 : 297, cols = cfg.land ? z.rows : z.cols, rows = cfg.land ? z.cols : z.rows, mx = 6, my = 10;
+        return { sheet: true, pw: pw, ph: ph, cols: cols, rows: rows, mx: mx, my: my, cw: (pw - 2 * mx) / cols, ch: (ph - 2 * my) / rows, name: z.n };
+    }
+    var a = Math.min(z.w, z.h), b = Math.max(z.w, z.h);
+    return { sheet: false, w: cfg.land ? b : a, h: cfg.land ? a : b, name: z.n };
+}
+// items: [text...] -> { pages:[{w,h,ops,cuts}], good:[{text,lay}], bad:[{text,why}], warns:[], count }
+function stdTotalMsg(n) { return 'That would make ' + n + ' stickers; the most is ' + STD_MAX_STICKERS + '. Use fewer codes or copies.'; }
+function stdBuild(texts, cfg) {
+    var z = stdCfgSize(cfg), cache = {}, good = [], bad = [], warns = [], seen = {};
+    // E20 (M1): work out codes x copies FIRST; over the cap (or copies over 1000) builds nothing at all
+    var rawCopies = Math.floor(Number(cfg.copies)) || 1, total = texts.length * Math.max(1, Math.min(rawCopies, 1000000));
+    if (rawCopies > 1000 || total > STD_MAX_STICKERS) return { pages: [], good: [], bad: [], warns: [], count: total, z: z, refused: stdTotalMsg(total) };
+    texts.forEach(function (t) {
+        var cw = z.sheet ? z.cw : z.w, ch = z.sheet ? z.ch : z.h;
+        var lay = stdLayout(t, cfg.type, cw, ch, cfg.tsz);
+        if (lay.err) { bad.push({ text: t, why: lay.err }); return; }
+        cache[t] = lay; good.push({ text: t, lay: lay });
+        lay.warn.forEach(function (m) { if (!seen[m]) { seen[m] = 1; warns.push(m); } });
+    });
+    var seq = [], copies = Math.max(1, Math.min(1000, Math.floor(Number(cfg.copies)) || 1));
+    good.forEach(function (g) { for (var k = 0; k < copies; k++) seq.push(g.lay); });
+    var pages = [], i;
+    if (!z.sheet) { seq.forEach(function (l) { pages.push({ w: z.w, h: z.h, ops: l.ops, cuts: [] }); }); }
+    else {
+        var per = z.cols * z.rows, skip = Math.max(0, Math.min(per - 1, Math.floor(Number(cfg.skipn)) || 0)), cells = [], pg = null;
+        for (i = 0; i < skip; i++) cells.push(null);
+        seq.forEach(function (l) { cells.push(l); });
+        for (i = 0; i < cells.length; i++) {
+            if (i % per === 0) { pg = { w: z.pw, h: z.ph, ops: [], cuts: [] }; pages.push(pg); }
+            var k2 = i % per, col = k2 % z.cols, row = Math.floor(k2 / z.cols), ox = z.mx + col * z.cw, oy = z.my + row * z.ch;
+            if (cfg.cut) pg.cuts.push({ x: ox, y: oy, w: z.cw, h: z.ch });
+            if (cells[i]) cells[i].ops.forEach(function (o) { var n = { t: o.t, x: o.x + ox, y: o.y + oy, s: o.s, size: o.size, w: o.w, h: o.h }; pg.ops.push(n); });
+        }
+    }
+    return { pages: pages, good: good, bad: bad, warns: warns, count: seq.length, z: z };
+}
+
+// ─────────────────────────────── output: PDF (vector, written here) and PNG (canvas) ───────────────────────────────
+function stdPdf(pages) {
+    var mm = 72 / 25.4, objs = [], out = '%PDF-1.4\n', offs = [];
+    function f(n) { return (Math.round(n * 1000) / 1000).toString(); }
+    function esc(s) { return String(s).replace(/[\\()]/g, function (c) { return '\\' + c; }); }
+    var n = pages.length;   // objects: 1 catalog, 2 pages, 3 font, then per page: page, content
+    objs[1] = '<< /Type /Catalog /Pages 2 0 R >>';
+    var kids = []; for (var i = 0; i < n; i++) kids.push((4 + i * 2) + ' 0 R');
+    objs[2] = '<< /Type /Pages /Kids [' + kids.join(' ') + '] /Count ' + n + ' >>';
+    objs[3] = '<< /Type /Font /Subtype /Type1 /BaseFont /Courier-Bold /Encoding /WinAnsiEncoding >>';
+    pages.forEach(function (p, i) {
+        var W = p.w * mm, H = p.h * mm, s = '0 g 0 G\n';
+        if (p.cuts && p.cuts.length) { s += '0.6 G 0.25 w\n'; p.cuts.forEach(function (c) { s += f(c.x * mm) + ' ' + f(H - (c.y + c.h) * mm) + ' ' + f(c.w * mm) + ' ' + f(c.h * mm) + ' re S\n'; }); s += '0 G\n'; }
+        p.ops.forEach(function (o) {
+            if (o.t === 'r') s += f(o.x * mm) + ' ' + f(H - (o.y + o.h) * mm) + ' ' + f(o.w * mm) + ' ' + f(o.h * mm) + ' re f\n';
+            else s += 'BT /F1 ' + f(o.size * mm) + ' Tf ' + f(o.x * mm) + ' ' + f(H - o.y * mm) + ' Td (' + esc(o.s) + ') Tj ET\n';
+        });
+        objs[4 + i * 2] = '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ' + f(W) + ' ' + f(H) + '] /Resources << /Font << /F1 3 0 R >> >> /Contents ' + (5 + i * 2) + ' 0 R >>';
+        objs[5 + i * 2] = '<< /Length ' + s.length + ' >>\nstream\n' + s + 'endstream';
+    });
+    for (var k = 1; k < objs.length; k++) { offs[k] = out.length; out += k + ' 0 obj\n' + objs[k] + '\nendobj\n'; }
+    var xr = out.length; out += 'xref\n0 ' + objs.length + '\n0000000000 65535 f \n';
+    for (k = 1; k < objs.length; k++) out += ('0000000000' + offs[k]).slice(-10) + ' 00000 n \n';
+    out += 'trailer\n<< /Size ' + objs.length + ' /Root 1 0 R >>\nstartxref\n' + xr + '\n%%EOF\n';
+    var u8 = new Uint8Array(out.length); for (k = 0; k < out.length; k++) u8[k] = out.charCodeAt(k) & 255;
+    return new Blob([u8], { type: 'application/pdf' });
+}
+function stdCanvas(page, pxPerMm) {   // draws one page; module edges are rounded so touching modules stay touching
+    var cv = document.createElement('canvas'); cv.width = Math.max(1, Math.round(page.w * pxPerMm)); cv.height = Math.max(1, Math.round(page.h * pxPerMm));
+    var g = cv.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, cv.width, cv.height); g.fillStyle = '#000'; g.strokeStyle = '#999'; g.lineWidth = 1;
+    (page.cuts || []).forEach(function (c) { g.strokeRect(Math.round(c.x * pxPerMm) + 0.5, Math.round(c.y * pxPerMm) + 0.5, Math.round(c.w * pxPerMm), Math.round(c.h * pxPerMm)); });
+    page.ops.forEach(function (o) {
+        if (o.t === 'r') { var x0 = Math.round(o.x * pxPerMm), y0 = Math.round(o.y * pxPerMm), x1 = Math.round((o.x + o.w) * pxPerMm), y1 = Math.round((o.y + o.h) * pxPerMm); g.fillRect(x0, y0, Math.max(1, x1 - x0), Math.max(1, y1 - y0)); }
+        else { g.font = 'bold ' + (o.size * pxPerMm) + 'px "Courier New", Courier, monospace'; g.textBaseline = 'alphabetic'; g.fillText(o.s, o.x * pxPerMm, o.y * pxPerMm); }
+    });
+    return cv;
+}
+
+// ─────────────────────────────── what to print: the app's own lists ───────────────────────────────
+function stdCan() { var r = ''; try { r = String((state.session && state.session.role) || '').toUpperCase(); } catch (e) {} return !!(typeof state !== 'undefined' && state.session) && STD_ROLES.indexOf(r) >= 0; }
+function stdEl(id) { return document.getElementById(id); }
+function stdBinsAll() { return (typeof BIN_LIST !== 'undefined' && BIN_LIST) ? BIN_LIST.filter(function (b) { return b; }).map(String) : null; }
+function stdDerive(kind) {   // rack = the part of a bin code before its first dash; shelf = the first two parts (only when there are three or more)
+    var all = stdBinsAll() || [], seen = {}, out = [];
+    all.forEach(function (b) { var p = String(b).split('-'), v = ''; if (kind === 'racks' && p.length > 1) v = p[0]; if (kind === 'shelves' && p.length > 2) v = p[0] + '-' + p[1]; if (v && !seen[v]) { seen[v] = 1; out.push(v); } });
+    return out.sort();
+}
+function stdBoxIds() {
+    var pre = String(STD.bp == null ? '' : STD.bp).replace(/[^A-Za-z0-9\-_.\/ ]/g, '').slice(0, 20), f = Math.max(0, Math.floor(Number(STD.bf)) || 0), n = Math.max(0, Math.min(200, Math.floor(Number(STD.bc)) || 0)), d = Math.max(1, Math.min(8, Math.floor(Number(STD.bd)) || 1)), out = [];
+    for (var i = 0; i < n; i++) { var s = String(f + i); while (s.length < d) s = '0' + s; out.push(pre + s); }
+    return out;
+}
+function stdTypedAll() { return String(STD.typed || '').split(/\r?\n/).map(function (s) { return s.replace(/^\s+|\s+$/g, ''); }).filter(function (s) { return s; }); }
+function stdTypedLines() { return stdTypedAll().slice(0, 300); }
+function stdList() {   // the codes to print, in order, without repeats
+    var out = [], seen = {};
+    function add(t) { if (!seen[t]) { seen[t] = 1; out.push(t); } }
+    if (STD.src === 'bins' || STD.src === 'racks' || STD.src === 'shelves') {
+        var src = STD.src === 'bins' ? (stdBinsAll() || []) : stdDerive(STD.src);
+        src.forEach(function (b) { if (STD.sel[STD.src + ':' + b]) add(b); });
+    } else if (STD.src === 'boxes') stdBoxIds().forEach(add);
+    else stdTypedLines().forEach(add);
+    return out;
+}
+function stdCfg() { return { type: STD.type, size: STD.size, land: STD.land, tsz: STD.tsz, copies: STD.copies, skipn: STD.skipn, cut: STD.cut }; }
+function stdRefusedBuild(msg, n) { return { pages: [], good: [], bad: [], warns: [], count: n, z: stdCfgSize(stdCfg()), refused: msg }; }
+function stdBuildNow() {
+    // E20 (M1): every cap is tested on plain counts, before any layout or copy is made
+    var cfg = stdCfg(), copies = Math.floor(Number(cfg.copies)) || 1, nl = 0;
+    if (STD.src === 'typed') { nl = stdTypedAll().length; if (nl > 300) return { list: [], b: stdRefusedBuild('That is ' + nl + ' lines; the most is 300. Use fewer lines.', nl) }; }
+    if (copies > 1000) return { list: [], b: stdRefusedBuild('That is ' + copies + ' copies of each; the most is 1000. Use fewer copies.', copies) };
+    var list = stdList(), total = list.length * Math.max(1, copies);
+    if (total > STD_MAX_STICKERS) return { list: list, b: stdRefusedBuild(stdTotalMsg(total), total) };
+    return { list: list, b: stdBuild(list, cfg) };
+}
+
+// ─────────────────────────────── screen ───────────────────────────────
+var STD_IN = 'width:100%;box-sizing:border-box;min-height:44px;font-size:max(16px,calc(14px*var(--fs,1)));padding:6px 8px;border:1px solid #CBD5E1;border-radius:8px;background:#fff;color:#0A1628';
+var STD_BTN = 'min-height:44px;white-space:normal;line-height:1.25;text-align:center;box-sizing:border-box;max-width:100%';
+var STD_H = 'font-weight:800;font-size:calc(13px*var(--fs,1));color:#0A1628;margin:10px 0 4px';
+var STD_P = 'font-size:calc(12px*var(--fs,1));color:#475569;line-height:1.4;overflow-wrap:anywhere';
+function stdOpt(v, l, cur) { return '<option value="' + esc59(v) + '"' + (String(cur) === String(v) ? ' selected' : '') + '>' + esc59(l) + '</option>'; }
+function stdSeg(name, items, cur, fn) {
+    return '<div style="display:flex;flex-wrap:wrap;gap:6px">' + items.map(function (x) { var on = String(x[0]) === String(cur); return '<button type="button" class="settings-btn" aria-pressed="' + (on ? 'true' : 'false') + '" style="' + STD_BTN + ';flex:1 1 30%;background:' + (on ? '#1B4F8A' : '#E2E8F0') + ';color:' + (on ? '#fff' : '#0A1628') + '" data-v="' + esc59(x[0]) + '" onclick="' + fn + '(this.getAttribute(\'data-v\'))">' + esc59(x[1]) + '</button>'; }).join('') + '</div>';
+}
+function stdFromMenu() { NV.after = function () { stdOpen(); }; nvClose(); }
+function stdMenuBtn() { return stdCan() ? '<button type="button" class="settings-btn" style="min-height:48px;margin:2px 0 4px;background:#1B7A3A;width:100%;white-space:normal" onclick="stdFromMenu()">&#127991; Sticker designer</button>' : ''; }
+function stdOpen() {
+    if (!stdCan()) return;
+    var ov = stdEl('std-bg');
+    if (!ov) {
+        ov = document.createElement('div'); ov.id = 'std-bg'; ov.className = 'nv-ov'; ov.setAttribute('onclick', 'if(event.target===this)stdBtnBack()');
+        ov.innerHTML = '<div class="nv-sheet" role="dialog" aria-label="Sticker designer" style="max-height:94vh;min-height:70vh;overflow-x:hidden"><div class="nv-top"><b>&#127991; Sticker designer</b><button type="button" class="nv-x" onclick="stdBtnBack()" aria-label="Close">&#10005;</button></div>' +
+            '<div style="' + STD_P + '">For shelf, bin and box stickers only. Product and pack labels are made in Label Studio, not here. A sticker shows the code and its text, nothing else.</div>' +
+            '<div style="' + STD_H + '">1. What do you want to print?</div><div id="std-srcbtns"></div><div id="std-src" style="margin-top:6px"></div>' +
+            '<div style="' + STD_H + '">2. Code type</div><div id="std-types"></div><div id="std-typenote" style="' + STD_P + ';margin-top:4px"></div>' +
+            '<div style="' + STD_H + '">3. Sticker size</div><div id="std-opts"></div>' +
+            '<div style="' + STD_H + '">4. Check</div><div id="std-sum"></div>' +
+            '<div style="' + STD_H + '">Preview</div><div id="std-prevctl"></div><div id="std-prev" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:6px"></div>' +
+            '<div style="' + STD_H + '">5. Print or save</div><div id="std-msg"></div>' +
+            '<div style="display:flex;flex-wrap:wrap;gap:6px"><button type="button" class="settings-btn" id="std-b-print" style="' + STD_BTN + ';flex:1 1 30%;background:#1B7A3A" onclick="stdOut(\'print\')">Print</button>' +
+            '<button type="button" class="settings-btn" id="std-b-pdf" style="' + STD_BTN + ';flex:1 1 30%" onclick="stdOut(\'pdf\')">Save PDF</button>' +
+            '<button type="button" class="settings-btn" id="std-b-png" style="' + STD_BTN + ';flex:1 1 30%" onclick="stdOut(\'png\')">Save PNG</button></div>' +
+            '<div style="' + STD_P + ';margin-top:6px">Print a test page on plain paper first and scan it with the app before you print a whole sheet of stickers.</div></div>';
+        document.body.appendChild(ov);
+    }
+    var first = !STD.open; STD.open = true; STD.at = Date.now(); ov.hidden = false;
+    if (first) { try { history.pushState({ omsStd: 1 }, ''); STD.depth++; } catch (e) {} }
+    stdPaintAll();
+    if (stdBinsAll() === null && typeof loadBinList === 'function') { try { loadBinList().then(function () { if (STD.open) stdPaintSrc(); }); } catch (e) {} }
+}
+function stdBtnBack() { try { if (history.state && history.state.omsStd) { history.back(); return; } } catch (e) {} stdClose(); }
+function stdClose(fromPop) {
+    if (!STD.open) return;
+    STD.open = false; var ov = stdEl('std-bg'); if (ov) ov.hidden = true;
+    STD.urls.forEach(function (u) { try { URL.revokeObjectURL(u); } catch (e) {} }); STD.urls = [];
+    var pv = stdEl('std-prev'); if (pv) pv.innerHTML = '';
+    if (fromPop) { STD.depth = Math.max(0, STD.depth - 1); return; }
+    try { if (STD.depth > 0) { var n = STD.depth; STD.depth = 0; STD.skip++; setTimeout(function () { STD.skip = 0; }, 1200); history.go(-n); } } catch (e) {}
+}
+function stdReset() { STD.sel = {}; STD.typed = ''; STD.q = ''; STD.src = 'bins'; if (STD.open) stdClose(); }
+window.addEventListener('popstate', function () { if (STD.skip > 0) { STD.skip--; return; } if (STD.open) { var age = Date.now() - (STD.at || 0); if (age > 500) stdClose(true); else setTimeout(function () { try { if (STD.open && !(history.state && history.state.omsStd)) stdClose(true); } catch (e) {} }, 520 - age); } });
+// E20 (L1): Esc closes the Sticker designer. One listener, added once here (not per open), so there is nothing to leak. It runs before the shared Esc handler below and stops it, so only the designer closes.
+document.addEventListener('keydown', function (ev) { try { if ((ev.key === 'Escape' || ev.key === 'Esc') && STD.open && !ev.defaultPrevented) { stdBtnBack(); ev.preventDefault(); ev.stopImmediatePropagation(); } } catch (e) {} });
+document.addEventListener('visibilitychange', function () { try { if (document.hidden) STD.hid = Date.now(); else if (STD.hid && Date.now() - STD.hid > 180000) { STD.hid = 0; if (STD.open) stdClose(); } } catch (e) {} });
+if (typeof lbReset === 'function') { var stdLbReset0 = lbReset; lbReset = function () { var r = stdLbReset0.apply(this, arguments); try { stdReset(); } catch (e) {} return r; }; }
+
+function stdPaintAll() { stdPaintSrcBtns(); stdPaintSrc(); stdPaintTypes(); stdPaintOpts(); stdRefresh(); }
+function stdPaintSrcBtns() { var o = stdEl('std-srcbtns'); if (o) o.innerHTML = stdSeg('src', [['bins', 'Bins'], ['shelves', 'Shelves'], ['racks', 'Racks'], ['boxes', 'Boxes'], ['typed', 'Typed text']], STD.src, 'stdSetSrc'); }
+function stdSetSrc(v) { STD.src = v; stdPaintSrcBtns(); stdPaintSrc(); stdRefresh(); }
+function stdPaintTypes() {
+    var o = stdEl('std-types'); if (o) o.innerHTML = stdSeg('type', STD_TYPES, STD.type, 'stdSetType');
+    var n = stdEl('std-typenote'); if (!n) return;
+    n.textContent = ({ qr: 'QR: reads from any angle, best for small stickers.', c128: 'Code 128: a row of bars. Needs a wide sticker for long codes.', dm: 'DataMatrix: a small square code, good for tiny stickers. Not every phone camera reads it; test your scanner first.', ean: 'EAN-13: for a 12 or 13 digit number you already own. This tool does not make or look up product numbers. Product labels: use Label Studio.' })[STD.type] || '';
+}
+function stdSetType(v) { STD.type = v; stdPaintTypes(); stdRefresh(); }
+function stdPaintOpts() {
+    var o = stdEl('std-opts'); if (!o) return;
+    o.innerHTML = '<label style="' + STD_P + '">Size<select id="std-size" style="' + STD_IN + '" onchange="stdOptChg()">' + STD_SIZES.map(function (s) { return stdOpt(s.k, s.n, STD.size); }).join('') + '</select></label>' +
+        '<div style="' + STD_P + ';margin-top:6px">Direction (on a sheet this turns the whole page)</div>' + stdSeg('land', [['1', 'Wide (landscape)'], ['0', 'Tall (portrait)']], STD.land ? '1' : '0', 'stdSetLand') +
+        '<div style="' + STD_P + ';margin-top:6px">Text under or beside the code</div>' + stdSeg('tsz', STD_TSIZE, STD.tsz, 'stdSetTsz') +
+        '<label style="' + STD_P + ';display:block;margin-top:6px">Copies of each sticker (1 to 1000)<input id="std-copies" type="number" inputmode="numeric" min="1" max="1000" value="' + esc59(STD.copies) + '" style="' + STD_IN + '" oninput="stdOptChg()"></label>' +
+        '<div id="std-sheetopts"></div>';
+    stdPaintSheetOpts();
+}
+function stdPaintSheetOpts() {
+    var o = stdEl('std-sheetopts'); if (!o) return; var sh = false; STD_SIZES.forEach(function (s) { if (s.k === STD.size && s.sheet) sh = true; });
+    o.innerHTML = sh ? '<label style="' + STD_P + ';display:block;margin-top:6px">Empty spaces to skip at the start of the sheet (to use a part-used sheet)<input id="std-skipn" type="number" inputmode="numeric" min="0" value="' + esc59(STD.skipn) + '" style="' + STD_IN + '" oninput="stdOptChg()"></label>' +
+        '<label style="' + STD_P + ';display:flex;gap:8px;align-items:center;margin-top:6px;min-height:44px"><input id="std-cut" type="checkbox"' + (STD.cut ? ' checked' : '') + ' style="width:22px;height:22px" onchange="stdOptChg()"> Draw thin grey lines round each sticker (for plain paper)</label>' +
+        '<div style="' + STD_P + '">Sticker sheets differ a little between makers. Test on plain paper held against a sheet first.</div>' : '';
+}
+function stdSetLand(v) { STD.land = v === '1'; stdPaintOpts(); stdRefresh(); }
+function stdSetTsz(v) { STD.tsz = v; stdPaintOpts(); stdRefresh(); }
+function stdOptChg() {
+    var s = stdEl('std-size'), c = stdEl('std-copies'), k = stdEl('std-skipn'), u = stdEl('std-cut'), was = STD.size;
+    if (s) { STD.size = s.value; if (was !== STD.size) { var z = null; STD_SIZES.forEach(function (x) { if (x.k === STD.size) z = x; }); if (z && !z.sheet) STD.land = z.w >= z.h; else if (z) STD.land = false; } }
+    if (c) STD.copies = Math.max(1, Math.min(1000, Math.floor(Number(c.value)) || 1));
+    if (k) STD.skipn = Math.max(0, Math.floor(Number(k.value)) || 0);
+    if (u) STD.cut = !!u.checked;
+    if (was !== STD.size) stdPaintOpts();
+    stdRefresh();
+}
+function stdPaintSrc() {
+    var o = stdEl('std-src'); if (!o) return; var h = '';
+    if (STD.src === 'typed') {
+        h = '<label style="' + STD_P + '">One code per line (up to 300 lines, ' + STD_MAX_TEXT + ' characters each)<textarea id="std-typed" rows="6" style="' + STD_IN + ';font-family:Courier New,monospace" oninput="stdTyped(this.value)">' + esc59(STD.typed) + '</textarea></label>' +
+            '<div style="' + STD_P + '">Type only a place name or code, such as A-01-03 or BOX-0007. Do not type product, order or customer details.</div>';
+    } else if (STD.src === 'boxes') {
+        h = '<div style="' + STD_P + '">Box ids are counted up from a start. (The app has no box list of its own.)</div><div style="display:flex;flex-wrap:wrap;gap:6px">' +
+            [['bp', 'Starts with', 'text', STD.bp], ['bf', 'First number', 'number', STD.bf], ['bc', 'How many (up to 200)', 'number', STD.bc], ['bd', 'Digits in the number', 'number', STD.bd]].map(function (x) {
+                return '<label style="' + STD_P + ';flex:1 1 40%;min-width:0">' + esc59(x[1]) + '<input id="std-' + esc59(x[0]) + '" type="' + esc59(x[2]) + '"' + (x[2] === 'number' ? ' inputmode="numeric"' : ' maxlength="20"') + ' value="' + esc59(x[3]) + '" style="' + STD_IN + '" oninput="stdBoxChg()"></label>';
+            }).join('') + '</div>';
+    } else {
+        var all = STD.src === 'bins' ? stdBinsAll() : (stdBinsAll() === null ? null : stdDerive(STD.src));
+        if (all === null) h = '<div style="' + STD_P + '">Loading the bin list&hellip;</div>';
+        else if (!all.length) h = '<div class="move-result err" style="margin:0">' + (STD.src === 'bins' ? 'No bins found. Use Typed text.' : 'No ' + esc59(STD.src) + ' can be worked out, because the bin codes have no dashes (for example A-01-03). Use Typed text.') + '</div>';
+        else {
+            var q = String(STD.q || '').toUpperCase(), m = all.filter(function (b) { return !q || String(b).toUpperCase().indexOf(q) >= 0; }), shown = m.slice(0, 120);
+            h = (STD.src === 'racks' ? '<div style="' + STD_P + '">A rack is the part of a bin code before the first dash. Check that this matches your shelves.</div>' : '') + (STD.src === 'shelves' ? '<div style="' + STD_P + '">A shelf is the first two parts of a bin code with three parts (A-01 from A-01-03).</div>' : '') +
+                '<input id="std-q" type="search" placeholder="Find" aria-label="Find" value="' + esc59(STD.q) + '" style="' + STD_IN + '" oninput="stdQ(this.value)">' +
+                '<div style="display:flex;flex-wrap:wrap;gap:6px;margin:6px 0"><button type="button" class="settings-btn" style="' + STD_BTN + ';flex:1 1 40%" onclick="stdSelAll(true)">Tick all found (' + m.length + ')</button><button type="button" class="settings-btn" style="' + STD_BTN + ';flex:1 1 40%;background:#6B7280" onclick="stdSelAll(false)">Clear ticks</button></div>' +
+                '<div id="std-rows" style="max-height:30vh;overflow-y:auto;border:1px solid #E2E8F0;border-radius:8px;padding:4px">' + stdRowsHtml(shown) + (m.length > shown.length ? '<div style="' + STD_P + '">Showing the first ' + shown.length + ' of ' + m.length + '. Type in Find to narrow the list.</div>' : '') + '</div>';
+        }
+    }
+    o.innerHTML = h;
+}
+function stdRowsHtml(arr) { return arr.map(function (b) { var k = STD.src + ':' + b; return '<label style="display:flex;gap:8px;align-items:center;min-height:40px;font-size:calc(13px*var(--fs,1));overflow-wrap:anywhere"><input type="checkbox" style="width:22px;height:22px;flex:0 0 auto"' + (STD.sel[k] ? ' checked' : '') + ' data-k="' + esc59(k) + '" onchange="stdTick(this)"><span style="min-width:0">' + esc59(b) + '</span></label>'; }).join(''); }
+function stdTick(el) { var k = el.getAttribute('data-k'); if (el.checked) STD.sel[k] = true; else delete STD.sel[k]; stdRefresh(); }
+function stdQ(v) { STD.q = String(v || '').slice(0, 40); var rows = stdEl('std-rows'); var keep = stdEl('std-q'); var pos = keep ? keep.selectionStart : 0; stdPaintSrc(); var k2 = stdEl('std-q'); if (k2) { k2.focus(); try { k2.setSelectionRange(pos, pos); } catch (e) {} } }
+function stdSelAll(on) {
+    var all = STD.src === 'bins' ? (stdBinsAll() || []) : stdDerive(STD.src), q = String(STD.q || '').toUpperCase();
+    all.forEach(function (b) { if (!q || String(b).toUpperCase().indexOf(q) >= 0) { var k = STD.src + ':' + b; if (on) STD.sel[k] = true; else delete STD.sel[k]; } });
+    var rows = stdEl('std-rows'); if (rows) { stdPaintSrc(); } stdRefresh();
+}
+function stdTyped(v) { STD.typed = String(v || '').slice(0, 20000); stdRefresh(); }
+function stdBoxChg() { ['bp', 'bf', 'bc', 'bd'].forEach(function (k) { var e = stdEl('std-' + k); if (e) STD[k] = e.value; }); stdRefresh(); }
+
+function stdRefresh() { clearTimeout(STD.t); STD.t = setTimeout(stdRefreshNow, 300); }
+function stdRefreshNow() {
+    if (!STD.open) return;
+    var r = stdBuildNow(), b = r.b, sum = stdEl('std-sum'), pv = stdEl('std-prev'), pc = stdEl('std-prevctl'), h = '';
+    var z = b.z, tooMany = !!b.refused || b.count > STD_MAX_STICKERS;
+    STD.last = { list: r.list, b: b, tooMany: tooMany };
+    if (b.refused) h += '<div class="move-result err" role="alert" style="margin:0 0 4px">' + esc59(b.refused) + '</div>';
+    else if (!r.list.length) h += '<div style="' + STD_P + '">Nothing chosen yet. Tick some codes, or type them, in step 1.</div>';
+    else {
+        h += '<div class="move-result ' + (b.good.length && !tooMany ? 'ok' : 'err') + '" style="margin:0 0 4px">' + esc59(b.good.length) + ' code' + (b.good.length === 1 ? '' : 's') + ' ready &middot; ' + esc59(b.count) + ' sticker' + (b.count === 1 ? '' : 's') + (z.sheet ? ' on ' + esc59(b.pages.length) + ' sheet' + (b.pages.length === 1 ? '' : 's') : '') + (b.bad.length ? ' &middot; ' + esc59(b.bad.length) + ' refused' : '') + '</div>';
+        b.warns.forEach(function (m) { h += '<div style="' + STD_P + ';color:#9A6700;margin:4px 0">' + esc59(m) + '</div>'; });
+        if (b.bad.length) {
+            h += '<div style="' + STD_P + ';margin-top:4px"><b>Refused (not printed):</b></div>' + b.bad.slice(0, 8).map(function (x) { return '<div style="' + STD_P + ';color:#B3261E">&bull; ' + esc59(x.text.slice(0, 30)) + ': ' + esc59(x.why) + '</div>'; }).join('') + (b.bad.length > 8 ? '<div style="' + STD_P + '">and ' + (b.bad.length - 8) + ' more.</div>' : '');
+        }
+    }
+    if (sum) sum.innerHTML = h;
+    var n = STD.prev;
+    if (pc) pc.innerHTML = '<label style="' + STD_P + '">Stickers to preview (1 to ' + STD_MAX_PREVIEW + ')<select id="std-pn" style="' + STD_IN + ';max-width:160px" onchange="stdPrevN(this.value)">' + [1, 2, 3, 4, 5, 6].map(function (i) { return stdOpt(i, i, n); }).join('') + '</select></label>';
+    if (pv) {
+        pv.innerHTML = '';
+        if (b.pages.length && !tooMany) {
+            var firstGood = b.good.slice(0, n);
+            if (z.sheet) { var cv = stdCanvas(b.pages[0], 2.2); cv.style.cssText = 'max-width:100%;height:auto;border:1px solid #CBD5E1;box-sizing:border-box'; cv.setAttribute('role', 'img'); cv.setAttribute('aria-label', 'Preview of sheet 1'); pv.appendChild(cv); }
+            else b.pages.slice(0, n).forEach(function (p, i) { var cv2 = stdCanvas(p, Math.min(8, 300 / Math.max(p.w, 1))); cv2.style.cssText = 'max-width:100%;height:auto;border:1px solid #CBD5E1;box-sizing:border-box'; cv2.setAttribute('role', 'img'); cv2.setAttribute('aria-label', 'Preview of sticker ' + (i + 1)); pv.appendChild(cv2); });
+        }
+    }
+    var ok = b.pages.length > 0 && !tooMany && !STD.busy;
+    ['print', 'pdf', 'png'].forEach(function (k) { var e = stdEl('std-b-' + k); if (e) { e.disabled = !ok; e.style.opacity = ok ? '1' : '.5'; } });
+}
+function stdPrevN(v) { STD.prev = Math.max(1, Math.min(STD_MAX_PREVIEW, Number(v) || 3)); stdRefreshNow(); }
+function stdSay(kind, text) { var o = stdEl('std-msg'); if (o) o.innerHTML = text ? '<div class="move-result ' + (kind === 'ok' ? 'ok' : 'err') + '" role="status" style="margin:0 0 6px">' + esc59(text) + '</div>' : ''; }
+function stdName(ext) { var d = ''; try { d = rmStamp(); } catch (e) { d = String(Date.now()); } return 'ArtzFolio_stickers_' + STD.type + '_' + STD.size + '_' + d + '.' + ext; }
+function stdOut(how) {
+    if (!stdCan()) return;
+    var r = stdBuildNow(), b = r.b;
+    if (b.refused) { stdSay('err', b.refused); return; }
+    if (!b.pages.length || b.count > STD_MAX_STICKERS) { stdSay('err', 'Nothing to make yet. Choose codes in step 1.'); return; }
+    if (how === 'png') {
+        var n = Math.min(b.pages.length, STD_MAX_PNG), left = n;
+        stdSay('ok', 'Saving ' + n + ' picture' + (n === 1 ? '' : 's') + (b.pages.length > n ? ' (the first ' + n + ' of ' + b.pages.length + '; use PDF for all)' : '') + ' at 300 dots per inch.');
+        var i = 0;
+        (function next() {
+            if (i >= n) return;
+            var cv = stdCanvas(b.pages[i], 300 / 25.4), idx = i; i++;
+            cv.toBlob(function (bl) { try { rmSaveBlob(bl, stdName('png').replace('.png', '_' + (idx + 1) + '.png')); } catch (e) {} setTimeout(next, 350); }, 'image/png');
+        })();
+        return;
+    }
+    var blob = stdPdf(b.pages);
+    if (how === 'pdf') { rmSaveBlob(blob, stdName('pdf')); stdSay('ok', 'PDF saved: ' + b.pages.length + ' page' + (b.pages.length === 1 ? '' : 's') + '. Print it at 100% size (not "fit to page").'); return; }
+    var u = URL.createObjectURL(blob); STD.urls.push(u);
+    var w = null; try { w = window.open(u, '_blank'); } catch (e) {}
+    if (w) stdSay('ok', 'The PDF opened in a new tab. Use its print button and choose 100% size (not "fit to page").');
+    else { rmSaveBlob(blob, stdName('pdf')); stdSay('ok', 'Pop-ups are blocked, so the PDF was saved instead. Open it and print at 100% size.'); }
+}
+/* STD-END */
+// ==== v185 (E16): Escape closes the top pop-up; Enter / Space press the div-buttons (move-mode pills, login links) ====
+document.addEventListener('keydown', function (ev) {
+    try {
+        var k = ev.key;
+        if (k === 'Escape' || k === 'Esc') {
+            if (typeof LB !== 'undefined' && LB.open) { lbBtnBack(); ev.preventDefault(); return; }
+            if (typeof US !== 'undefined' && US.open) { usClose(); ev.preventDefault(); return; }
+            var hb = document.getElementById('sm-help-bg');
+            if (hb && hb.classList.contains('active')) { smxHelpClose(); ev.preventDefault(); return; }
+            if (typeof NV !== 'undefined' && NV.open) { nvClose(); ev.preventDefault(); return; }
+            return;
+        }
+        if (k === 'Enter' || k === ' ') {
+            var t = ev.target;
+            if (!ev.defaultPrevented && t && t.getAttribute && t.getAttribute('role') === 'button' && t.tagName !== 'BUTTON' && t.hasAttribute('onclick')) { ev.preventDefault(); t.click(); }
+        }
+    } catch (e) {}
+});
+// ==== END v185 (E16) ====
 
 function shDoPrint() { var R = SH.rep; if (!R || R.error) return; shClose(); shPrint(R); }
 
@@ -31674,7 +32191,7 @@ function rm19DemoRemove() {
 }
 
 // ---- import undo (R-053) ------------------------------------------------------------------------------------------------------
-var RM19_KIND = { UPSERT_ITEMS: 'Items', UPSERT_VENDORS: 'Vendors', RECEIVE: 'Purchase bills', OPENING_BALANCE: 'Opening balance', SET_REORDER: 'Reorder levels', SET_BARCODES: 'Barcodes' };
+var RM19_KIND = { UPSERT_ITEMS: 'Items', UPSERT_VENDORS: 'Vendors', RECEIVE: 'Purchase bills', OPENING_BALANCE: 'Opening balance', SET_REORDER: 'Reorder when stock falls to', SET_BARCODES: 'Barcodes' };
 function rm19ImportsCard() {
     return '<div class="rm-sec">Recent imports (undo within 24 hours)</div><div id="rm19-imp"><div class="rm-dim">Loading...</div></div>';
 }
@@ -31940,7 +32457,7 @@ function a12DlX(view) {
 }
 
 // ---- new bulk upload kind: reorder levels (R-056) and template-only kinds ---------------------------------------------------------
-RM_BULK.reorder = { fn: 'rm_bulk_set_reorder', label: 'Reorder levels', sheet: 'ReorderLevels', key: 'item_code', max: 2000,
+RM_BULK.reorder = { fn: 'rm_bulk_set_reorder', label: 'Reorder when stock falls to', sheet: 'ReorderLevels', key: 'item_code', max: 2000,
     cols: ['item_code', 'reorder_level', 'reorder_qty', 'lead_time_days'], num: ['reorder_level', 'reorder_qty', 'lead_time_days'], need: ['item_code'],
     help: ['required, an existing item', 'in the base unit; alert when stock falls to this', 'in the base unit; how much to order', 'days from request to receipt'] };
 RM_ALIAS.reorder = { code: 'item_code', item: 'item_code', reorder_at: 'reorder_level', reorder_point: 'reorder_level', min: 'reorder_level', reorder_quantity: 'reorder_qty', lead_time: 'lead_time_days' };
