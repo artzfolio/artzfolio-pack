@@ -93,7 +93,8 @@
 // Before, every distinct URL (each ?rm=...&id=N or ?crm=...&id=N link opened online) stored another full copy of the 2.2 MB page and the cache had no cap.
 // v58 (2026-10-23): cache name bumped for App v145 (new bottom menu, one sign-in PIN, guide fixes).
 // v63 (2026-11-01): cache name bumped for App v187 (Admin Panel v2.51 unchanged); nothing else changed.
-const CACHE_NAME = 'artzfolio-oms-shell-v63';
+// v64 (2026-11-01): cache name bumped for App v188 (Admin Panel v2.52); nothing else changed.
+const CACHE_NAME = 'artzfolio-oms-shell-v64';
 const OPTIONAL_FILES = ['./zxing_reader_3.1.4.js', './zxing_reader_3.1.4.wasm'];
 const SHELL_FILES = ['./index.html', './manifest.json', './icon.svg'];
 
