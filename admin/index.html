@@ -6,10 +6,10 @@
 <meta name="referrer" content="no-referrer">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <script>
-/* v183 (W-01): text size control. --fs multiplies every font size. Normal (100%) = 93% of the old v182 size.
-   Five steps 85,100,115,130,150 of the NEW base. Saved on this phone per person (localStorage, try/catch). */
-var AF_FS_STEPS = [85, 100, 115, 130, 150], AF_FS_BASE = 0.93, AF_FS_DEF = 1, AF_FS_KEY = 'af_admin_font_step', AF_FS_CUR = 1;
-function afFontMap() { try { var m = JSON.parse(localStorage.getItem(AF_FS_KEY) || '{}'); return (m && typeof m === 'object') ? m : {}; } catch (e) { return {}; } }
+/* B9-BEGIN text size 60-200 (same steps as the App). --fs multiplies every font size. Saved on this computer per person (localStorage, try/catch). */
+var AF_FS_STEPS = (function () { var a = []; for (var p = 60; p <= 200; p += 5) a.push(p); return a; })(), AF_FS_BASE = 0.93, AF_FS_DEF = 8, AF_FS_KEY = 'af_admin_font_pct', AF_FS_OLDKEY = 'af_admin_font_step', AF_FS_OLD = [85, 100, 115, 130, 150], AF_FS_CUR = 8;
+function afFontPctToIdx(p) { p = Number(p); if (!(p >= 0)) return AF_FS_DEF; return Math.round((Math.max(60, Math.min(200, p)) - 60) / 5); }
+function afFontMap() { try { var m = JSON.parse(localStorage.getItem(AF_FS_KEY) || 'null'); if (m && typeof m === 'object') return m; var o = JSON.parse(localStorage.getItem(AF_FS_OLDKEY) || '{}'), n = {}; if (o && typeof o === 'object') { for (var k in o) { if (typeof o[k] === 'number' && AF_FS_OLD[o[k]]) n[k] = AF_FS_OLD[o[k]]; } } return n; } catch (e) { return {}; } }
 function afFontWho() { try { var x = (typeof getAdminPanelSession === 'function') ? getAdminPanelSession() : null; return (x && x.employee_code) ? String(x.employee_code).toUpperCase() : ''; } catch (e) { return ''; } }
 function afFontGet() { return AF_FS_CUR; }
 function afFontDefault() { return AF_FS_DEF; }
@@ -19,38 +19,50 @@ function afFontSync() {
     try {
         var l = document.querySelectorAll('.af-fs-lbl'), t = AF_FS_STEPS[AF_FS_CUR] + '%';
         for (var i = 0; i < l.length; i++) l[i].textContent = t;
+        var rg = document.querySelectorAll('.af-fs-rg'); for (var r = 0; r < rg.length; r++) rg[r].value = String(AF_FS_STEPS[AF_FS_CUR]);
         var d = document.querySelectorAll('.af-fs-dn'), u = document.querySelectorAll('.af-fs-up');
         for (var j = 0; j < d.length; j++) d[j].disabled = AF_FS_CUR <= 0;
         for (var k = 0; k < u.length; k++) u[k].disabled = AF_FS_CUR >= AF_FS_STEPS.length - 1;
     } catch (e) {}
 }
 function afFontSet(i, noSave) {
-    i = Math.round(Number(i)); if (!(i >= 0)) i = AF_FS_DEF; if (i > AF_FS_STEPS.length - 1) i = AF_FS_STEPS.length - 1;
+    i = Math.round(Number(i)); if (isNaN(i)) i = AF_FS_DEF; if (i < 0) i = 0; if (i > AF_FS_STEPS.length - 1) i = AF_FS_STEPS.length - 1;
     AF_FS_CUR = i;
     try { document.documentElement.style.setProperty('--fs', String(Math.round(AF_FS_BASE * AF_FS_STEPS[i]) / 100)); document.documentElement.setAttribute('data-fs', String(i)); } catch (e) {}
     if (!noSave) {
-        try { var m = afFontMap(), w = afFontWho(); if (w) m[w] = i; m._ = i; localStorage.setItem(AF_FS_KEY, JSON.stringify(m)); } catch (e) {}
+        try { var m = afFontMap(), w = afFontWho(), pc = AF_FS_STEPS[i]; if (w) m[w] = pc; m._ = pc; localStorage.setItem(AF_FS_KEY, JSON.stringify(m)); } catch (e) {}
     }
     afFontSync();
-        return i;
+    return i;
 }
 function afFontStep(d) { return afFontSet(AF_FS_CUR + d); }
 function afFontReset() { return afFontSet(AF_FS_DEF); }
-/* applies the saved step of whoever is signed in (or the last one used on this phone before sign-in) */
+/* applies the saved size of whoever is signed in (or the last one used on this computer before sign-in) */
 function afFontApply() {
     var m = afFontMap(), w = afFontWho(), v = w ? m[w] : m._;
-    afFontSet((typeof v === 'number') ? v : AF_FS_DEF, true);
+    afFontSet((typeof v === 'number') ? afFontPctToIdx(v) : AF_FS_DEF, true);
 }
 function afFontCtl() {
     return '<div class="af-fs-row" role="group" aria-label="Text size"><button type="button" class="af-fs-b af-fs-dn" onclick="afFontStep(-1)" aria-label="Smaller text">A&minus;</button>' +
         '<span class="af-fs-lbl" aria-live="polite">100%</span><button type="button" class="af-fs-b af-fs-up" onclick="afFontStep(1)" aria-label="Bigger text">A+</button>' +
+        '<input type="range" class="af-fs-rg" min="60" max="200" step="5" value="100" aria-label="Text size percent" oninput="afFontSet((Number(this.value)-60)/5)" style="flex:1 1 100%;min-height:44px;order:9">' +
         '<button type="button" class="af-fs-b af-fs-rs" onclick="afFontReset()" aria-label="Reset text size">Reset</button></div>';
 }
+/* the always-visible "Aa Text size" button (bottom right of every page; also works at phone width where the side menu is collapsed) */
+function afFontFabToggle(force) {
+    var p = document.getElementById('af-fs-pop'), b = document.getElementById('af-fs-fab'); if (!p) return;
+    var open = (typeof force === 'boolean') ? force : (p.style.display !== 'block');
+    p.style.display = open ? 'block' : 'none';
+    if (b) b.setAttribute('aria-expanded', open ? 'true' : 'false');
+    if (open) afFontSync();
+}
+/* B9-END */
 try { afFontApply(); } catch (e) {}
 document.addEventListener('DOMContentLoaded', function () {
     try {
         var h = document.getElementById('af-fs-ctl-side'); if (h) h.innerHTML = afFontCtl();
         var l = document.getElementById('af-fs-ctl-login'); if (l) l.innerHTML = afFontCtl();
+        var fp = document.getElementById('af-fs-ctl-fab'); if (fp) fp.innerHTML = afFontCtl();   /* B9 */
         afFontSync();
     } catch (e) {}
 });
@@ -2628,6 +2640,15 @@ a{color:inherit}
 .af-fs-lbl{min-width:44px;text-align:center;font-size:13px;font-weight:800}
 .sidebar-footer .af-fs-b{background:rgba(255,255,255,.92)}
 .sidebar-footer .af-fs-lbl{color:#fff}
+/* B9-BEGIN text size button css */
+.af-fs-fab{position:fixed;right:10px;bottom:10px;z-index:9990;min-width:44px;min-height:44px;padding:0 12px;border:1.5px solid #1B4F8A;border-radius:22px;background:#fff;color:#1B4F8A;font-size:15px;font-weight:800;cursor:pointer;font-family:inherit;box-shadow:0 2px 10px rgba(0,0,0,.25);touch-action:manipulation}
+.af-fs-pop{display:none;position:fixed;right:10px;bottom:62px;z-index:9991;width:min(320px,calc(100vw - 20px));box-sizing:border-box;background:#fff;border:1px solid #cfd8e6;border-radius:12px;padding:10px;box-shadow:0 4px 18px rgba(0,0,0,.3)}
+.af-fs-pop .af-fs-t{font-size:12px;font-weight:800;color:#1B4F8A;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px}
+.af-fs-pop .af-fs-lbl{color:#333}
+.filter-actions{flex-wrap:wrap;max-width:100%}
+.filter-actions .btn{max-width:100%}
+@media print{.af-fs-fab,.af-fs-pop{display:none!important}}
+/* B9-END */
 .af-fs-side{margin:0 0 10px;text-align:center}
 .af-fs-side .af-fs-t{font-size:10px;letter-spacing:1px;text-transform:uppercase;opacity:.7;margin-bottom:4px}
 .login-card .af-fs-row .af-fs-lbl{color:#333}
@@ -2840,7 +2861,7 @@ td .btn,td .btn-sm,td button{min-height:44px}
 .rmc-kpi b{display:block;font-size:calc(20px*var(--fs,1));color:#1B4F8A}
 /* v2.46 (U-07, 2026-10-23): the two PIN boxes on the Security and Purchasing pages are masked text boxes, not password-type boxes (Chrome offers to save those). */
 /* v2.47 (2026-10-24): PDF, Excel and Share buttons beside every CSV button (module "ax" at the end of the script). */
-/* ── v2.45: Security and data page ── */
+/* ── v2.45: Safety and backups page ── */
 .sec-warn{background:#FFF8E1;border-left:4px solid #F39C12;padding:10px 12px;border-radius:8px;font-size:calc(13px*var(--fs,1));line-height:1.5;margin:10px 0}
 .sec-hash{font-family:Consolas,monospace;font-size:calc(12px*var(--fs,1));word-break:break-all;background:#fff;border:1px solid #e4e9f0;border-radius:8px;padding:8px}
 .sec-steps{margin:8px 0 8px 22px;line-height:1.7}
@@ -2877,6 +2898,7 @@ input[type=tel],input[type=email],input[type=search],input:not([type]),textarea{
         .sm-sortrow{margin:4px 0;font-size:calc(12px*var(--fs,1))}
         .sm-sortrow select{min-height:44px;max-width:100%}
         mark{background:#FFE58A;color:inherit;border-radius:3px;padding:0 1px}
+        /* B9-BEGIN chip css copied from App (B1 copy icons) */
         /* ID CHIP (W-02) */
         .idc{display:inline-block;max-width:100%;min-width:0;vertical-align:top;overflow-wrap:anywhere;word-break:break-word;line-height:1.3;text-align:left}
         .idc-t{display:block;font-weight:700;font-size:calc(13px*var(--fs,1));color:#0A1628}
@@ -2892,10 +2914,22 @@ input[type=tel],input[type=email],input[type=search],input:not([type]),textarea{
         .idc-btn{min-height:44px;min-width:44px;padding:3px 8px;border:1px solid #CBD5E1;background:#F8FAFC;color:#334155;border-radius:8px;font-size:calc(11px*var(--fs,1));font-weight:700;cursor:pointer;white-space:normal;max-width:100%}
         .idc:not(.idc-c) .idc-all{min-height:44px;min-width:44px;background:#EEF2FF;border-color:#A5B4FC;color:#3730A3}
         .idc-btn.copied{background:#eafaf1;border-color:#86EFAC;color:#1e8449}
+        /* B1-BEGIN W3-05 copy icon css: icon 30 px drawn, tap area 44 px (button padding), negative margin keeps the row height of a 30 px icon */
+        .idc:not(.idc-c) .idc-r{display:flex;flex-wrap:wrap;align-items:center;gap:2px 14px}
+        .idc-l{display:inline-flex;align-items:center;min-width:0;max-width:100%;gap:0}
+        .idc-l.idc-lt{display:flex}
+        .idc-l>.idc-t,.idc-l>.idc-a,.idc-l>.idc-s{min-width:0;overflow-wrap:anywhere}
+        .idc .idc-btn.idc-ic{box-sizing:border-box;width:44px;height:44px;min-width:44px;min-height:44px;padding:7px;margin:-7px;border:none;background:transparent;color:#475569;border-radius:10px;flex:0 0 auto;display:inline-flex;align-items:center;justify-content:center;touch-action:manipulation}
+        .idc .idc-btn.idc-ic.idc-all{color:#3730A3}
+        .idc .idc-btn.idc-ic svg{width:30px;height:30px;display:block}
+        .idc .idc-btn.idc-ic.copied{color:#1e8449;background:#eafaf1}
+        .idc .idc-btn.idc-ic:active{background:#eaf0fb}
+        /* B1-END */
         .idc-toast{position:fixed;left:50%;transform:translateX(-50%);bottom:84px;z-index:100000;max-width:92vw;background:#0A1628;color:#fff;padding:9px 16px;border-radius:10px;font-size:calc(13px*var(--fs,1));font-weight:700;box-shadow:0 4px 14px rgba(0,0,0,.3);display:none;overflow-wrap:anywhere}
         .idc-toast.idc-err{background:#B91C1C}
         .idc-toast input{display:block;width:100%;box-sizing:border-box;margin-top:6px;font-size:calc(16px*var(--fs,1));padding:6px;border-radius:6px;border:none}
         @media print{.idc-b,.idc-btn,#idc-toast{display:none!important}}
+        /* B9-END */
 </style>
 </head>
 <body>
@@ -3022,7 +3056,7 @@ input[type=tel],input[type=email],input[type=search],input:not([type]),textarea{
     <div class="sidebar-footer">
       <div class="af-fs-side"><div class="af-fs-t">Text size</div><div id="af-fs-ctl-side"></div></div>
       <button class="logout-btn" onclick="adminLogout()">⎋ Logout</button>
-      <div class="ver-footer">ArtzFolio Admin Panel v2.51</div>
+      <div class="ver-footer">ArtzFolio Admin Panel v2.52</div>
     </div>
   </div>
 
@@ -3173,7 +3207,7 @@ input[type=tel],input[type=email],input[type=search],input:not([type]),textarea{
               <option value="RETURN_IN">Return came back in</option>
               <option value="ADJUSTMENT_FOUND">Found &mdash; extra stock located</option>
               <option value="ADJUSTMENT_LOST_THEFT">Lost or stolen</option>
-              <option value="QC_HOLD">Put on QC hold</option>
+              <option value="QC_HOLD">Put on quality-check hold</option>
               <option value="MANUAL_CORRECTION">Manual correction</option>
               <option value="BIN_RELOCATE">Bin relocated</option>
               <option value="BIN_TRANSFER">Stock moved between bins (Transfer)</option>
@@ -3779,8 +3813,8 @@ input[type=tel],input[type=email],input[type=search],input:not([type]),textarea{
               <option value="RETURN_WRONG_ITEM">Return &mdash; wrong item sent back</option>
             </optgroup>
             <optgroup label="Quality control">
-              <option value="QC_HOLD">Put on QC hold</option>
-              <option value="ADJUSTMENT_QC_RELEASE">Released from QC hold</option>
+              <option value="QC_HOLD">Put on quality-check hold</option>
+              <option value="ADJUSTMENT_QC_RELEASE">Released from quality-check hold</option>
             </optgroup>
             <optgroup label="Moves and corrections">
               <option value="BIN_TRANSFER_OUT">Moved out of a bin</option>
@@ -3984,12 +4018,12 @@ input[type=tel],input[type=email],input[type=search],input:not([type]),textarea{
 
       <div class="rmc-card">
         <strong>What changed in v2.49</strong>
-        <div class="rmc-hint">Since v2.45: (0) The questions are the same for every format: a table that holds personal data asks the same confirmation question for PDF, Excel and Share as for CSV, and a table with more than 20,000 rows (PDF and Share) or 100,000 rows (Excel) tells you in plain words to use the CSV button instead. (1) Every list or report that you could already save as a CSV file now also has three more buttons next to the CSV button: PDF, Excel and Share. They are on Audit Log, SKU and Stock, Reports and Transactions, Security and data (one set for each table) and the row-error files on Purchasing. The PDF and Excel files hold exactly the same rows and columns as the CSV, with the title, the filters you used and the date and time in India time. Cost figures are in them only where the CSV already shows them (after your PIN); no password, PIN or secret is ever in them. Share opens your phone's share sheet (WhatsApp, Gmail, Telegram and so on) with the PDF. If your browser cannot share a file, the PDF is saved to your Downloads instead and the page tells you so. The CSV buttons work exactly as before. (2) The PIN boxes on the Security and data page and the Purchasing page are now ordinary text boxes that hide what you type, so the browser no longer offers to save them as passwords. Nothing else was changed.</div>
+        <div class="rmc-hint">Since v2.45: (0) The questions are the same for every format: a table that holds personal data asks the same confirmation question for PDF, Excel and Share as for CSV, and a table with more than 20,000 rows (PDF and Share) or 100,000 rows (Excel) tells you in plain words to use the CSV button instead. (1) Every list or report that you could already save as a CSV file now also has three more buttons next to the CSV button: PDF, Excel and Share. They are on Audit Log, SKU and Stock, Reports and Transactions, Safety and backups (one set for each table) and the row-error files on Purchasing. The PDF and Excel files hold exactly the same rows and columns as the CSV, with the title, the filters you used and the date and time in India time. Cost figures are in them only where the CSV already shows them (after your PIN); no password, PIN or secret is ever in them. Share opens your phone's share sheet (WhatsApp, Gmail, Telegram and so on) with the PDF. If your browser cannot share a file, the PDF is saved to your Downloads instead and the page tells you so. The CSV buttons work exactly as before. (2) The PIN boxes on the Safety and backups page and the Purchasing page are now ordinary text boxes that hide what you type, so the browser no longer offers to save them as passwords. Nothing else was changed.</div>
       </div>
 
       <div class="rmc-card">
         <strong>What changed in v2.45</strong>
-        <div class="rmc-hint">New page: Security and data. Audit trail check, data checks, export everything, backup status, keeping data, sign out everywhere, app error log, rate limits, who can do what, and a Today list. SKU and Stock (the list, its exports) and the Dashboard stock value now read cost figures through checked cost functions: when you are signed in without the admin password, the page asks for your own PIN in a box that hides what you type (kept while you keep using it, 30 idle minutes at most, and never more than 4 hours), and leaves the cost figures out if you cancel. The other pages were not changed.</div>
+        <div class="rmc-hint">New page: Safety and backups. Audit trail check, data checks, export everything, backup status, keeping data, sign out everywhere, app error log, rate limits, who can do what, and a Today list. SKU and Stock (the list, its exports) and the Dashboard stock value now read cost figures through checked cost functions: when you are signed in without the admin password, the page asks for your own PIN in a box that hides what you type (kept while you keep using it, 30 idle minutes at most, and never more than 4 hours), and leaves the cost figures out if you cancel. The other pages were not changed.</div>
       </div>
     </div>
 
@@ -4154,7 +4188,7 @@ input[type=tel],input[type=email],input[type=search],input:not([type]),textarea{
           <option value="ADJUSTMENT_REJECTED">Rejected / Written Off</option>
           <option value="QC_HOLD">Quality-check hold (pull out of sellable count)</option>
           <option value="ADJUSTMENT_QC_RELEASE">Quality-check release (back to sellable)</option>
-          <option value="NEW_STOCK_IN">New Stock In</option>
+          <option value="NEW_STOCK_IN">Stock received</option>
           <option value="RETURN_IN">Return In</option>
           <option value="RETURN_WRONG_ITEM">Return — Wrong Item (flag for review, not sellable)</option>
           <option value="MANUAL_CORRECTION">Manual Correction (other)</option>
@@ -5164,7 +5198,7 @@ function switchPage(name) {
   if (name === 'settings' && !settingsLoadedOnce) { loadSettingsPage(); }
   if (name === 'bins' && !binsLoadedOnce) { loadBins(); }
   if (name === 'devices' && !devicesLoadedOnce) { loadDevices(); }
-  if (name === 'secdata') { secInit(); }   // v2.45: Security and data
+  if (name === 'secdata') { secInit(); }   // v2.45: Safety and backups
 }
 
 
@@ -5321,6 +5355,10 @@ function idHl(text, q) {
     var a = map[p], b = map[p + nq.length - 1] + 1;
     return esc59(text.slice(0, a)) + '<mark>' + esc59(text.slice(a, b)) + '</mark>' + esc59(text.slice(b));
 }
+/* B1-BEGIN W3-05 icons (static markup, no data) */
+var ID_ICON_ONE = '<svg viewBox="0 0 24 24" width="30" height="30" aria-hidden="true" focusable="false"><rect x="9" y="9" width="11" height="11" rx="2" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M15 9V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h3" fill="none" stroke="currentColor" stroke-width="1.8"/></svg>';
+var ID_ICON_ALL = '<svg viewBox="0 0 24 24" width="30" height="30" aria-hidden="true" focusable="false"><rect x="9" y="9" width="11" height="11" rx="2" fill="currentColor" fill-opacity=".15" stroke="currentColor" stroke-width="1.8"/><path d="M15 9V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h3" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M12 13h5M12 16h5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>';
+/* B1-END */
 // o.compact: one tight line (tables, suggestion rows); o.noCopy: text only (print, rows that are buttons); o.open: SKU becomes a button that opens the SKU page; o.hl: typed query text, matched words are marked
 function idChip(p, o) {
     o = o || {};
@@ -5330,7 +5368,19 @@ function idChip(p, o) {
     var a = n.asin ? (o.hl ? idHl(n.asin, o.hl) : esc59(n.asin)) : '<span class="idc-g">no ASIN</span>';
     var s = n.sku ? (o.hl ? idHl(n.sku, o.hl) : esc59(n.sku)) : '<span class="idc-g">no SKU</span>';
     if (o.open && n.sku) s = '<button type="button" class="idc-o" data-w="open">' + esc59(n.sku) + '</button>';
-    var h = '<span class="idc' + (o.compact ? ' idc-c' : '') + '" data-sku="' + esc59(n.sku) + '" data-asin="' + esc59(n.asin) + '" data-title="' + esc59(n.title) + '"' + hyd + '>' +
+    /* B1-BEGIN W3-05 copy icons: full chip = a small copy icon after each value + one Copy all icon (the compact chip below is unchanged) */
+    var h;
+    if (!o.compact && !o.noCopy) {
+        var ib = function (w, label, cls) { return '<button type="button" class="idc-btn idc-ic' + (cls ? ' ' + cls : '') + '" data-w="' + w + '" aria-label="' + label + '" title="' + label + '">' + (w === 'all' ? ID_ICON_ALL : ID_ICON_ONE) + '</button>'; };
+        h = '<span class="idc" data-sku="' + esc59(n.sku) + '" data-asin="' + esc59(n.asin) + '" data-title="' + esc59(n.title) + '"' + hyd + '>' +
+            '<span class="idc-l idc-lt"><span class="idc-t">' + t + '</span>' + ib('title', 'Copy title') + '</span>' +
+            '<span class="idc-r"><span class="idc-l"><span class="idc-a">' + a + '</span>' + ib('asin', 'Copy ASIN') + '</span> ' +
+            '<span class="idc-l"><span class="idc-s">' + s + '</span>' + ib('sku', 'Copy SKU') + '</span>' +
+            ib('all', 'Copy all', 'idc-all') + '</span>';
+        return h + '</span>';
+    }
+    /* B1-END */
+    h = '<span class="idc' + (o.compact ? ' idc-c' : '') + '" data-sku="' + esc59(n.sku) + '" data-asin="' + esc59(n.asin) + '" data-title="' + esc59(n.title) + '"' + hyd + '>' +
         '<span class="idc-t">' + t + '</span> <span class="idc-r"><span class="idc-a">' + a + '</span> <span class="idc-s">' + s + '</span></span>';
     if (!o.noCopy) {
         if (o.compact) {
@@ -5339,11 +5389,6 @@ function idChip(p, o) {
                 '<span class="idc-b2"><button type="button" class="idc-btn" data-w="asin" aria-label="Copy ASIN">ASIN</button>' +
                 '<button type="button" class="idc-btn" data-w="sku" aria-label="Copy SKU">SKU</button>' +
                 '<button type="button" class="idc-btn" data-w="title" aria-label="Copy title">Title</button></span></span>';
-        } else {
-            h += '<span class="idc-b"><button type="button" class="idc-btn" data-w="asin" aria-label="Copy ASIN">Copy ASIN</button>' +
-                '<button type="button" class="idc-btn" data-w="sku" aria-label="Copy SKU">Copy SKU</button>' +
-                '<button type="button" class="idc-btn" data-w="title" aria-label="Copy title">Copy title</button>' +
-                '<button type="button" class="idc-btn idc-all" data-w="all" aria-label="Copy title, ASIN and SKU">Copy all</button></span>';
         }
     }
     return h + '</span>';
@@ -6836,7 +6881,7 @@ function rmcLoadScore() {
 // Database wording is never shown: errors go through friendlyError() or the plain-word table below.
 var SEC_SECTIONS = ['today', 'audit', 'recon', 'export', 'backup', 'retention', 'signout', 'errors', 'rates', 'roles'];
 var secCurrent = 'today';
-var SEC_RO_MSG = 'The Security and data page is for Admin and Supervisor accounts. A read-only account cannot run checks or change anything.';
+var SEC_RO_MSG = 'The Safety and backups page is for Admin and Supervisor accounts. A read-only account cannot run checks or change anything.';
 var SEC_ERR = (function () {
   var o = {}; Object.keys(RMC_ERR).forEach(function (k) { o[k] = RMC_ERR[k]; });
   o.BAD_TABLE = 'That table is not on the export list. Reload the list and try again.';
@@ -7298,8 +7343,8 @@ var TXN_LABEL = {
   ADJUSTMENT_LOST_THEFT: 'Lost or stolen',
   ADJUSTMENT_REJECTED:   'Rejected / written off',
   MANUAL_CORRECTION:     'Manual correction',
-  QC_HOLD:               'Put on QC hold',
-  ADJUSTMENT_QC_RELEASE: 'Released from QC hold',
+  QC_HOLD:               'Put on quality-check hold',
+  ADJUSTMENT_QC_RELEASE: 'Released from quality-check hold',
   BIN_TRANSFER_OUT:      'Moved out of a bin',
   BIN_TRANSFER_IN:       'Moved into a bin',
   INVENTORY_SYNC:        'Stock sync from Excel',
@@ -8465,7 +8510,7 @@ function exportAuditFullCSV(mode) {
 }
 
 // ═══════════════════════ SCAN SESSIONS (v2.17, Master Prompt v21, Part 4.2) ═══
-// Admin-side visibility on top of the App's own per-device Scan Sessions
+// Admin-side visibility on top of the App's own per-device Batch scans
 // feature (v76) -- an admin reviewing, committing, or voiding ANY employee's
 // session from ANY device, not just the phone that scanned it. Same
 // secret-gating UX as everywhere else in this file: the admin secret is
@@ -8502,9 +8547,9 @@ function loadScanSessions() {
   };
   var sessSecret = getAdminSecret();
   if (sessSecret) { params.p_admin_secret = sessSecret; }
-  withTimeout(db.rpc('oms_admin_list_scan_sessions', params), 10000, 'Scan Sessions').then(function (res) {
+  withTimeout(db.rpc('oms_admin_list_scan_sessions', params), 10000, 'Batch scans').then(function (res) {
     if (res.error) {
-      if (isBadSecretError(res.error)) { handleBadSecret('Scan Sessions'); return; }
+      if (isBadSecretError(res.error)) { handleBadSecret('Batch scans'); return; }
       body.innerHTML = '<tr class="empty-row"><td colspan="9">Error: ' + esc(friendlyError(res.error)) + '</td></tr>';
       return;
     }
@@ -8629,7 +8674,7 @@ function sendDeviceName(hint, name) {
     p_employee_code: getAdminPanelEmployeeCode()
   }), 12000, 'Name device').then(function (res) {
     if (res.error) {
-      if (isBadSecretError(res.error)) { handleBadSecret('Scan Sessions'); return; }
+      if (isBadSecretError(res.error)) { handleBadSecret('Batch scans'); return; }
       if (goBtn) { goBtn.disabled = false; goBtn.style.background = ''; }
       say(friendlyError(res.error), true); return;
     }
@@ -8857,7 +8902,7 @@ function openSessionView(sessionId, idx) {
   if (prevSec) { prevArgs.p_admin_secret = prevSec; }
   withTimeout(db.rpc('oms_admin_preview_session_void', prevArgs), 12000, 'Session contents').then(function (res) {
     if (res.error) {
-      if (isBadSecretError(res.error)) { handleBadSecret('Scan Sessions'); return; }
+      if (isBadSecretError(res.error)) { handleBadSecret('Batch scans'); return; }
       if (resEl) { resEl.className = 'result-msg err'; resEl.textContent = friendlyError(res.error); }
       return;
     }
@@ -8962,7 +9007,7 @@ function confirmSessionCloseForThem(sessionId, idx) {
     p_note: note
   }), 15000, 'Close batch for review').then(function (res) {
     if (res.error) {
-      if (isBadSecretError(res.error)) { handleBadSecret('Scan Sessions'); return; }
+      if (isBadSecretError(res.error)) { handleBadSecret('Batch scans'); return; }
       setSessionBusy(sessionId, false);
       if (goBtn) { goBtn.disabled = false; goBtn.style.background = ''; }
       if (noteEl) noteEl.disabled = false;
@@ -9047,7 +9092,7 @@ function confirmSessionAccept(sessionId, idx, isAbandoned) {
     p_force: !!isAbandoned
   }), 15000, 'Accept batch').then(function (res) {
     if (res.error) {
-      if (isBadSecretError(res.error)) { handleBadSecret('Scan Sessions'); return; }
+      if (isBadSecretError(res.error)) { handleBadSecret('Batch scans'); return; }
       setSessionBusy(sessionId, false);
       if (goBtn) { goBtn.disabled = false; goBtn.style.background = ''; }
       if (noteEl) noteEl.disabled = false;
@@ -9137,7 +9182,7 @@ function confirmResolveEmptySession(sessionId, idx) {
     p_caller_employee_code: getAdminPanelEmployeeCode()
   }), 12000, 'Empty check').then(function (res) {
     if (res.error) {
-      if (isBadSecretError(res.error)) { handleBadSecret('Scan Sessions'); return; }
+      if (isBadSecretError(res.error)) { handleBadSecret('Batch scans'); return; }
       setSessionBusy(sessionId, false);
       if (goBtn) { goBtn.disabled = false; goBtn.style.background = '#9A6700'; }
       if (noteEl) noteEl.disabled = false;
@@ -9170,7 +9215,7 @@ function confirmResolveEmptySession(sessionId, idx) {
       p_force: true
     }), 15000, 'Close off empty batch').then(function (r2) {
       if (r2.error) {
-        if (isBadSecretError(r2.error)) { handleBadSecret('Scan Sessions'); return; }
+        if (isBadSecretError(r2.error)) { handleBadSecret('Batch scans'); return; }
         if (goBtn) { goBtn.disabled = false; goBtn.style.background = '#9A6700'; }
         if (noteEl) noteEl.disabled = false;
         say(friendlyError(r2.error), true); return;
@@ -9263,7 +9308,7 @@ function openSessionReverse(sessionId, idx) {
     p_caller_employee_code: getAdminPanelEmployeeCode()
   }), 12000, 'Reverse preview').then(function (res) {
     if (res.error) {
-      if (isBadSecretError(res.error)) { handleBadSecret('Scan Sessions'); return; }
+      if (isBadSecretError(res.error)) { handleBadSecret('Batch scans'); return; }
       if (resEl) { resEl.className = 'result-msg err'; resEl.textContent = friendlyError(res.error); }
       return;
     }
@@ -9469,7 +9514,7 @@ function confirmSessionReverse(sessionId, idx) {
   withTimeout(db.rpc('oms_void_scan_session', args), 20000, 'Reverse session').then(function (res) {
     if (res.error) {
       setBusy(false); setSessionBusy(sessionId, false);
-      if (isBadSecretError(res.error)) { handleBadSecret('Scan Sessions'); return; }
+      if (isBadSecretError(res.error)) { handleBadSecret('Batch scans'); return; }
       say(friendlyError(res.error), true);
       return;
     }
@@ -9512,7 +9557,7 @@ function confirmSessionReverse(sessionId, idx) {
 
 // ═══════════════════════ PHONES (v2.27) ═══════════════════════
 // Every phone that has signed in or scanned, in one place. Before this the
-// only sight of a phone was a random code in a column on the Scan Sessions
+// only sight of a phone was a random code in a column on the Batch scans
 // page, one row per batch -- there was no list, no name, and no way to stop
 // one being used.
 //
@@ -9873,7 +9918,7 @@ function saveEmployeeRename(code) {
     if (res.data && res.data.ok === false) { say(res.data.message || 'Not saved.', true); return; }
     say('Renamed.', false);
     // loadEmployees() refreshes the dropdowns itself once its own fetch lands.
-    // The Scan Sessions list shows the name too, so mark it stale rather than
+    // The Batch scans list shows the name too, so mark it stale rather than
     // leaving the old name sitting there until someone reloads the page.
     setTimeout(function () {
       loadEmployees();
@@ -10643,22 +10688,22 @@ function clearEmployeeTwoFactor(code) {
 // v2.36 (2026-10-02): + reserved_stock - Admin and Supervisor presets ON, every
 // staff preset OFF (the founder decides per person). Matches App v107.
 var ROLE_PERMISSION_PRESETS = {
-  WAREHOUSE_STAFF:  { pick: true,  move: false, stock: false, log: true, logScope: 'own', guide: true, settings: false, dash: false, sessions: false, reserved_stock: false, analytics: false, raw_materials: false, customers: false, production: false },
-  BILLING_OPERATOR: { pick: true,  move: false, stock: true,  log: true, logScope: 'own', guide: true, settings: false, dash: false, sessions: false, reserved_stock: false, analytics: false, raw_materials: false, customers: false, production: false },
-  INVENTORY_LEAD:   { pick: true,  move: true,  stock: true,  log: true, logScope: 'all', guide: true, settings: false, dash: false, sessions: false, reserved_stock: false, analytics: false, raw_materials: false, customers: false, production: false },
-  PRODUCTION_LEAD:  { pick: false, move: false, stock: true,  log: true, logScope: 'all', guide: true, settings: false, dash: false, sessions: false, reserved_stock: false, analytics: false, raw_materials: false, customers: false, production: false },
-  ADMIN:            { pick: true,  move: true,  stock: true,  log: true, logScope: 'all', guide: true, settings: true,  dash: true, sessions: true, reserved_stock: true, analytics: true, raw_materials: true, customers: true, production: true },
+  WAREHOUSE_STAFF:  { pick: true,  move: false, stock: false, log: true, logScope: 'own', guide: true, settings: false, dash: false, sessions: false, reserved_stock: false, analytics: false, raw_materials: false, customers: false, production: false, approve_tasks: false, /* B10 */ void_entry: false, stock_correction: false, release_held_stock: false, bulk_reverse: false, zero_inventory: false, delete_records: false, customer_data_erase_export: false },
+  BILLING_OPERATOR: { pick: true,  move: false, stock: true,  log: true, logScope: 'own', guide: true, settings: false, dash: false, sessions: false, reserved_stock: false, analytics: false, raw_materials: false, customers: false, production: false, approve_tasks: false, /* B10 */ void_entry: false, stock_correction: false, release_held_stock: false, bulk_reverse: false, zero_inventory: false, delete_records: false, customer_data_erase_export: false },
+  INVENTORY_LEAD:   { pick: true,  move: true,  stock: true,  log: true, logScope: 'all', guide: true, settings: false, dash: false, sessions: false, reserved_stock: false, analytics: false, raw_materials: false, customers: false, production: false, approve_tasks: false, /* B10 */ void_entry: false, stock_correction: false, release_held_stock: false, bulk_reverse: false, zero_inventory: false, delete_records: false, customer_data_erase_export: false },
+  PRODUCTION_LEAD:  { pick: false, move: false, stock: true,  log: true, logScope: 'all', guide: true, settings: false, dash: false, sessions: false, reserved_stock: false, analytics: false, raw_materials: false, customers: false, production: false, approve_tasks: false, /* B10 */ void_entry: false, stock_correction: false, release_held_stock: false, bulk_reverse: false, zero_inventory: false, delete_records: false, customer_data_erase_export: false },
+  ADMIN:            { pick: true,  move: true,  stock: true,  log: true, logScope: 'all', guide: true, settings: true,  dash: true, sessions: true, reserved_stock: true, analytics: true, raw_materials: true, customers: true, production: true, approve_tasks: true, /* B10 */ void_entry: true, stock_correction: true, release_held_stock: true, bulk_reverse: true, zero_inventory: true, delete_records: true, customer_data_erase_export: true },
   // v2.29: on the phone App a Supervisor gets the same sections as an Admin.
   // Everything a Supervisor must not reach lives in the Admin Panel and in the
   // database, not in these phone-App tick-boxes.
-  SUPERVISOR:       { pick: true,  move: true,  stock: true,  log: true, logScope: 'all', guide: true, settings: true,  dash: true, sessions: true, reserved_stock: true, analytics: true, raw_materials: true, customers: true, production: true }
+  SUPERVISOR:       { pick: true,  move: true,  stock: true,  log: true, logScope: 'all', guide: true, settings: true,  dash: true, sessions: true, reserved_stock: true, analytics: true, raw_materials: true, customers: true, production: true, approve_tasks: true, /* B10 */ void_entry: false, stock_correction: true, release_held_stock: true, bulk_reverse: false, zero_inventory: false, delete_records: false, customer_data_erase_export: false }
 };
 // v2.17 (Master Prompt v21, Part 5): matches the App's own ROLE_PERMISSIONS.ADMIN
 // fix — the "off for everyone, including ADMIN" launch decision behind Scan
 // Sessions ends here, scoped to ADMIN only. The other 4 presets are untouched
 // (still sessions:false). applyPermissionPreset('ADMIN') needs no separate
 // change — it just reads this object, so clicking the Admin preset now
-// correctly ticks Scan Sessions along with everything else already true here.
+// correctly ticks Batch scans along with everything else already true here.
 var PERMISSION_SECTIONS = [
   { key: 'pick',     label: 'Pick',      help: 'Scan and fulfil customer orders — the App\'s main PICK tab.' },
   { key: 'move',     label: 'Move',      help: 'Receive new stock, transfer between bins, and make manual stock corrections.' },
@@ -10667,12 +10712,12 @@ var PERMISSION_SECTIONS = [
   { key: 'guide',    label: 'Guide',     help: 'The App\'s in-app help/reference guide. Almost never worth hiding — checked by default.' },
   { key: 'settings', label: 'Settings',  help: 'The App\'s own Settings tab (device/session tools). Not the same as this Admin Panel.' },
   { key: 'dash',     label: 'Dashboard', help: 'The Owner Dashboard tab inside the phone App (KPIs/charts). Separate from this Admin Panel\'s own Dashboard page.' },
-  // v2.15 (Master Prompt v19, Part 2) — Scan Sessions, OFF by default for
+  // v2.15 (Master Prompt v19, Part 2) — Batch scans, OFF by default for
   // every preset. v2.17 (Master Prompt v21, Part 5) ended that specifically
   // for the ADMIN preset (see ROLE_PERMISSION_PRESETS.ADMIN above) — every
   // other preset is still OFF by default. Turn it on for one warehouse-staff
   // person for a week before rolling it out to the floor.
-  { key: 'sessions', label: 'Scan Sessions', help: 'Lets this person group a batch of MOVE scans into a session, review it for double-counts and missed items, then commit it or reverse the whole batch. Off by default for every role except ADMIN. Reversing a session needs your own PIN (or the Admin Password).' },
+  { key: 'sessions', label: 'Batch scans', help: 'Lets this person group a batch of MOVE scans into a session, review it for double-counts and missed items, then commit it or reverse the whole batch. Off by default for every role except ADMIN. Reversing a session needs your own PIN (or the Admin Password).' },
   // v2.36 (2026-10-02): the phone App's PICK > "Reserved & held stock" sub-section.
   { key: 'reserved_stock', label: 'Reserved & held stock (view / release)', help: 'Lets this person open PICK &rsaquo; Reserved &amp; held stock in the phone App: stock kept aside for printed slips and pick sheets, open pick lists, and releasing. Releasing still needs a Supervisor or Admin PIN. An Admin always has this; a Supervisor has it unless you untick it; everyone else only when ticked.' },
   // v2.37 (2026-10-07): the phone App's DASH > Sales / Inventory / Forecast / Production views and the SKU page.
@@ -10681,7 +10726,19 @@ var PERMISSION_SECTIONS = [
   { key: 'raw_materials', label: 'Raw materials (stock in / out / vendors)', help: 'Lets this person open the Raw materials section in the phone App: record raw material coming in and going out, and see vendors. An Admin always has this; a Supervisor has it unless you untick it; everyone else only when ticked.' },
   // v2.39 (2026-10-13): the phone App's Customers / CRM and Production sections.
   { key: 'customers', label: 'Customers / CRM (view, add, import)', help: 'Lets this person open the Customers section in the phone App: look up customers, add new ones and import a customer list. An Admin always has this; a Supervisor has it unless you untick it; everyone else only when ticked.' },
-  { key: 'production', label: 'Production (plan and mark done)', help: 'Lets this person open the Production section in the phone App: see the production plan and mark jobs done. An Admin always has this; a Supervisor has it unless you untick it; everyone else only when ticked.' }
+  /* B9-BEGIN D-14: approve or decline requests on the Today list. Saved as permissions.approve_tasks. */
+  { key: 'approve_tasks', label: 'Can approve tasks / requests', help: 'Lets this person approve or decline the requests on the Today list: void an entry, stock correction, purchase, and other changes that cannot be undone. Nobody can approve their own request (only an Admin or Owner may). An Admin, Owner or Supervisor can always approve; everyone else only when ticked.' },
+  /* B9-END */
+  { key: 'production', label: 'Production (plan and mark done)', help: 'Lets this person open the Production section in the phone App: see the production plan and mark jobs done. An Admin always has this; a Supervisor has it unless you untick it; everyone else only when ticked.' },
+  /* B10-BEGIN D-11: critical actions. Saved inside the same permissions object, same path as the boxes above. */
+  { key: 'void_entry', group: 'critical', label: 'Void an entry', help: 'Shows the Void button on stock history, the entry list and bills, to undo a stock entry or a bill. Still asks for the PIN again. An Admin or Owner always has it; a Supervisor only when ticked.' },
+  { key: 'stock_correction', group: 'critical', label: 'Correct stock', help: 'Shows Correct the count, Add found stock and Remove lost stock on the Stock product page and the Move screen. Still asks for the PIN again. Admin and Owner always; a Supervisor has it unless you untick it.' },
+  { key: 'release_held_stock', group: 'critical', label: 'Release held stock', help: 'Shows the Release buttons on Reserved and held stock, and Cancel batch. Still asks for the PIN again. Admin and Owner always; a Supervisor has it unless you untick it.' },
+  { key: 'bulk_reverse', group: 'critical', label: 'Reverse a whole batch of scans', help: 'Shows the Reverse button on a batch scan session, which backs out every entry of the batch. Still asks for the PIN again. Admin and Owner always; a Supervisor only when ticked.' },
+  { key: 'zero_inventory', group: 'critical', label: 'Set stock to zero', help: 'Reserved for a button that clears the stock of a product to zero. The phone App has no such button yet, so this tick does nothing today. Admin and Owner always.' },
+  { key: 'delete_records', group: 'critical', label: 'Delete records', help: 'Shows Delete on bins, draft purchase orders and drafts. Admin and Owner always; a Supervisor only when ticked.' },
+  { key: 'customer_data_erase_export', group: 'critical', label: 'Erase or export customer data', help: 'Shows Erase personal data and the customer export (CSV / Excel) buttons. Still asks for the PIN again. Admin and Owner always; a Supervisor only when ticked.' }
+  /* B10-END */
 ];
 
 function buildPermissionUIHtml(prefix) {
@@ -10692,10 +10749,14 @@ function buildPermissionUIHtml(prefix) {
           '<label><input type="radio" name="' + prefix + '-log-scope" value="all"> Full store log</label>' +
         '</span>'
       : '';
-    return '<div class="perm-row">' +
+    /* B10-BEGIN: the last 7 sections form one labelled group, opened before the first and closed after the last */
+    var b10Pre = s.key === 'void_entry' ? '<div class="b10-crit" id="' + prefix + '-critical-group" style="grid-column:1/-1;margin:12px 0 8px;padding:10px;border:1px solid #C9A227;border-radius:8px;background:#FFFBEA;"><h4 style="margin:0 0 4px;">Critical actions</h4><div class="hint-text" style="margin:0 0 8px;">Buttons that change stock or data for good. Each shows only to a person you tick here, in the screen it belongs to (Admin and Owner always see them). Most of them also ask for the PIN again, as each line says. These tick-boxes hide or show the buttons on the phone; they are not a lock inside the database.</div>' : '';
+    var b10Post = s.key === 'customer_data_erase_export' ? '</div>' : '';
+    /* B10-END */
+    return b10Pre + '<div class="perm-row">' +
       '<label title="' + s.help.replace(/<[^>]+>/g, '').replace(/&rsaquo;/g, '>').replace(/&amp;/g, '&').replace(/"/g, '&quot;') + '"><input type="checkbox" id="' + prefix + '-perm-' + s.key + '" onchange="onPermCheckboxChange(\'' + prefix + '\')"> <strong>' + s.label.replace(/&(?![a-z#0-9]+;)/g, '&amp;') + '</strong></label>' + scopeRow +
       '<div class="perm-help">' + s.help + '</div>' +
-      '</div>';
+      '</div>' + b10Post;
   }).join('');
 
   var infoRows = PERMISSION_SECTIONS.map(function (s) {
@@ -10714,6 +10775,9 @@ function buildPermissionUIHtml(prefix) {
         '<option value="CUSTOM">Custom</option>' +
       '</select>' +
     '</div>' +
+    /* B9-BEGIN D-11: plain words */
+    '<div class="hint-text" style="margin:4px 0 8px;">Two levels. <strong>Per role:</strong> pick a role in the box above and it ticks the usual sections for that role. <strong>Per person:</strong> then tick or untick any single box below for this one person (the role box changes to Custom). An Admin sees every section and every button; other people see only what is ticked here.</div>' +
+    /* B9-END */
     '<div class="perm-grid">' + boxes + '</div>' +
     '<div class="admin-access-card">' +
       '<label><input type="checkbox" id="' + prefix + '-admin-access" onchange="toggleAdminAccessSub(\'' + prefix + '\')"> Can log into Admin Panel</label>' +
@@ -10818,6 +10882,8 @@ function prefillPermissionUI(prefix, e) {
     if (el && s.key === 'raw_materials' && perm.raw_materials === undefined) el.checked = (e.role === 'ADMIN' || e.role === 'SUPERVISOR');   // v2.38
     if (el && s.key === 'customers' && perm.customers === undefined) el.checked = (e.role === 'ADMIN' || e.role === 'SUPERVISOR');   // v2.39
     if (el && s.key === 'production' && perm.production === undefined) el.checked = (e.role === 'ADMIN' || e.role === 'SUPERVISOR');   // v2.39
+    if (el && s.key === 'approve_tasks' && perm.approve_tasks === undefined) el.checked = (e.role === 'ADMIN' || e.role === 'OWNER' || e.role === 'SUPERVISOR');   /* B9 */
+    /* B10-BEGIN */ if (el && s.group === 'critical' && perm[s.key] === undefined) el.checked = (e.role === 'ADMIN' || e.role === 'OWNER' || ((s.key === 'stock_correction' || s.key === 'release_held_stock') && e.role === 'SUPERVISOR')); /* B10-END */
   });
   var scopeEl = document.querySelector('input[name="' + prefix + '-log-scope"][value="' + (perm.logScope || 'own') + '"]');
   if (scopeEl) scopeEl.checked = true;
@@ -12187,7 +12253,7 @@ function axText(v) {
   return s;
 }
 function axStr(c) { return typeof c === 'number' ? String(c) : (c === null || c === undefined ? '' : String(c)); }
-// rows (array of objects) -> { head, body }. union: columns are the union of every row's keys (the Security and data export); else the first row's keys (downloadCSV).
+// rows (array of objects) -> { head, body }. union: columns are the union of every row's keys (the Safety and backups export); else the first row's keys (downloadCSV).
 function axTable(rows, union) {
   var keys = [];
   if (union) rows.forEach(function (r) { Object.keys(r || {}).forEach(function (k) { if (keys.indexOf(k) < 0) keys.push(k); }); });
@@ -12718,5 +12784,9 @@ function e2Init() {
 }
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', e2Init); else e2Init();
 </script>
+<!-- B9-BEGIN text size button -->
+<button type="button" class="af-fs-fab" id="af-fs-fab" onclick="afFontFabToggle()" aria-label="Text size" aria-expanded="false" title="Text size">Aa<span style="font-size:12px;font-weight:700;margin-left:6px">Text size</span></button>
+<div class="af-fs-pop" id="af-fs-pop" role="dialog" aria-label="Text size"><div class="af-fs-t">Text size</div><div id="af-fs-ctl-fab"></div></div>
+<!-- B9-END -->
 </body>
 </html>
