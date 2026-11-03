@@ -2671,6 +2671,7 @@ html{overflow-wrap:break-word}
 .e2-fold-body{display:flex;flex-wrap:wrap;gap:6px;padding:8px 0}
 .e2-fold-body>*{flex:1 1 150px;min-width:0;max-width:100%;overflow-wrap:anywhere;word-break:break-word}
 .e2-fold-body button,.e2-fold-body .btn{min-height:44px!important}
+.e2-fold-body>.card,.e2-fold-body>.filter-bar,.e2-fold-body>details{flex:1 1 100%}
 .e2-purpose{margin:0 0 10px;color:#6B7280;font-size:calc(13px*var(--fs,1));line-height:1.4}
 .e2-find{display:flex;align-items:center;gap:8px;margin:0 0 10px;flex-wrap:wrap}
 .e2-find-in{flex:1 1 200px;min-height:44px;padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;font-size:calc(14px*var(--fs,1))}
@@ -2960,7 +2961,7 @@ input[type=tel],input[type=email],input[type=search],input:not([type]),textarea{
     <button class="login-btn" id="emp-login-submit-btn" onclick="attemptEmployeeLogin()">Continue</button>
     <div class="login-err" id="emp-login-err-msg"></div>
     <div class="af-fs-login"><div class="af-fs-t" style="text-align:center;font-size:11px;color:#888;margin-bottom:4px">Text size</div><div id="af-fs-ctl-login"></div></div>
-    <div class="login-hint">Admin and Supervisor accounts can use this panel.</div>
+    <div class="login-hint">Only Admin and Supervisor accounts can sign in here.</div>
   </div>
 </div>
 
@@ -3001,7 +3002,7 @@ input[type=tel],input[type=email],input[type=search],input:not([type]),textarea{
       <div class="login-brand-title">🔐 Admin Panel</div>
     </div>
     <div class="login-field">
-      <label for="login-secret-input">Admin Password <span style="font-weight:400;color:#6B7280;">(Supervisors: your Supervisor Password)</span></label>
+      <label for="login-secret-input">Admin Password <span style="font-weight:400;color:#6B7280;">(Supervisors: use your own password)</span></label>
       <input type="text" class="pw-mask" autocapitalize="off" spellcheck="false" id="login-secret-input" placeholder="Enter your password" autocomplete="off" autofocus>
     </div>
     <!-- v2.14 (Master Prompt v17, Part A) — opt-in, unchecked by default,
@@ -3056,16 +3057,16 @@ input[type=tel],input[type=email],input[type=search],input:not([type]),textarea{
     <div class="sidebar-footer">
       <div class="af-fs-side"><div class="af-fs-t">Text size</div><div id="af-fs-ctl-side"></div></div>
       <button class="logout-btn" onclick="adminLogout()">⎋ Logout</button>
-      <div class="ver-footer">ArtzFolio Admin Panel v2.52</div>
+      <div class="ver-footer">ArtzFolio Admin Panel v2.55</div>
     </div>
   </div>
 
   <div class="main">
-    <div class="db-offline-banner" id="db-offline-banner">⚠ Live database not reachable right now. Data cannot be loaded or saved until this reconnects — check your internet connection.</div>
+    <div class="db-offline-banner" id="db-offline-banner">⚠ Cannot reach the live database right now. You cannot load or save data until it reconnects. Check your internet connection.</div>
     <!-- v2.11 (Gap 3): shown only for a READ_ONLY_ADMIN session. UI-layer
          convenience only -- the real enforcement is server-side in every
          write RPC, so this banner is never the only thing stopping a write. -->
-    <div class="db-offline-banner" id="supervisor-banner" style="background:#FFF8E6;border-color:#9A6700;color:#6b4e00;">&#128737; Supervisor access &mdash; you can run everything here on the Founder's behalf. Adding or switching off accounts, changing anyone's access level, and the two passwords are his alone.</div>
+    <div class="db-offline-banner" id="supervisor-banner" style="background:#FFF8E6;border-color:#9A6700;color:#6b4e00;">&#128737; Supervisor access &mdash; you can do everything here for the Founder. Only he can add or switch off accounts, change access levels, or change the two passwords.</div>
     <div class="db-offline-banner" id="readonly-admin-banner" style="background:#eaf2fb;border-color:#0A1628;color:#0A1628;">👁 Read-only access — you can view everything here, but cannot make changes. Ask a full Admin for write access.</div>
 
     <!-- ══════════════ DASHBOARD ══════════════ -->
@@ -3073,9 +3074,8 @@ input[type=tel],input[type=email],input[type=search],input:not([type]),textarea{
       <div class="page-header">
         <div>
           <div class="page-title">Dashboard</div>
-          <div class="page-sub">Live overview of stock, staff activity, and warehouse health</div>
+          <div class="page-sub">A quick look at your stock, your staff and your shelves</div>
         </div>
-        <button class="btn btn-primary" onclick="loadDashboard()">↻ Refresh</button>
       </div>
 
       <!-- v2.12: global filters. Category/ABC/Status filter the KPI tiles + the
@@ -3087,23 +3087,42 @@ input[type=tel],input[type=email],input[type=search],input:not([type]),textarea{
       <div class="filter-bar">
         <div class="filter-field"><label>From</label><input type="date" id="dash-date-from"></div>
         <div class="filter-field"><label>To</label><input type="date" id="dash-date-to"></div>
-        <div class="filter-field"><label>Category</label>
-          <select id="dash-filter-category"><option value="">All</option></select>
-        </div>
-        <div class="filter-field"><label>ABC Tier</label>
-          <select id="dash-filter-abc"><option value="">All</option><option value="A">A</option><option value="B">B</option><option value="C">C</option></select>
-        </div>
-        <div class="filter-field"><label>Stock Status</label>
-          <select id="dash-filter-status"><option value="">All</option><option value="IN_STOCK">In Stock</option><option value="LOW_STOCK">Low Stock</option><option value="OUT_OF_STOCK">Out of Stock</option></select>
-        </div>
-        <div class="filter-field"><label>Bin</label>
-          <select id="dash-filter-bin"><option value="">All</option></select>
-        </div>
         <div class="filter-actions">
-          <button class="btn btn-grey" onclick="resetDashFilters()">Reset</button>
-          <button class="btn btn-primary" onclick="loadDashboard()">Apply Filters</button>
+          <button class="btn btn-primary" onclick="loadDashboard()">Show results</button>
         </div>
       </div>
+      <details class="e2-more a54-menu"><summary>More filters and chart views</summary><div class="e2-fold-body">
+        <div class="filter-bar" style="margin:0;">
+          <div class="filter-field"><label>Category</label>
+            <select id="dash-filter-category"><option value="">All</option></select>
+          </div>
+          <div class="filter-field"><label>ABC Tier</label>
+            <select id="dash-filter-abc"><option value="">All</option><option value="A">A</option><option value="B">B</option><option value="C">C</option></select>
+          </div>
+          <div class="filter-field"><label>Stock Status</label>
+            <select id="dash-filter-status"><option value="">All</option><option value="IN_STOCK">In Stock</option><option value="LOW_STOCK">Low Stock</option><option value="OUT_OF_STOCK">Out of Stock</option></select>
+          </div>
+          <div class="filter-field"><label>Bin</label>
+            <select id="dash-filter-bin"><option value="">All</option></select>
+          </div>
+          <div class="filter-actions">
+            <button class="btn btn-grey" onclick="resetDashFilters()">Clear filters</button>
+            <button class="btn btn-primary" onclick="loadDashboard()">↻ Refresh</button>
+          </div>
+        </div>
+        <div class="filter-field" style="flex:1 1 100%;"><label>Stock chart: count by</label>
+          <div class="chart-toggle-btns" id="dash-status-toggle">
+            <button class="chart-toggle-btn active" data-mode="sku" onclick="setDashStatusChartMode('sku')">By SKU</button>
+            <button class="chart-toggle-btn" data-mode="units" onclick="setDashStatusChartMode('units')">By Units</button>
+          </div>
+        </div>
+        <div class="filter-field" style="flex:1 1 100%;"><label>Category chart: count by</label>
+          <div class="chart-toggle-btns" id="dash-category-toggle">
+            <button class="chart-toggle-btn active" data-mode="units" onclick="setDashCategoryChartMode('units')">By Units</button>
+            <button class="chart-toggle-btn" data-mode="value" onclick="setDashCategoryChartMode('value')">By Value</button>
+          </div>
+        </div>
+      </div></details>
 
       <div class="tiles" id="dash-tiles"><div class="tile"><div class="tile-label">Loading...</div></div></div>
 
@@ -3111,20 +3130,12 @@ input[type=tel],input[type=email],input[type=search],input:not([type]),textarea{
         <div class="chart-card">
           <div class="chart-card-head">
             <h3>📦 Stock Status</h3>
-            <div class="chart-toggle-btns" id="dash-status-toggle">
-              <button class="chart-toggle-btn active" data-mode="sku" onclick="setDashStatusChartMode('sku')">By SKU</button>
-              <button class="chart-toggle-btn" data-mode="units" onclick="setDashStatusChartMode('units')">By Units</button>
-            </div>
           </div>
           <div class="chart-canvas-wrap"><canvas id="dash-chart-status"></canvas></div>
         </div>
         <div class="chart-card">
           <div class="chart-card-head">
             <h3>🗂️ Category Breakdown</h3>
-            <div class="chart-toggle-btns" id="dash-category-toggle">
-              <button class="chart-toggle-btn active" data-mode="units" onclick="setDashCategoryChartMode('units')">By Units</button>
-              <button class="chart-toggle-btn" data-mode="value" onclick="setDashCategoryChartMode('value')">By Value</button>
-            </div>
           </div>
           <div class="chart-canvas-wrap"><canvas id="dash-chart-category"></canvas></div>
         </div>
@@ -3144,13 +3155,13 @@ input[type=tel],input[type=email],input[type=search],input:not([type]),textarea{
         </div>
         <div class="chart-card wide">
           <div class="chart-card-head">
-            <h3>🔥 Top Movers <span class="chart-caption">By transaction volume (units moved), within selected date range</span></h3>
+            <h3>🔥 Top Movers <span class="chart-caption">By number of units moved in the dates you picked</span></h3>
           </div>
           <div class="chart-canvas-wrap"><canvas id="dash-chart-movers"></canvas></div>
         </div>
         <div class="chart-card wide">
           <div class="chart-card-head">
-            <h3>📈 Daily Activity Trend <span class="chart-caption">Units in vs. units out, within selected date range</span></h3>
+            <h3>📈 Stock in and out by day<span class="chart-caption">Units in vs. units out, within selected date range</span></h3>
           </div>
           <div class="chart-canvas-wrap"><canvas id="dash-chart-trend"></canvas></div>
         </div>
@@ -3163,7 +3174,7 @@ input[type=tel],input[type=email],input[type=search],input:not([type]),textarea{
       </div>
 
       <div class="card">
-        <h3>👤 Staff Activity Today</h3>
+        <h3>👤 What staff did today</h3>
         <div class="table-wrap">
           <table>
             <thead><tr><th>Employee</th><th>Name</th><th>Picks Today</th><th>Moves Today</th><th>Total Actions</th><th>First Activity</th><th>Last Activity</th></tr></thead>
@@ -3178,23 +3189,24 @@ input[type=tel],input[type=email],input[type=search],input:not([type]),textarea{
       <div class="page-header">
         <div>
           <div class="page-title">Permanent activity record</div>
-          <div class="page-sub">Permanent, unclearable business-conduct record — every meaningful action, who did it, and when.</div>
+          <div class="page-sub">A record nobody can erase. It shows what was done, who did it and when.</div>
         </div>
-        <div>
-          <button class="btn btn-gold" onclick="exportAuditCSV()">⬇ Export CSV (loaded page)</button>
+      </div>
+      <details class="e2-more a54-menu"><summary>More filters and export</summary><div class="e2-fold-body">
+        <div style="flex:1 1 100%">
+          <button class="btn btn-gold" onclick="exportAuditCSV()">⬇ Download this page as a spreadsheet</button>
           <span class="ax-btns" role="group" aria-label="Loaded page"><button class="btn btn-grey" title="Loaded page: PDF" onclick="exportAuditCSV('pdf')">PDF</button><button class="btn btn-grey" title="Loaded page: Excel" onclick="exportAuditCSV('xlsx')">Excel</button><button class="btn btn-primary" title="Loaded page: share the PDF" onclick="exportAuditCSV('share')">Share</button></span>
-          <button class="btn btn-gold" onclick="exportAuditFullCSV()">⬇ Export Full CSV (filtered)</button>
+          <button class="btn btn-gold" onclick="exportAuditFullCSV()">⬇ Download all matching rows as a spreadsheet</button>
           <span class="ax-btns" role="group" aria-label="Full filtered list"><button class="btn btn-grey" title="Full filtered list: PDF" onclick="exportAuditFullCSV('pdf')">PDF</button><button class="btn btn-grey" title="Full filtered list: Excel" onclick="exportAuditFullCSV('xlsx')">Excel</button><button class="btn btn-primary" title="Full filtered list: share the PDF" onclick="exportAuditFullCSV('share')">Share</button></span>
           <span class="export-progress" id="audit-export-progress"></span>
         </div>
-      </div>
-      <div class="filter-bar">
-        <div class="filter-field"><label>From</label><input type="date" id="audit-from"></div>
-        <div class="filter-field"><label>To</label><input type="date" id="audit-to"></div>
-        <div class="filter-field"><label>Employee</label>
+<div class="filter-bar">
+        <div class="filter-field"><label>From date</label><input type="date" id="audit-from"></div>
+        <div class="filter-field"><label>To date</label><input type="date" id="audit-to"></div>
+        <div class="filter-field"><label>Person</label>
           <select id="audit-employee"><option value="">All</option></select>
         </div>
-        <div class="filter-field"><label>Action Type</label>
+        <div class="filter-field"><label>What happened</label>
           <select id="audit-action">
             <option value="">All</option>
             <optgroup label="Signing in">
@@ -3217,7 +3229,7 @@ input[type=tel],input[type=email],input[type=search],input:not([type]),textarea{
               <option value="SCAN_SESSION_CLOSED">Scan session closed for review</option>
               <option value="SCAN_SESSION_COMMITTED">Scan session accepted</option>
               <option value="SCAN_SESSION_VOIDED">Scan session reversed</option>
-              <option value="SESSION_BIN_TRANSFER">Whole scan session moved to another bin</option>
+              <option value="SESSION_BIN_TRANSFER">Whole batch scan moved to another bin</option>
             </optgroup>
             <optgroup label="Staff accounts">
               <option value="EMPLOYEE_ADDED">Staff account created</option>
@@ -3233,12 +3245,12 @@ input[type=tel],input[type=email],input[type=search],input:not([type]),textarea{
               <option value="TOTP_ENABLED">Phone code turned on</option>
               <option value="ADMIN_TOTP_ENROLLED">Phone code set up by an Admin</option>
               <option value="ADMIN_TOTP_RESET">Phone code cleared by an Admin</option>
-              <option value="ADMIN_TOTP_REQUIRED_ON">Phone code made compulsory</option>
-              <option value="ADMIN_TOTP_REQUIRED_OFF">Phone code no longer compulsory</option>
+              <option value="ADMIN_TOTP_REQUIRED_ON">Phone code now required</option>
+              <option value="ADMIN_TOTP_REQUIRED_OFF">Phone code no longer required</option>
               <option value="TOTP_BACKUP_REGENERATED">New backup codes issued</option>
               <option value="TOTP_RESET_BY_ADMIN">Phone code cleared by an Admin</option>
-              <option value="TOTP_REQUIRED_ON">Phone code made compulsory</option>
-              <option value="TOTP_REQUIRED_OFF">Phone code no longer compulsory</option>
+              <option value="TOTP_REQUIRED_ON">Phone code now required</option>
+              <option value="TOTP_REQUIRED_OFF">Phone code no longer required</option>
             </optgroup>
             <optgroup label="Picking">
               <option value="PICK_CONFIRMED">Pick confirmed</option>
@@ -3247,7 +3259,7 @@ input[type=tel],input[type=email],input[type=search],input:not([type]),textarea{
             <optgroup label="Admin actions">
               <option value="ADMIN_BULK_SKU_UPDATE">Bulk SKU update</option>
               <option value="ADMIN_SECRET_ROTATED">Admin Password changed</option>
-              <option value="ADMIN_STOCK_ADJUSTMENT">Stock quantity overridden by an Admin</option>
+              <option value="ADMIN_STOCK_ADJUSTMENT">Stock changed by an Admin</option>
               <option value="ADMIN_ZERO_ALL_INVENTORY">All stock reset to zero</option>
               <option value="SUPERVISOR_PASSWORD_SET">Supervisor Password changed</option>
               <option value="SUPERVISOR_PASSWORD_CLEARED">Supervisor Password removed</option>
@@ -3268,15 +3280,19 @@ input[type=tel],input[type=email],input[type=search],input:not([type]),textarea{
           </select>
         </div>
         <div class="filter-actions">
-          <button class="btn btn-grey" onclick="resetAuditFilters()">Reset</button>
-          <button class="btn btn-primary" onclick="loadAuditLog(0)">Apply Filters</button>
+          <button class="btn btn-grey" onclick="resetAuditFilters()">Clear filters</button>
+        </div>
+      </div></div></details>
+      <div class="filter-bar">
+        <div class="filter-actions">
+          <button class="btn btn-primary" onclick="loadAuditLog(0)">Show results</button>
         </div>
       </div>
       <div class="live-banner" id="audit-live-banner" onclick="refreshAuditFromBanner()">🔄 New audit entries have come in — click to refresh</div>
       <div class="table-wrap">
         <table>
           <thead><tr><th>Timestamp</th><th>Employee</th><th>Action</th><th>Order ID</th><th>Product (title, ASIN, SKU)</th><th>Channel</th><th>Details</th></tr></thead>
-          <tbody id="audit-body"><tr class="empty-row"><td colspan="7">Sign in to load the audit log.</td></tr></tbody>
+          <tbody id="audit-body"><tr class="empty-row"><td colspan="7">Nothing loaded yet. Tap Show results to see the activity record.</td></tr></tbody>
         </table>
         <div class="pagination">
           <span id="audit-page-info">Page 1</span>
@@ -3296,16 +3312,16 @@ input[type=tel],input[type=email],input[type=search],input:not([type]),textarea{
       <div class="page-header">
         <div>
           <div class="page-title">Batch scans</div>
-          <div class="page-sub">Every scan batch, any employee, any device. Look inside one safely, close one on an operator&rsquo;s behalf, accept it, reverse it out of stock, or tidy away an empty one. Every state has a way out.</div>
+          <div class="page-sub">Every scan batch from any person and any phone. Look inside one, close it for someone, accept it, reverse it or clear an empty one.</div>
         </div>
       </div>
-      <details id="sessions-legend" open style="margin:0 0 12px 0;border:1px solid #E2E8F0;border-radius:6px;background:#F8F9FB;">
+      <details class="e2-more a54-menu"><summary>More filters and help</summary><div class="e2-fold-body"><details id="sessions-legend" class="e2-keep" style="margin:0 0 12px 0;border:1px solid #E2E8F0;border-radius:6px;background:#F8F9FB;">
         <summary style="cursor:pointer;padding:9px 12px;font-size:calc(12.5px*var(--fs,1));font-weight:bold;color:#0A1628;list-style:none;">
-          What can I do with a batch here? <span style="font-weight:normal;color:#6B7280;">(click to hide)</span>
+          What can I do with a batch here? <span style="font-weight:normal;color:#6B7280;">(tap to open or close)</span>
         </summary>
         <div style="padding:0 12px 12px 12px;">
           <div style="font-size:calc(12px*var(--fs,1));color:#1A1A1A;margin-bottom:8px;">
-            Each button only appears on a batch it actually applies to, so you will not see all of these at once.
+            Each button shows only on a batch it fits. You will not see all of them at once.
             Nothing below changes stock except <strong>Reverse</strong>.
           </div>
           <table style="width:100%;border-collapse:collapse;font-size:calc(11.5px*var(--fs,1));background:#fff;">
@@ -3324,7 +3340,7 @@ input[type=tel],input[type=email],input[type=search],input:not([type]),textarea{
               </tr>
               <tr style="border-bottom:1px solid #E2E8F0;">
                 <td style="padding:5px 7px;white-space:nowrap;">⏹ Close it for them</td>
-                <td style="padding:5px 7px;">Closes an operator&rsquo;s batch for you to review — for when someone scanned correctly and went home without closing it.</td>
+                <td style="padding:5px 7px;">Closes a worker&rsquo;s batch so you can check it. Use it when someone scanned well but went home without closing it.</td>
                 <td style="padding:5px 7px;color:#1B7A3A;">No</td>
                 <td style="padding:5px 7px;"><strong>Open</strong> batches with scans in them</td>
               </tr>
@@ -3332,7 +3348,7 @@ input[type=tel],input[type=email],input[type=search],input:not([type]),textarea{
                 <td style="padding:5px 7px;white-space:nowrap;">✓ Accept</td>
                 <td style="padding:5px 7px;">Records that you checked the batch and it is right.</td>
                 <td style="padding:5px 7px;color:#1B7A3A;">No — the scans already counted when they were made</td>
-                <td style="padding:5px 7px;"><strong>Closed — pending review</strong></td>
+                <td style="padding:5px 7px;"><strong>Closed, waiting for a check</strong></td>
               </tr>
               <tr style="border-bottom:1px solid #E2E8F0;">
                 <td style="padding:5px 7px;white-space:nowrap;">✓ Accept anyway</td>
@@ -3348,47 +3364,51 @@ input[type=tel],input[type=email],input[type=search],input:not([type]),textarea{
               </tr>
               <tr style="border-bottom:1px solid #E2E8F0;">
                 <td style="padding:5px 7px;white-space:nowrap;">⊘ Close this off</td>
-                <td style="padding:5px 7px;">Tidies away a batch nothing was ever scanned into.</td>
+                <td style="padding:5px 7px;">Clears away a batch with no scans in it.</td>
                 <td style="padding:5px 7px;color:#1B7A3A;">No — there is nothing in it</td>
                 <td style="padding:5px 7px;"><strong>Empty</strong> batches not yet finished with</td>
               </tr>
               <tr>
                 <td style="padding:5px 7px;white-space:nowrap;">↺ Check for late scans</td>
-                <td style="padding:5px 7px;">Looks for a scan that arrived after the batch was reversed, and backs out only that one.</td>
+                <td style="padding:5px 7px;">Finds a scan that came in after the batch was reversed. Reverses only that scan.</td>
                 <td style="padding:5px 7px;color:#9A6700;">Only if it finds one</td>
                 <td style="padding:5px 7px;"><strong>Voided</strong> batches that had scans</td>
               </tr>
             </tbody>
           </table>
           <div style="font-size:calc(11.5px*var(--fs,1));color:#6B7280;margin-top:8px;">
-            Set the <strong>Status</strong> filter to <strong>Open</strong> to see the batches your staff are working in right now.
-            If the list is empty, nobody has a batch open — that is when <em>Close it for them</em> would appear.
+            Set the <strong>Status</strong> filter to <strong>Open</strong> to see the batches your staff are working in now.
+            If the list is empty, nobody has a batch open. That is when <em>Close it for them</em> would appear.
           </div>
         </div>
       </details>
+      <div class="filter-bar">
+        <div class="filter-field"><label>Person</label>
+          <select id="sessions-employee"><option value="">All</option></select>
+        </div>
+        <div class="filter-actions">
+          <button class="btn btn-grey" onclick="resetSessionsFilters()">Clear filters</button>
+        </div>
+      </div></div></details>
       <div class="filter-bar">
         <div class="filter-field"><label>Status</label>
           <select id="sessions-status">
             <option value="" selected>All</option>
             <option value="OPEN">Open</option>
-            <option value="CLOSED_PENDING_REVIEW">Closed — pending review</option>
+            <option value="CLOSED_PENDING_REVIEW">Closed, waiting for a check</option>
             <option value="COMMITTED">Committed</option>
             <option value="VOIDED">Voided</option>
             <option value="ABANDONED">Abandoned</option>
           </select>
         </div>
-        <div class="filter-field"><label>Employee</label>
-          <select id="sessions-employee"><option value="">All</option></select>
-        </div>
         <div class="filter-actions">
-          <button class="btn btn-grey" onclick="resetSessionsFilters()">Reset</button>
-          <button class="btn btn-primary" onclick="loadScanSessions()">Apply Filters</button>
+          <button class="btn btn-primary" onclick="loadScanSessions()">Show results</button>
         </div>
       </div>
       <div class="table-wrap">
         <table>
           <thead><tr><th></th><th>Opened</th><th>Employee</th><th>Device</th><th>Status</th><th>Bin / Purchase order</th><th>Scans</th><th>Net Qty</th><th>Actions</th></tr></thead>
-          <tbody id="sessions-body"><tr class="empty-row"><td colspan="9">Sign in to load scan sessions.</td></tr></tbody>
+          <tbody id="sessions-body"><tr class="empty-row"><td colspan="9">Nothing loaded yet. Tap Show results to see the batch scans.</td></tr></tbody>
         </table>
       </div>
     </div>
@@ -3407,7 +3427,7 @@ input[type=tel],input[type=email],input[type=search],input:not([type]),textarea{
       <div class="page-header">
         <div>
           <div class="page-title">Purchasing</div>
-          <div class="page-sub">Checks and settings for raw-material buying: company settings, data quality, import undo, change history and the vendor scorecard.</div>
+          <div class="page-sub">Checks and settings for buying raw materials. Settings, data checks, undo an import, past changes and vendor scores.</div>
         </div>
       </div>
       <div class="rmc-pin">
@@ -3427,7 +3447,7 @@ input[type=tel],input[type=email],input[type=search],input:not([type]),textarea{
 
       <div id="rmc-sec-settings" class="rmc-card">
         <div style="display:flex;gap:10px;justify-content:space-between;flex-wrap:wrap;align-items:center;">
-          <strong>Company settings for purchasing</strong>
+          <strong>Company settings for buying</strong>
           <button class="btn btn-primary" onclick="rmcLoadSettings()">↻ Load settings</button>
         </div>
         <div class="rmc-hint">Set the company state code once so purchase bills can be split into CGST and SGST (same state) or IGST (other state). Until it is set, bills show only the total GST.</div>
@@ -3482,7 +3502,7 @@ input[type=tel],input[type=email],input[type=search],input:not([type]),textarea{
             <select id="rmc-sc-months"><option value="3">3 months</option><option value="6">6 months</option><option value="12" selected>12 months</option><option value="24">24 months</option></select></div>
           <button class="btn btn-primary" onclick="rmcLoadScore()">↻ Load scorecard</button>
         </div>
-        <div class="rmc-hint">On time means the delivery arrived by the expected date. A vendor needs at least 3 delivered orders before a percentage is shown.</div>
+        <div class="rmc-hint">On time means the order came by the promised date. A score shows after 3 delivered orders.</div>
         <div id="rmc-score-body"></div>
         <div class="result-msg" id="rmc-score-msg"></div>
       </div>
@@ -3504,9 +3524,9 @@ input[type=tel],input[type=email],input[type=search],input:not([type]),textarea{
         picked up again. Use it when a phone is lost, handed back, or should simply not be used any more.
         Anything it already scanned stays exactly as it is; blocking stops further work, it never undoes any.<br>
         <span style="color:#9A6700;"><strong>It is not the main control for someone leaving.</strong></span>
-        Each phone invents its own code the first time the app runs, so clearing the app's data on that phone produces a new
+        Each phone makes its own code the first time the app runs. If you clear the app's data on that phone, it gets a new
         code and a fresh start. <strong>When a person leaves, switch their staff account off under User Management</strong> —
-        that stops them signing in anywhere, on any phone. Blocking the handset is a useful extra, not a replacement.
+        this stops them signing in on any phone. Blocking the phone is a good extra step, not a replacement.
       </div>
 
       <div class="table-wrap">
@@ -3523,10 +3543,51 @@ input[type=tel],input[type=email],input[type=search],input:not([type]),textarea{
       <div class="page-header">
         <div>
           <div class="page-title">People and access</div>
-          <div class="page-sub">Everyone who can use the phone app or this panel — their access level, PIN, phone code and lock status.</div>
+          <div class="page-sub">Everyone who can use the phone app or this panel, with their access, PIN, phone code and lock status.</div>
         </div>
         <button class="btn btn-primary" onclick="loadEmployees()">↻ Refresh</button>
       </div>
+      <details class="e2-more a54-menu"><summary>Add a person and other tools</summary><div class="e2-fold-body">
+      <div class="card" id="add-emp-card" style="margin-top:8px;">
+        <h3>➕ Add a person</h3>
+        <div class="form-row">
+          <div class="form-field"><label>Employee Code</label><input type="text" id="add-emp-code" placeholder="e.g. EMP009" oninput="this.value=this.value.toUpperCase()"></div>
+          <div class="form-field"><label>Display Name</label><input type="text" id="add-emp-name" placeholder="e.g. Suresh Kumar"></div>
+          <div class="form-field"><label>Starting PIN (4 numbers)</label><input type="tel" inputmode="numeric" maxlength="4" id="add-emp-pin" placeholder="4 digits"></div>
+        </div>
+        <!-- v2.14 (Master Prompt v17, Part C): replaces the old fixed Role
+             dropdown — filled in by buildPermissionUIHtml('add-emp') on
+             load. See that function for the preset+checkbox+admin-access
+             markup shared with the Edit Access modal below. -->
+        <div id="add-emp-perm-container"></div>
+        <button class="btn btn-primary" onclick="submitAddEmployee()">✓ Add Employee</button>
+        <div class="result-msg" id="add-emp-result"></div>
+      </div>
+
+      <!-- v2.31: moved here from Settings. Everything about who can use the
+           system now lives on this one page; Settings keeps only the Admin
+           Password and the read-only company and system information. -->
+      <div class="card write-only-control" id="sup-pw-card" style="margin-top:8px;">
+        <h3>🛡 Supervisor Password</h3>
+        <div class="hint-text">
+          Needed only if you make someone a <strong>Supervisor</strong> above. They sign in with their own
+          employee code and PIN, then unlock this panel with <strong>this</strong> password &mdash; never yours.
+          That is what stops them reaching accounts, access levels and the Admin Password: they do not hold the
+          password those need, so the refusal does not depend on this website behaving itself.
+          <br><br>
+          Leave both boxes empty and press <strong>Remove it</strong> to remove Supervisor access for everyone
+          at once. No account or history is changed.
+        </div>
+        <div class="form-row">
+          <div class="form-field"><label>New Supervisor Password (8 or more letters or numbers)</label><input type="text" class="pw-mask" autocapitalize="off" spellcheck="false" id="sup-pw-new" autocomplete="off"></div>
+          <div class="form-field"><label>Confirm</label><input type="text" class="pw-mask" autocapitalize="off" spellcheck="false" id="sup-pw-confirm" autocomplete="off"></div>
+        </div>
+        <button class="btn btn-primary" onclick="submitSupervisorPassword()">✓ Save the password</button>
+        <button class="btn btn-grey" onclick="clearSupervisorPassword()">Remove it</button>
+        <div class="result-msg" id="sup-pw-status" style="margin-top:8px;"></div>
+        <div class="result-msg" id="sup-pw-result"></div>
+      </div>
+      </div></details>
       <div class="filter-bar">
         <div class="filter-field" style="min-width:220px"><label>Search</label><input type="text" id="emp-search" placeholder="Name, code, or role..." oninput="renderEmployees()"></div>
         <div class="filter-field"><label>Status</label>
@@ -3550,50 +3611,11 @@ input[type=tel],input[type=email],input[type=search],input:not([type]),textarea{
       </div>
       <div class="table-wrap">
         <table>
-          <thead><tr><th class="chk-col"><input type="checkbox" id="emp-select-all" onchange="toggleSelectAllEmployees(this)"></th><th>Code</th><th>Name</th><th title="What this person can do in the app and this panel.">Role</th><th title="Whether this account can currently sign in at all.">Status</th><th title="Shows if this account is temporarily locked out after too many wrong PIN attempts. Clears itself after the lockout period, or use Unlock to clear it now.">Locked</th><th title="Whether this person also needs a 6-digit code from a phone, in addition to their PIN, to sign in.">Phone code</th><th>Last Login</th><th>Actions</th></tr></thead>
+          <thead><tr><th class="chk-col"><input type="checkbox" id="emp-select-all" onchange="toggleSelectAllEmployees(this)"></th><th>Code</th><th>Name</th><th title="What this person can do in the app and this panel.">Role</th><th title="Whether this account can currently sign in at all.">Status</th><th title="Shows if this account is locked after too many wrong PINs. It opens by itself later, or tap Unlock to open it now.">Locked</th><th title="Says if this person also needs a 6-digit code from a phone, as well as the PIN, to sign in.">Phone code</th><th>Last Login</th><th>Actions</th></tr></thead>
           <tbody id="emp-body"><tr class="empty-row"><td colspan="9">Loading...</td></tr></tbody>
         </table>
       </div>
 
-      <div class="card" id="add-emp-card" style="margin-top:20px;">
-        <h3>➕ Add Employee</h3>
-        <div class="form-row">
-          <div class="form-field"><label>Employee Code</label><input type="text" id="add-emp-code" placeholder="e.g. EMP009" oninput="this.value=this.value.toUpperCase()"></div>
-          <div class="form-field"><label>Display Name</label><input type="text" id="add-emp-name" placeholder="e.g. Suresh Kumar"></div>
-          <div class="form-field"><label>Starting PIN (4 digits, numbers only)</label><input type="tel" inputmode="numeric" maxlength="4" id="add-emp-pin" placeholder="4 digits"></div>
-        </div>
-        <!-- v2.14 (Master Prompt v17, Part C): replaces the old fixed Role
-             dropdown — filled in by buildPermissionUIHtml('add-emp') on
-             load. See that function for the preset+checkbox+admin-access
-             markup shared with the Edit Access modal below. -->
-        <div id="add-emp-perm-container"></div>
-        <button class="btn btn-primary" onclick="submitAddEmployee()">✓ Add Employee</button>
-        <div class="result-msg" id="add-emp-result"></div>
-      </div>
-
-      <!-- v2.31: moved here from Settings. Everything about who can use the
-           system now lives on this one page; Settings keeps only the Admin
-           Password and the read-only company and system information. -->
-      <div class="card write-only-control" id="sup-pw-card" style="margin-top:20px;">
-        <h3>🛡 Supervisor Password</h3>
-        <div class="hint-text">
-          Only needed if you make somebody a <strong>Supervisor</strong> above. They sign in with their own
-          employee code and PIN, then unlock this panel with <strong>this</strong> password &mdash; never yours.
-          That is what stops them reaching accounts, access levels and the Admin Password: they do not hold the
-          password those need, so the refusal does not depend on this website behaving itself.
-          <br><br>
-          Leave both boxes empty and press <strong>Remove it</strong> to take Supervisor access away from everyone
-          at once. Nobody's account or history is affected.
-        </div>
-        <div class="form-row">
-          <div class="form-field"><label>New Supervisor Password (min 8 characters)</label><input type="text" class="pw-mask" autocapitalize="off" spellcheck="false" id="sup-pw-new" autocomplete="off"></div>
-          <div class="form-field"><label>Confirm</label><input type="text" class="pw-mask" autocapitalize="off" spellcheck="false" id="sup-pw-confirm" autocomplete="off"></div>
-        </div>
-        <button class="btn btn-primary" onclick="submitSupervisorPassword()">✓ Save Supervisor Password</button>
-        <button class="btn btn-grey" onclick="clearSupervisorPassword()">Remove it</button>
-        <div class="result-msg" id="sup-pw-status" style="margin-top:8px;"></div>
-        <div class="result-msg" id="sup-pw-result"></div>
-      </div>
     </div>
 
     <!-- ══════════════ EDIT ACCESS MODAL (v2.14, Master Prompt v17 Part C) ══════════════
@@ -3624,39 +3646,21 @@ input[type=tel],input[type=email],input[type=search],input:not([type]),textarea{
                this round. Now filled in live by loadSkuStock() below. -->
           <div class="page-sub"><span id="sku-stock-total-count">Loading…</span> SKUs live — searched and paginated server-side, not pulled all at once.</div>
         </div>
-        <div>
-          <button class="btn btn-gold" onclick="exportSkuCSV()">⬇ Export CSV (loaded page)</button>
-          <span class="ax-btns" role="group" aria-label="Loaded page"><button class="btn btn-grey" title="Loaded page: PDF" onclick="exportSkuCSV('pdf')">PDF</button><button class="btn btn-grey" title="Loaded page: Excel" onclick="exportSkuCSV('xlsx')">Excel</button><button class="btn btn-primary" title="Loaded page: share the PDF" onclick="exportSkuCSV('share')">Share</button></span>
-          <button class="btn btn-gold" onclick="exportSkuFullCSV()">⬇ Export Full CSV (filtered)</button>
-          <span class="ax-btns" role="group" aria-label="Full filtered list"><button class="btn btn-grey" title="Full filtered list: PDF" onclick="exportSkuFullCSV('pdf')">PDF</button><button class="btn btn-grey" title="Full filtered list: Excel" onclick="exportSkuFullCSV('xlsx')">Excel</button><button class="btn btn-primary" title="Full filtered list: share the PDF" onclick="exportSkuFullCSV('share')">Share</button></span>
-          <span class="export-progress" id="sku-export-progress"></span>
-        </div>
       </div>
       <!-- v2.35: NEW - exposes oms_admin_zero_all_inventory, which already existed
            live in the database (Admin Password only) but was never wired into any
            screen anywhere in the system. Deliberately OFFSET mode only: PURGE
            (which deletes ledger history outright) is never offered here. -->
-      <div class="card write-only-control" id="zero-stock-card" style="margin-bottom:14px;border:1px solid #B3261E;">
-        <h3 style="color:#B3261E;">⚠ Reset ALL Stock to Zero</h3>
-        <div class="hint-text">
-          Use this only when scanning has gone wrong badly enough that starting over is safer than fixing it SKU by SKU —
-          for example, a batch of scans went against the wrong SKUs or into the wrong bins, and it is faster to zero
-          everything and rescan than to trace each one by hand. This sets <strong>every SKU's quantity to zero, everywhere</strong>,
-          in one step.
-          <br><br>
-          <strong>Nothing is deleted.</strong> Every affected SKU gets one new correction entry that brings it down to zero —
-          the full history before it stays exactly as it is, visible in Transactions and the Audit Log, and can be read
-          back at any time. This does not touch employee accounts, bins, SKU names or prices, or scan session records —
-          only quantities.
-          <br><br>
-          Always press <strong>Preview</strong> first — it shows exactly what would change, and changes nothing by itself.
-          Nothing is touched until you also type the confirmation phrase and press the second button.
+      <details class="e2-more a54-menu"><summary>More filters and tools</summary><div class="e2-fold-body">
+        <div style="flex:1 1 100%">
+          <button class="btn btn-gold" onclick="exportSkuCSV()">⬇ Download this page as a spreadsheet</button>
+          <span class="ax-btns" role="group" aria-label="Loaded page"><button class="btn btn-grey" title="Loaded page: PDF" onclick="exportSkuCSV('pdf')">PDF</button><button class="btn btn-grey" title="Loaded page: Excel" onclick="exportSkuCSV('xlsx')">Excel</button><button class="btn btn-primary" title="Loaded page: share the PDF" onclick="exportSkuCSV('share')">Share</button></span>
+          <button class="btn btn-gold" onclick="exportSkuFullCSV()">⬇ Download all matching rows as a spreadsheet</button>
+          <span class="ax-btns" role="group" aria-label="Full filtered list"><button class="btn btn-grey" title="Full filtered list: PDF" onclick="exportSkuFullCSV('pdf')">PDF</button><button class="btn btn-grey" title="Full filtered list: Excel" onclick="exportSkuFullCSV('xlsx')">Excel</button><button class="btn btn-primary" title="Full filtered list: share the PDF" onclick="exportSkuFullCSV('share')">Share</button></span>
+          <span class="export-progress" id="sku-export-progress"></span>
         </div>
-        <button class="btn btn-primary" id="zero-stock-preview-btn" onclick="previewZeroAllInventory()">Preview what this would do</button>
-        <div id="zero-stock-preview" style="margin-top:12px;"></div>
-      </div>
+
       <div class="filter-bar">
-        <div class="filter-field" style="min-width:240px"><label>Search (SKU, ASIN, title or size)</label><input type="text" id="sku-search" placeholder="Type to search..." onkeydown="if(event.key==='Enter')loadSkuStock(0)"></div>
         <div class="filter-field"><label>Status</label>
           <select id="sku-status-filter">
             <option value="">All</option>
@@ -3664,13 +3668,45 @@ input[type=tel],input[type=email],input[type=search],input:not([type]),textarea{
             <option value="inactive">Inactive only</option>
           </select>
         </div>
-        <div class="filter-field"><label>Stock Level</label>
+        <div class="filter-field"><label>Stock level</label>
           <select id="sku-stock-filter">
             <option value="">All</option>
             <option value="negative">Negative</option>
             <option value="low">At/below reorder</option>
           </select>
         </div>
+      </div>
+      <div class="card write-only-control" id="zero-stock-card" style="margin-bottom:14px;border:1px solid #B3261E;">
+        <h3 style="color:#B3261E;">⚠ Reset ALL Stock to Zero</h3>
+        <div class="hint-text">
+          Use this only when scanning has gone wrong badly enough that starting over is safer than fixing it SKU by SKU —
+          for example, a batch of scans went against the wrong SKUs or into the wrong bins, and it is faster to zero
+          everything and rescan than to trace each one by hand. This sets <strong>all stock to zero, everywhere</strong>,
+          in one step.
+          <br><br>
+          <strong>Nothing is deleted.</strong> Every affected SKU gets one new correction entry that brings it down to zero —
+          the full history before it stays exactly as it is, visible in Transactions and the Audit Log, and can be read
+          back at any time. This does not touch employee accounts, bins, SKU names or prices, or scan session records —
+          only quantities.
+          <br><br>
+          Always press <strong>Preview</strong> first. It shows what would change and changes nothing by itself.
+          Nothing is touched until you also type the confirmation phrase and press the second button.
+        </div>
+        <button class="btn btn-primary" id="zero-stock-preview-btn" onclick="previewZeroAllInventory()">Preview what this would do</button>
+        <div id="zero-stock-preview" style="margin-top:12px;"></div>
+      </div>
+      <div class="card write-only-control" style="margin-top:20px;">
+        <h3>⬆ Bulk CSV Import — Update Existing SKUs</h3>
+        <div class="hint-text">
+          Upload a CSV with a <code>sku_code</code> column plus any of <code>reorder_threshold</code>, <code>cost_price</code>, <code>mrp</code>, <code>active</code> (true/false).
+          Only these four fields can be changed here — new SKUs are <strong>not</strong> created, and product name / ASIN / bin / set size are <strong>not</strong> touched, even if they are in your file. Extra columns are ignored.
+        </div>
+        <input type="file" id="csv-file-input" accept=".csv" onchange="handleCsvFileSelect(event)">
+        <div id="csv-preview-area" style="margin-top:14px;"></div>
+      </div>
+      </div></details>
+      <div class="filter-bar">
+        <div class="filter-field" style="min-width:240px"><label>Search (SKU, ASIN, title or size)</label><input type="text" id="sku-search" placeholder="Type to search..." onkeydown="if(event.key==='Enter')loadSkuStock(0)"></div>
         <div class="filter-actions">
           <button class="btn btn-primary" onclick="loadSkuStock(0)">Search</button>
         </div>
@@ -3689,7 +3725,7 @@ input[type=tel],input[type=email],input[type=search],input:not([type]),textarea{
           <div><strong id="bulk-edit-count">0 selected</strong></div>
           <div class="filter-field"><label>Field</label>
             <select id="bulk-edit-field">
-              <option value="reorder_threshold">Reorder Level</option>
+              <option value="reorder_threshold">Reorder when stock falls to</option>
               <option value="cost_price">Cost Price</option>
               <option value="mrp">MRP (maximum retail price)</option>
             </select>
@@ -3708,8 +3744,8 @@ input[type=tel],input[type=email],input[type=search],input:not([type]),textarea{
       </div>
       <div class="table-wrap">
         <table>
-          <thead><tr><th><input type="checkbox" id="sku-select-all" onchange="toggleAllSkuCheckboxes(this.checked)"></th><th colspan="3">Product (title, ASIN, SKU)</th><th>Type</th><th>Qty On Hand</th><th>Default Bin</th><th>Live Bins</th><th>Reorder Level</th><th>Cost Price</th><th>MRP</th><th>Status</th><th>Actions</th></tr></thead>
-          <tbody id="sku-body"><tr class="empty-row"><td colspan="13">Enter a search term or click Search to load SKUs.</td></tr></tbody>
+          <thead><tr><th><input type="checkbox" id="sku-select-all" onchange="toggleAllSkuCheckboxes(this.checked)"></th><th colspan="3">Product (title, ASIN, SKU)</th><th>Type</th><th>Qty On Hand</th><th>Default Bin</th><th>Live Bins</th><th>Reorder at</th><th>Cost Price</th><th>MRP</th><th>Status</th><th>Actions</th></tr></thead>
+          <tbody id="sku-body"><tr class="empty-row"><td colspan="13">Nothing loaded yet. Type a product code, name or ASIN and tap Search, or tap Search with the box empty to see everything.</td></tr></tbody>
         </table>
         <div class="pagination">
           <span id="sku-page-info">Page 1</span>
@@ -3718,15 +3754,6 @@ input[type=tel],input[type=email],input[type=search],input:not([type]),textarea{
         </div>
       </div>
 
-      <div class="card write-only-control" style="margin-top:20px;">
-        <h3>⬆ Bulk CSV Import — Update Existing SKUs</h3>
-        <div class="hint-text">
-          Upload a CSV with a <code>sku_code</code> column plus any of <code>reorder_threshold</code>, <code>cost_price</code>, <code>mrp</code>, <code>active</code> (true/false).
-          Only these four fields can be changed here — new SKUs are <strong>not</strong> created, and product name / ASIN / bin / set size are <strong>not</strong> touched, even if present in your file (extra columns are simply ignored).
-        </div>
-        <input type="file" id="csv-file-input" accept=".csv" onchange="handleCsvFileSelect(event)">
-        <div id="csv-preview-area" style="margin-top:14px;"></div>
-      </div>
     </div>
 
 
@@ -3744,10 +3771,10 @@ input[type=tel],input[type=email],input[type=search],input:not([type]),textarea{
       <div class="page-header">
         <div>
           <div class="page-title">Bins (shelf locations)</div>
-          <div class="page-sub">Every bin currently on file, with live SKU count and quantity. Renaming or merging moves stock by adding new transfer entries - it never edits history.</div>
+          <div class="page-sub">Every shelf bin, with how many products and how much stock it holds. Renaming or merging a bin adds new move entries. Old history never changes.</div>
         </div>
         <div>
-          <button class="btn btn-primary" onclick="openRelocateBinModal('')" title="Move everything sitting in one bin into another bin - use this to fix a typo in a bin code, or to merge two bins into one.">⇄ Relocate / Merge Bins</button>
+          <button class="btn btn-primary" onclick="openRelocateBinModal('')" title="Move all stock from one bin to another. Use it to fix a typo in a bin code or to join two bins.">⇄ Relocate / Merge Bins</button>
           <button class="btn btn-gold" onclick="loadBins()">↻ Refresh</button>
         </div>
       </div>
@@ -3764,29 +3791,28 @@ input[type=tel],input[type=email],input[type=search],input:not([type]),textarea{
     <div class="page" id="page-reports">
       <div class="page-header">
         <div>
-          <div class="page-title">Reports &amp; Transactions Explorer</div>
-          <div class="page-sub">Every stock movement ever recorded, with full filters.</div>
+          <div class="page-title">Stock movement reports</div>
+          <div class="page-sub">Every time stock came in, went out or moved. Use the filters to find what you need.</div>
         </div>
-        <div>
-          <button class="btn btn-gold" onclick="exportTxnCSV()">⬇ Export CSV (loaded page)</button>
+      </div>
+      <details class="e2-more a54-menu"><summary>More filters and export</summary><div class="e2-fold-body">
+        <div style="flex:1 1 100%">
+          <button class="btn btn-gold" onclick="exportTxnCSV()">⬇ Download this page as a spreadsheet</button>
           <span class="ax-btns" role="group" aria-label="Loaded page"><button class="btn btn-grey" title="Loaded page: PDF" onclick="exportTxnCSV('pdf')">PDF</button><button class="btn btn-grey" title="Loaded page: Excel" onclick="exportTxnCSV('xlsx')">Excel</button><button class="btn btn-primary" title="Loaded page: share the PDF" onclick="exportTxnCSV('share')">Share</button></span>
-          <button class="btn btn-gold" onclick="exportTxnFullCSV()">⬇ Export Full CSV (filtered)</button>
+          <button class="btn btn-gold" onclick="exportTxnFullCSV()">⬇ Download all matching rows as a spreadsheet</button>
           <span class="ax-btns" role="group" aria-label="Full filtered list"><button class="btn btn-grey" title="Full filtered list: PDF" onclick="exportTxnFullCSV('pdf')">PDF</button><button class="btn btn-grey" title="Full filtered list: Excel" onclick="exportTxnFullCSV('xlsx')">Excel</button><button class="btn btn-primary" title="Full filtered list: share the PDF" onclick="exportTxnFullCSV('share')">Share</button></span>
           <span class="export-progress" id="txn-export-progress"></span>
         </div>
-      </div>
-      <div class="filter-bar">
+<div class="filter-bar">
         <div class="preset-row" style="width:100%;margin-bottom:4px;">
           <button class="preset-btn" onclick="applyTxnPreset('today')">Today</button>
           <button class="preset-btn" onclick="applyTxnPreset('week')">This Week</button>
           <button class="preset-btn" onclick="applyTxnPreset('month')">This Month</button>
           <button class="preset-btn" onclick="applyTxnPreset('all')">All Time</button>
         </div>
-        <div class="filter-field"><label>From</label><input type="date" id="txn-from"></div>
-        <div class="filter-field"><label>To</label><input type="date" id="txn-to"></div>
-        <div class="filter-field"><label>Employee</label><select id="txn-employee"><option value="">All</option></select></div>
-        <div class="filter-field"><label>Product (SKU, ASIN or title)</label><input type="text" id="txn-sku" placeholder="e.g. ART-1234 or photo frame" onkeydown="if(event.key==='Enter')loadTransactions(0)"></div>
-        <div id="txn-sm" style="flex-basis:100%"></div>
+        <div class="filter-field"><label>From date</label><input type="date" id="txn-from"></div>
+        <div class="filter-field"><label>To date</label><input type="date" id="txn-to"></div>
+        <div class="filter-field"><label>Person</label><select id="txn-employee"><option value="">All</option></select></div>
         <div class="filter-field"><label>Channel</label>
           <select id="txn-channel">
             <option value="">All</option>
@@ -3797,7 +3823,7 @@ input[type=tel],input[type=email],input[type=search],input:not([type]),textarea{
             <option>DIRECT</option><option>MEESHO</option><option>GLOWROAD</option><option>B2B</option>
           </select>
         </div>
-        <div class="filter-field"><label>Txn Type</label>
+        <div class="filter-field"><label>Type of movement</label>
           <select id="txn-type">
             <option value="">All</option>
             <optgroup label="Stock coming in">
@@ -3809,12 +3835,12 @@ input[type=tel],input[type=email],input[type=search],input:not([type]),textarea{
             <optgroup label="Stock going out">
               <option value="SCAN_OUT_ORDER">Shipped out (order)</option>
               <option value="ADJUSTMENT_LOST_THEFT">Lost or stolen</option>
-              <option value="ADJUSTMENT_REJECTED">Rejected / written off</option>
+              <option value="ADJUSTMENT_REJECTED">Rejected or written off</option>
               <option value="RETURN_WRONG_ITEM">Return &mdash; wrong item sent back</option>
             </optgroup>
             <optgroup label="Quality control">
               <option value="QC_HOLD">Put on quality-check hold</option>
-              <option value="ADJUSTMENT_QC_RELEASE">Released from quality-check hold</option>
+              <option value="ADJUSTMENT_QC_RELEASE">Back on sale after quality check</option>
             </optgroup>
             <optgroup label="Moves and corrections">
               <option value="BIN_TRANSFER_OUT">Moved out of a bin</option>
@@ -3825,15 +3851,21 @@ input[type=tel],input[type=email],input[type=search],input:not([type]),textarea{
           </select>
         </div>
         <div class="filter-actions">
-          <button class="btn btn-grey" onclick="resetTxnFilters()">Reset</button>
-          <button class="btn btn-primary" onclick="loadTransactions(0)">Apply Filters</button>
+          <button class="btn btn-grey" onclick="resetTxnFilters()">Clear filters</button>
+        </div>
+      </div></div></details>
+      <div class="filter-bar">
+        <div class="filter-field"><label>Product (SKU, ASIN or title)</label><input type="text" id="txn-sku" placeholder="e.g. ART-1234 or photo frame" onkeydown="if(event.key==='Enter')loadTransactions(0)"></div>
+        <div id="txn-sm" style="flex-basis:100%"></div>
+        <div class="filter-actions">
+          <button class="btn btn-primary" onclick="loadTransactions(0)">Show results</button>
         </div>
       </div>
       <div class="tiles" id="txn-summary-tiles" style="margin-bottom:10px;"></div>
-      <div class="summary-caption">Summary tiles above and totals are computed from the currently-loaded page only (not the full filtered dataset) — if pagination is active, this is a page-level summary.</div>
+      <div class="summary-caption">The boxes above add up only the rows on this page, not every matching row.</div>
 
       <div class="card" id="txn-grouped-summary-card" style="display:none;">
-        <h3>📊 Grouped Summary (loaded/paginated dataset only)</h3>
+        <h3>📊 Totals for the rows on screen</h3>
         <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:16px;">
           <div>
             <h4 style="font-size:calc(12px*var(--fs,1));color:#546e7a;margin-bottom:6px;">By Day</h4>
@@ -3858,7 +3890,7 @@ input[type=tel],input[type=email],input[type=search],input:not([type]),textarea{
       <div class="table-wrap">
         <table>
           <thead><tr><th>Timestamp</th><th>Type</th><th>Product (title, ASIN, SKU)</th><th>Qty Δ</th><th>Channel</th><th>Order ID</th><th>Bin</th><th>Employee</th><th>Note</th></tr></thead>
-          <tbody id="txn-body"><tr class="empty-row"><td colspan="9">Apply filters to load transactions.</td></tr></tbody>
+          <tbody id="txn-body"><tr class="empty-row"><td colspan="9">Nothing loaded yet. Tap Show results to see recent stock movements.</td></tr></tbody>
         </table>
         <div class="pagination">
           <span id="txn-page-info">Page 1</span>
@@ -3877,10 +3909,10 @@ input[type=tel],input[type=email],input[type=search],input:not([type]),textarea{
       <div class="page-header">
         <div>
           <div class="page-title">Safety and backups</div>
-          <div class="page-sub">Safety checks for your data: audit trail, data checks, a full copy of everything, backups, how long data is kept, signing people out, and today's list.</div>
+          <div class="page-sub">Keep your data safe. Check the record, save a full copy, see backups, sign people out and see today's list.</div>
         </div>
       </div>
-      <div class="rmc-card" id="sec-ro" style="display:none;"><strong>Read-only account</strong><div class="rmc-hint">This page is for Admin and Supervisor accounts. A read-only account can read the notes and the who-can-do-what table, but cannot run any check or change anything.</div></div>
+      <div class="rmc-card" id="sec-ro" style="display:none;"><strong>Read-only account</strong><div class="rmc-hint">This page is for Admin and Supervisor accounts. A read-only account can read the notes and the table, but cannot run a check or change anything.</div></div>
       <div class="rmc-pin">
         <div class="filter-field">
           <label for="sec-pin">Your PIN</label>
@@ -3917,7 +3949,7 @@ input[type=tel],input[type=email],input[type=search],input:not([type]),textarea{
           <strong>Audit trail check</strong>
           <button class="btn btn-primary sec-act" onclick="secLoadAudit()">Check the audit trail</button>
         </div>
-        <div class="rmc-hint">Every action in the system is written to a chain of records where each one is locked to the one before. This re-checks the whole chain and tells you the first record that does not fit, if any.</div>
+        <div class="rmc-hint">Every action is saved in a chain. Each record is locked to the one before it. This checks the whole chain. It shows the first record that does not fit.</div>
         <div id="sec-body-audit"></div>
         <div class="result-msg" id="sec-msg-audit"></div>
       </div>
@@ -3937,9 +3969,9 @@ input[type=tel],input[type=email],input[type=search],input:not([type]),textarea{
           <strong>Export everything</strong>
           <button class="btn btn-primary sec-act" onclick="secLoadExport()">Show the list of tables</button>
         </div>
-        <div class="rmc-hint">A copy of your data that you hold yourself, one file per table (CSV, opens in Excel). It is not the platform backup. Secrets such as PIN codes and bank account numbers are never included.</div>
+        <div class="rmc-hint">Your own copy of your data. One file per table (CSV, opens in Excel). It is not the platform backup. PINs and bank account numbers are never in it.</div>
         <div class="sec-warn"><strong>Personal data:</strong> personal data needs Admin/Supervisor PIN and is recorded. Customer names, phones, e-mails and addresses are left out unless you tick the box below. Keep the files in a locked folder and delete them when you no longer need them.</div>
-        <label class="sec-check"><input type="checkbox" id="sec-ex-pii"> <span>Include personal-data columns (recorded in the audit trail)</span></label>
+        <label class="sec-check"><input type="checkbox" id="sec-ex-pii"> <span>Include personal details (we note this in the activity record)</span></label>
         <div id="sec-body-export"></div>
         <div class="result-msg" id="sec-msg-export"></div>
       </div>
@@ -3951,7 +3983,7 @@ input[type=tel],input[type=email],input[type=search],input:not([type]),textarea{
         </div>
         <div id="sec-body-backup"></div>
         <div class="result-msg" id="sec-msg-backup"></div>
-        <div class="sec-warn" style="margin-top:14px;"><strong>Daily backup confirmation: do this yourself.</strong>
+        <div class="sec-warn" style="margin-top:14px;"><strong>Daily backup confirmation: you do this yourself.</strong>
           <ol class="sec-steps">
             <li>Open the hosting dashboard (Supabase) and sign in.</li>
             <li>Choose the ArtzFolio project.</li>
@@ -3959,7 +3991,7 @@ input[type=tel],input[type=email],input[type=search],input:not([type]),textarea{
             <li>Check that the newest daily backup is from the last 24 hours and says it completed.</li>
             <li>Write the date and the result in your own log.</li>
           </ol>
-          To prove a backup can really be restored, follow the restore drill written in <strong>docs\RESTORE_DRILL_v1.md</strong> (a document in the project folder, not a link).
+          To test that a backup works, follow the restore drill in<strong>docs\RESTORE_DRILL_v1.md</strong> (a document in the project folder, not a link).
         </div>
       </div>
 
@@ -3985,7 +4017,7 @@ input[type=tel],input[type=email],input[type=search],input:not([type]),textarea{
             <input type="text" id="sec-so-confirm" maxlength="20" autocomplete="off" placeholder="SIGN OUT"></div>
           <button class="btn btn-red sec-act" onclick="secSignout()">Sign out everywhere</button>
         </div>
-        <div class="rmc-hint">Signing out someone else needs an Admin or Supervisor PIN.</div>
+        <div class="rmc-hint">To sign someone else out, an Admin or Supervisor must type their PIN.</div>
         <div class="result-msg" id="sec-msg-signout"></div>
       </div>
 
@@ -4063,12 +4095,12 @@ input[type=tel],input[type=email],input[type=search],input:not([type]),textarea{
       <div class="page-header">
         <div>
           <div class="page-title">Settings</div>
-          <div class="page-sub">Your own Admin Password, company information, and system details. Everything about people is under People and access.</div>
+          <div class="page-sub">Your Admin Password and company details. For people, go to People and access.</div>
         </div>
         <button class="btn btn-primary" onclick="loadSettingsPage()">↻ Refresh</button>
       </div>
 
-      <div class="card write-only-control">
+      <details class="e2-more a54-menu"><summary>Change the Admin Password</summary><div class="e2-fold-body"><div class="card write-only-control">
         <h3>🔑 Change Admin Password</h3>
         <div class="hint-text">Changing the Admin Password takes effect straight away for everyone using this panel: anyone still using the old password is signed out the next time they open a page. Keep the new password somewhere safe (for example a password manager). It cannot be looked up if lost; it can only be changed again using the current one.</div>
         <div class="form-row">
@@ -4078,7 +4110,7 @@ input[type=tel],input[type=email],input[type=search],input:not([type]),textarea{
         </div>
         <button class="btn btn-primary" id="rotate-secret-btn" onclick="submitRotateSecret()">✓ Change Password</button>
         <div class="result-msg" id="rotate-secret-result"></div>
-      </div>
+      </div></div></details>
 
       <div class="card">
         <h3>🏢 Company Info</h3>
@@ -4178,16 +4210,16 @@ input[type=tel],input[type=email],input[type=search],input:not([type]),textarea{
   <div class="modal">
     <h3>Adjust Stock</h3>
     <div class="hint-text">Product: <strong id="adjust-stock-sku">—</strong> · Current Qty On Hand: <strong id="adjust-stock-current-qty">—</strong></div>
-    <div class="hint-text">This adds a brand-new correction transaction — it never edits or deletes history. Enter a positive number to increase stock, or a negative number to decrease it.</div>
+    <div class="hint-text">This adds a new correction. It never edits or deletes old history. Type a plus number to add stock or a minus number to remove stock.</div>
     <div class="form-row">
       <div class="form-field">
         <label>Reason</label>
         <select id="adjust-stock-reason">
           <option value="ADJUSTMENT_FOUND">Found (extra stock located)</option>
           <option value="ADJUSTMENT_LOST_THEFT">Lost / Theft</option>
-          <option value="ADJUSTMENT_REJECTED">Rejected / Written Off</option>
+          <option value="ADJUSTMENT_REJECTED">Rejected or written off</option>
           <option value="QC_HOLD">Quality-check hold (pull out of sellable count)</option>
-          <option value="ADJUSTMENT_QC_RELEASE">Quality-check release (back to sellable)</option>
+          <option value="ADJUSTMENT_QC_RELEASE">Back on sale after quality check</option>
           <option value="NEW_STOCK_IN">Stock received</option>
           <option value="RETURN_IN">Return In</option>
           <option value="RETURN_WRONG_ITEM">Return — Wrong Item (flag for review, not sellable)</option>
@@ -6655,7 +6687,7 @@ function rmcLoadDq() {
     var h = '<div class="rmc-kpi"><div><b>' + fmtNum(isFinite(total) ? total : 0) + '</b><span>Things to fix</span></div>' +
       '<div><b>' + fmtNum(checks.filter(function (c) { return Number(c.count) > 0; }).length) + '</b><span>Checks with findings</span></div></div>';
     h += '<div class="table-wrap"><table><thead><tr><th>Check</th><th>How serious</th><th>Found</th><th>What to do</th><th></th></tr></thead><tbody>';
-    if (!checks.length) h += '<tr class="empty-row"><td colspan="5">No checks returned.</td></tr>';
+    if (!checks.length) h += '<tr class="empty-row"><td colspan="5">No results came back. Tap the button again in a minute. If it stays empty, tell the owner.</td></tr>';
     checks.forEach(function (c, i) {
       var sev = String(c.severity || '').toUpperCase();
       var badge = sev === 'HIGH' ? 'badge-red' : (sev === 'MEDIUM' ? 'badge-amber' : 'badge-grey');
@@ -6685,7 +6717,7 @@ function rmcDqList(code) {
       (Number(d.count) > rows.length ? ' (first ' + fmtNum(rows.length) + ' shown)' : '') + '</div>' +
       '<div class="table-wrap"><table><thead><tr><th>Record</th><th>Detail</th></tr></thead><tbody>';
     h += rows.length ? rows.map(function (r) { return '<tr><td>' + esc(showVal(r.label)) + '</td><td>' + esc(showVal(r.detail)) + '</td></tr>'; }).join('')
-      : '<tr class="empty-row"><td colspan="2">Nothing found.</td></tr>';
+      : '<tr class="empty-row"><td colspan="2">Nothing found. Change the words or dates and try again.</td></tr>';
     box.innerHTML = h + '</tbody></table></div>';
   });
 }
@@ -6698,7 +6730,7 @@ function rmcLoadImports() {
     if (!d.ok) { rmcSetMsg('rmc-imports-msg', d.message, false); return; }
     var rows = d.batches || [];
     var h = '<div class="table-wrap"><table><thead><tr><th>When</th><th>What</th><th>By</th><th>Rows</th><th>Added</th><th>Changed</th><th>State</th><th>Undo until</th><th></th></tr></thead><tbody>';
-    if (!rows.length) h += '<tr class="empty-row"><td colspan="9">No imports yet.</td></tr>';
+    if (!rows.length) h += '<tr class="empty-row"><td colspan="9">No imports yet. When someone imports a file it will be listed here, ready to undo.</td></tr>';
     rows.forEach(function (b) {
       var st = String(b.status || '').toUpperCase();
       var stText = st === 'APPLIED' ? 'Saved' : (st === 'UNDONE' ? 'Undone' : (st === 'DRY_RUN' ? 'Trial only' : rmcPlainName(st)));
@@ -6735,7 +6767,7 @@ function rmcLoadErrFiles() {
     if (!d.ok) { body.innerHTML = '<div class="rmc-hint">' + esc(d.message) + '</div>'; return; }
     var rows = d.files || [];
     var h = '<div class="table-wrap"><table><thead><tr><th>When</th><th>What</th><th>By</th><th>Rows checked</th><th>Rows with problems</th><th></th></tr></thead><tbody>';
-    if (!rows.length) h += '<tr class="empty-row"><td colspan="6">No row-error files.</td></tr>';
+    if (!rows.length) h += '<tr class="empty-row"><td colspan="6">No problem files. Nothing to fix.</td></tr>';
     rows.forEach(function (f) {
       h += '<tr><td>' + esc(fmtDateTime(f.created_at)) + '</td><td>' + esc(RMC_KIND_LABEL[f.kind] || rmcPlainName(f.kind)) + '</td><td>' + esc(showVal(f.created_by)) + '</td>' +
         '<td>' + fmtNum(f.total_rows) + '</td><td>' + fmtNum(f.error_rows) + '</td>' +
@@ -6814,7 +6846,7 @@ function rmcLoadChanges() {
     rmcChangeIndex = {};
     rows.forEach(function (c) { rmcChangeIndex[c.change_id] = c; });
     var h = '<div class="table-wrap"><table><thead><tr><th>When</th><th>Who</th><th>Record</th><th>What happened</th><th>What changed</th><th></th></tr></thead><tbody>';
-    if (!rows.length) h += '<tr class="empty-row"><td colspan="6">No changes recorded.</td></tr>';
+    if (!rows.length) h += '<tr class="empty-row"><td colspan="6">No changes recorded yet. Changes will be listed here as people make them.</td></tr>';
     rows.forEach(function (c) {
       var act = String(c.action || '').toUpperCase();
       var actText = act === 'INSERT' ? 'Added' : (act === 'UPDATE' ? 'Edited' : (act === 'DELETE' ? 'Removed' : '—'));
@@ -6854,7 +6886,7 @@ function rmcLoadScore() {
     if (!d.ok) { rmcSetMsg('rmc-score-msg', d.message, false); return; }
     var rows = d.vendors || [];
     var h = '<div class="table-wrap"><table><thead><tr><th>Vendor</th><th>Orders</th><th>On time</th><th>Average wait</th><th>Rejected</th><th>Price vs last 3</th><th>Only-source items</th><th>Risk</th></tr></thead><tbody>';
-    if (!rows.length) h += '<tr class="empty-row"><td colspan="8">No vendor activity in this period.</td></tr>';
+    if (!rows.length) h += '<tr class="empty-row"><td colspan="8">No vendor activity in this period. Pick a longer period and tap the button again.</td></tr>';
     rows.forEach(function (v) {
       var risk = String(v.risk || '').toUpperCase();
       var rtext = risk === 'HIGH' ? 'High' : (risk === 'MEDIUM' ? 'Medium' : (risk === 'LOW' ? 'Low' : 'Not enough data'));
@@ -7091,7 +7123,7 @@ function secLoadRecon() {
     var checks = d.checks || [];
     var h = '<div class="rmc-kpi">' + secKv('Totals that disagree', fmtNum(d.mismatches)) + secKv('Checks run', fmtNum(checks.length)) + '</div>';
     h += '<div class="table-wrap"><table><thead><tr><th>Check</th><th>How serious</th><th>Found</th><th>Examples</th></tr></thead><tbody>';
-    if (!checks.length) h += '<tr class="empty-row"><td colspan="4">No checks returned.</td></tr>';
+    if (!checks.length) h += '<tr class="empty-row"><td colspan="4">No results came back. Tap the button again in a minute. If it stays empty, tell the owner.</td></tr>';
     checks.forEach(function (c) {
       var sev = String(c.severity || '').toUpperCase();
       var badge = sev === 'HIGH' ? 'badge-red' : (sev === 'MEDIUM' ? 'badge-amber' : 'badge-grey');
@@ -7306,7 +7338,7 @@ function secLoadErrors() {
     if (ks.length) h += '<div class="rmc-hint">Last 7 days by area: ' + ks.map(function (k) { return esc(k) + ' ' + esc(fmtNum(by[k])); }).join(', ') + '.</div>';
     var rows = d.rows || [];
     h += '<div class="table-wrap"><table><thead><tr><th>When (IST)</th><th>Area</th><th>App version</th><th>What the app noticed</th></tr></thead><tbody>';
-    if (!rows.length) h += '<tr class="empty-row"><td colspan="4">No errors recorded. That is good.</td></tr>';
+    if (!rows.length) h += '<tr class="empty-row"><td colspan="4">No errors recorded. Nothing to do.</td></tr>';
     rows.forEach(function (r) {
       h += '<tr><td>' + esc(showVal(r.at_ist)) + '</td><td>' + esc(showVal(r.area)) + '</td><td>' + esc(showVal(r.app_version)) + '</td><td style="word-break:break-word;">' + esc(showVal(r.message)) + '</td></tr>';
     });
@@ -7341,10 +7373,10 @@ var TXN_LABEL = {
   NEW_STOCK_IN:          'New stock in',
   ADJUSTMENT_FOUND:      'Found — extra stock located',
   ADJUSTMENT_LOST_THEFT: 'Lost or stolen',
-  ADJUSTMENT_REJECTED:   'Rejected / written off',
+  ADJUSTMENT_REJECTED:   'Rejected or written off',
   MANUAL_CORRECTION:     'Manual correction',
   QC_HOLD:               'Put on quality-check hold',
-  ADJUSTMENT_QC_RELEASE: 'Released from quality-check hold',
+  ADJUSTMENT_QC_RELEASE: 'Back on sale after quality check',
   BIN_TRANSFER_OUT:      'Moved out of a bin',
   BIN_TRANSFER_IN:       'Moved into a bin',
   INVENTORY_SYNC:        'Stock sync from Excel',
@@ -7366,7 +7398,7 @@ var ACTION_LABEL = {
   EMPLOYEE_PERMISSIONS_UPDATED: 'Staff permissions changed',
   ADMIN_BULK_SKU_UPDATE:        'Bulk SKU update',
   ADMIN_SECRET_ROTATED:         'Admin Password changed',
-  ADMIN_STOCK_ADJUSTMENT:       'Stock quantity overridden by an Admin',
+  ADMIN_STOCK_ADJUSTMENT:       'Stock changed by an Admin',
   BIN_RELOCATE:                 'Bin relocated',
   AUDIT_LOG_SYSTEM_TEST:        'System check test entry',
   SCAN_SESSION_OPENED:          'Scan session started',
@@ -7376,19 +7408,19 @@ var ACTION_LABEL = {
   TOTP_ENABLED:                 'Phone code turned on',
   ADMIN_TOTP_ENROLLED:          'Phone code set up by an Admin',
   ADMIN_TOTP_RESET:             'Phone code cleared by an Admin',
-  ADMIN_TOTP_REQUIRED_ON:       'Phone code made compulsory',
-  ADMIN_TOTP_REQUIRED_OFF:      'Phone code no longer compulsory',
+  ADMIN_TOTP_REQUIRED_ON:       'Phone code now required',
+  ADMIN_TOTP_REQUIRED_OFF:      'Phone code no longer required',
   TOTP_BACKUP_REGENERATED:      'New backup codes issued',
   BIN_TRANSFER:                 'Stock moved between bins (Transfer)',
-  SESSION_BIN_TRANSFER:         'Whole scan session moved to another bin',
+  SESSION_BIN_TRANSFER:         'Whole batch scan moved to another bin',
   SUPERVISOR_PASSWORD_SET:      'Supervisor Password changed',
   SUPERVISOR_PASSWORD_CLEARED:  'Supervisor Password removed',
   ADMIN_ZERO_ALL_INVENTORY:     'All stock reset to zero',
   EMPLOYEE_RENAMED:             'Staff account renamed',
   DEVICE_RENAMED:               'Phone/device given a name',
   TOTP_RESET_BY_ADMIN:          'Phone code cleared by an Admin',
-  TOTP_REQUIRED_ON:             'Phone code made compulsory',
-  TOTP_REQUIRED_OFF:            'Phone code no longer compulsory'
+  TOTP_REQUIRED_ON:             'Phone code now required',
+  TOTP_REQUIRED_OFF:            'Phone code no longer required'
 };
 // Falls back to a tidied-up version of the code itself, so an action added to
 // the database later still reads sensibly here instead of showing raw.
@@ -7690,7 +7722,7 @@ function loadDashboard() {
     var staffBody = document.getElementById('dash-staff-body');
     var staffRows = staffRes.data || [];
     if (!staffRows.length) {
-      staffBody.innerHTML = '<tr class="empty-row"><td colspan="7">No staff activity recorded yet today.</td></tr>';
+      staffBody.innerHTML = '<tr class="empty-row"><td colspan="7">No staff activity yet today. It will appear here as people scan and move stock.</td></tr>';
     } else {
       staffBody.innerHTML = staffRows.map(function (r) {
         var name = employeeDirectory[r.employee_code] ? employeeDirectory[r.employee_code].display_name : '—';
@@ -8059,7 +8091,7 @@ function loadAuditLog(page) {
     var rows = res.data || [];
     auditLastRows = rows;
     if (!rows.length) {
-      body.innerHTML = '<tr class="empty-row"><td colspan="7">No audit entries match these filters' + (page > 0 ? ' on this page.' : '.') + '</td></tr>';
+      body.innerHTML = '<tr class="empty-row"><td colspan="7">No audit entries match these filters' + (page > 0 ? ' on this page. Tap Prev to go back.' : '. Open More filters and export, widen the dates or tap Clear filters.') + '</td></tr>';
     } else {
       body.innerHTML = rows.map(function (r, idx) { return auditRowHtml(r, idx); }).join('');
     }
@@ -8103,7 +8135,7 @@ function loadAuditLogHighRisk() {
     auditLastRows = rows;
 
     if (!rows.length) {
-      body.innerHTML = '<tr class="empty-row"><td colspan="7">No high-risk (Stock Adjustment / Bin Transfer) entries match these filters.</td></tr>';
+      body.innerHTML = '<tr class="empty-row"><td colspan="7">No risky changes (stock corrections or bin moves) match these filters. Open More filters and export and widen the dates.</td></tr>';
     } else {
       body.innerHTML = rows.map(function (r, idx) { return auditRowHtml(r, idx); }).join('');
     }
@@ -8267,7 +8299,7 @@ function loadBins() {
     binsLastRows = res.data || [];
     binsLoadedOnce = true;
     populateBinDatalists(); // v2.3: keep the shared bin-suggestions datalist in sync with the live bin list
-    if (!binsLastRows.length) { body.innerHTML = '<tr class="empty-row"><td colspan="6">No bins found yet.</td></tr>'; return; }
+    if (!binsLastRows.length) { body.innerHTML = '<tr class="empty-row"><td colspan="6">No bins yet. A bin is made the first time someone scans stock into a new bin code, or tap Relocate / Merge Bins to move stock.</td></tr>'; return; }
     body.innerHTML = binsLastRows.map(function (b) {
       var statusHtml = b.active ? '<span class="badge badge-green">Active</span>' : '<span class="badge badge-grey">Inactive</span>';
       var toggleLabel = b.active ? 'Deactivate' : 'Reactivate';
@@ -8558,7 +8590,7 @@ function loadScanSessions() {
     if (empVal) rows = rows.filter(function (r) { return r.employee_code === empVal; });
     sessionsLastRows = rows;
     if (!rows.length) {
-      body.innerHTML = '<tr class="empty-row"><td colspan="9">No scan sessions match these filters.</td></tr>';
+      body.innerHTML = '<tr class="empty-row"><td colspan="9">No batch scans match. Set Status to All, open More filters and help, then tap Clear filters.</td></tr>';
       return;
     }
     body.innerHTML = rows.map(function (r, idx) { return scanSessionRowHtml(r, idx); }).join('');
@@ -9592,7 +9624,7 @@ function loadDevices() {
     var rows = d.devices || [];
     devicesLastRows = rows;
     if (!rows.length) {
-      body.innerHTML = '<tr class="empty-row"><td colspan="8">No phone has signed in or scanned yet.</td></tr>';
+      body.innerHTML = '<tr class="empty-row"><td colspan="8">No phone has signed in yet. A phone shows here after someone signs in on it.</td></tr>';
       return;
     }
     body.innerHTML = rows.map(function (r, i) { return deviceRowHtml(r, i); }).join('');
@@ -10692,11 +10724,11 @@ var ROLE_PERMISSION_PRESETS = {
   BILLING_OPERATOR: { pick: true,  move: false, stock: true,  log: true, logScope: 'own', guide: true, settings: false, dash: false, sessions: false, reserved_stock: false, analytics: false, raw_materials: false, customers: false, production: false, approve_tasks: false, /* B10 */ void_entry: false, stock_correction: false, release_held_stock: false, bulk_reverse: false, zero_inventory: false, delete_records: false, customer_data_erase_export: false },
   INVENTORY_LEAD:   { pick: true,  move: true,  stock: true,  log: true, logScope: 'all', guide: true, settings: false, dash: false, sessions: false, reserved_stock: false, analytics: false, raw_materials: false, customers: false, production: false, approve_tasks: false, /* B10 */ void_entry: false, stock_correction: false, release_held_stock: false, bulk_reverse: false, zero_inventory: false, delete_records: false, customer_data_erase_export: false },
   PRODUCTION_LEAD:  { pick: false, move: false, stock: true,  log: true, logScope: 'all', guide: true, settings: false, dash: false, sessions: false, reserved_stock: false, analytics: false, raw_materials: false, customers: false, production: false, approve_tasks: false, /* B10 */ void_entry: false, stock_correction: false, release_held_stock: false, bulk_reverse: false, zero_inventory: false, delete_records: false, customer_data_erase_export: false },
-  ADMIN:            { pick: true,  move: true,  stock: true,  log: true, logScope: 'all', guide: true, settings: true,  dash: true, sessions: true, reserved_stock: true, analytics: true, raw_materials: true, customers: true, production: true, approve_tasks: true, /* B10 */ void_entry: true, stock_correction: true, release_held_stock: true, bulk_reverse: true, zero_inventory: true, delete_records: true, customer_data_erase_export: true },
+  ADMIN:            { pick: true,  move: true,  stock: true,  log: true, logScope: 'all', guide: true, settings: true,  dash: true, sessions: true, reserved_stock: true, analytics: true, raw_materials: true, customers: true, production: true, approve_tasks: true, /* B10 */ void_entry: true, stock_correction: true, release_held_stock: true, bulk_reverse: true, zero_inventory: true, delete_records: true, customer_data_erase_export: true, label_review: true /* NYH */ },
   // v2.29: on the phone App a Supervisor gets the same sections as an Admin.
   // Everything a Supervisor must not reach lives in the Admin Panel and in the
   // database, not in these phone-App tick-boxes.
-  SUPERVISOR:       { pick: true,  move: true,  stock: true,  log: true, logScope: 'all', guide: true, settings: true,  dash: true, sessions: true, reserved_stock: true, analytics: true, raw_materials: true, customers: true, production: true, approve_tasks: true, /* B10 */ void_entry: false, stock_correction: true, release_held_stock: true, bulk_reverse: false, zero_inventory: false, delete_records: false, customer_data_erase_export: false }
+  SUPERVISOR:       { pick: true,  move: true,  stock: true,  log: true, logScope: 'all', guide: true, settings: true,  dash: true, sessions: true, reserved_stock: true, analytics: true, raw_materials: true, customers: true, production: true, approve_tasks: true, /* B10 */ void_entry: false, stock_correction: true, release_held_stock: true, bulk_reverse: false, zero_inventory: false, delete_records: false, customer_data_erase_export: false, label_review: true /* NYH */ }
 };
 // v2.17 (Master Prompt v21, Part 5): matches the App's own ROLE_PERMISSIONS.ADMIN
 // fix — the "off for everyone, including ADMIN" launch decision behind Scan
@@ -10730,6 +10762,8 @@ var PERMISSION_SECTIONS = [
   { key: 'approve_tasks', label: 'Can approve tasks / requests', help: 'Lets this person approve or decline the requests on the Today list: void an entry, stock correction, purchase, and other changes that cannot be undone. Nobody can approve their own request (only an Admin or Owner may). An Admin, Owner or Supervisor can always approve; everyone else only when ticked.' },
   /* B9-END */
   { key: 'production', label: 'Production (plan and mark done)', help: 'Lets this person open the Production section in the phone App: see the production plan and mark jobs done. An Admin always has this; a Supervisor has it unless you untick it; everyone else only when ticked.' },
+  /* NYH (B-31b): label products that could not be added by themselves. Saved as permissions.label_review. The database does not check this tick (the three label-review functions check the role and PIN); it only decides who sees the screen in the phone App. */
+  { key: 'label_review', label: 'Needs Your Help (label products)', help: 'Lets this person open the Needs Your Help screen in the phone App: label products that could not be added by themselves (for example a product that is not in the catalogue yet), where a SKU, MRP and pieces per pack are typed in, or the line is ignored. The person still types a manager PIN to save. An Admin or Owner always has it; a Supervisor has it unless you untick it; everyone else only when ticked. This tick hides or shows the screen on the phone; it is not a lock inside the database.' },
   /* B10-BEGIN D-11: critical actions. Saved inside the same permissions object, same path as the boxes above. */
   { key: 'void_entry', group: 'critical', label: 'Void an entry', help: 'Shows the Void button on stock history, the entry list and bills, to undo a stock entry or a bill. Still asks for the PIN again. An Admin or Owner always has it; a Supervisor only when ticked.' },
   { key: 'stock_correction', group: 'critical', label: 'Correct stock', help: 'Shows Correct the count, Add found stock and Remove lost stock on the Stock product page and the Move screen. Still asks for the PIN again. Admin and Owner always; a Supervisor has it unless you untick it.' },
@@ -10883,6 +10917,7 @@ function prefillPermissionUI(prefix, e) {
     if (el && s.key === 'customers' && perm.customers === undefined) el.checked = (e.role === 'ADMIN' || e.role === 'SUPERVISOR');   // v2.39
     if (el && s.key === 'production' && perm.production === undefined) el.checked = (e.role === 'ADMIN' || e.role === 'SUPERVISOR');   // v2.39
     if (el && s.key === 'approve_tasks' && perm.approve_tasks === undefined) el.checked = (e.role === 'ADMIN' || e.role === 'OWNER' || e.role === 'SUPERVISOR');   /* B9 */
+    if (el && s.key === 'label_review' && perm.label_review === undefined) el.checked = (e.role === 'ADMIN' || e.role === 'OWNER' || e.role === 'SUPERVISOR');   /* NYH B-31b */
     /* B10-BEGIN */ if (el && s.group === 'critical' && perm[s.key] === undefined) el.checked = (e.role === 'ADMIN' || e.role === 'OWNER' || ((s.key === 'stock_correction' || s.key === 'release_held_stock') && e.role === 'SUPERVISOR')); /* B10-END */
   });
   var scopeEl = document.querySelector('input[name="' + prefix + '-log-scope"][value="' + (perm.logScope || 'own') + '"]');
@@ -11326,7 +11361,7 @@ function loadSkuStock0(page) {
     if (skuLastHadMore) skus = skus.slice(0, skuPageSize);
 
     if (!skus.length) {
-      body.innerHTML = '<tr class="empty-row"><td colspan="13">No SKUs match this search.</td></tr>';
+      body.innerHTML = '<tr class="empty-row"><td colspan="13">No products match this search. Check the spelling, try a shorter word, or open More filters and tools and set Status to All.</td></tr>';
       skuLastRows = [];
       document.getElementById('sku-page-info').textContent = 'Page ' + (page + 1);
       document.getElementById('sku-prev-btn').disabled = page === 0;
@@ -11375,7 +11410,7 @@ function loadSkuStock0(page) {
       skuLastRows = filtered;
 
       if (!filtered.length) {
-        body.innerHTML = '<tr class="empty-row"><td colspan="13">No SKUs match this search + stock filter combination on this page.</td></tr>';
+        body.innerHTML = '<tr class="empty-row"><td colspan="13">No products on this page match your stock level choice. Open More filters and tools and set Stock level to All.</td></tr>';
       } else {
         body.innerHTML = filtered.map(function (s) {
           var qtyCell = '—';
@@ -11917,7 +11952,7 @@ function loadTransactions0(page) {
     txnLastRows = rows;
 
     if (!rows.length) {
-      body.innerHTML = '<tr class="empty-row"><td colspan="9">No transactions match these filters.</td></tr>';
+      body.innerHTML = '<tr class="empty-row"><td colspan="9">No stock movements match. Open More filters and export, tap All Time, then tap Show results.</td></tr>';
     } else {
       body.innerHTML = rows.map(function (t) {
         var qtyClass = Number(t.qty_delta) >= 0 ? 'num-pos' : 'num-neg';
@@ -12003,9 +12038,9 @@ function renderTxnGroupedSummaries(rows) {
   var byEmployee = groupBy(function (r) { return r.employee_code; });
   var bySku = groupBy(function (r) { return r.sku_code; });
 
-  document.getElementById('txn-group-day-body').innerHTML = renderRows(byDay, false) || '<tr class="empty-row"><td colspan="3">No data.</td></tr>';
-  document.getElementById('txn-group-channel-body').innerHTML = renderRows(byChannel, true) || '<tr class="empty-row"><td colspan="3">No data.</td></tr>';
-  document.getElementById('txn-group-employee-body').innerHTML = renderRows(byEmployee, true) || '<tr class="empty-row"><td colspan="3">No data.</td></tr>';
+  document.getElementById('txn-group-day-body').innerHTML = renderRows(byDay, false) || '<tr class="empty-row"><td colspan="3">Nothing to show yet. Tap Show results.</td></tr>';
+  document.getElementById('txn-group-channel-body').innerHTML = renderRows(byChannel, true) || '<tr class="empty-row"><td colspan="3">Nothing to show yet. Tap Show results.</td></tr>';
+  document.getElementById('txn-group-employee-body').innerHTML = renderRows(byEmployee, true) || '<tr class="empty-row"><td colspan="3">Nothing to show yet. Tap Show results.</td></tr>';
 
   var skuKeys = Object.keys(bySku).sort(function (a, b) { return bySku[b].count - bySku[a].count; }).slice(0, 10);
   document.getElementById('txn-group-sku-body').innerHTML = skuKeys.length ? skuKeys.map(function (k) {
@@ -12013,7 +12048,7 @@ function renderTxnGroupedSummaries(rows) {
     var qtyClass = m.netQty >= 0 ? 'num-pos' : 'num-neg';
     var qtyStr = (m.netQty >= 0 ? '+' : '') + fmtNum(m.netQty);
     return '<tr><td>' + idChip(k, { compact: true }) + '</td><td>' + fmtNum(m.count) + '</td><td class="' + qtyClass + '">' + qtyStr + '</td></tr>';
-  }).join('') : '<tr class="empty-row"><td colspan="3">No data.</td></tr>';
+  }).join('') : '<tr class="empty-row"><td colspan="3">Nothing to show yet. Tap Show results.</td></tr>';
 }
 
 function exportTxnCSV(mode) {
@@ -12052,7 +12087,7 @@ function exportTxnFullCSV(mode) {
   }
 
   admTxnPrepare().then(function () { return fetchPage(0); }).then(function () {
-    if (!accumulated.length) { progEl.textContent = ''; axNone(mode, 'No transactions match these filters.'); return; }
+    if (!accumulated.length) { progEl.textContent = ''; axNone(mode, 'No stock movements match. Open More filters and export, tap All Time, then tap Show results.'); return; }
     var rows = accumulated.map(function (t) {
       return {
         timestamp: t.created_at, txn_type: t.txn_type, sku_code: t.sku_code, asin: t.asin,
@@ -12561,6 +12596,7 @@ function e2Collect(root) {
     for (var i = 0; i < nodes.length; i++) {
         var e = nodes[i];
         if (e.parentElement && e.parentElement.closest('button')) continue;
+        if (e.closest('.a53-tabs, .pagination')) continue;   // v2.54: page tabs and Prev/Next paging are navigation, not screen actions: they are never folded and never counted
         if (e.closest('.e2-keep, .idc, details:not(.e2-more):not(.af-more), [id^="fb-"], [id^="sm-tools-"], .sm-info, .sm-note, .sm-chips, .sm-ex, .sm-rl, .sm-tips') || (e.tagName === 'SUMMARY' && e.parentElement && !/e2-more|af-more/.test(e2Cls(e.parentElement))) || /sm-act|sm-clear/.test(e2Cls(e))) {   // ID chips, the shared filter bar and the search result line manage their own buttons: they stay, and they use up a place
             if (!e.closest('.e2-keep, .idc') && e2Vis(e)) { var rk = (e2Txt(e) || '').slice(0, 40); if (!resKeys[rk]) { resKeys[rk] = 1; reserved++; } }
             continue;
@@ -12618,12 +12654,12 @@ function e2Hoist(units, root) {
     return out;
 }
 function e2Fold(root) {
-    var all = e2Collect(root), res = all.reserved || 0; if (all.length + res <= 7) return;
+    var all = e2Collect(root), res = all.reserved || 0; if (all.length + res <= 5) return;   // v2.54: five primary controls per screen (was seven)
     var list = all.filter(function (x) { return x.els.length < 3; });   // a button repeated 3 or more times is a list card button: it stays, but it uses up one place
     var fixed = all.length - list.length;
     var order = list.slice().sort(function (a, b) { return (b.score - a.score) || (a.idx - b.idx); });
     var hasSum = list.some(function (x) { return x.score === 1000 && x.els[0].tagName === 'SUMMARY'; });   // an existing More actions fold already uses its one place
-    var rest = order.slice(Math.max(0, (hasSum ? 7 : 6) - fixed - res)).filter(function (r) { return r.score < 1000; }).sort(function (a, b) { return a.idx - b.idx; });   // Back and an open More actions button are never folded
+    var rest = order.slice(Math.max(0, (hasSum ? 5 : 4) - fixed - res)).filter(function (r) { return r.score < 1000; }).sort(function (a, b) { return a.idx - b.idx; });   // Back and an open More actions button are never folded
     // a bar of 4 or more buttons is never split: if one of its buttons is folded, the whole bar is
     var barOf = function (el) { var q = el.parentElement; if (!q || q === root) return null; var n = 0, k; for (k = 0; k < q.children.length; k++) { if (/^(BUTTON|A)$/.test(q.children[k].tagName)) n++; } return (n >= 4 && n === q.children.length) ? q : null; };
     var bars = [], keepBars = [];
@@ -12653,14 +12689,14 @@ function e2Fold(root) {
 }
 var E2_PURPOSE = {
     dashboard: 'Next: tap Refresh for the latest figures. Nothing showing yet? Wait a moment, then tap Refresh.',
-    audit: 'Next: pick dates, a person or an action, then tap Apply Filters. Nothing listed? Widen the dates.',
+    audit: 'Next: tap Show results. To narrow the list, open More filters and export. Nothing listed? Widen the dates.',
     sessions: 'Next: open a batch to look inside it. Nothing listed means no batch scan was started yet.',
     rmctl: 'Next: enter your PIN, then open a section. Nothing changes until you save.',
     devices: 'Next: give a phone a name, or block it. Nothing listed means no phone has signed in yet.',
-    employees: 'Next: search for a person and open them to change their access.',
-    sku: 'Next: type a product code, Amazon product number or name. Nothing found? Check the spelling or clear the filters.',
+    employees: 'Next: search for a person and open them to change their access. To add someone new, open Add a person and other tools.',
+    sku: 'Next: type a product code, Amazon product number or name. Nothing found? Check the spelling or open More filters and tools.',
     bins: 'Next: add a bin or open one. Nothing listed means no bin was added yet.',
-    reports: 'Next: pick a period (Today, This Week...) and tap Apply Filters. Nothing listed? Pick All Time.',
+    reports: 'Next: tap Show results. To pick dates or a person, open More filters and export. Nothing listed? Pick All Time.',
     secdata: 'Next: enter your PIN, then pick a safety task.',
     syscheck: 'Next: tap the button. Green means fine; anything else says what to do.',
     settings: 'Next: change a value and tap Save.'
@@ -12697,7 +12733,7 @@ function e2Filter(host) {
 }
 function e2Search(root) {
     var k = (root.id || '').replace(/^page-/, ''), known = false; for (var q = 0; q < E2_SEARCH_PAGES.length; q++) { if (E2_SEARCH_PAGES[q] === k) known = true; } if (!known) return;
-    if (root.querySelector('input[type=search], input[id*="search"], input[id$="-q"], input[id="emp-search"], input[id="sku-search"]') && !root.querySelector('.e2-find')) return;   // the page already has its own search
+    if (root.querySelector('input[type=search], input[id*="search"], input[id$="-q"], input[id="emp-search"], input[id="sku-search"], input[id="txn-sku"]') && !root.querySelector('.e2-find')) return;   // the page already has its own search
     var box = root.querySelector('.e2-find');
     if (!box) {
         box = document.createElement('div'); box.className = 'e2-find';
@@ -12788,5 +12824,47 @@ if (document.readyState === 'loading') document.addEventListener('DOMContentLoad
 <button type="button" class="af-fs-fab" id="af-fs-fab" onclick="afFontFabToggle()" aria-label="Text size" aria-expanded="false" title="Text size">Aa<span style="font-size:12px;font-weight:700;margin-left:6px">Text size</span></button>
 <div class="af-fs-pop" id="af-fs-pop" role="dialog" aria-label="Text size"><div class="af-fs-t">Text size</div><div id="af-fs-ctl-fab"></div></div>
 <!-- B9-END -->
+
+<script>
+/* v2.53 (M11): the sidebar shows 7 entries, not 12. Related pages become tabs at the top of the page.
+   Nothing is removed: every page, every switchPage('...') call and every permission rule works as before. */
+(function () {
+  var GROUPS = [
+    { id: 'employees', label: 'People and phones', icon: '\uD83D\uDC65', pages: [['employees', 'People and access'], ['devices', 'Phones']] },
+    { id: 'sku', label: 'Stock and bins', icon: '\uD83D\uDCE6', pages: [['sku', 'Product stock search'], ['bins', 'Bins (shelf locations)'], ['reports', 'Stock movement reports']] },
+    { id: 'audit', label: 'Activity record', icon: '\uD83D\uDCDC', pages: [['audit', 'Permanent activity record'], ['sessions', 'Batch scans']] },
+    { id: 'secdata', label: 'Safety and checks', icon: '\uD83D\uDD10', pages: [['secdata', 'Safety and backups'], ['syscheck', 'Is everything working?']] }
+  ];
+  var groupOf = {};
+  GROUPS.forEach(function (g) { g.pages.forEach(function (p) { groupOf[p[0]] = g; }); });
+  function nav(name) { return document.querySelector('.nav-item[data-page="' + name + '"]'); }
+  function paint() {
+    GROUPS.forEach(function (g) {
+      g.pages.forEach(function (p, i) { var n = nav(p[0]); if (!n) return; if (i > 0) n.style.display = 'none'; });
+      var main = nav(g.id); if (main) { var l = main.querySelector('.nav-label'); if (l) l.textContent = g.label; }
+    });
+  }
+  function bar(name) {
+    var g = groupOf[name]; document.querySelectorAll('.a53-tabs').forEach(function (b) { b.remove(); });
+    var main = null;
+    if (!g) return;
+    var pg = document.getElementById('page-' + name); if (!pg) return;
+    var d = document.createElement('div'); d.className = 'a53-tabs'; d.setAttribute('role', 'tablist');
+    d.style.cssText = 'display:flex;flex-wrap:wrap;gap:6px;margin:0 0 12px';
+    g.pages.forEach(function (p) {
+      var b = document.createElement('button'); b.type = 'button'; b.textContent = p[1]; b.setAttribute('role', 'tab');
+      var on = p[0] === name; b.setAttribute('aria-selected', on ? 'true' : 'false');
+      b.style.cssText = 'min-height:44px;padding:8px 14px;border-radius:10px;border:1px solid #1B4F8A;cursor:pointer;font:inherit;' + (on ? 'background:#1B4F8A;color:#fff' : 'background:#fff;color:#1B4F8A');
+      b.onclick = function () { switchPage(p[0]); };
+      d.appendChild(b);
+    });
+    pg.insertBefore(d, pg.firstChild);
+    var m = nav(g.id); if (m) m.classList.add('active');
+  }
+  var orig = window.switchPage;
+  window.switchPage = function (name) { orig(name); try { bar(name); } catch (e) {} };
+  paint();
+})();
+</script>
 </body>
 </html>
