@@ -99,7 +99,9 @@
 // v67 (2026-11-02): cache name bumped for App v191 (Admin Panel v2.55); nothing else changed.
 // v68 (2026-11-02): cache name bumped for App v192 (Admin Panel v2.55); nothing else changed.
 // v69 (2026-11-03): cache name bumped for App v193 (Admin Panel v2.55); nothing else changed.
-const CACHE_NAME = 'artzfolio-oms-shell-v69';
+// v70 (2026-11-03): cache name bumped for App v194 (Admin Panel v2.55); nothing else changed.
+// v71 (2026-11-03): cache name bumped for App v195 (Admin Panel v2.55); nothing else changed.
+const CACHE_NAME = 'artzfolio-oms-shell-v71';
 const OPTIONAL_FILES = ['./zxing_reader_3.1.4.js', './zxing_reader_3.1.4.wasm'];
 const SHELL_FILES = ['./index.html', './manifest.json', './icon.svg'];
 
