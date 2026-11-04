@@ -2930,6 +2930,25 @@ input[type=tel],input[type=email],input[type=search],input:not([type]),textarea{
         .idc-toast.idc-err{background:#B91C1C}
         .idc-toast input{display:block;width:100%;box-sizing:border-box;margin-top:6px;font-size:calc(16px*var(--fs,1));padding:6px;border-radius:6px;border:none}
         @media print{.idc-b,.idc-btn,#idc-toast{display:none!important}}
+        /* B-54 (port of App B-48) labelled copy chips */
+        .idc.idc-v2{display:block;width:100%;max-width:100%}
+        .idc-v2 .idc-t{display:block;font-weight:700;font-size:calc(14px*var(--fs,1));line-height:1.3;color:#0A1628;overflow-wrap:anywhere}
+        .idc-v2 .idc-o.idc-t{display:flex;align-items:center;min-height:44px;width:100%;text-align:left;font-weight:700;font-size:calc(14px*var(--fs,1))}
+        .idc-v2 .idc-ch{display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px;margin-top:6px;max-width:100%}
+        .idc-v2 .idc-chip{display:inline-flex;align-items:center;flex-wrap:wrap;gap:0 6px;box-sizing:border-box;min-height:44px;min-width:44px;max-width:100%;padding:4px 10px;border:1.5px solid #93C5FD;background:#EFF6FF;color:#0F172A;border-radius:10px;font:inherit;text-align:left;cursor:pointer;touch-action:manipulation}
+        .idc-v2 .idc-chip-asin{border-color:#FDBA74;background:#FFF7ED}
+        .idc-v2 .idc-k{flex:0 0 auto;font-size:calc(11px*var(--fs,1));font-weight:800;letter-spacing:.05em;color:#475569}
+        .idc-v2 .idc-v{min-width:0;max-width:100%;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:calc(13px*var(--fs,1));font-weight:700;color:#0F172A;overflow-wrap:anywhere;word-break:break-all;line-height:1.25}
+        .idc-v2 .idc-v .idc-g{font-weight:400}
+        .idc-v2 .idc-chip.copied{background:#eafaf1;border-color:#86EFAC}
+        .idc-v2 .idc-chip:active{filter:brightness(.95)}
+        .idc-ok{font-size:calc(12px*var(--fs,1));font-weight:700;color:#1e8449}
+        .idc-ok:empty{display:none}
+        .idc-btn.idc-all2{min-height:44px;min-width:44px;padding:6px 12px;border:1px solid #A5B4FC;background:#EEF2FF;color:#3730A3;border-radius:10px;font-size:calc(13px*var(--fs,1));font-weight:700;text-align:left;white-space:normal;max-width:100%;cursor:pointer;touch-action:manipulation}
+        .idc-btn.idc-all2.copied{background:#eafaf1;border-color:#86EFAC;color:#1e8449}
+        .idc-c .idc-a::before{content:"ASIN ";font-weight:400;color:#64748B}
+        .idc-c .idc-s::before{content:"SKU ";font-weight:400;color:#64748B}
+        .idc-c .idc-r{font-size:calc(12px*var(--fs,1))}
         /* B9-END */
 </style>
 </head>
@@ -3057,7 +3076,7 @@ input[type=tel],input[type=email],input[type=search],input:not([type]),textarea{
     <div class="sidebar-footer">
       <div class="af-fs-side"><div class="af-fs-t">Text size</div><div id="af-fs-ctl-side"></div></div>
       <button class="logout-btn" onclick="adminLogout()">⎋ Logout</button>
-      <div class="ver-footer">ArtzFolio Admin Panel v2.55</div>
+      <div class="ver-footer">ArtzFolio Admin Panel v2.56</div>
     </div>
   </div>
 
@@ -5335,7 +5354,7 @@ function esc(s) {
 }
 // W-02: the shared ID chip block below is written against esc59 (App name); same escaper here
 function esc59(s) { return esc(s); }
-/* ID CHIP (W-02) - keep identical in App and Admin */
+/* ID CHIP (W-02) - ported from the App (B-48 labelled chips, make_r12c.py) as B-54 in Admin v2.56; the App's row-folder (b25Rows / Actions menu) does not exist in the Admin, so the Admin shows 'Copy title + SKU + ASIN' in the open. Keep the chip markup, copy order and wording in step with the App. */
 // One shared "product id" chip: title + ASIN + SKU with copy buttons. Values live ONLY in data-* attributes (never in onclick text);
 // the buttons are handled by ONE delegated click listener (no inline handler per button). Built from esc59 / Number / literals only.
 var ID_META = {};      // UPPER(sku) -> { sku, asin, title }   (filled by idHydrate and by idRemember)
@@ -5397,9 +5416,19 @@ function idChip(p, o) {
     var n = idNorm(p);
     var hyd = (n.sku && (!n.title || !n.asin)) ? ' data-hyd="1"' : '';
     var t = n.title ? (o.hl ? idHl(n.title, o.hl) : esc59(n.title)) : '<span class="idc-g">(no title)</span>';
-    var a = n.asin ? (o.hl ? idHl(n.asin, o.hl) : esc59(n.asin)) : '<span class="idc-g">no ASIN</span>';
-    var s = n.sku ? (o.hl ? idHl(n.sku, o.hl) : esc59(n.sku)) : '<span class="idc-g">no SKU</span>';
+    var a = n.asin ? (o.hl ? idHl(n.asin, o.hl) : esc59(n.asin)) : '<span class="idc-g">none</span>';
+    var s = n.sku ? (o.hl ? idHl(n.sku, o.hl) : esc59(n.sku)) : '<span class="idc-g">none</span>';
     if (o.open && n.sku) s = '<button type="button" class="idc-o" data-w="open">' + esc59(n.sku) + '</button>';
+    if (!o.compact && !o.noCopy) {   /* B-54: two labelled chips, title is text, one clear 'copy all' button */
+        var b48s = n.sku ? (o.hl ? idHl(n.sku, o.hl) : esc59(n.sku)) : '<span class="idc-g">none</span>';
+        var b48a = n.asin ? (o.hl ? idHl(n.asin, o.hl) : esc59(n.asin)) : '<span class="idc-g">none</span>';
+        var b48t = (o.open && n.sku) ? '<button type="button" class="idc-o idc-t" data-w="open">' + t + '</button>' : '<span class="idc-t">' + t + '</span>';
+        var b48c = function (w, lab, val, cls) { return '<button type="button" class="idc-chip idc-chip-' + w + '" data-w="' + w + '" aria-label="Copy ' + lab + (n[w] ? ' ' + esc59(n[w]) : '') + '"><span class="idc-k">' + lab + '</span><span class="idc-v ' + cls + '">' + val + '</span></button>'; };
+        return '<span class="idc idc-v2" data-sku="' + esc59(n.sku) + '" data-asin="' + esc59(n.asin) + '" data-title="' + esc59(n.title) + '"' + hyd + '>' + b48t +
+            '<span class="idc-ch">' + b48c('sku', 'SKU', b48s, 'idc-s') + b48c('asin', 'ASIN', b48a, 'idc-a') +
+            '<button type="button" class="idc-btn idc-all2" data-w="all">Copy title + SKU + ASIN</button>' +
+            '<span class="idc-ok" role="status" aria-live="polite"></span></span></span>';
+    }
     /* B1-BEGIN W3-05 copy icons: full chip = a small copy icon after each value + one Copy all icon (the compact chip below is unchanged) */
     var h;
     if (!o.compact && !o.noCopy) {
@@ -5416,11 +5445,11 @@ function idChip(p, o) {
         '<span class="idc-t">' + t + '</span> <span class="idc-r"><span class="idc-a">' + a + '</span> <span class="idc-s">' + s + '</span></span>';
     if (!o.noCopy) {
         if (o.compact) {
-            h += '<span class="idc-b"><button type="button" class="idc-btn idc-all" data-w="all" aria-label="Copy title, ASIN and SKU">Copy</button>' +
-                '<button type="button" class="idc-btn idc-mo" data-w="more" aria-label="More copy choices" aria-expanded="false">&#9662;</button>' +
-                '<span class="idc-b2"><button type="button" class="idc-btn" data-w="asin" aria-label="Copy ASIN">ASIN</button>' +
-                '<button type="button" class="idc-btn" data-w="sku" aria-label="Copy SKU">SKU</button>' +
-                '<button type="button" class="idc-btn" data-w="title" aria-label="Copy title">Title</button></span></span>';
+            h += '<span class="idc-b"><button type="button" class="idc-btn idc-all" data-w="all" aria-label="Copy title, ASIN and SKU">Copy all</button>' +
+                '<button type="button" class="idc-btn idc-mo" data-w="more" aria-label="Copy just one" aria-expanded="false">Copy one &#9662;</button>' +
+                '<span class="idc-b2"><button type="button" class="idc-btn" data-w="asin" aria-label="Copy ASIN">Copy ASIN</button>' +
+                '<button type="button" class="idc-btn" data-w="sku" aria-label="Copy SKU">Copy SKU</button>' +
+                '<button type="button" class="idc-btn" data-w="title" aria-label="Copy title">Copy title</button></span></span>';
         }
     }
     return h + '</span>';
@@ -5455,14 +5484,19 @@ function idCopyText(t, cb) {   // cb(ok)
     } else if (cb) cb(legacy());
     else legacy();
 }
+function idOwner(b) {   /* B-54: the chip a copy button belongs to */
+    return b && b.closest ? b.closest('.idc') : null;
+}
 function idCopy(btn, what) {
-    var c = btn && btn.closest ? btn.closest('.idc') : null; if (!c) return;
+    var c = btn && btn.closest ? btn.closest('.idc') : null; c = idOwner(btn) || c; if (!c) return;
     var sku = c.getAttribute('data-sku') || '', asin = c.getAttribute('data-asin') || '', title = c.getAttribute('data-title') || '';
-    var txt = what === 'asin' ? asin : what === 'sku' ? sku : what === 'title' ? title : (title + '\n' + asin + '\n' + sku);
+    var txt = what === 'asin' ? asin : what === 'sku' ? sku : what === 'title' ? title : (title + '\n' + sku + '\n' + asin);   /* B-54: same order as the button words */
     if (!String(txt).replace(/\s+/g, '')) { idToast('Nothing to copy', 'err'); return; }
     idCopyText(txt, function (ok) {
         if (ok) {
-            idToast('Copied');
+            var b48n = what === 'sku' ? 'SKU' : what === 'asin' ? 'ASIN' : what === 'title' ? 'title' : 'title, SKU and ASIN';
+            idToast('Copied ' + b48n);
+            try { var b48o = c.querySelector('.idc-ok'); if (b48o) { b48o.textContent = String.fromCharCode(10003) + ' Copied ' + b48n; clearTimeout(b48o.__t); b48o.__t = setTimeout(function () { b48o.textContent = ''; }, 1800); } } catch (e48) {}
             btn.classList.add('copied'); setTimeout(function () { btn.classList.remove('copied'); }, 1200);
         } else idToast('Could not copy - press and hold the text below', 'err', txt);
     });
@@ -5563,7 +5597,7 @@ document.addEventListener('click', function (ev) {
         return;
     }
     ev.stopPropagation(); ev.preventDefault();   // the row around a chip often has its own tap action
-    var w = b.getAttribute('data-w'), c = b.closest('.idc');
+    var w = b.getAttribute('data-w'), c = idOwner(b) || b.closest('.idc');
     if (w === 'more') { var on = !c.classList.contains('idc-open'); c.classList.toggle('idc-open', on); b.setAttribute('aria-expanded', on ? 'true' : 'false'); return; }
     if (w === 'open') { try { if (typeof a12OpenSku === 'function') a12OpenSku(c.getAttribute('data-sku')); } catch (e) {} return; }
     idCopy(b, w);
