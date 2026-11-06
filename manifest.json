@@ -1,7 +1,7 @@
 {
-  "name": "ArtzFolio Scan-Pick-Pack",
-  "short_name": "ArtzFolio OMS",
-  "description": "ArtzFolio Integrated OMS - warehouse scan/pick/pack, live inventory, and cycle counting.",
+  "name": "ArtzFolio Super App",
+  "short_name": "ArtzFolio",
+  "description": "ArtzFolio Super App - warehouse scan/pick/pack, live inventory, and cycle counting.",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",
