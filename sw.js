@@ -112,7 +112,8 @@
 // v77 (2026-11-03): cache name bumped for App v204 (Admin Panel v2.55); nothing else changed.
 // v77 (2026-11-03): cache name bumped for App v205 (Admin Panel v2.55); nothing else changed.
 // v77 (2026-11-03): cache name bumped for App v206 (Admin Panel v2.55); nothing else changed.
-const CACHE_NAME = 'artzfolio-oms-shell-v82';
+// v83 (2026-11-05): cache name bumped for App v207 (Admin Panel v2.57). NEW: a 'message' handler - when the page posts {type:'SKIP_WAITING'} the waiting worker calls self.skipWaiting() so an open tab can move to the new build on demand. Fetch stays network-first with cache:'no-cache'; no stale shell.
+const CACHE_NAME = 'artzfolio-oms-shell-v84';
 const OPTIONAL_FILES = ['./zxing_reader_3.1.4.js', './zxing_reader_3.1.4.wasm'];
 const SHELL_FILES = ['./index.html', './manifest.json', './icon.svg'];
 
@@ -128,6 +129,11 @@ self.addEventListener('install', function (event) {
       });
     }).then(function () { return self.skipWaiting(); })
   );
+});
+
+// v83: lets the page ask a waiting worker to take over now (page sends registration.waiting.postMessage({type:'SKIP_WAITING'})).
+self.addEventListener('message', function (event) {
+  if (event.data && event.data.type === 'SKIP_WAITING') self.skipWaiting();
 });
 
 self.addEventListener('activate', function (event) {
