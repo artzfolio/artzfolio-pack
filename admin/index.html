@@ -7,8 +7,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <script>
 /* B9-BEGIN text size 60-200 (same steps as the App). --fs multiplies every font size. Saved on this computer per person (localStorage, try/catch). */
-var AF_FS_STEPS = (function () { var a = []; for (var p = 85; p <= 200; p += 5) a.push(p); return a; })(), AF_FS_BASE = 1, AF_FS_DEF = 3,   /* ADM-v266: 85% is the smallest step; 100% is index 3 */  AF_FS_KEY = 'af_admin_font_pct', AF_FS_OLDKEY = 'af_admin_font_step', AF_FS_OLD = [85, 100, 115, 130, 150], AF_FS_CUR = 3;
-function afFontPctToIdx(p) { p = Number(p); if (!(p >= 0)) return AF_FS_DEF; return Math.round((Math.max(85, Math.min(200, p)) - 85) / 5); }
+var AF_FS_STEPS = [70, 80, 100, 120, 140], AF_FS_BASE = 1, AF_FS_DEF = 2,   /* ADM-r22b: 5 stops, default 100% = index 2 (gate R1: 80% was smaller than v2.68) */  AF_FS_KEY = 'af_admin_text_pct', AF_FS_OLDKEY = 'af_admin_font_step_retired', AF_FS_OLD = [], AF_FS_CUR = 2, AF_ROOT100 = 85;   /* root = AF_ROOT100 % of the browser's own size at 100 % */
+function afFontPctToIdx(p) { p = Number(p); if (!(p >= 0)) return AF_FS_DEF; var b = 0, k; for (k = 1; k < AF_FS_STEPS.length; k++) { if (Math.abs(AF_FS_STEPS[k] - p) < Math.abs(AF_FS_STEPS[b] - p)) b = k; } return b; }   /* ADM-c21a: nearest of the 5 stops */
 function afFontMap() { try { var m = JSON.parse(localStorage.getItem(AF_FS_KEY) || 'null'); if (m && typeof m === 'object') return m; var o = JSON.parse(localStorage.getItem(AF_FS_OLDKEY) || '{}'), n = {}; if (o && typeof o === 'object') { for (var k in o) { if (typeof o[k] === 'number' && AF_FS_OLD[o[k]]) n[k] = AF_FS_OLD[o[k]]; } } return n; } catch (e) { return {}; } }
 function afFontWho() { try { var x = (typeof getAdminPanelSession === 'function') ? getAdminPanelSession() : null; return (x && x.employee_code) ? String(x.employee_code).toUpperCase() : ''; } catch (e) { return ''; } }
 function afFontGet() { return AF_FS_CUR; }
@@ -19,7 +19,7 @@ function afFontSync() {
     try {
         var l = document.querySelectorAll('.af-fs-lbl'), t = AF_FS_STEPS[AF_FS_CUR] + '%';
         for (var i = 0; i < l.length; i++) l[i].textContent = t;
-        var rg = document.querySelectorAll('.af-fs-rg'); for (var r = 0; r < rg.length; r++) rg[r].value = String(AF_FS_STEPS[AF_FS_CUR]);
+        var rg = document.querySelectorAll('.af-fs-rg'); for (var r = 0; r < rg.length; r++) rg[r].value = String(AF_FS_CUR);
         var d = document.querySelectorAll('.af-fs-dn'), u = document.querySelectorAll('.af-fs-up');
         for (var j = 0; j < d.length; j++) d[j].disabled = AF_FS_CUR <= 0;
         for (var k = 0; k < u.length; k++) u[k].disabled = AF_FS_CUR >= AF_FS_STEPS.length - 1;
@@ -28,7 +28,7 @@ function afFontSync() {
 function afFontSet(i, noSave) {
     i = Math.round(Number(i)); if (isNaN(i)) i = AF_FS_DEF; if (i < 0) i = 0; if (i > AF_FS_STEPS.length - 1) i = AF_FS_STEPS.length - 1;
     AF_FS_CUR = i;
-    try { document.documentElement.style.setProperty('--fs', String(Math.round(AF_FS_BASE * AF_FS_STEPS[i]) / 100)); document.documentElement.setAttribute('data-fs', String(i)); } catch (e) {}
+    try { document.documentElement.style.setProperty('--fs', String(Math.round(AF_FS_BASE * AF_FS_STEPS[i]) / 100)); document.documentElement.style.fontSize = (Math.round(AF_ROOT100 * AF_FS_STEPS[i]) / 100) + '%'; document.documentElement.setAttribute('data-fs', String(i)); } catch (e) {}   /* ADM-c21a: the ONE root */
     if (!noSave) {
         try { var m = afFontMap(), w = afFontWho(), pc = AF_FS_STEPS[i]; if (w) m[w] = pc; m._ = pc; localStorage.setItem(AF_FS_KEY, JSON.stringify(m)); } catch (e) {}
     }
@@ -44,8 +44,8 @@ function afFontApply() {
 }
 function afFontCtl() {
     return '<div class="af-fs-row" role="group" aria-label="Text size"><button type="button" class="af-fs-b af-fs-dn" onclick="afFontStep(-1)" aria-label="Smaller text">A&minus;</button>' +
-        '<span class="af-fs-lbl" aria-live="polite">100%</span><button type="button" class="af-fs-b af-fs-up" onclick="afFontStep(1)" aria-label="Bigger text">A+</button>' +
-        '<input type="range" class="af-fs-rg" min="85" max="200" step="5" value="100" aria-label="Text size percent" oninput="afFontSet((Number(this.value)-85)/5)" style="flex:1 1 100%;min-height:44px;order:9">' +
+        '<span class="af-fs-lbl" aria-live="polite">80%</span><button type="button" class="af-fs-b af-fs-up" onclick="afFontStep(1)" aria-label="Bigger text">A+</button>' +
+        '<input type="range" class="af-fs-rg" min="0" max="4" step="1" value="1" aria-label="Text size: 70, 80, 100, 120 or 140 percent" oninput="afFontSet(this.value)" style="flex:1 1 100%;min-height:44px;order:9">' +
         '<button type="button" class="af-fs-b af-fs-rs" onclick="afFontReset()" aria-label="Reset text size">Reset</button></div>';
 }
 /* the always-visible "Aa Text size" button (bottom right of every page; also works at phone width where the side menu is collapsed) */
@@ -2384,42 +2384,42 @@ function openSessionTransfer(sessionId, idx) {
 
 function sessionTransferPanelHtml(sessionId, idx, p) {
   var h = '<div style="border:1px solid #E2E8F0;border-radius:6px;padding:12px;background:#fff;text-align:left;">';
-  h += '<div style="font-weight:bold;color:#0A1628;font-size:calc(var(--fs-m)*var(--fsm,1));margin-bottom:6px;">Transfer this scan session to another bin — check this first</div>';
+  h += '<div style="font-weight:bold;color:#0A1628;font-size:var(--t-section);margin-bottom:6px;">Transfer this scan session to another bin — check this first</div>';
 
   if (p.already_transferred) {
-    h += '<div style="background:#F8F9FB;border:1px solid #E2E8F0;padding:10px;font-size:calc(var(--fs-s)*var(--fss,1));">' +
+    h += '<div style="background:#F8F9FB;border:1px solid #E2E8F0;padding:10px;font-size:var(--t-body);">' +
          'This session has already been transferred once. See the Activity record (action SESSION_BIN_TRANSFER) for where it went. Transferring it again is refused — use Adjust Stock by hand if that is genuinely what is needed.</div>' +
-         '<div style="margin-top:10px;"><button class="btn btn-grey" style="padding:6px 12px;font-size:calc(var(--fs-s)*var(--fss,1));" onclick="cancelSessionTransfer(\'' + jsq(sessionId) + '\')">Close</button></div></div>';
+         '<div style="margin-top:10px;"><button class="btn btn-grey" style="padding:6px 12px;font-size:var(--t-body);" onclick="cancelSessionTransfer(\'' + jsq(sessionId) + '\')">Close</button></div></div>';
     return h;
   }
   if (p.eligible_status !== true) {
-    h += '<div style="background:#FDECEA;border:1px solid #B3261E;padding:10px;font-size:calc(var(--fs-s)*var(--fss,1));color:#B3261E;">' +
+    h += '<div style="background:#FDECEA;border:1px solid #B3261E;padding:10px;font-size:var(--t-body);color:#B3261E;">' +
          'This session is ' + esc(SESSION_STATUS_LABEL[p.status] || p.status) + '. Only a Committed or Closed-Pending-Review session can be transferred.</div>' +
-         '<div style="margin-top:10px;"><button class="btn btn-grey" style="padding:6px 12px;font-size:calc(var(--fs-s)*var(--fss,1));" onclick="cancelSessionTransfer(\'' + jsq(sessionId) + '\')">Close</button></div></div>';
+         '<div style="margin-top:10px;"><button class="btn btn-grey" style="padding:6px 12px;font-size:var(--t-body);" onclick="cancelSessionTransfer(\'' + jsq(sessionId) + '\')">Close</button></div></div>';
     return h;
   }
 
   var lines = (p.lines || []).filter(function (l) { return l.will_move; });
   var skipped = (p.lines || []).filter(function (l) { return !l.will_move; });
 
-  h += '<div style="font-size:calc(var(--fs-s)*var(--fss,1));margin-bottom:8px;">Scanned by <strong>' + esc(p.session_owner || '—') + '</strong>' +
+  h += '<div style="font-size:var(--t-body);margin-bottom:8px;">Scanned by <strong>' + esc(p.session_owner || '—') + '</strong>' +
        ' on ' + esc(p.device_hint || '—') + '</div>';
 
   if (!lines.length) {
-    h += '<div style="background:#F8F9FB;border:1px solid #E2E8F0;padding:10px;font-size:calc(var(--fs-s)*var(--fss,1));">' +
+    h += '<div style="background:#F8F9FB;border:1px solid #E2E8F0;padding:10px;font-size:var(--t-body);">' +
          'Nothing in this session has anything positive left to move — ' +
          (skipped.length ? 'every product either nets to zero here or is already in the bin you would move it to.' : 'it has no lines at all.') +
          ' Nothing will be changed.</div>' +
-         '<div style="margin-top:10px;"><button class="btn btn-grey" style="padding:6px 12px;font-size:calc(var(--fs-s)*var(--fss,1));" onclick="cancelSessionTransfer(\'' + jsq(sessionId) + '\')">Close</button></div></div>';
+         '<div style="margin-top:10px;"><button class="btn btn-grey" style="padding:6px 12px;font-size:var(--t-body);" onclick="cancelSessionTransfer(\'' + jsq(sessionId) + '\')">Close</button></div></div>';
     return h;
   }
 
-  h += '<div style="background:#EEF2F8;padding:8px 10px;border-radius:4px;font-size:calc(var(--fs-m)*var(--fsm,1));margin-bottom:8px;">' +
+  h += '<div style="background:#EEF2F8;padding:8px 10px;border-radius:4px;font-size:var(--t-section);margin-bottom:8px;">' +
        'This will move <strong>' + fmtNum(lines.length) + '</strong> product' + (lines.length === 1 ? '' : 's') +
        ' out of the bin' + (lines.length === 1 ? '' : 's') + ' shown below, into the new bin you choose.</div>';
 
   h += '<div style="max-height:220px;overflow:auto;border:1px solid #E2E8F0;">';
-  h += '<table style="width:100%;border-collapse:collapse;font-size:calc(var(--fs-s)*var(--fss,1));">';
+  h += '<table style="width:100%;border-collapse:collapse;font-size:var(--t-body);">';
   h += '<thead><tr style="background:#0A1628;color:#fff;">' +
        '<th style="text-align:left;padding:5px 6px;">Product (title, ASIN, SKU)</th>' +
        '<th style="text-align:left;padding:5px 6px;">From bin</th>' +
@@ -2434,25 +2434,25 @@ function sessionTransferPanelHtml(sessionId, idx, p) {
   h += '</tbody></table></div>';
 
   if (skipped.length) {
-    h += '<div style="margin-top:6px;font-size:calc(var(--fs-s)*var(--fss,1));color:#6B7280;">' + fmtNum(skipped.length) + ' other line' + (skipped.length === 1 ? '' : 's') +
+    h += '<div style="margin-top:6px;font-size:var(--t-body);color:#6B7280;">' + fmtNum(skipped.length) + ' other line' + (skipped.length === 1 ? '' : 's') +
          ' in this session will be left alone — hover for why: ' +
          skipped.map(function (l) { return '<span title="' + esc(l.skip_reason || '') + '" style="text-decoration:underline dotted;cursor:help;">' + idChip(l, { compact: true, noCopy: true }) + '</span>'; }).join(', ') + '.</div>';
   }
 
   h += '<div style="margin-top:10px;">';
-  h += '<div style="font-size:calc(var(--fs-s)*var(--fss,1));margin-bottom:5px;">Move it into: <input type="text" id="sess-transfer-newbin-' + attrId(sessionId) + '" list="bin-suggestions-list" placeholder="e.g. B-12 (required)" autocomplete="off" ' +
-       'style="padding:6px 8px;font-size:calc(var(--fs-s)*var(--fss,1));border:1px solid #E2E8F0;border-radius:4px;width:140px;text-transform:uppercase;" oninput="this.value=this.value.toUpperCase();"></div>';
+  h += '<div style="font-size:var(--t-body);margin-bottom:5px;">Move it into: <input type="text" id="sess-transfer-newbin-' + attrId(sessionId) + '" list="bin-suggestions-list" placeholder="e.g. B-12 (required)" autocomplete="off" ' +
+       'style="padding:6px 8px;font-size:var(--t-body);border:1px solid #E2E8F0;border-radius:4px;width:140px;text-transform:uppercase;" oninput="this.value=this.value.toUpperCase();"></div>';
   h += '<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;">';
-  h += '<span class="a58-rec" id="sess-transfer-emp-' + attrId(sessionId) + '" style="min-height:32px;font-size:calc(var(--fs-s)*var(--fss,1));">Sent as ' + esc(getAdminPanelEmployeeCode() || 'nobody') + ' (not checked by the database)</span>';   /* ADM-v260 I16-149 */   /* ADM-v259 I16-135 */
+  h += '<span class="a58-rec" id="sess-transfer-emp-' + attrId(sessionId) + '" style="min-height:32px;font-size:var(--t-body);">Sent as ' + esc(getAdminPanelEmployeeCode() || 'nobody') + ' (not checked by the database)</span>';   /* ADM-v260 I16-149 */   /* ADM-v259 I16-135 */
   h += '<input type="text" id="sess-transfer-note-' + attrId(sessionId) + '" placeholder="Note (optional)" autocomplete="off" ' +
-       'style="padding:6px 8px;font-size:calc(var(--fs-s)*var(--fss,1));border:1px solid #E2E8F0;border-radius:4px;width:200px;">';
+       'style="padding:6px 8px;font-size:var(--t-body);border:1px solid #E2E8F0;border-radius:4px;width:200px;">';
   h += '</div>';
   h += '<div style="margin-top:8px;">';
-  h += '<button class="btn" id="sess-transfer-go-' + attrId(sessionId) + '" style="padding:6px 14px;font-size:calc(var(--fs-s)*var(--fss,1));background:#1B3F6B;color:#fff;" ' +
+  h += '<button class="btn" id="sess-transfer-go-' + attrId(sessionId) + '" style="padding:6px 14px;font-size:var(--t-body);background:#1B3F6B;color:#fff;" ' +
        'onclick="confirmSessionTransfer(\'' + jsq(sessionId) + '\',' + Number(idx) + ')">⇄ Transfer ' + fmtNum(lines.length) + ' product' + (lines.length === 1 ? '' : 's') + '</button> ';
-  h += '<button class="btn btn-grey" style="padding:6px 12px;font-size:calc(var(--fs-s)*var(--fss,1));" onclick="cancelSessionTransfer(\'' + jsq(sessionId) + '\')">Cancel</button>';
+  h += '<button class="btn btn-grey" style="padding:6px 12px;font-size:var(--t-body);" onclick="cancelSessionTransfer(\'' + jsq(sessionId) + '\')">Cancel</button>';
   h += '</div>';
-  h += '<div id="sess-transfer-msg-' + attrId(sessionId) + '" style="margin-top:6px;font-size:calc(var(--fs-s)*var(--fss,1));"></div>';
+  h += '<div id="sess-transfer-msg-' + attrId(sessionId) + '" style="margin-top:6px;font-size:var(--t-body);"></div>';
   h += '</div></div>';
   return h;
 }
@@ -2515,11 +2515,11 @@ function confirmSessionTransfer(sessionId, idx) {
       resEl.className = 'result-msg';
       resEl.innerHTML =
         '<div style="border:1px solid #1B7A3A;border-radius:6px;padding:12px;background:#fff;text-align:left;">' +
-        '<div style="color:#1B7A3A;font-weight:bold;font-size:calc(var(--fs-m)*var(--fsm,1));">✓ Transferred.</div>' +
-        '<div style="font-size:calc(var(--fs-s)*var(--fss,1));margin-top:4px;"><strong>' + fmtNum(d.lines_moved || 0) + '</strong> product' + ((d.lines_moved === 1) ? '' : 's') +
+        '<div style="color:#1B7A3A;font-weight:bold;font-size:var(--t-section);">✓ Transferred.</div>' +
+        '<div style="font-size:var(--t-body);margin-top:4px;"><strong>' + fmtNum(d.lines_moved || 0) + '</strong> product' + ((d.lines_moved === 1) ? '' : 's') +
         ' (' + fmtNum(d.total_qty_moved || 0) + ' unit' + ((d.total_qty_moved === 1) ? '' : 's') + ') moved into <strong>' + esc(d.new_bin || newBin) + '</strong>.' +
         ((d.skipped && d.skipped.length) ? ' ' + fmtNum(d.skipped.length) + ' other line' + (d.skipped.length === 1 ? '' : 's') + ' were left alone.' : '') + '</div>' +
-        '<div style="margin-top:8px;"><button class="btn btn-primary" style="padding:6px 12px;font-size:calc(var(--fs-s)*var(--fss,1));" onclick="loadScanSessions()">Refresh the list</button></div>' +
+        '<div style="margin-top:8px;"><button class="btn btn-primary" style="padding:6px 12px;font-size:var(--t-body);" onclick="loadScanSessions()">Refresh the list</button></div>' +
         '</div>';
     }
   }).catch(function (err) {
@@ -2590,69 +2590,74 @@ function confirmSessionTransfer(sessionId, idx) {
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js" onerror="window.Chart=null;"></script>
 <style>
 *,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
-body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;background:#f0f2f5;color:#222;font-size:calc(var(--fs-m)*var(--fsm,1))}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;background:#f0f2f5;color:#222;font-size:var(--t-section)}
 a{color:inherit}
 ::-webkit-scrollbar{width:10px;height:10px}
 ::-webkit-scrollbar-thumb{background:#c5d0de;border-radius:6px}
 
 /* ── DB OFFLINE BANNER (same pattern as App_v41) ─────────────── */
-.db-offline-banner{display:none;background:#fdedec;border:2px solid #c0392b;border-radius:10px;padding:10px 14px;margin:0 0 14px;font-size:calc(var(--fs-m)*var(--fsm,1));color:#7b241c;font-weight:600}
+.db-offline-banner{display:none;background:#fdedec;border:2px solid #c0392b;border-radius:10px;padding:10px 14px;margin:0 0 14px;font-size:var(--t-section);color:#7b241c;font-weight:600}
 .db-offline-banner.visible{display:block}
 
 /* ── LOGIN SCREEN ─────────────────────────────────────────────── */
 .login-wrap{min-height:100vh;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#1B4F8A,#153C6E)}
 .login-card{background:#fff;border-radius:16px;padding:36px 34px 30px;width:min(380px,90vw);box-shadow:0 12px 44px rgba(0,0,0,.3)}
 .login-brand{text-align:center;margin-bottom:22px}
-.login-brand-sub{font-size:calc(var(--fs-s)*var(--fss,1));letter-spacing:1.5px;text-transform:uppercase;color:#888;margin-bottom:4px}
-.login-brand-title{font-size:calc(var(--fs-xl)*var(--fs,1));font-weight:800;color:#1B4F8A}
-.login-field label{display:block;font-size:calc(var(--fs-s)*var(--fss,1));font-weight:700;color:#555;margin-bottom:6px;text-transform:uppercase;letter-spacing:.5px}
-.login-field input{width:100%;border:2px solid #dce4f0;border-radius:10px;padding:12px 14px;font-size:calc(var(--fs-l)*var(--fs,1));outline:none;color:#222;transition:border-color .15s}
+.login-brand-sub{font-size:var(--t-body);letter-spacing:1.5px;text-transform:uppercase;color:#888;margin-bottom:4px}
+.login-brand-title{font-size:var(--t-title);font-weight:800;color:#1B4F8A}
+.login-field label{display:block;font-size:var(--t-body);font-weight:700;color:#555;margin-bottom:6px;text-transform:uppercase;letter-spacing:.5px}
+.login-field input{width:100%;border:2px solid #dce4f0;border-radius:10px;padding:12px 14px;font-size:var(--t-section);outline:none;color:#222;transition:border-color .15s}
 .login-field input:focus{border-color:#1B4F8A}
-.login-btn{width:100%;background:linear-gradient(135deg,#1B4F8A,#2980B9);color:#fff;border:none;padding:13px;border-radius:10px;font-size:calc(var(--fs-l)*var(--fs,1));font-weight:800;cursor:pointer;margin-top:16px;letter-spacing:.3px}
+.login-btn{width:100%;background:linear-gradient(135deg,#1B4F8A,#2980B9);color:#fff;border:none;padding:13px;border-radius:10px;font-size:var(--t-section);font-weight:800;cursor:pointer;margin-top:16px;letter-spacing:.3px}
 .login-btn:hover{opacity:.92}
 .login-btn:disabled{opacity:.5;cursor:not-allowed}
-.login-err{color:#c0392b;font-size:calc(var(--fs-m)*var(--fsm,1));text-align:center;margin-top:10px;min-height:16px;font-weight:600}
-.login-hint{font-size:calc(var(--fs-s)*var(--fss,1));color:#999;text-align:center;margin-top:16px;line-height:1.5}
+.login-err{color:#c0392b;font-size:var(--t-section);text-align:center;margin-top:10px;min-height:16px;font-weight:600}
+.login-hint{font-size:var(--t-body);color:#999;text-align:center;margin-top:16px;line-height:1.5}
 /* v2.14 (Master Prompt v17, Part A) — mirrors the App's .remember-device-row */
-.remember-device-row{display:flex;align-items:center;gap:8px;font-size:calc(var(--fs-s)*var(--fss,1));color:#555;margin:2px 0 4px;cursor:pointer;user-select:none}
+.remember-device-row{display:flex;align-items:center;gap:8px;font-size:var(--t-body);color:#555;margin:2px 0 4px;cursor:pointer;user-select:none}
 .remember-device-row input{width:16px;height:16px;flex-shrink:0;cursor:pointer}
 
 /* ── APP SHELL ────────────────────────────────────────────────── */
 .shell{display:flex;min-height:100vh}
 .sidebar{width:230px;flex-shrink:0;background:linear-gradient(180deg,#1B4F8A,#153C6E);color:#fff;display:flex;flex-direction:column;position:fixed;top:0;bottom:0;left:0;overflow-y:auto}
 .sidebar-brand{padding:20px 18px 16px;border-bottom:1px solid rgba(255,255,255,.15)}
-.sidebar-brand-sub{font-size:calc(var(--fs-s)*var(--fss,1));letter-spacing:1.2px;text-transform:uppercase;opacity:.65}
-.sidebar-brand-title{font-size:calc(var(--fs-l)*var(--fs,1));font-weight:800;margin-top:3px}
+.sidebar-brand-sub{font-size:var(--t-body);letter-spacing:1.2px;text-transform:uppercase;opacity:.65}
+.sidebar-brand-title{font-size:var(--t-section);font-weight:800;margin-top:3px}
 .nav-list{list-style:none;padding:10px 0;flex:1}
-.nav-item{padding:12px 18px;cursor:pointer;font-size:calc(var(--fs-m)*var(--fsm,1));font-weight:600;display:flex;align-items:center;gap:10px;border-left:3px solid transparent;opacity:.82;transition:all .12s}
+.nav-item{padding:12px 18px;cursor:pointer;font-size:var(--t-section);font-weight:600;display:flex;align-items:center;gap:10px;border-left:3px solid transparent;opacity:.82;transition:all .12s}
 .nav-item:hover{background:rgba(255,255,255,.08);opacity:1}
 .nav-item.active{background:rgba(255,255,255,.13);border-left-color:#F39C12;opacity:1}
-.nav-icon{font-size:calc(var(--fs-l)*var(--fs,1));width:18px;text-align:center}
+.nav-icon{font-size:var(--t-section);width:18px;text-align:center}
 .sidebar-footer{padding:14px 18px 18px;border-top:1px solid rgba(255,255,255,.15)}
-.logout-btn{width:100%;background:rgba(231,76,60,.85);color:#fff;border:none;padding:9px;border-radius:8px;font-size:calc(var(--fs-m)*var(--fsm,1));font-weight:700;cursor:pointer}
+.logout-btn{width:100%;background:rgba(231,76,60,.85);color:#fff;border:none;padding:9px;border-radius:8px;font-size:var(--t-section);font-weight:700;cursor:pointer}
 .logout-btn:hover{background:#c0392b}
 /* v2.51 (W-01): text size. --fs is set by afFontSet(); every font-size is calc(Npx*var(--fs)). Normal = 93% of the old size. */
-:root{--fs-s:12px;--fs-m:14px;--fs-l:16px;--fs-xl:20px;--fs:1;--fss:max(var(--fs,1),1);--fsm:max(var(--fs,1),.858)}   /* ADM-v266: --fss/--fsm = scale for the 12 and 14 px tokens, floored so they never go below 12 px */   /* ADM-v265 type scale: 12 small floor, 14 body, 16 sub-heading, 20 heading */
+:root{--t-title:1.25rem;--t-section:1.05rem;--t-body:.9rem;--t-meta:.78rem;--fs-s:var(--t-body);--fs-m:var(--t-section);--fs-l:var(--t-section);--fs-xl:var(--t-title);--fs:1;--fss:max(var(--fs,1),1);--fsm:max(var(--fs,1),.858)}   /* ADM-v266: --fss/--fsm = scale for the 12 and 14 px tokens, floored so they never go below 12 px */   /* ADM-v265 type scale: 12 small floor, 14 body, 16 sub-heading, 20 heading */
 .af-fs-row{display:flex;align-items:center;gap:6px;flex-wrap:wrap;justify-content:center}
-.af-fs-b{min-width:44px;min-height:44px;padding:0 8px;border:1.5px solid #1B4F8A;border-radius:10px;background:#fff;color:#1B4F8A;font-size:var(--fs-l);font-weight:800;cursor:pointer;font-family:inherit}
+.af-fs-b{min-width:44px;min-height:44px;padding:0 8px;border:1.5px solid #1B4F8A;border-radius:10px;background:#fff;color:#1B4F8A;font-size:var(--t-section);font-weight:800;cursor:pointer;font-family:inherit}
 .af-fs-b:disabled{opacity:.35;cursor:default}
-.af-fs-rs{font-size:var(--fs-s);font-weight:700}
-.af-fs-lbl{min-width:44px;text-align:center;font-size:var(--fs-m);font-weight:800}
+.af-fs-rs{font-size:var(--t-body);font-weight:700}
+.af-fs-lbl{min-width:44px;text-align:center;font-size:var(--t-section);font-weight:800}
 .sidebar-footer .af-fs-b{background:rgba(255,255,255,.92)}
 .sidebar-footer .af-fs-lbl{color:#fff}
 /* B9-BEGIN text size button css */
-.af-fs-fab{position:fixed;right:10px;bottom:10px;z-index:9990;min-width:44px;min-height:44px;padding:0 12px;border:1.5px solid #1B4F8A;border-radius:22px;background:#fff;color:#1B4F8A;font-size:var(--fs-l);font-weight:800;cursor:pointer;font-family:inherit;box-shadow:0 2px 10px rgba(0,0,0,.25);touch-action:manipulation}
+.af-fs-fab{position:fixed;right:10px;bottom:10px;z-index:9990;min-width:44px;min-height:44px;padding:0 12px;border:1.5px solid #1B4F8A;border-radius:22px;background:#fff;color:#1B4F8A;font-size:var(--t-section);font-weight:800;cursor:pointer;font-family:inherit;box-shadow:0 2px 10px rgba(0,0,0,.25);touch-action:manipulation}
 .af-fs-pop{display:none;position:fixed;right:10px;bottom:62px;z-index:9991;width:min(320px,calc(100vw - 20px));box-sizing:border-box;background:#fff;border:1px solid #cfd8e6;border-radius:12px;padding:10px;box-shadow:0 4px 18px rgba(0,0,0,.3)}
-.af-fs-pop .af-fs-t{font-size:var(--fs-s);font-weight:800;color:#1B4F8A;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px}
+.af-fs-pop .af-fs-t{font-size:var(--t-body);font-weight:800;color:#1B4F8A;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px}
 .af-fs-pop .af-fs-lbl{color:#333}
 .filter-actions{flex-wrap:wrap;max-width:100%}
 .filter-actions .btn{max-width:100%}
 @media print{.af-fs-fab,.af-fs-pop{display:none!important}}
 /* B9-END */
 .af-fs-side{margin:0 0 10px;text-align:center}
-.af-fs-side .af-fs-t{font-size:var(--fs-s);letter-spacing:1px;text-transform:uppercase;opacity:.7;margin-bottom:4px}
+.af-fs-side .af-fs-t{font-size:var(--t-body);letter-spacing:1px;text-transform:uppercase;opacity:.7;margin-bottom:4px}
 .login-card .af-fs-row .af-fs-lbl{color:#333}
 .login-card .af-fs-login{margin-top:12px}
+/* ADM-c21a (U2): ONE type scale in rem from ONE root. afFontSet() writes html{font-size}; same four roles as the App. */
+html{font-size:62%}
+button,input,select,textarea{font-size:inherit}
+h1{font-size:var(--t-title)}h2,h3,h4{font-size:var(--t-section)}small,code,pre{font-size:var(--t-meta)}
+.af-admin-tag{font-size:var(--t-meta);font-weight:700;letter-spacing:.5px;text-transform:uppercase;border:1px solid currentColor;border-radius:6px;padding:0 6px;margin-left:6px;vertical-align:middle;white-space:nowrap}
 /* v2.51 (W-01) overflow guard: text wraps instead of running out of its box; compact chrome grows at most 4% (--fsc = min(--fs, 1.04)). */
 :root{--fsc:min(var(--fs,1),1.04)}
 html{overflow-wrap:break-word}
@@ -2663,7 +2668,7 @@ html{overflow-wrap:break-word}
 .badge{white-space:normal;overflow-wrap:anywhere}
 .af-open{white-space:normal!important;overflow:visible!important;text-overflow:clip!important;max-width:none!important}
 
-.ver-footer{font-size:calc(var(--fs-s)*var(--fss,1));opacity:.55;margin-top:10px;text-align:center;line-height:1.5}
+.ver-footer{font-size:var(--t-body);opacity:.55;margin-top:10px;text-align:center;line-height:1.5}
 .e2-more{margin:8px 0}
 .e2-more>summary{list-style:none;cursor:pointer;min-height:44px;display:flex;align-items:center;justify-content:center;border:2px dashed #9fb3cf;border-radius:12px;background:#f7f9ff;color:#1B4F8A;font-weight:800;padding:6px 10px;text-align:center}
 .e2-more>summary::-webkit-details-marker{display:none}
@@ -2672,158 +2677,158 @@ html{overflow-wrap:break-word}
 .e2-fold-body>*{flex:1 1 150px;min-width:0;max-width:100%;overflow-wrap:anywhere;word-break:break-word}
 .e2-fold-body button,.e2-fold-body .btn{min-height:44px!important}
 .e2-fold-body>.card,.e2-fold-body>.filter-bar,.e2-fold-body>details{flex:1 1 100%}
-.e2-purpose{margin:0 0 10px;color:#6B7280;font-size:calc(var(--fs-m)*var(--fsm,1));line-height:1.4}
+.e2-purpose{margin:0 0 10px;color:#6B7280;font-size:var(--t-section);line-height:1.4}
 .e2-find{display:flex;align-items:center;gap:8px;margin:0 0 10px;flex-wrap:wrap}
-.e2-find-in{flex:1 1 200px;min-height:44px;padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;font-size:calc(var(--fs-m)*var(--fsm,1))}
-.e2-find-n{font-size:calc(var(--fs-s)*var(--fss,1));color:#6B7280}
+.e2-find-in{flex:1 1 200px;min-height:44px;padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;font-size:var(--t-section)}
+.e2-find-n{font-size:var(--t-body);color:#6B7280}
 
 .main{margin-left:230px;flex:1;padding:24px 30px 60px;max-width:1500px}
 .page{display:none}
 .page.active{display:block}
 .page-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;flex-wrap:wrap;gap:10px}
-.page-title{font-size:calc(var(--fs-xl)*var(--fs,1));font-weight:800;color:#1B4F8A}
-.page-sub{font-size:calc(var(--fs-m)*var(--fsm,1));color:#777;margin-top:2px}
+.page-title{font-size:var(--t-title);font-weight:800;color:#1B4F8A}
+.page-sub{font-size:var(--t-section);color:#777;margin-top:2px}
 
 /* ── CARDS / TILES ────────────────────────────────────────────── */
 .tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px;margin-bottom:22px}
 .tile{background:#fff;border-radius:12px;padding:16px 18px;box-shadow:0 1px 4px rgba(0,0,0,.08);border-left:4px solid #1B4F8A}
 .tile.warn{border-left-color:#F39C12}
 .tile.danger{border-left-color:#E74C3C;background:#fdf3f2}
-.tile-label{font-size:calc(var(--fs-s)*var(--fss,1));text-transform:uppercase;letter-spacing:.5px;color:#888;font-weight:700;margin-bottom:6px}
-.tile-val{font-size:calc(var(--fs-xl)*var(--fsc,1));font-weight:800;color:#1B4F8A}
+.tile-label{font-size:var(--t-body);text-transform:uppercase;letter-spacing:.5px;color:#888;font-weight:700;margin-bottom:6px}
+.tile-val{font-size:var(--t-title);font-weight:800;color:#1B4F8A}
 .tile.danger .tile-val{color:#c0392b}
 .tile.warn .tile-val{color:#d68910}
-.tile-sub{font-size:calc(var(--fs-s)*var(--fss,1));color:#999;margin-top:4px}
+.tile-sub{font-size:var(--t-body);color:#999;margin-top:4px}
 
 .card{background:#fff;border-radius:12px;padding:18px 20px;box-shadow:0 1px 4px rgba(0,0,0,.08);margin-bottom:20px}
-.card h3{font-size:calc(var(--fs-m)*var(--fsm,1));color:#1B4F8A;font-weight:800;margin-bottom:12px;padding-bottom:8px;border-bottom:1px solid #eef1f5}
-.chart-caption{display:block;font-size:calc(var(--fs-s)*var(--fss,1));font-weight:400;color:#999;text-transform:none;letter-spacing:0;margin-top:3px;border:none;padding:0}
+.card h3{font-size:var(--t-section);color:#1B4F8A;font-weight:800;margin-bottom:12px;padding-bottom:8px;border-bottom:1px solid #eef1f5}
+.chart-caption{display:block;font-size:var(--t-body);font-weight:400;color:#999;text-transform:none;letter-spacing:0;margin-top:3px;border:none;padding:0}
 
 /* ── DASHBOARD CHART GRID (v2.12) ─────────────────────────────── */
 .chart-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:16px;margin-bottom:20px}
 .chart-card{background:#fff;border-radius:12px;padding:18px 20px;box-shadow:0 1px 4px rgba(0,0,0,.08)}
 .chart-card.wide{grid-column:1/-1}
 .chart-card-head{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:10px;padding-bottom:8px;border-bottom:1px solid #eef1f5}
-.chart-card-head h3{font-size:calc(var(--fs-m)*var(--fsm,1));color:#1B4F8A;font-weight:800;border:none;padding:0;margin:0}
+.chart-card-head h3{font-size:var(--t-section);color:#1B4F8A;font-weight:800;border:none;padding:0;margin:0}
 .chart-toggle-btns{display:flex;gap:6px;flex-shrink:0}
-.chart-toggle-btn{font-size:calc(var(--fs-s)*var(--fss,1));font-weight:700;padding:4px 10px;border-radius:20px;border:1px solid #ccd6e2;background:#f4f7fb;color:#556;cursor:pointer}
+.chart-toggle-btn{font-size:var(--t-body);font-weight:700;padding:4px 10px;border-radius:20px;border:1px solid #ccd6e2;background:#f4f7fb;color:#556;cursor:pointer}
 .chart-toggle-btn.active{background:#1B4F8A;border-color:#1B4F8A;color:#fff}
 .chart-canvas-wrap{position:relative;height:260px}
-.chart-empty-note{color:#999;font-size:calc(var(--fs-s)*var(--fss,1));text-align:center;padding:40px 0}
-.chart-lib-missing-note{color:#999;font-size:calc(var(--fs-s)*var(--fss,1));text-align:center;padding:18px 0;font-style:italic}
+.chart-empty-note{color:#999;font-size:var(--t-body);text-align:center;padding:40px 0}
+.chart-lib-missing-note{color:#999;font-size:var(--t-body);text-align:center;padding:18px 0;font-style:italic}
 
 /* ── FILTER BAR ───────────────────────────────────────────────── */
 .filter-bar{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-bottom:16px;background:#fff;border-radius:12px;padding:14px 16px;box-shadow:0 1px 4px rgba(0,0,0,.08)}
 .filter-field{display:flex;flex-direction:column;gap:4px}
-.filter-field label{font-size:calc(var(--fs-s)*var(--fss,1));font-weight:700;color:#666;text-transform:uppercase;letter-spacing:.4px}
-.filter-field input,.filter-field select{border:1.5px solid #d5dce6;border-radius:8px;padding:8px 10px;font-size:calc(var(--fs-m)*var(--fsm,1));outline:none;min-width:130px;color:#222}
+.filter-field label{font-size:var(--t-body);font-weight:700;color:#666;text-transform:uppercase;letter-spacing:.4px}
+.filter-field input,.filter-field select{border:1.5px solid #d5dce6;border-radius:8px;padding:8px 10px;font-size:var(--t-section);outline:none;min-width:130px;color:#222}
 .filter-field input:focus,.filter-field select:focus{border-color:#1B4F8A}
 .filter-actions{display:flex;gap:8px;margin-left:auto}
 .preset-row{display:flex;gap:6px;flex-wrap:wrap}
-.preset-btn{background:#eef2f8;border:1.5px solid #dce4f0;border-radius:16px;padding:5px 12px;font-size:calc(var(--fs-s)*var(--fss,1));font-weight:700;color:#546e7a;cursor:pointer}
+.preset-btn{background:#eef2f8;border:1.5px solid #dce4f0;border-radius:16px;padding:5px 12px;font-size:var(--t-body);font-weight:700;color:#546e7a;cursor:pointer}
 .preset-btn:hover,.preset-btn.active{background:#1B4F8A;border-color:#1B4F8A;color:#fff}
 
 /* ── BUTTONS ──────────────────────────────────────────────────── */
-.btn{border:none;border-radius:8px;padding:9px 16px;font-size:calc(var(--fs-m)*var(--fsm,1));font-weight:700;cursor:pointer;transition:opacity .12s;white-space:nowrap}
+.btn{border:none;border-radius:8px;padding:9px 16px;font-size:var(--t-section);font-weight:700;cursor:pointer;transition:opacity .12s;white-space:nowrap}
 .btn:hover{opacity:.88}
 .btn-primary{background:#1B4F8A;color:#fff}
 .btn-gold{background:#F39C12;color:#fff}
 .btn-green{background:#27AE60;color:#fff}
 .btn-red{background:#E74C3C;color:#fff}
 .btn-grey{background:#e4e9f0;color:#455;}
-.btn-sm{padding:5px 10px;font-size:calc(var(--fs-s)*var(--fss,1))}
+.btn-sm{padding:5px 10px;font-size:var(--t-body)}
 .btn:disabled{opacity:.5;cursor:not-allowed}
 
 /* ── TABLE ────────────────────────────────────────────────────── */
 .table-wrap{overflow-x:auto;background:#fff;border-radius:12px;box-shadow:0 1px 4px rgba(0,0,0,.08)}
-table{width:100%;border-collapse:collapse;font-size:calc(var(--fs-m)*var(--fsm,1))}
+table{width:100%;border-collapse:collapse;font-size:var(--t-section)}
 thead th{background:#f7f9fc;color:#546e7a;font-weight:700;text-align:left;padding:10px 12px;border-bottom:2px solid #e5eaf1;white-space:nowrap;position:sticky;top:0}
 tbody td{padding:9px 12px;border-bottom:1px solid #f0f2f5;vertical-align:top}
 tbody tr:hover{background:#f9fbfd}
-.mono{font-family:"SFMono-Regular",Consolas,monospace;font-size:calc(var(--fs-s)*var(--fss,1))}
+.mono{font-family:"SFMono-Regular",Consolas,monospace;font-size:var(--t-body)}
 .num-pos{color:#1e8449;font-weight:700}
 .num-neg{color:#c0392b;font-weight:700}
 .qty-low{color:#c0392b;font-weight:800;background:#fdedec;padding:2px 7px;border-radius:6px}
 .qty-warn{color:#d68910;font-weight:800;background:#fef5e7;padding:2px 7px;border-radius:6px}
 .qty-ok{color:#1e8449;font-weight:700}
-.badge{display:inline-block;padding:3px 9px;border-radius:12px;font-size:calc(var(--fs-s)*var(--fss,1));font-weight:700;color:#fff;white-space:nowrap}
+.badge{display:inline-block;padding:3px 9px;border-radius:12px;font-size:var(--t-body);font-weight:700;color:#fff;white-space:nowrap}
 .badge-green{background:#27AE60}
 .badge-amber{background:#F39C12}
 .badge-blue{background:#2980B9}
 .badge-grey{background:#95a5a6}
 .badge-red{background:#E74C3C}
-.link-btn{background:none;border:none;color:#1B4F8A;font-weight:700;font-size:calc(var(--fs-s)*var(--fss,1));cursor:pointer;text-decoration:underline;padding:0}
-.empty-row td{text-align:center;color:#aaa;padding:30px 0;font-size:calc(var(--fs-m)*var(--fsm,1))}
+.link-btn{background:none;border:none;color:#1B4F8A;font-weight:700;font-size:var(--t-body);cursor:pointer;text-decoration:underline;padding:0}
+.empty-row td{text-align:center;color:#aaa;padding:30px 0;font-size:var(--t-section)}
 
 /* ── PAGINATION ───────────────────────────────────────────────── */
-.pagination{display:flex;align-items:center;gap:10px;justify-content:flex-end;padding:12px 14px;font-size:calc(var(--fs-s)*var(--fss,1));color:#555}
-.pagination button{background:#eef2f8;border:1.5px solid #dce4f0;border-radius:6px;padding:5px 12px;font-size:calc(var(--fs-s)*var(--fss,1));font-weight:700;cursor:pointer;color:#1B4F8A}
+.pagination{display:flex;align-items:center;gap:10px;justify-content:flex-end;padding:12px 14px;font-size:var(--t-body);color:#555}
+.pagination button{background:#eef2f8;border:1.5px solid #dce4f0;border-radius:6px;padding:5px 12px;font-size:var(--t-body);font-weight:700;cursor:pointer;color:#1B4F8A}
 .pagination button:disabled{opacity:.4;cursor:not-allowed}
 
 /* ── SUMMARY CAPTION ──────────────────────────────────────────── */
-.summary-caption{font-size:calc(var(--fs-s)*var(--fss,1));color:#999;margin:-8px 0 14px;font-style:italic}
+.summary-caption{font-size:var(--t-body);color:#999;margin:-8px 0 14px;font-style:italic}
 
 /* ── MODAL ────────────────────────────────────────────────────── */
 .modal-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:500;align-items:center;justify-content:center;padding:20px}
 .modal-bg.active{display:flex}
 .modal{background:#fff;border-radius:14px;padding:22px 24px;width:min(560px,94vw);max-height:85vh;overflow-y:auto;box-shadow:0 12px 44px rgba(0,0,0,.3)}
-.modal h3{color:#1B4F8A;font-size:calc(var(--fs-l)*var(--fs,1));margin-bottom:12px}
-.modal pre{background:#f7f9fc;border-radius:8px;padding:12px;font-size:calc(var(--fs-s)*var(--fss,1));white-space:pre-wrap;word-break:break-word;font-family:Consolas,monospace}
+.modal h3{color:#1B4F8A;font-size:var(--t-section);margin-bottom:12px}
+.modal pre{background:#f7f9fc;border-radius:8px;padding:12px;font-size:var(--t-body);white-space:pre-wrap;word-break:break-word;font-family:Consolas,monospace}
 .modal-close{margin-top:16px;text-align:right}
 
 /* ── FORMS ────────────────────────────────────────────────────── */
 .form-row{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:10px}
 .form-field{display:flex;flex-direction:column;gap:4px;flex:1;min-width:160px}
-.form-field label{font-size:calc(var(--fs-s)*var(--fss,1));font-weight:700;color:#666;text-transform:uppercase;letter-spacing:.4px}
-.form-field input,.form-field select{border:1.5px solid #d5dce6;border-radius:8px;padding:9px 11px;font-size:calc(var(--fs-m)*var(--fsm,1));outline:none}
+.form-field label{font-size:var(--t-body);font-weight:700;color:#666;text-transform:uppercase;letter-spacing:.4px}
+.form-field input,.form-field select{border:1.5px solid #d5dce6;border-radius:8px;padding:9px 11px;font-size:var(--t-section);outline:none}
 .form-field input:focus,.form-field select:focus{border-color:#1B4F8A}
-.result-msg{font-size:calc(var(--fs-s)*var(--fss,1));margin-top:8px;min-height:16px;font-weight:600}
+.result-msg{font-size:var(--t-body);margin-top:8px;min-height:16px;font-weight:600}
 .result-msg.ok{color:#1e8449}
 .result-msg.err{color:#c0392b}
 
 /* ── CSV IMPORT ───────────────────────────────────────────────── */
-.dropzone{border:2px dashed #c5d0de;border-radius:10px;padding:24px;text-align:center;color:#888;font-size:calc(var(--fs-m)*var(--fsm,1));margin-bottom:14px;background:#fafbfd}
+.dropzone{border:2px dashed #c5d0de;border-radius:10px;padding:24px;text-align:center;color:#888;font-size:var(--t-section);margin-bottom:14px;background:#fafbfd}
 .dropzone.drag{border-color:#1B4F8A;background:#eef2f8}
 .import-preview-wrap{max-height:340px;overflow-y:auto;margin-bottom:14px}
-.hint-text{font-size:calc(var(--fs-s)*var(--fss,1));color:#888;margin-bottom:10px;line-height:1.5}
+.hint-text{font-size:var(--t-body);color:#888;margin-bottom:10px;line-height:1.5}
 
 /* ── SETTINGS PAGE (v2) ───────────────────────────────────────── */
 .info-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px}
 .info-item{background:#f7f9fc;border-radius:8px;padding:10px 12px}
-.info-item-label{font-size:calc(var(--fs-s)*var(--fss,1));text-transform:uppercase;letter-spacing:.4px;color:#888;font-weight:700;margin-bottom:4px}
-.info-item-val{font-size:calc(var(--fs-m)*var(--fsm,1));font-weight:700;color:#1B4F8A}
+.info-item-label{font-size:var(--t-body);text-transform:uppercase;letter-spacing:.4px;color:#888;font-weight:700;margin-bottom:4px}
+.info-item-val{font-size:var(--t-section);font-weight:700;color:#1B4F8A}
 .conn-ok{color:#1e8449}
 .conn-bad{color:#c0392b}
 
 /* ── BULK ACTION BAR (Employees, v2) ─────────────────────────── */
-.bulk-bar{display:none;align-items:center;gap:10px;flex-wrap:wrap;background:#eef2f8;border:1.5px solid #1B4F8A;border-radius:10px;padding:10px 14px;margin-bottom:12px;font-size:calc(var(--fs-m)*var(--fsm,1));font-weight:700;color:#1B4F8A}
+.bulk-bar{display:none;align-items:center;gap:10px;flex-wrap:wrap;background:#eef2f8;border:1.5px solid #1B4F8A;border-radius:10px;padding:10px 14px;margin-bottom:12px;font-size:var(--t-section);font-weight:700;color:#1B4F8A}
 .bulk-bar.visible{display:flex}
 .chk-col{width:32px;text-align:center}
 
 /* ── EXPORT PROGRESS (v2) ─────────────────────────────────────── */
-.export-progress{font-size:calc(var(--fs-s)*var(--fss,1));color:#888;margin-left:6px;font-weight:600}
+.export-progress{font-size:var(--t-body);color:#888;margin-left:6px;font-weight:600}
 
 /* ── REALTIME BANNER (v2) ─────────────────────────────────────── */
-.live-banner{display:none;background:#eafaf1;border:1.5px solid #27AE60;color:#1e8449;border-radius:8px;padding:8px 12px;margin-bottom:10px;font-size:calc(var(--fs-s)*var(--fss,1));font-weight:700;cursor:pointer;text-align:center}
+.live-banner{display:none;background:#eafaf1;border:1.5px solid #27AE60;color:#1e8449;border-radius:8px;padding:8px 12px;margin-bottom:10px;font-size:var(--t-body);font-weight:700;cursor:pointer;text-align:center}
 .live-banner.visible{display:block}
 
 /* ── PERMISSION CHECKBOXES (v2.14, Master Prompt v17 Part C) ──── */
 .perm-grid{display:flex;flex-direction:column;gap:2px;margin:10px 0 14px;padding:12px 14px;background:#fafbfd;border:1.5px solid #e5eaf1;border-radius:10px}
 .perm-row{padding:6px 0;border-bottom:1px solid #eef1f6}
 .perm-row:last-child{border-bottom:none}
-.perm-row label{font-size:calc(var(--fs-m)*var(--fsm,1));font-weight:600;color:#222;cursor:pointer}
+.perm-row label{font-size:var(--t-section);font-weight:600;color:#222;cursor:pointer}
 .perm-row input[type=checkbox]{width:15px;height:15px;vertical-align:-2px;margin-right:6px;cursor:pointer}
-.perm-help{font-size:calc(var(--fs-s)*var(--fss,1));color:#999;margin:2px 0 0 21px}
+.perm-help{font-size:var(--t-body);color:#999;margin:2px 0 0 21px}
 .log-scope-row{display:none}
 .log-scope-row.visible{display:inline}
 .log-scope-row input[type=radio]{margin-right:4px;cursor:pointer}
-.perm-info-panel{margin:0 0 16px;font-size:calc(var(--fs-s)*var(--fss,1))}
+.perm-info-panel{margin:0 0 16px;font-size:var(--t-body)}
 .perm-info-panel summary{cursor:pointer;font-weight:700;color:#1B4F8A;padding:4px 0}
 .perm-info-table{width:100%;border-collapse:collapse;margin-top:8px}
-.perm-info-table td{padding:6px 8px;border-bottom:1px solid #eef1f6;font-size:calc(var(--fs-s)*var(--fss,1));vertical-align:top;color:#555}
+.perm-info-table td{padding:6px 8px;border-bottom:1px solid #eef1f6;font-size:var(--t-body);vertical-align:top;color:#555}
 .perm-info-table td:first-child{width:110px;color:#1B4F8A}
 .admin-access-card{background:#f7f9fc;border-radius:10px;padding:12px 14px;margin:0 0 16px}
-.admin-access-card label{font-size:calc(var(--fs-m)*var(--fsm,1));cursor:pointer}
+.admin-access-card label{font-size:var(--t-section);cursor:pointer}
 .admin-access-card input[type=checkbox]{width:15px;height:15px;vertical-align:-2px;margin-right:6px;cursor:pointer}
 
 @media (max-width: 900px){
@@ -2831,7 +2836,7 @@ tbody tr:hover{background:#f9fbfd}
   .sidebar-brand-title,.nav-item span.nav-label,.ver-footer,.sidebar-brand-sub{display:none}
   .nav-item{justify-content:center}
   .logout-btn{font-size:0}
-  .logout-btn::after{content:"⎋";font-size:calc(var(--fs-l)*var(--fs,1))}
+  .logout-btn::after{content:"⎋";font-size:var(--t-section)}
   .main{margin-left:64px;padding:18px}
   .filter-bar{gap:8px}
 }
@@ -2846,7 +2851,7 @@ tbody tr:hover{background:#f9fbfd}
 .remember-device-row input,.admin-access-card input[type=checkbox],input[type=checkbox],input[type=radio]{min-width:24px;min-height:24px}
 td .btn,td .btn-sm,td button{min-height:44px}
 .ax-btns{display:inline-flex;gap:6px;flex-wrap:wrap;margin:0 12px 6px 0;vertical-align:middle}
-.ax-toast{position:fixed;left:50%;transform:translateX(-50%);bottom:18px;max-width:92vw;z-index:9999;padding:12px 16px;border-radius:12px;font-size:calc(var(--fs-m)*var(--fsm,1));line-height:1.4;font-weight:600;color:#fff;box-shadow:0 4px 14px rgba(0,0,0,.25);display:none}
+.ax-toast{position:fixed;left:50%;transform:translateX(-50%);bottom:18px;max-width:92vw;z-index:9999;padding:12px 16px;border-radius:12px;font-size:var(--t-section);line-height:1.4;font-weight:600;color:#fff;box-shadow:0 4px 14px rgba(0,0,0,.25);display:none}
 .ax-ok{background:#1B7A3A}
 .ax-err{background:#B3261E}
 .rmc-sub{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 14px}
@@ -2856,20 +2861,20 @@ td .btn,td .btn-sm,td button{min-height:44px}
 .rmc-set:last-child{border-bottom:none}
 .rmc-set .filter-field{flex:1 1 220px}
 .rmc-set input{width:100%}
-.rmc-hint{font-size:calc(var(--fs-s)*var(--fss,1));color:#6B7280;line-height:1.5;margin-top:3px}
+.rmc-hint{font-size:var(--t-body);color:#6B7280;line-height:1.5;margin-top:3px}
 .rmc-kpi{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:12px}
 .rmc-kpi div{background:#f7f9fc;border-radius:10px;padding:10px 14px;min-width:110px}
-.rmc-kpi b{display:block;font-size:calc(var(--fs-xl)*var(--fs,1));color:#1B4F8A}
+.rmc-kpi b{display:block;font-size:var(--t-title);color:#1B4F8A}
 /* v2.46 (U-07, 2026-10-23): the two PIN boxes on the Security and Purchasing pages are masked text boxes, not password-type boxes (Chrome offers to save those). */
 /* v2.47 (2026-10-24): PDF, Excel and Share buttons beside every CSV button (module "ax" at the end of the script). */
 /* ── v2.45: Safety and backups page ── */
-.sec-warn{background:#FFF8E1;border-left:4px solid #F39C12;padding:10px 12px;border-radius:8px;font-size:calc(var(--fs-m)*var(--fsm,1));line-height:1.5;margin:10px 0}
-.sec-hash{font-family:Consolas,monospace;font-size:calc(var(--fs-s)*var(--fss,1));word-break:break-all;background:#fff;border:1px solid #e4e9f0;border-radius:8px;padding:8px}
+.sec-warn{background:#FFF8E1;border-left:4px solid #F39C12;padding:10px 12px;border-radius:8px;font-size:var(--t-section);line-height:1.5;margin:10px 0}
+.sec-hash{font-family:Consolas,monospace;font-size:var(--t-body);word-break:break-all;background:#fff;border:1px solid #e4e9f0;border-radius:8px;padding:8px}
 .sec-steps{margin:8px 0 8px 22px;line-height:1.7}
-.sec-check{display:flex;align-items:center;gap:10px;min-height:44px;font-size:calc(var(--fs-m)*var(--fsm,1));font-weight:600;margin:6px 0}
+.sec-check{display:flex;align-items:center;gap:10px;min-height:44px;font-size:var(--t-section);font-weight:600;margin:6px 0}
 .sec-pol{border-top:1px solid #eef2f8;padding-top:10px;margin-top:10px}
 #page-secdata td{word-break:break-word}
-.rmc-kpi span{font-size:calc(var(--fs-s)*var(--fss,1));color:#666;text-transform:uppercase;letter-spacing:.4px}
+.rmc-kpi span{font-size:var(--t-body);color:#666;text-transform:uppercase;letter-spacing:.4px}
 button,.link-btn{min-height:44px;min-width:44px}
 #rmc-sec-changes td,#rmc-sec-imports td{padding-top:10px;padding-bottom:10px}
 #rmc-sec-changes td .btn,#rmc-sec-imports td .btn{margin:4px 0}
@@ -2878,14 +2883,14 @@ input[type=file]{min-height:44px;padding:10px 0}
 input[type=tel],input[type=email],input[type=search],input:not([type]),textarea{min-height:44px}
         /* W-03 search helpers */
         .sm-tools{margin:2px 0 4px;display:flex;flex-wrap:wrap;align-items:center;gap:6px}
-        .sm-tip-b{min-height:44px;min-width:44px;background:transparent;border:none;color:#1B4F8A;font-weight:700;font-size:calc(var(--fs-s)*var(--fss,1));text-decoration:underline;cursor:pointer;padding:0 6px}
+        .sm-tip-b{min-height:44px;min-width:44px;background:transparent;border:none;color:#1B4F8A;font-weight:700;font-size:var(--t-body);text-decoration:underline;cursor:pointer;padding:0 6px}
         .sm-rc{display:flex;flex-wrap:wrap;gap:6px;align-items:center;width:100%}
-        .sm-rl{font-size:calc(var(--fs-s)*var(--fss,1));color:#6B7280}
-        .sm-rc-b,.sm-rc-x,.sm-chip,.sm-clear,.sm-note .sm-act{min-height:44px;background:#fff;border:1px solid #CBD5E1;color:#1B3F6B;border-radius:22px;padding:6px 12px;font-size:calc(var(--fs-s)*var(--fss,1));font-weight:700;cursor:pointer;max-width:100%;text-align:left}
+        .sm-rl{font-size:var(--t-body);color:#6B7280}
+        .sm-rc-b,.sm-rc-x,.sm-chip,.sm-clear,.sm-note .sm-act{min-height:44px;background:#fff;border:1px solid #CBD5E1;color:#1B3F6B;border-radius:22px;padding:6px 12px;font-size:var(--t-body);font-weight:700;cursor:pointer;max-width:100%;text-align:left}
         .sm-rc-x{border-style:dashed;color:#6B7280}
-        .sm-info{font-size:calc(var(--fs-s)*var(--fss,1));color:#334;margin:4px 0;line-height:1.4}
+        .sm-info{font-size:var(--t-body);color:#334;margin:4px 0;line-height:1.4}
         .sm-dim{color:#6B7280}
-        .sm-help{padding:8px 10px;background:#FFF8E6;border:1px solid #f0d9a0;border-radius:8px;margin:6px 0;font-size:calc(var(--fs-s)*var(--fss,1));color:#5a4200}
+        .sm-help{padding:8px 10px;background:#FFF8E6;border:1px solid #f0d9a0;border-radius:8px;margin:6px 0;font-size:var(--t-body);color:#5a4200}
         .sm-help-t{font-weight:800;margin-bottom:4px}
         .sm-help .sm-act{min-height:44px;background:#fff;border:1px solid #CBD5E1;color:#1B3F6B;border-radius:22px;padding:6px 12px;font-weight:700;cursor:pointer}
         .sm-chips,.sm-chiprow{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:4px 0}
@@ -2894,25 +2899,25 @@ input[type=tel],input[type=email],input[type=search],input:not([type]),textarea{
         .sm-n{font-weight:800;color:#1B4F8A}
         .sm-tips{margin:6px 0 0 18px;padding:0;color:#6B7280}
         .sm-helpbox{width:100%;background:#fff;border:1px solid #dce4f0;border-radius:10px;padding:6px 10px}
-        .sm-ex{display:flex;flex-direction:column;gap:2px;padding:6px 0;border-bottom:1px solid #eef1f6;font-size:calc(var(--fs-m)*var(--fsm,1))}
+        .sm-ex{display:flex;flex-direction:column;gap:2px;padding:6px 0;border-bottom:1px solid #eef1f6;font-size:var(--t-section)}
         .sm-ex code{font-weight:800;color:#0A1628;overflow-wrap:anywhere}
-        .sm-sortrow{margin:4px 0;font-size:calc(var(--fs-s)*var(--fss,1))}
+        .sm-sortrow{margin:4px 0;font-size:var(--t-body)}
         .sm-sortrow select{min-height:44px;max-width:100%}
         mark{background:#FFE58A;color:inherit;border-radius:3px;padding:0 1px}
         /* B9-BEGIN chip css copied from App (B1 copy icons) */
         /* ID CHIP (W-02) */
         .idc{display:inline-block;max-width:100%;min-width:0;vertical-align:top;overflow-wrap:anywhere;word-break:break-word;line-height:1.3;text-align:left}
-        .idc-t{display:block;font-weight:700;font-size:calc(var(--fs-m)*var(--fsm,1));color:#0A1628}
-        .idc-r{display:block;font-size:calc(var(--fs-s)*var(--fss,1));color:#475569;font-family:ui-monospace,Menlo,Consolas,monospace}
+        .idc-t{display:block;font-weight:700;font-size:var(--t-section);color:#0A1628}
+        .idc-r{display:block;font-size:var(--t-body);color:#475569;font-family:ui-monospace,Menlo,Consolas,monospace}
         .idc-a{font-weight:700}
         .idc-g{color:#9CA3AF;font-weight:400;font-family:inherit}
         .idc-c .idc-t,.idc-c .idc-r{display:inline}
-        .idc-c .idc-t{font-size:calc(var(--fs-s)*var(--fss,1))}
+        .idc-c .idc-t{font-size:var(--t-body)}
         .idc-o{border:none;background:none;padding:0;margin:0;font:inherit;color:#1D4ED8;text-decoration:underline;cursor:pointer;text-align:left;overflow-wrap:anywhere}
         .idc-b{display:flex;flex-wrap:wrap;gap:4px;margin-top:4px;align-items:center}
         .idc-b2{display:none;flex-wrap:wrap;gap:4px}
         .idc-open .idc-b2,.idc:not(.idc-c) .idc-b2{display:flex}
-        .idc-btn{min-height:44px;min-width:44px;padding:3px 8px;border:1px solid #CBD5E1;background:#F8FAFC;color:#334155;border-radius:8px;font-size:calc(var(--fs-s)*var(--fss,1));font-weight:700;cursor:pointer;white-space:normal;max-width:100%}
+        .idc-btn{min-height:44px;min-width:44px;padding:3px 8px;border:1px solid #CBD5E1;background:#F8FAFC;color:#334155;border-radius:8px;font-size:var(--t-body);font-weight:700;cursor:pointer;white-space:normal;max-width:100%}
         .idc:not(.idc-c) .idc-all{min-height:44px;min-width:44px;background:#EEF2FF;border-color:#A5B4FC;color:#3730A3}
         .idc-btn.copied{background:#eafaf1;border-color:#86EFAC;color:#1e8449}
         /* B1-BEGIN W3-05 copy icon css: icon 30 px drawn, tap area 44 px (button padding), negative margin keeps the row height of a 30 px icon */
@@ -2926,59 +2931,59 @@ input[type=tel],input[type=email],input[type=search],input:not([type]),textarea{
         .idc .idc-btn.idc-ic.copied{color:#1e8449;background:#eafaf1}
         .idc .idc-btn.idc-ic:active{background:#eaf0fb}
         /* B1-END */
-        .idc-toast{position:fixed;left:50%;transform:translateX(-50%);bottom:84px;z-index:100000;max-width:92vw;background:#0A1628;color:#fff;padding:9px 16px;border-radius:10px;font-size:calc(var(--fs-m)*var(--fsm,1));font-weight:700;box-shadow:0 4px 14px rgba(0,0,0,.3);display:none;overflow-wrap:anywhere}
+        .idc-toast{position:fixed;left:50%;transform:translateX(-50%);bottom:84px;z-index:100000;max-width:92vw;background:#0A1628;color:#fff;padding:9px 16px;border-radius:10px;font-size:var(--t-section);font-weight:700;box-shadow:0 4px 14px rgba(0,0,0,.3);display:none;overflow-wrap:anywhere}
         .idc-toast.idc-err{background:#B91C1C}
-        .idc-toast input{display:block;width:100%;box-sizing:border-box;margin-top:6px;font-size:calc(var(--fs-l)*var(--fs,1));padding:6px;border-radius:6px;border:none}
+        .idc-toast input{display:block;width:100%;box-sizing:border-box;margin-top:6px;font-size:var(--t-section);padding:6px;border-radius:6px;border:none}
         @media print{.idc-b,.idc-btn,#idc-toast{display:none!important}}
         /* B-54 (port of App B-48) labelled copy chips */
         .idc.idc-v2{display:block;width:100%;max-width:100%}
-        .idc-v2 .idc-t{display:block;font-weight:700;font-size:calc(var(--fs-m)*var(--fsm,1));line-height:1.3;color:#0A1628;overflow-wrap:anywhere}
-        .idc-v2 .idc-o.idc-t{display:flex;align-items:center;min-height:44px;width:100%;text-align:left;font-weight:700;font-size:calc(var(--fs-m)*var(--fsm,1))}
+        .idc-v2 .idc-t{display:block;font-weight:700;font-size:var(--t-section);line-height:1.3;color:#0A1628;overflow-wrap:anywhere}
+        .idc-v2 .idc-o.idc-t{display:flex;align-items:center;min-height:44px;width:100%;text-align:left;font-weight:700;font-size:var(--t-section)}
         .idc-v2 .idc-ch{display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px;margin-top:6px;max-width:100%}
         .idc-v2 .idc-chip{display:inline-flex;align-items:center;flex-wrap:wrap;gap:0 6px;box-sizing:border-box;min-height:44px;min-width:44px;max-width:100%;padding:4px 10px;border:1.5px solid #93C5FD;background:#EFF6FF;color:#0F172A;border-radius:10px;font:inherit;text-align:left;cursor:pointer;touch-action:manipulation}
         .idc-v2 .idc-chip-asin{border-color:#FDBA74;background:#FFF7ED}
-        .idc-v2 .idc-k{flex:0 0 auto;font-size:calc(var(--fs-s)*var(--fss,1));font-weight:800;letter-spacing:.05em;color:#475569}
-        .idc-v2 .idc-v{min-width:0;max-width:100%;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:calc(var(--fs-m)*var(--fsm,1));font-weight:700;color:#0F172A;overflow-wrap:anywhere;word-break:break-all;line-height:1.25}
+        .idc-v2 .idc-k{flex:0 0 auto;font-size:var(--t-body);font-weight:800;letter-spacing:.05em;color:#475569}
+        .idc-v2 .idc-v{min-width:0;max-width:100%;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:var(--t-section);font-weight:700;color:#0F172A;overflow-wrap:anywhere;word-break:break-all;line-height:1.25}
         .idc-v2 .idc-v .idc-g{font-weight:400}
         .idc-v2 .idc-chip.copied{background:#eafaf1;border-color:#86EFAC}
         .idc-v2 .idc-chip:active{filter:brightness(.95)}
-        .idc-ok{font-size:calc(var(--fs-s)*var(--fss,1));font-weight:700;color:#1e8449}
+        .idc-ok{font-size:var(--t-body);font-weight:700;color:#1e8449}
         .idc-ok:empty{display:none}
-        .idc-btn.idc-all2{min-height:44px;min-width:44px;padding:6px 12px;border:1px solid #A5B4FC;background:#EEF2FF;color:#3730A3;border-radius:10px;font-size:calc(var(--fs-m)*var(--fsm,1));font-weight:700;text-align:left;white-space:normal;max-width:100%;cursor:pointer;touch-action:manipulation}
+        .idc-btn.idc-all2{min-height:44px;min-width:44px;padding:6px 12px;border:1px solid #A5B4FC;background:#EEF2FF;color:#3730A3;border-radius:10px;font-size:var(--t-section);font-weight:700;text-align:left;white-space:normal;max-width:100%;cursor:pointer;touch-action:manipulation}
         .idc-btn.idc-all2.copied{background:#eafaf1;border-color:#86EFAC;color:#1e8449}
         .idc-c .idc-a::before{content:"ASIN ";font-weight:400;color:#64748B}
         .idc-c .idc-s::before{content:"SKU ";font-weight:400;color:#64748B}
-        .idc-c .idc-r{font-size:calc(var(--fs-s)*var(--fss,1))}
+        .idc-c .idc-r{font-size:var(--t-body)}
         /* B9-END */
 
 /* ADM-v258 ===================================================================== */
 .nav-short{display:none}
 .logout-btn{background:rgba(255,255,255,.16);border:1px solid rgba(255,255,255,.5);font-weight:700}
 .logout-btn:hover{background:rgba(255,255,255,.3)}
-.a58-rec{min-height:44px;display:flex;align-items:center;padding:0 10px;border:1.5px solid #d5dce6;border-radius:8px;background:#f4f7fb;color:#1B3F6B;font-weight:700;font-size:calc(var(--fs-m)*var(--fsm,1))}
-.a58-sum{margin:0 0 10px;padding:9px 12px;border-radius:8px;background:#eef4fb;border:1px solid #c9d9ee;color:#0A1628;font-weight:700;font-size:calc(var(--fs-m)*var(--fsm,1));line-height:1.4}
+.a58-rec{min-height:44px;display:flex;align-items:center;padding:0 10px;border:1.5px solid #d5dce6;border-radius:8px;background:#f4f7fb;color:#1B3F6B;font-weight:700;font-size:var(--t-section)}
+.a58-sum{margin:0 0 10px;padding:9px 12px;border-radius:8px;background:#eef4fb;border:1px solid #c9d9ee;color:#0A1628;font-weight:700;font-size:var(--t-section);line-height:1.4}
 .a58-sum:empty{display:none}
 .a58-sum.bad{background:#fdf3f2;border-color:#e6b3ae;color:#a02a20}
 .a58-needs-wrap{margin:0 0 16px}
-.a58-needs-h{font-size:calc(var(--fs-l)*var(--fs,1));font-weight:800;color:#1B4F8A;margin:0 0 8px}
+.a58-needs-h{font-size:var(--t-section);font-weight:800;color:#1B4F8A;margin:0 0 8px}
 .a58-needs{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
-.a58-nt-load{color:#6B7280;font-size:calc(var(--fs-m)*var(--fsm,1));padding:8px 0}
+.a58-nt-load{color:#6B7280;font-size:var(--t-section);padding:8px 0}
 .a58-nt{display:flex;flex-direction:column;align-items:flex-start;gap:2px;text-align:left;background:#fff;border:1px solid #d5dce6;border-left:5px solid #27AE60;border-radius:12px;padding:10px 12px;cursor:pointer;font-family:inherit;min-height:88px;white-space:normal;min-width:0}
 .a58-nt.bad{border-left-color:#E74C3C;background:#fdf3f2}
 .a58-nt.warn{border-left-color:#F39C12}
-.a58-nt b{font-size:calc(var(--fs-xl)*var(--fsc,1));color:#1B4F8A;line-height:1.1}
+.a58-nt b{font-size:var(--t-title);color:#1B4F8A;line-height:1.1}
 .a58-nt.bad b{color:#c0392b}
-.a58-nt .a58-l{font-size:calc(var(--fs-m)*var(--fsm,1));font-weight:700;color:#1A1A1A}
-.a58-nt .a58-g{font-size:calc(var(--fs-s)*var(--fss,1));color:#1B4F8A;font-weight:700}
+.a58-nt .a58-l{font-size:var(--t-section);font-weight:700;color:#1A1A1A}
+.a58-nt .a58-g{font-size:var(--t-body);color:#1B4F8A;font-weight:700}
 .chart-grid{grid-template-columns:repeat(auto-fit,minmax(min(340px,100%),1fr))}
 .chart-card{min-width:0}
 .a58-dev{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin:0 0 10px}
-.a58-dev-n{font-size:calc(var(--fs-s)*var(--fss,1));color:#546e7a;font-weight:700;min-height:44px;display:flex;align-items:center}
-.a58-note{border:1px solid #c9d9ee;background:#eef4fb;border-radius:8px;padding:10px 12px;margin:0 0 12px;font-size:calc(var(--fs-m)*var(--fsm,1));line-height:1.5;color:#1B3F6B}
+.a58-dev-n{font-size:var(--t-body);color:#546e7a;font-weight:700;min-height:44px;display:flex;align-items:center}
+.a58-note{border:1px solid #c9d9ee;background:#eef4fb;border-radius:8px;padding:10px 12px;margin:0 0 12px;font-size:var(--t-section);line-height:1.5;color:#1B3F6B}
 .a58-more2{flex:1 1 100%}
-.a58-more2>summary{min-height:44px;display:flex;align-items:center;cursor:pointer;font-weight:700;color:#1B4F8A;font-size:calc(var(--fs-m)*var(--fsm,1))}
-[data-ph]:empty::before{content:attr(data-ph);display:block;padding:10px 12px;background:#f7f9fc;border:1px dashed #c9d3e2;border-radius:8px;color:#455;font-size:calc(var(--fs-m)*var(--fsm,1));line-height:1.5;margin-top:8px}
-.a58-swipe{display:none;font-size:calc(var(--fs-s)*var(--fss,1));font-weight:700;color:#1B4F8A;margin:0 0 4px;text-align:right}
+.a58-more2>summary{min-height:44px;display:flex;align-items:center;cursor:pointer;font-weight:700;color:#1B4F8A;font-size:var(--t-section)}
+[data-ph]:empty::before{content:attr(data-ph);display:block;padding:10px 12px;background:#f7f9fc;border:1px dashed #c9d3e2;border-radius:8px;color:#455;font-size:var(--t-section);line-height:1.5;margin-top:8px}
+.a58-swipe{display:none;font-size:var(--t-body);font-weight:700;color:#1B4F8A;margin:0 0 4px;text-align:right}
 .a58-swipe.on{display:block}
 .a58-swipe.on::after{content:" \2192"}
 .table-wrap.a58-ov{background:linear-gradient(to left,rgba(27,79,138,.28),rgba(27,79,138,0)) right center/18px 100% no-repeat,#fff}
@@ -2991,14 +2996,14 @@ input[type=tel],input[type=email],input[type=search],input:not([type]),textarea{
   .sidebar-footer{padding:10px 4px 12px}
   .nav-item{flex-direction:column;justify-content:center;gap:2px;padding:8px 2px;border-left-width:0;border-bottom:3px solid transparent;text-align:center}
   .nav-item.active{border-bottom-color:#F39C12}
-  .sidebar .nav-item span.nav-short{display:block;font-size:var(--fs-s);line-height:1.15;font-weight:700;max-width:100%;overflow-wrap:anywhere}
-  .logout-btn{font-size:var(--fs-s);padding:6px 2px}
+  .sidebar .nav-item span.nav-short{display:block;font-size:var(--t-body);line-height:1.15;font-weight:700;max-width:100%;overflow-wrap:anywhere}
+  .logout-btn{font-size:var(--t-body);padding:6px 2px}
   .logout-btn::after{content:none}
 }
 @media (max-width:700px){
   .tiles{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
   .tile{padding:12px 12px}
-  .tile-val{font-size:calc(var(--fs-xl)*var(--fsc,1))}
+  .tile-val{font-size:var(--t-title)}
   .a58-needs{grid-template-columns:repeat(2,minmax(0,1fr))}
 }
 @media (max-width:1100px){
@@ -3008,12 +3013,12 @@ input[type=tel],input[type=email],input[type=search],input:not([type]),textarea{
   #page-employees thead tr{display:flex;align-items:center;gap:8px;padding:0 4px 8px}
   #page-employees thead th{display:none}
   #page-employees thead th.chk-col{display:flex;align-items:center;border:none;background:transparent;padding:0;position:static}
-  #page-employees thead th.chk-col::after{content:"Select all";font-size:var(--fs-s);font-weight:700;color:#546e7a;margin-left:6px}
+  #page-employees thead th.chk-col::after{content:"Select all";font-size:var(--t-body);font-weight:700;color:#546e7a;margin-left:6px}
   #page-employees tbody tr{display:flex;flex-direction:column;position:relative;background:#fff;border-radius:12px;box-shadow:0 1px 4px rgba(0,0,0,.12);margin:0 0 10px;padding:10px 12px}
   #page-employees tbody td{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:3px 0;border:none;min-width:0}
-  #page-employees tbody td[data-label]::before{content:attr(data-label);flex:0 0 92px;font-size:var(--fs-s);font-weight:700;color:#546e7a;text-transform:uppercase;letter-spacing:.3px}
+  #page-employees tbody td[data-label]::before{content:attr(data-label);flex:0 0 92px;font-size:var(--t-body);font-weight:700;color:#546e7a;text-transform:uppercase;letter-spacing:.3px}
   #page-employees tbody td.chk-col{position:absolute;top:4px;right:6px;padding:0;width:auto}
-  #page-employees tbody td.a58-nm{order:-2;font-size:calc(var(--fs-l)*var(--fs,1));font-weight:800;color:#0A1628;padding-right:40px}
+  #page-employees tbody td.a58-nm{order:-2;font-size:var(--t-section);font-weight:800;color:#0A1628;padding-right:40px}
   #page-employees tbody td.a58-cd{order:-1}
   #page-employees tbody td.a58-ac{display:block;border-top:1px solid #eef1f5;margin-top:6px;padding-top:8px}
   #page-employees tbody tr.empty-row td{display:block;text-align:center}
@@ -3035,7 +3040,7 @@ input[type=tel],input[type=email],input[type=search],input:not([type]),textarea{
 .a65-strip.a65-r .a65-strip-in{-webkit-mask-image:linear-gradient(to right,#000 calc(100% - 34px),transparent);mask-image:linear-gradient(to right,#000 calc(100% - 34px),transparent)}
 .a65-strip.a65-l.a65-r .a65-strip-in{-webkit-mask-image:linear-gradient(to right,transparent,#000 24px,#000 calc(100% - 34px),transparent);mask-image:linear-gradient(to right,transparent,#000 24px,#000 calc(100% - 34px),transparent)}
 .a65-strip.a65-l:not(.a65-r) .a65-strip-in{-webkit-mask-image:linear-gradient(to right,transparent,#000 24px);mask-image:linear-gradient(to right,transparent,#000 24px)}
-.a65-more-label{margin:2px 0 0;color:#6B7280;font-size:var(--fs-s)}
+.a65-more-label{margin:2px 0 0;color:#6B7280;font-size:var(--t-body)}
 /* Purchasing: its five pills use the same strip */
 #rmc-sub{flex-wrap:nowrap;overflow-x:auto;max-width:100%;padding-bottom:6px;-webkit-overflow-scrolling:touch}
 #rmc-sub .preset-btn{flex:0 0 auto;white-space:nowrap!important;max-width:none!important}
@@ -3059,7 +3064,7 @@ label:has(>input[type=checkbox]),label:has(>input[type=radio]){display:flex;alig
 
 /* ADM-v266 ===== v2.66 css ===== */
 /* Stock: progress / 20,000-row cap / cost note of 'Download all' sit right under the quick strip (never inside a closed fold) */
-.a66-prog{display:block;margin:0 0 8px;padding:0 2px;font-size:calc(var(--fs-m)*var(--fsm,1));font-weight:600;color:#475569;overflow-wrap:anywhere}
+.a66-prog{display:block;margin:0 0 8px;padding:0 2px;font-size:var(--t-section);font-weight:600;color:#475569;overflow-wrap:anywhere}
 .a66-prog:empty{display:none}
 /* Purchasing pills: the same edge fade as the quick strip */
 #rmc-sub.a66-r{-webkit-mask-image:linear-gradient(to right,#000 calc(100% - 34px),transparent);mask-image:linear-gradient(to right,#000 calc(100% - 34px),transparent)}
@@ -3105,8 +3110,8 @@ label:has(>input[type=checkbox]),label:has(>input[type=radio]){display:flex;alig
 <div class="login-wrap" id="employee-login-screen">
   <div class="login-card">
     <div class="login-brand">
-      <div class="login-brand-sub">ArtzFolio &middot; Vishnu Image Folio Pvt. Ltd.</div>
-      <div class="login-brand-title">🔐 Admin Panel</div>
+      <div class="login-brand-sub">Vishnu Image Folio Pvt. Ltd.</div>
+      <div class="login-brand-title">ArtzFolio Super App <span class="af-admin-tag">Admin</span></div>
     </div>
     <div class="login-field">
       <label for="emp-login-code-input">Employee Code</label>
@@ -3118,7 +3123,7 @@ label:has(>input[type=checkbox]),label:has(>input[type=radio]){display:flex;alig
     </div>
     <button class="login-btn" id="emp-login-submit-btn" onclick="attemptEmployeeLogin()">Continue</button>
     <div class="login-err" id="emp-login-err-msg"></div>
-    <div class="af-fs-login"><div class="af-fs-t" style="text-align:center;font-size:var(--fs-s);color:#888;margin-bottom:4px">Text size</div><div id="af-fs-ctl-login"></div></div>
+    <div class="af-fs-login"><div class="af-fs-t" style="text-align:center;font-size:var(--t-body);color:#888;margin-bottom:4px">Text size</div><div id="af-fs-ctl-login"></div></div>
     <div class="login-hint">Only Admin and Supervisor accounts can sign in here.</div>
   </div>
 </div>
@@ -3137,7 +3142,7 @@ label:has(>input[type=checkbox]),label:has(>input[type=radio]){display:flex;alig
       <div class="login-brand-sub">ArtzFolio &middot; Vishnu Image Folio Pvt. Ltd.</div>
       <div class="login-brand-title">🔐 6-Digit Code</div>
     </div>
-    <p id="emp-totp-who" style="font-size:calc(var(--fs-m)*var(--fsm,1));color:#555;text-align:center;margin:0 0 16px;">Enter the 6-digit code from the phone that was set up for this account.</p>
+    <p id="emp-totp-who" style="font-size:var(--t-section);color:#555;text-align:center;margin:0 0 16px;">Enter the 6-digit code from the phone that was set up for this account.</p>
     <div class="login-field">
       <label for="emp-totp-code-input">6-Digit Code</label>
       <input type="tel" inputmode="numeric" maxlength="11" id="emp-totp-code-input" placeholder="&bull;&bull;&bull;&bull;&bull;&bull;" autocomplete="one-time-code"
@@ -3147,7 +3152,7 @@ label:has(>input[type=checkbox]),label:has(>input[type=radio]){display:flex;alig
     <button class="login-btn" id="emp-totp-submit-btn" onclick="submitEmployeeTotpCode()">Verify</button>
     <div class="login-err" id="emp-totp-err-msg"></div>
     <div style="text-align:center;margin-top:14px;">
-      <span style="color:#1B4F8A;font-size:calc(var(--fs-m)*var(--fsm,1));cursor:pointer;text-decoration:underline;" onclick="cancelEmployeeTotpStep()">&larr; Back to login</span>
+      <span style="color:#1B4F8A;font-size:var(--t-section);cursor:pointer;text-decoration:underline;" onclick="cancelEmployeeTotpStep()">&larr; Back to login</span>
     </div>
   </div>
 </div>
@@ -3156,8 +3161,8 @@ label:has(>input[type=checkbox]),label:has(>input[type=radio]){display:flex;alig
 <div class="login-wrap" id="login-screen" style="display:none;">
   <div class="login-card">
     <div class="login-brand">
-      <div class="login-brand-sub">ArtzFolio &middot; Vishnu Image Folio Pvt. Ltd.</div>
-      <div class="login-brand-title">🔐 Admin Panel</div>
+      <div class="login-brand-sub">Vishnu Image Folio Pvt. Ltd.</div>
+      <div class="login-brand-title">ArtzFolio Super App <span class="af-admin-tag">Admin</span></div>
     </div>
     <div class="login-field">
       <label for="login-secret-input">Admin Password <span style="font-weight:400;color:#6B7280;">(Supervisors: use your own password)</span></label>
@@ -3179,7 +3184,7 @@ label:has(>input[type=checkbox]),label:has(>input[type=radio]){display:flex;alig
       <input type="checkbox" id="login-remember-input" onchange="document.getElementById('login-remember-days-input').disabled = !this.checked;">
       <span>Remember my employee code for</span>
       <input type="number" id="login-remember-days-input" min="1" max="365" value="7" disabled
-             style="width:52px;padding:3px 6px;border:1px solid #dce4f0;border-radius:6px;font-size:calc(var(--fs-s)*var(--fss,1));"
+             style="width:52px;padding:3px 6px;border:1px solid #dce4f0;border-radius:6px;font-size:var(--t-body);"
              onclick="event.preventDefault()">
       <span>days</span>
     </label>
@@ -3193,8 +3198,8 @@ label:has(>input[type=checkbox]),label:has(>input[type=radio]){display:flex;alig
 <div class="shell" id="app-shell" style="display:none;">
   <div class="sidebar">
     <div class="sidebar-brand">
-      <div class="sidebar-brand-sub">ArtzFolio Super App</div>
-      <div class="sidebar-brand-title">⚙ Admin Panel</div>
+      <div class="sidebar-brand-sub">Vishnu Image Folio Pvt. Ltd.</div>
+      <div class="sidebar-brand-title">ArtzFolio Super App <span class="af-admin-tag">Admin</span></div>
     </div>
     <ul class="nav-list">
       <li class="nav-item active" data-page="dashboard" onclick="switchPage('dashboard')"><span class="nav-icon">📊</span><span class="nav-label">Overview</span></li>
@@ -3215,7 +3220,7 @@ label:has(>input[type=checkbox]),label:has(>input[type=radio]){display:flex;alig
     <div class="sidebar-footer">
       <div class="af-fs-side"><div class="af-fs-t">Text size</div><div id="af-fs-ctl-side"></div></div>
       <button class="logout-btn" onclick="adminLogout()">Sign out</button>   <!-- ADM-v258 A-01 -->
-      <div class="ver-footer">ArtzFolio Super App - Admin Panel v2.68</div>
+      <div class="ver-footer">ArtzFolio Super App - Admin Panel v2.73</div>
     </div>
   </div>
 
@@ -3478,15 +3483,15 @@ label:has(>input[type=checkbox]),label:has(>input[type=radio]){display:flex;alig
         </div>
       </div>
       <details class="e2-more a54-menu"><summary>More filters and help</summary><div class="e2-fold-body"><details id="sessions-legend" class="e2-keep" style="margin:0 0 12px 0;border:1px solid #E2E8F0;border-radius:6px;background:#F8F9FB;">
-        <summary style="cursor:pointer;padding:9px 12px;font-size:calc(var(--fs-m)*var(--fsm,1));font-weight:bold;color:#0A1628;list-style:none;">
+        <summary style="cursor:pointer;padding:9px 12px;font-size:var(--t-section);font-weight:bold;color:#0A1628;list-style:none;">
           What can I do with a batch here? <span style="font-weight:normal;color:#6B7280;">(tap to open or close)</span>
         </summary>
         <div style="padding:0 12px 12px 12px;">
-          <div style="font-size:calc(var(--fs-s)*var(--fss,1));color:#1A1A1A;margin-bottom:8px;">
+          <div style="font-size:var(--t-body);color:#1A1A1A;margin-bottom:8px;">
             Each button shows only on a batch it fits. You will not see all of them at once.
             Nothing below changes stock except <strong>Reverse</strong>.
           </div>
-          <table style="width:100%;border-collapse:collapse;font-size:calc(var(--fs-s)*var(--fss,1));background:#fff;">
+          <table style="width:100%;border-collapse:collapse;font-size:var(--t-body);background:#fff;">
             <thead><tr style="background:#0A1628;color:#fff;">
               <th style="text-align:left;padding:5px 7px;">Button</th>
               <th style="text-align:left;padding:5px 7px;">What it does</th>
@@ -3538,7 +3543,7 @@ label:has(>input[type=checkbox]),label:has(>input[type=radio]){display:flex;alig
               </tr>
             </tbody>
           </table>
-          <div style="font-size:calc(var(--fs-s)*var(--fss,1));color:#6B7280;margin-top:8px;">
+          <div style="font-size:var(--t-body);color:#6B7280;margin-top:8px;">
             Set the <strong>Status</strong> filter to <strong>Open</strong> to see the batches your staff are working in now.
             If the list is empty, nobody has a batch open. That is when <em>Close it for them</em> would appear.
           </div>
@@ -3679,7 +3684,7 @@ label:has(>input[type=checkbox]),label:has(>input[type=radio]){display:flex;alig
         <button class="btn btn-primary" onclick="loadDevices()">↻ Refresh</button>
       </div>
 
-      <div style="border:1px solid #d9a63a;background:#FFF8E6;border-radius:6px;padding:11px 13px;margin-bottom:12px;font-size:calc(var(--fs-m)*var(--fsm,1));">
+      <div style="border:1px solid #d9a63a;background:#FFF8E6;border-radius:6px;padding:11px 13px;margin-bottom:12px;font-size:var(--t-section);">
         <strong>What blocking a phone does, and what it does not.</strong><br>
         A blocked phone cannot sign in, cannot start a scanning batch, and — if it is already signed in — is signed out
         automatically the next time the app checks, which is within about a minute while it is in use, or the moment it is
@@ -4037,19 +4042,19 @@ label:has(>input[type=checkbox]),label:has(>input[type=radio]){display:flex;alig
         <h3>📊 Totals for the rows on screen</h3>
         <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:16px;">
           <div>
-            <h4 style="font-size:calc(var(--fs-s)*var(--fss,1));color:#546e7a;margin-bottom:6px;">By Day</h4>
+            <h4 style="font-size:var(--t-body);color:#546e7a;margin-bottom:6px;">By Day</h4>
             <div class="table-wrap"><table><thead><tr><th>Date</th><th>Count</th><th>Net Qty</th></tr></thead><tbody id="txn-group-day-body"></tbody></table></div>
           </div>
           <div>
-            <h4 style="font-size:calc(var(--fs-s)*var(--fss,1));color:#546e7a;margin-bottom:6px;">By Channel</h4>
+            <h4 style="font-size:var(--t-body);color:#546e7a;margin-bottom:6px;">By Channel</h4>
             <div class="table-wrap"><table><thead><tr><th>Channel</th><th>Count</th><th>Net Qty</th></tr></thead><tbody id="txn-group-channel-body"></tbody></table></div>
           </div>
           <div>
-            <h4 style="font-size:calc(var(--fs-s)*var(--fss,1));color:#546e7a;margin-bottom:6px;">By Employee</h4>
+            <h4 style="font-size:var(--t-body);color:#546e7a;margin-bottom:6px;">By Employee</h4>
             <div class="table-wrap"><table><thead><tr><th>Employee</th><th>Count</th><th>Net Qty</th></tr></thead><tbody id="txn-group-employee-body"></tbody></table></div>
           </div>
           <div>
-            <h4 style="font-size:calc(var(--fs-s)*var(--fss,1));color:#546e7a;margin-bottom:6px;">Top SKUs by Txn Count</h4>
+            <h4 style="font-size:var(--t-body);color:#546e7a;margin-bottom:6px;">Top SKUs by Txn Count</h4>
             <div class="table-wrap"><table><thead><tr><th>Product (title, ASIN, SKU)</th><th>Count</th><th>Net Qty</th></tr></thead><tbody id="txn-group-sku-body"></tbody></table></div>
           </div>
         </div>
@@ -4263,7 +4268,7 @@ label:has(>input[type=checkbox]),label:has(>input[type=radio]){display:flex;alig
           Take a photo of this page and send it over. The last technical message is kept below, so it can be read
           by someone who needs it without you having to understand it.
         </div>
-        <div id="syscheck-technical" style="margin-top:8px;font-family:monospace;font-size:calc(var(--fs-s)*var(--fss,1));color:#6B7280;word-break:break-all;">(nothing yet)</div>
+        <div id="syscheck-technical" style="margin-top:8px;font-family:monospace;font-size:var(--t-body);color:#6B7280;word-break:break-all;">(nothing yet)</div>
       </div>
     </div>
 
@@ -4316,34 +4321,34 @@ label:has(>input[type=checkbox]),label:has(>input[type=radio]){display:flex;alig
     <!-- v2.22: the one question that actually decides everything, asked plainly
          and first, instead of being buried in three differently-named buttons. -->
     <div id="totp-setup-step0" style="display:none;">
-      <p style="font-size:calc(var(--fs-m)*var(--fsm,1));color:#4a5568;line-height:1.6;">
+      <p style="font-size:var(--t-section);color:#4a5568;line-height:1.6;">
         From now on this person will need a <strong>6-digit code from a phone</strong> as well as their PIN.
         <br><br><strong>Whose phone should show that code?</strong>
       </p>
       <div style="display:flex;flex-direction:column;gap:10px;margin-top:12px;">
         <button class="btn btn-primary" style="text-align:left;padding:12px;height:auto;line-height:1.5;" onclick="phoneCodeOnMyPhone()">
           <strong>&#128100; My phone</strong><br>
-          <span style="font-weight:400;font-size:calc(var(--fs-s)*var(--fss,1));">I scan the code now. They call me for the 6 digits each time they sign in. Nobody gets into their account without me.</span>
+          <span style="font-weight:400;font-size:var(--t-body);">I scan the code now. They call me for the 6 digits each time they sign in. Nobody gets into their account without me.</span>
         </button>
         <button class="btn btn-gold" style="text-align:left;padding:12px;height:auto;line-height:1.5;" onclick="phoneCodeOnTheirPhone()">
           <strong>&#128241; Their own phone</strong><br>
-          <span style="font-weight:400;font-size:calc(var(--fs-s)*var(--fss,1));">They set it up themselves the next time they sign in. They can then sign in without me.</span>
+          <span style="font-weight:400;font-size:var(--t-body);">They set it up themselves the next time they sign in. They can then sign in without me.</span>
         </button>
       </div>
       <div class="result-msg" id="totp-choice-result" style="margin-top:10px;"></div>
     </div>
 
     <div id="totp-setup-step1" style="display:none;">
-      <p style="font-size:calc(var(--fs-m)*var(--fsm,1));color:#4a5568;line-height:1.6;">
+      <p style="font-size:var(--t-section);color:#4a5568;line-height:1.6;">
         Open <strong>Google Authenticator</strong> on <strong>your own phone</strong>, choose
         <strong>Scan a QR code</strong>, and point it at this square.
       </p>
       <div id="totp-setup-qr" style="text-align:center;margin:14px 0;"></div>
-      <p style="font-size:calc(var(--fs-s)*var(--fss,1));color:#4a5568;margin-bottom:4px;">Cannot scan? Choose <strong>Enter a setup key</strong> in the app and type this:</p>
-      <div id="totp-setup-key" style="padding:10px;background:#F8F9FB;border:1px solid #E2E8F0;border-radius:6px;font-family:monospace;font-size:calc(var(--fs-m)*var(--fsm,1));word-break:break-all;text-align:center;letter-spacing:1px;"></div>
-      <p style="font-size:calc(var(--fs-m)*var(--fsm,1));color:#4a5568;margin-top:14px;margin-bottom:6px;"><strong>Then type the 6-digit code it shows:</strong></p>
+      <p style="font-size:var(--t-body);color:#4a5568;margin-bottom:4px;">Cannot scan? Choose <strong>Enter a setup key</strong> in the app and type this:</p>
+      <div id="totp-setup-key" style="padding:10px;background:#F8F9FB;border:1px solid #E2E8F0;border-radius:6px;font-family:monospace;font-size:var(--t-section);word-break:break-all;text-align:center;letter-spacing:1px;"></div>
+      <p style="font-size:var(--t-section);color:#4a5568;margin-top:14px;margin-bottom:6px;"><strong>Then type the 6-digit code it shows:</strong></p>
       <div style="display:flex;gap:8px;">
-        <input type="tel" inputmode="numeric" maxlength="6" id="totp-setup-code" placeholder="6-digit code" autocomplete="off" style="flex:1;padding:8px;border:1px solid #cbd5e0;border-radius:6px;font-size:calc(var(--fs-l)*var(--fs,1));">
+        <input type="tel" inputmode="numeric" maxlength="6" id="totp-setup-code" placeholder="6-digit code" autocomplete="off" style="flex:1;padding:8px;border:1px solid #cbd5e0;border-radius:6px;font-size:var(--t-section);">
         <button class="btn btn-primary" onclick="confirmEmployeeTwoFactor()">&#10003; Turn on</button>
       </div>
       <div class="result-msg" id="totp-setup-result" style="margin-top:8px;"></div>
@@ -5132,9 +5137,9 @@ function ensureSecretScreenEscapeHatch() {
   wrap.style.cssText = 'margin-top:14px;text-align:center;';
   wrap.innerHTML =
     '<button id="login-escape-btn" type="button" ' +
-    'style="background:none;border:none;color:#1B3F6B;font-size:calc(var(--fs-s)*var(--fss,1));text-decoration:underline;cursor:pointer;padding:6px;">' +
+    'style="background:none;border:none;color:#1B3F6B;font-size:var(--t-body);text-decoration:underline;cursor:pointer;padding:6px;">' +
     'Sign in as a different employee</button>' +
-    '<div style="font-size:calc(var(--fs-s)*var(--fss,1));color:#6B7280;margin-top:4px;">Use this if you do not have the Admin Password.</div>';
+    '<div style="font-size:var(--t-body);color:#6B7280;margin-top:4px;">Use this if you do not have the Admin Password.</div>';
   card.appendChild(wrap);
   document.getElementById('login-escape-btn').addEventListener('click', function () {
     clearAdminSecret();
@@ -5326,7 +5331,7 @@ function initAdminPullToRefresh() {
   if (!mainEl) return;
   var ind = document.createElement('div');
   ind.className = 'ptr-indicator';
-  ind.style.cssText = 'height:0;overflow:hidden;display:flex;align-items:center;justify-content:center;font-size:calc(var(--fs-m)*var(--fsm,1));color:#666;transition:height .15s ease;';
+  ind.style.cssText = 'height:0;overflow:hidden;display:flex;align-items:center;justify-content:center;font-size:var(--t-section);color:#666;transition:height .15s ease;';
   mainEl.insertBefore(ind, mainEl.firstChild);
   document.addEventListener('touchstart', function (e) {
     var shell = document.getElementById('app-shell');
@@ -5408,6 +5413,7 @@ function switchPage(name) {
   if (name === 'bins' && !binsLoadedOnce) { loadBins(); }
   if (name === 'devices' && !devicesLoadedOnce) { loadDevices(); }
   if (name === 'secdata') { secInit(); }   // v2.45: Safety and backups
+  if (name === 'audit' || name === 'sessions' || name === 'reports') { try { populateEmployeeDropdowns(true); } catch (e72) {} }   // A72: the pick-lists need names; the PIN box opens once
 }
 
 
@@ -5632,7 +5638,7 @@ function idCopyText(t, cb) {   // cb(ok)
     function legacy() {
         var ta = document.createElement('textarea'), ok = false;
         ta.value = t; ta.setAttribute('readonly', ''); ta.setAttribute('aria-hidden', 'true');
-        ta.style.cssText = 'position:fixed;left:-9999px;top:0;opacity:0;font-size:calc(var(--fs-l)*var(--fs,1))';
+        ta.style.cssText = 'position:fixed;left:-9999px;top:0;opacity:0;font-size:var(--t-section)';
         document.body.appendChild(ta);
         try { ta.focus(); ta.select(); ta.setSelectionRange(0, t.length); ok = document.execCommand('copy'); } catch (e) { ok = false; }
         document.body.removeChild(ta);
@@ -7549,7 +7555,7 @@ function secRenderRoles() {
   if (!box || box.getAttribute('data-done')) return;
   var cell = function (c) { return c === 'Y' ? 'Yes' : (c === '-' ? 'No' : c); };
   box.innerHTML = SEC_ROLES.map(function (t) {
-    return '<h4 style="font-size:calc(var(--fs-m)*var(--fsm,1));margin:14px 0 6px;">' + esc(t.title) + '</h4><div class="table-wrap"><table><thead><tr><th>Action</th><th>Admin</th><th>Supervisor</th><th>Manager</th><th>Store</th><th>Sales</th><th>Read-only</th></tr></thead><tbody>' +
+    return '<h4 style="font-size:var(--t-section);margin:14px 0 6px;">' + esc(t.title) + '</h4><div class="table-wrap"><table><thead><tr><th>Action</th><th>Admin</th><th>Supervisor</th><th>Manager</th><th>Store</th><th>Sales</th><th>Read-only</th></tr></thead><tbody>' +
       t.rows.map(function (r) { return '<tr>' + r.map(function (c, i) { return '<td>' + (i === 0 ? '' : '') + esc(i === 0 ? c : cell(c)) + '</td>'; }).join('') + '</tr>'; }).join('') + '</tbody></table></div>';
   }).join('');
   box.setAttribute('data-done', '1');
@@ -7638,10 +7644,74 @@ function txnBadgeClass(t) {
   return 'badge-grey';
 }
 
+/* A72-BEGIN: staff list and counts come from checked database functions; this page no longer reads the staff table (except the one deliberate secrets check).
+   A72 holds the staff list ONLY in this page's memory (never stored, never logged); gone on reload and after 10 minutes. The PIN is typed in the existing PIN box (costa) and kept
+   only by that box's own in-memory holder. */
+var A72 = { rows: null, admin: false, code: '', at: 0, pend: null, deniedAt: 0, deniedText: '' };
+function a72Count() { return Promise.resolve(db.rpc('oms_staff_count_v1')).then(function (r) { return { error: r.error || null, count: r.error ? null : (Number(r.data) || 0) }; }); }
+function a72Locked() { return Promise.resolve(db.rpc('oms_locked_staff_count_v1')).then(function (r) { return { error: r.error || null, count: r.error ? null : (Number(r.data) || 0) }; }); }
+function a72Fresh() {
+  try { return !!(A72.rows && A72.code === String(getAdminPanelEmployeeCode() || '').toUpperCase() && (Date.now() - A72.at) < 600000); } catch (e) { return false; }
+}
+function a72Creds(why) {
+  var code = String(getAdminPanelEmployeeCode() || '').toUpperCase();
+  if (!code) return Promise.resolve(null);
+  var now = Date.now();
+  if (COSTA.pin && (now - COSTA.at) < COSTA_IDLE_MS && (now - COSTA.since) < COSTA_CAP_MS) return Promise.resolve({ code: code, pin: COSTA.pin });
+  if (COSTA.pending) return COSTA.pending.then(function (c) { return (c && c.pin) ? { code: code, pin: c.pin } : null; });
+  var hint = document.querySelector('#costa-pin-bg .rmc-hint'), old = hint ? hint.innerHTML : null;
+  if (hint) hint.innerHTML = esc(why) + ' (signed in as <b id="costa-pin-code"></b>). Cancel to go on without it.';
+  return costaAskPin(code).then(function (pin) {
+    if (hint && old !== null) hint.innerHTML = old;
+    pin = String(pin == null ? '' : pin).trim();
+    return /^[0-9]{4}$/.test(pin) ? { code: code, pin: pin } : null;
+  });
+}
+/* resolves { ok:true, rows, admin } | { ok:false, text, silent }  (never rejects). ask=false never opens the PIN box. force=true re-reads even if held. */
+function a72Dir(ask, why, force) {
+  var fail = function (t) { return { ok: false, text: t }; };
+  if (!db) return Promise.resolve(fail('Cannot reach the database right now. Check your internet, then try again.'));
+  if (!force && a72Fresh()) return Promise.resolve({ ok: true, rows: A72.rows, admin: A72.admin });
+  if (!ask) return Promise.resolve({ ok: false, silent: true, text: '' });
+  if (A72.pend) return A72.pend;
+  if (!force && A72.deniedAt && (Date.now() - A72.deniedAt) < 120000) return Promise.resolve(fail(A72.deniedText));   /* asked a moment ago and refused: not asked again on every page */
+  var me = String(getAdminPanelEmployeeCode() || '').toUpperCase();
+  if (!me) return Promise.resolve(fail('Staff names need a sign-in with your own employee code and PIN.'));
+  A72.pend = a72Creds(why || 'Type your PIN to see the staff list.').then(function (c) {
+    if (!c) return fail('The staff list needs your PIN, so names are left out.');
+    return withTimeout(db.rpc('oms_staff_directory_v1', { p_code: c.code, p_pin: c.pin }), 10000, 'Staff list').then(function (res) {
+      var d = (res && !res.error) ? res.data : null;
+      if (!d || typeof d !== 'object') return fail('The staff list could not be read right now. Check your internet and try again.');
+      if (d.ok !== true) {
+        if (String(d.error || '') === 'PIN_REJECTED') { try { COSTA.pin = null; COSTA.since = 0; COSTA.asked = false; } catch (e0) {} return fail('That PIN was not accepted, so names are left out.'); }
+        return fail('The staff list is not available right now' + (d.message ? ': ' + String(d.message).slice(0, 140) : '.') + ' Names are left out.');
+      }
+      A72.rows = Array.isArray(d.rows) ? d.rows : []; A72.admin = d.admin === true; A72.code = me; A72.at = Date.now(); A72.deniedAt = 0;
+      try { costaOk({ via: 'pin', code: c.code, pin: c.pin }); } catch (e1) {}
+      return { ok: true, rows: A72.rows, admin: A72.admin };
+    }).catch(function () { return fail('The staff list could not be read right now. Check your internet and try again.'); });
+  }).then(function (r) { A72.pend = null; if (!r.ok) { A72.deniedAt = Date.now(); A72.deniedText = r.text; } return r; }, function () { A72.pend = null; return fail('The staff list could not be read right now.'); });
+  return A72.pend;
+}
+/* same shape the old reads gave ({ error, data }) so the System check bodies are unchanged */
+function a72Rows(needAdmin) {
+  return a72Dir(true, 'Type your PIN so the check can read the staff list.').then(function (r) {
+    if (!r.ok) return { error: { message: r.text || 'The staff list needs your PIN.' }, data: null };
+    if (needAdmin && !r.admin) return { error: { message: 'Only an Admin PIN shows these details.' }, data: null };
+    return { error: null, data: r.rows };
+  });
+}
+/* A72-END */
 var employeeDirectory = {}; // code -> {display_name, ...}
-function populateEmployeeDropdowns() {
+function populateEmployeeDropdowns(ask) {   /* A72: ask === true only when a screen that needs names is opened; otherwise the held list is used, no PIN box */
   if (!db) return;
-  withTimeout(db.from('oms_employees').select('employee_code, display_name, active, archived').order('employee_code'), 10000, 'Employee directory').then(function (res) {
+  a72Dir(ask === true, 'Type your PIN to see staff names in the pick-lists.').then(function (r72) {
+    if (!r72.ok) {
+      if (r72.silent) return;
+      ['audit-employee', 'txn-employee', 'sessions-employee'].forEach(function (id) { var sl = document.getElementById(id); if (sl && sl.options.length && !sl.value) sl.options[0].textContent = 'All (names need your PIN)'; });
+      return;
+    }
+    var res = { data: r72.rows };
     if (res.error || !res.data) return;
     // v2.14 (Master Prompt v17, Part B): an archived employee's live
     // employee_code has been renamed to free the original code — exclude
@@ -7869,7 +7939,7 @@ function loadDashboard() {
     fetchAllRows(function () { return db.from('oms_inventory_transactions').select('qty_delta,txn_type').gte('created_at', todayStartISO); }, 1000, 'Overview (ledger, today)'),
     withTimeout(db.from('oms_cycle_count_queue').select('queue_id', { count: 'exact', head: true }).eq('status', 'PENDING').eq('assigned_date', todayDateStr()), 10000, 'Overview (cycle queue)'),
     withTimeout(db.from('oms_negative_stock_flags').select('sku_code', { count: 'exact', head: true }), 10000, 'Overview (negative stock)'),
-    withTimeout(db.from('oms_employees').select('employee_code', { count: 'exact', head: true }).eq('active', true), 10000, 'Overview (employee count)'),
+    withTimeout(a72Count(), 10000, 'Overview (employee count)'),   /* A72 */
     withTimeout(db.from('oms_staff_activity_today').select('employee_code, picks_today, moves_today, total_txns_today, first_txn_at, last_txn_at'), 10000, 'Overview (staff today)'),
     withTimeout(db.from('oms_employee_performance_14d').select('employee_code,picks'), 15000, 'Overview (staff 14d)'),
     withTimeout(db.from('oms_bins').select('bin_code').eq('active', true).order('bin_code'), 10000, 'Overview (bin list)')
@@ -8356,9 +8426,9 @@ function showDetailsModal(idx) {
   // removed, just no longer the first and only thing shown.
   var plain = describeAuditDetails(row.action_type, row.details) || '(No further detail recorded for this entry.)';
   document.getElementById('details-modal-content').innerHTML =
-    '<div style="font-size:calc(var(--fs-m)*var(--fsm,1));line-height:1.6;color:#1A1A1A;">' + esc(plain) + '</div>' +
-    '<details style="margin-top:14px;"><summary style="cursor:pointer;color:#6B7280;font-size:calc(var(--fs-s)*var(--fss,1));">Technical detail (for reference only)</summary>' +
-    '<pre style="margin-top:8px;white-space:pre-wrap;word-break:break-all;font-size:calc(var(--fs-s)*var(--fss,1));color:#6B7280;">' + esc(JSON.stringify(row.details, null, 2)) + '</pre></details>';
+    '<div style="font-size:var(--t-section);line-height:1.6;color:#1A1A1A;">' + esc(plain) + '</div>' +
+    '<details style="margin-top:14px;"><summary style="cursor:pointer;color:#6B7280;font-size:var(--t-body);">Technical detail (for reference only)</summary>' +
+    '<pre style="margin-top:8px;white-space:pre-wrap;word-break:break-all;font-size:var(--t-body);color:#6B7280;">' + esc(JSON.stringify(row.details, null, 2)) + '</pre></details>';
   document.getElementById('details-modal-bg').classList.add('active');
 }
 function closeDetailsModal() { document.getElementById('details-modal-bg').classList.remove('active'); }
@@ -8876,12 +8946,12 @@ function deviceCellHtml(s, idx) {
   var h = '';
   if (nm) {
     h += '<div>' + esc(nm) + '</div>' +
-         '<div style="color:#6B7280;font-size:calc(var(--fs-s)*var(--fss,1));font-family:monospace;">' + esc(hint) + '</div>';
+         '<div style="color:#6B7280;font-size:var(--t-body);font-family:monospace;">' + esc(hint) + '</div>';
   } else {
     h += '<div style="font-family:monospace;">' + esc(hint || '—') + '</div>';
   }
   if (hint && !isReadOnlyAdmin()) {
-    h += '<button class="btn btn-grey" style="padding:1px 6px;font-size:calc(var(--fs-s)*var(--fss,1));margin-top:2px;" ' +
+    h += '<button class="btn btn-grey" style="padding:1px 6px;font-size:var(--t-body);margin-top:2px;" ' +
          'title="Give this phone a name you will recognise" ' +
          'onclick="openDeviceRename(\'' + jsq(hint) + '\',' + (Number(idx) || 0) + ')">✎ name</button>';   // v2.45 (R2-03): the hint comes from the phone: escaped for JavaScript and HTML
   }
@@ -8897,19 +8967,19 @@ function openDeviceRename(hint, idx) {
   if (!resEl) return;
   var cur = s.device_name ? String(s.device_name) : '';
   var h = '<div style="border:1px solid #E2E8F0;border-radius:6px;padding:12px;background:#fff;text-align:left;">';
-  h += '<div style="font-weight:bold;color:#0A1628;font-size:calc(var(--fs-m)*var(--fsm,1));margin-bottom:6px;">Name this phone</div>';
-  h += '<div style="font-size:calc(var(--fs-s)*var(--fss,1));margin-bottom:8px;">The phone reports itself as <span style="font-family:monospace;">' + esc(hint) + '</span>. ' +
+  h += '<div style="font-weight:bold;color:#0A1628;font-size:var(--t-section);margin-bottom:6px;">Name this phone</div>';
+  h += '<div style="font-size:var(--t-body);margin-bottom:8px;">The phone reports itself as <span style="font-family:monospace;">' + esc(hint) + '</span>. ' +
        'Give it a name you will recognise — for example <em>Packing bench 1</em> or <em>Store room phone</em>. ' +
        'It will show that name everywhere this phone appears, on every batch it has ever scanned. ' +
        'The code itself does not change, so nothing recorded against it is affected.</div>';
   h += '<input type="text" id="dev-name-' + attrId(hint) + '" maxlength="40" placeholder="e.g. Packing bench 1" autocomplete="off" value="' + esc(cur) + '" ' +
-       'style="padding:6px 8px;font-size:calc(var(--fs-s)*var(--fss,1));border:1px solid #E2E8F0;border-radius:4px;width:240px;margin-right:6px;">';
-  h += '<button class="btn btn-primary" id="dev-go-' + attrId(hint) + '" style="padding:6px 14px;font-size:calc(var(--fs-s)*var(--fss,1));" onclick="saveDeviceName(\'' + jsq(hint) + '\')">Save name</button> ';
+       'style="padding:6px 8px;font-size:var(--t-body);border:1px solid #E2E8F0;border-radius:4px;width:240px;margin-right:6px;">';
+  h += '<button class="btn btn-primary" id="dev-go-' + attrId(hint) + '" style="padding:6px 14px;font-size:var(--t-body);" onclick="saveDeviceName(\'' + jsq(hint) + '\')">Save name</button> ';
   if (cur) {
-    h += '<button class="btn btn-grey" style="padding:6px 12px;font-size:calc(var(--fs-s)*var(--fss,1));" title="Go back to showing the code" onclick="clearDeviceName(\'' + jsq(hint) + '\')">Clear</button> ';
+    h += '<button class="btn btn-grey" style="padding:6px 12px;font-size:var(--t-body);" title="Go back to showing the code" onclick="clearDeviceName(\'' + jsq(hint) + '\')">Clear</button> ';
   }
-  h += '<button class="btn btn-grey" style="padding:6px 12px;font-size:calc(var(--fs-s)*var(--fss,1));" onclick="cancelSessionReverse(\'' + jsq(sid) + '\')">Cancel</button>';
-  h += '<div id="dev-msg-' + attrId(hint) + '" style="margin-top:6px;font-size:calc(var(--fs-s)*var(--fss,1));"></div></div>';
+  h += '<button class="btn btn-grey" style="padding:6px 12px;font-size:var(--t-body);" onclick="cancelSessionReverse(\'' + jsq(sid) + '\')">Cancel</button>';
+  h += '<div id="dev-msg-' + attrId(hint) + '" style="margin-top:6px;font-size:var(--t-body);"></div></div>';
   resEl.className = 'result-msg'; resEl.innerHTML = h;
 }
 
@@ -8983,7 +9053,7 @@ function lastScanText(s) {
 }
 
 function scanSessionRowHtml(s, idx) {
-  var B  = 'padding:4px 10px;font-size:calc(var(--fs-s)*var(--fss,1));';
+  var B  = 'padding:4px 10px;font-size:var(--t-body);';
   var BR = B + 'background:#a33;color:#fff;';          // reverses stock
   var BT = B + 'background:#1B3F6B;color:#fff;';       // v2.33: moves a session to a different bin
   // v2.34: Settings > System Info now links the Bulk Upload Excel template for download.
@@ -9000,7 +9070,7 @@ function scanSessionRowHtml(s, idx) {
     // Real enforcement is server-side (oms_check_not_readonly_admin); this is
     // only about not showing buttons that would be refused.
     var needsSomeone = (s.status === 'OPEN' || s.status === 'CLOSED_PENDING_REVIEW' || s.status === 'ABANDONED');
-    actions = seeBtn + '<div style="color:#999;font-size:calc(var(--fs-s)*var(--fss,1));margin-top:2px;">' +
+    actions = seeBtn + '<div style="color:#999;font-size:var(--t-body);margin-top:2px;">' +
               (s.resolved_by ? 'by ' + esc(s.resolved_by)
                              : (needsSomeone ? 'read-only — ask a full Admin' : 'read-only')) + '</div>';
 
@@ -9027,12 +9097,12 @@ function scanSessionRowHtml(s, idx) {
     actions = seeBtn + (empty ? '' :
       ' <button class="btn" style="' + BT + '" title="Move everything this session added to a different bin." onclick="openSessionTransfer(\'' + jsq(sid) + '\',' + Number(idx) + ')">⇄ Transfer</button>' +
       ' <button class="btn" style="' + BR + '" title="Undoes every stock change this batch made, as if it had never been scanned. Safe even after Accept — nothing is deleted, a balancing entry is added for each scan." onclick="openSessionReverse(\'' + jsq(sid) + '\',' + Number(idx) + ')">↺ Reverse</button>') +
-      '<div style="color:#999;font-size:calc(var(--fs-s)*var(--fss,1));margin-top:2px;">accepted' + (s.resolved_by ? ' by ' + esc(s.resolved_by) : '') + '</div>';
+      '<div style="color:#999;font-size:var(--t-body);margin-top:2px;">accepted' + (s.resolved_by ? ' by ' + esc(s.resolved_by) : '') + '</div>';
 
   } else { // VOIDED
     actions = seeBtn +
       (empty ? '' : ' <button class="btn btn-grey" style="' + B + '" title="Looks for any scan that landed after this batch was reversed, and backs out only that one." onclick="openSessionReverse(\'' + jsq(sid) + '\',' + Number(idx) + ')">↺ Check for late scans</button>') +
-      '<div style="color:#999;font-size:calc(var(--fs-s)*var(--fss,1));margin-top:2px;">' + (s.resolved_by ? 'by ' + esc(s.resolved_by) : '—') + '</div>';
+      '<div style="color:#999;font-size:var(--t-body);margin-top:2px;">' + (s.resolved_by ? 'by ' + esc(s.resolved_by) : '—') + '</div>';
   }
 
   // The Scans column used to include the reversal's own balancing entries, so
@@ -9040,17 +9110,17 @@ function scanSessionRowHtml(s, idx) {
   // separately and this shows both.
   var rev = Number(s.reversed_count) || 0;
   var scansCell = fmtNum(s.scan_count) +
-    (rev ? '<div style="color:#B3261E;font-size:calc(var(--fs-s)*var(--fss,1));">' + fmtNum(rev) + ' reversed</div>' : '');
+    (rev ? '<div style="color:#B3261E;font-size:var(--t-body);">' + fmtNum(rev) + ' reversed</div>' : '');
   var qtyCell = fmtNum(s.total_qty) +
-    (rev ? '<div style="color:#6B7280;font-size:calc(var(--fs-s)*var(--fss,1));">was ' + fmtNum(s.scanned_qty) + '</div>' : '');
+    (rev ? '<div style="color:#6B7280;font-size:var(--t-body);">was ' + fmtNum(s.scanned_qty) + '</div>' : '');
 
   var ageTxt = sessionAgeText(s);
   var openCell = fmtDateTime(s.opened_at) +
-    '<div style="color:#6B7280;font-size:calc(var(--fs-s)*var(--fss,1));">' + (ageTxt ? esc(ageTxt) + ' ago' : '') +
+    '<div style="color:#6B7280;font-size:var(--t-body);">' + (ageTxt ? esc(ageTxt) + ' ago' : '') +
     (s.status === 'OPEN' ? ' · ' + esc(lastScanText(s)) : '') + '</div>';
 
   return '<tr>' +
-    '<td><button class="btn btn-grey" style="padding:2px 8px;font-size:calc(var(--fs-s)*var(--fss,1));" title="Show or hide this batch&#39;s line-by-line scan detail." onclick="toggleScanSessionDetail(' + Number(idx) + ')" id="sess-toggle-' + idx + '">▾</button></td>' +
+    '<td><button class="btn btn-grey" style="padding:2px 8px;font-size:var(--t-body);" title="Show or hide this batch&#39;s line-by-line scan detail." onclick="toggleScanSessionDetail(' + Number(idx) + ')" id="sess-toggle-' + idx + '">▾</button></td>' +
     '<td>' + openCell + '</td>' +
     // v2.35: same "code with no name" gap as the Activity record and Transactions
     // tabs, fixed the same way - the operator's code plus their current
@@ -9072,19 +9142,19 @@ function scanSessionRowHtml(s, idx) {
 // "Counted differently from the manifest...") so the same event reads
 // identically whether reviewed on the phone that scanned it or here.
 function scanSessionDetailHtml(s) {
-  var h = '<div style="padding:8px 4px;font-size:calc(var(--fs-m)*var(--fsm,1));">';
+  var h = '<div style="padding:8px 4px;font-size:var(--t-section);">';
   var revN = Number(s.reversed_count) || 0;
   h += '<div><strong>' + fmtNum(s.scan_count) + '</strong> scan' + (Number(s.scan_count) === 1 ? '' : 's') +
        ' &middot; <strong>' + fmtNum(s.distinct_skus) + '</strong> different SKUs' +
        ' &middot; scanned qty <strong>' + fmtNum(s.scanned_qty) + '</strong>' +
        ' &middot; net effect on stock now <strong>' + fmtNum(s.total_qty) + '</strong></div>';
-  if (revN) h += '<div style="color:#B3261E;font-size:calc(var(--fs-s)*var(--fss,1));margin-top:2px;">' + fmtNum(revN) +
+  if (revN) h += '<div style="color:#B3261E;font-size:var(--t-body);margin-top:2px;">' + fmtNum(revN) +
        ' of those scans have been backed out of stock. The balancing entries are not counted as scans above.</div>';
 
   var d = s.duplicates || [];
   if (d.length) {
     h += '<div style="margin-top:6px;"><strong>⚠️ Scanned more than once in this session</strong>' +
-         '<div style="font-size:calc(var(--fs-s)*var(--fss,1));color:#666;">The likely double-count.</div>';
+         '<div style="font-size:var(--t-body);color:#666;">The likely double-count.</div>';
     d.forEach(function (x) {
       h += '<div>&bull; ' + idChip(x, { compact: true }) + ' — ' + esc(x.times_scanned) + ' entries, total qty ' + fmtNum(x.total_qty) + '</div>';
     });
@@ -9095,7 +9165,7 @@ function scanSessionDetailHtml(s) {
 
   var m = s.expected_not_scanned;
   if (m === null || typeof m === 'undefined') {
-    h += '<div style="margin-top:6px;color:#888;font-size:calc(var(--fs-s)*var(--fss,1));">No manifest was provided for this session, so "missed items" cannot be checked.</div>';
+    h += '<div style="margin-top:6px;color:#888;font-size:var(--t-body);">No manifest was provided for this session, so "missed items" cannot be checked.</div>';
   } else if (m.length) {
     h += '<div style="margin-top:6px;"><strong>⚠️ On the manifest but never scanned</strong>';
     m.forEach(function (x) { h += '<div>&bull; ' + idChip(x, { compact: true }) + ' — expected ' + fmtNum(x.expected_qty) + '</div>'; });
@@ -9113,7 +9183,7 @@ function scanSessionDetailHtml(s) {
     });
     h += '</div>';
   }
-  if (s.note) h += '<div style="margin-top:6px;color:#666;font-size:calc(var(--fs-s)*var(--fss,1));">Note: ' + esc(s.note) + '</div>';
+  if (s.note) h += '<div style="margin-top:6px;color:#666;font-size:var(--t-body);">Note: ' + esc(s.note) + '</div>';
   h += '<div id="sess-action-result-' + attrId(s.session_id) + '" class="result-msg"></div>';
   h += '</div>';
   return h;
@@ -9176,25 +9246,25 @@ function openSessionView(sessionId, idx) {
 function sessionViewHtml(sessionId, p) {
   var lines = p.lines || [];
   var h = '<div style="border:1px solid #E2E8F0;border-radius:6px;padding:12px;background:#fff;text-align:left;">';
-  h += '<div style="font-weight:bold;color:#0A1628;font-size:calc(var(--fs-m)*var(--fsm,1));margin-bottom:6px;">What is in this batch</div>';
-  h += '<div style="font-size:calc(var(--fs-s)*var(--fss,1));color:#6B7280;margin-bottom:8px;">Nothing on this screen changes anything. It is only a look inside.</div>';
-  h += '<div style="font-size:calc(var(--fs-s)*var(--fss,1));margin-bottom:8px;">Started by <strong>' + esc(p.session_owner || '—') + '</strong> on ' +
+  h += '<div style="font-weight:bold;color:#0A1628;font-size:var(--t-section);margin-bottom:6px;">What is in this batch</div>';
+  h += '<div style="font-size:var(--t-body);color:#6B7280;margin-bottom:8px;">Nothing on this screen changes anything. It is only a look inside.</div>';
+  h += '<div style="font-size:var(--t-body);margin-bottom:8px;">Started by <strong>' + esc(p.session_owner || '—') + '</strong> on ' +
        esc(p.device_hint || '—') + ' · opened ' + fmtDateTime(p.opened_at) + '</div>';
 
   if (!lines.length) {
-    h += '<div style="background:#F8F9FB;border:1px solid #E2E8F0;padding:10px;font-size:calc(var(--fs-s)*var(--fss,1));">' +
+    h += '<div style="background:#F8F9FB;border:1px solid #E2E8F0;padding:10px;font-size:var(--t-body);">' +
          (p.already_reversed
             ? 'Every one of this batch\'s ' + fmtNum(p.already_reversed) + ' scans has already been backed out of stock.'
             : 'Nothing was ever scanned into this batch.') + '</div>';
   } else {
-    h += '<div style="background:#EEF2F8;padding:8px 10px;border-radius:4px;font-size:calc(var(--fs-m)*var(--fsm,1));margin-bottom:8px;">' +
+    h += '<div style="background:#EEF2F8;padding:8px 10px;border-radius:4px;font-size:var(--t-section);margin-bottom:8px;">' +
          '<strong>' + fmtNum(p.scans_to_reverse) + '</strong> scan' + (p.scans_to_reverse === 1 ? '' : 's') +
          ' still counted in stock, across <strong>' + fmtNum(p.distinct_skus) + '</strong> product' + (p.distinct_skus === 1 ? '' : 's') +
          ', totalling <strong>' + fmtNum(p.net_qty_to_reverse) + '</strong> units.' +
          (p.already_reversed ? ' ' + fmtNum(p.already_reversed) + ' further scan' + (p.already_reversed === 1 ? ' has' : 's have') + ' already been backed out.' : '') +
          '</div>';
     h += '<div style="max-height:260px;overflow:auto;border:1px solid #E2E8F0;">' +
-         '<table style="width:100%;border-collapse:collapse;font-size:calc(var(--fs-s)*var(--fss,1));">' +
+         '<table style="width:100%;border-collapse:collapse;font-size:var(--t-body);">' +
          '<thead><tr style="background:#0A1628;color:#fff;">' +
          '<th style="text-align:left;padding:5px 6px;">Product (title, ASIN, SKU)</th>' +
          '<th style="text-align:left;padding:5px 6px;">Bin</th>' +
@@ -9212,7 +9282,7 @@ function sessionViewHtml(sessionId, p) {
     });
     h += '</tbody></table></div>';
   }
-  h += '<div style="margin-top:10px;"><button class="btn btn-grey" style="padding:6px 12px;font-size:calc(var(--fs-s)*var(--fss,1));" onclick="cancelSessionReverse(\'' + jsq(sessionId) + '\')">Close this panel</button></div>';
+  h += '<div style="margin-top:10px;"><button class="btn btn-grey" style="padding:6px 12px;font-size:var(--t-body);" onclick="cancelSessionReverse(\'' + jsq(sessionId) + '\')">Close this panel</button></div>';
   h += '</div>';
   return h;
 }
@@ -9230,17 +9300,17 @@ function openSessionCloseForThem(sessionId, idx) {
   var resEl = openSessionPanelShell(sessionId, idx);
   if (!s || !resEl) return;
   var h = '<div style="border:1px solid #E2E8F0;border-radius:6px;padding:12px;background:#fff;text-align:left;">';
-  h += '<div style="font-weight:bold;color:#0A1628;font-size:calc(var(--fs-m)*var(--fsm,1));margin-bottom:6px;">Close this batch on the operator\'s behalf</div>';
-  h += '<div style="font-size:calc(var(--fs-s)*var(--fss,1));margin-bottom:6px;">This does <strong>not</strong> change any stock. The scans already counted when they were made. ' +
+  h += '<div style="font-weight:bold;color:#0A1628;font-size:var(--t-section);margin-bottom:6px;">Close this batch on the operator\'s behalf</div>';
+  h += '<div style="font-size:var(--t-body);margin-bottom:6px;">This does <strong>not</strong> change any stock. The scans already counted when they were made. ' +
        'It marks the batch as finished so you can look through it and then accept or reverse it.</div>';
-  h += '<div style="background:#FFF8E6;border:1px solid #d9a63a;padding:9px 10px;font-size:calc(var(--fs-s)*var(--fss,1));margin-bottom:8px;">' +
+  h += '<div style="background:#FFF8E6;border:1px solid #d9a63a;padding:9px 10px;font-size:var(--t-body);margin-bottom:8px;">' +
        'Check nobody is still working in it: <strong>' + esc(lastScanText(s)) + '</strong>, opened ' + esc(sessionAgeText(s)) + ' ago on ' + esc(s.device_hint || 'a phone') + '.<br>' +
        'If you close it, the operator\'s phone will show the batch as finished the next time it checks.</div>';
   h += '<input type="text" id="sess-close-note-' + attrId(sessionId) + '" placeholder="Why are you closing it for them?" autocomplete="off" ' +
-       'style="padding:6px 8px;font-size:calc(var(--fs-s)*var(--fss,1));border:1px solid #E2E8F0;border-radius:4px;width:300px;margin-right:6px;">';
-  h += '<button class="btn btn-primary" id="sess-closego-' + attrId(sessionId) + '" style="padding:6px 14px;font-size:calc(var(--fs-s)*var(--fss,1));" onclick="confirmSessionCloseForThem(\'' + jsq(sessionId) + '\',' + Number(idx) + ')">Close it for review</button> ';
-  h += '<button class="btn btn-grey" style="padding:6px 12px;font-size:calc(var(--fs-s)*var(--fss,1));" onclick="cancelSessionReverse(\'' + jsq(sessionId) + '\')">Cancel</button>';
-  h += '<div id="sess-close-msg-' + attrId(sessionId) + '" style="margin-top:6px;font-size:calc(var(--fs-s)*var(--fss,1));"></div></div>';
+       'style="padding:6px 8px;font-size:var(--t-body);border:1px solid #E2E8F0;border-radius:4px;width:300px;margin-right:6px;">';
+  h += '<button class="btn btn-primary" id="sess-closego-' + attrId(sessionId) + '" style="padding:6px 14px;font-size:var(--t-body);" onclick="confirmSessionCloseForThem(\'' + jsq(sessionId) + '\',' + Number(idx) + ')">Close it for review</button> ';
+  h += '<button class="btn btn-grey" style="padding:6px 12px;font-size:var(--t-body);" onclick="cancelSessionReverse(\'' + jsq(sessionId) + '\')">Cancel</button>';
+  h += '<div id="sess-close-msg-' + attrId(sessionId) + '" style="margin-top:6px;font-size:var(--t-body);"></div></div>';
   resEl.className = 'result-msg'; resEl.innerHTML = h;
 }
 
@@ -9281,11 +9351,11 @@ function confirmSessionCloseForThem(sessionId, idx) {
     if (resEl) {
       resEl.innerHTML =
         '<div style="border:1px solid #1B7A3A;border-radius:6px;padding:12px;background:#fff;text-align:left;">' +
-        '<div style="color:#1B7A3A;font-weight:bold;font-size:calc(var(--fs-m)*var(--fsm,1));">✓ Closed for review.</div>' +
-        '<div style="font-size:calc(var(--fs-s)*var(--fss,1));margin-top:4px;">' + fmtNum(d.scan_count || 0) + ' scan' + ((d.scan_count === 1) ? '' : 's') +
+        '<div style="color:#1B7A3A;font-weight:bold;font-size:var(--t-section);">✓ Closed for review.</div>' +
+        '<div style="font-size:var(--t-body);margin-top:4px;">' + fmtNum(d.scan_count || 0) + ' scan' + ((d.scan_count === 1) ? '' : 's') +
         ' across ' + fmtNum(d.distinct_skus || 0) + ' product' + ((d.distinct_skus === 1) ? '' : 's') +
         '. No stock was changed. You can now look through it and accept or reverse it.</div>' +
-        '<div style="margin-top:8px;"><button class="btn btn-primary" style="padding:6px 12px;font-size:calc(var(--fs-s)*var(--fss,1));" onclick="loadScanSessions()">Refresh the list</button></div></div>';
+        '<div style="margin-top:8px;"><button class="btn btn-primary" style="padding:6px 12px;font-size:var(--t-body);" onclick="loadScanSessions()">Refresh the list</button></div></div>';
     }
   }).catch(function (err) {
     var m = String((err && err.message) || err || '');
@@ -9312,19 +9382,19 @@ function openSessionAccept(sessionId, idx, isAbandoned) {
   var resEl = openSessionPanelShell(sessionId, idx);
   if (!s || !resEl) return;
   var h = '<div style="border:1px solid #E2E8F0;border-radius:6px;padding:12px;background:#fff;text-align:left;">';
-  h += '<div style="font-weight:bold;color:#0A1628;font-size:calc(var(--fs-m)*var(--fsm,1));margin-bottom:6px;">Accept this batch</div>';
-  h += '<div style="font-size:calc(var(--fs-s)*var(--fss,1));margin-bottom:6px;">Accepting changes <strong>no stock</strong>. Each scan already counted the moment it was made. ' +
+  h += '<div style="font-weight:bold;color:#0A1628;font-size:var(--t-section);margin-bottom:6px;">Accept this batch</div>';
+  h += '<div style="font-size:var(--t-body);margin-bottom:6px;">Accepting changes <strong>no stock</strong>. Each scan already counted the moment it was made. ' +
        'This records that you have checked the batch and it is right.</div>';
   if (isAbandoned) {
-    h += '<div style="background:#FFF8E6;border:1px solid #d9a63a;padding:9px 10px;font-size:calc(var(--fs-s)*var(--fss,1));margin-bottom:8px;">' +
+    h += '<div style="background:#FFF8E6;border:1px solid #d9a63a;padding:9px 10px;font-size:var(--t-body);margin-bottom:8px;">' +
          'This batch was left open too long and was marked <strong>abandoned</strong>, which usually means nobody checked it at the time. ' +
          'Press <strong>👁 See the scans</strong> first and satisfy yourself it is right before accepting it.</div>';
   }
   h += '<input type="text" id="sess-acc-note-' + attrId(sessionId) + '" placeholder="What did you check?" autocomplete="off" ' +
-       'style="padding:6px 8px;font-size:calc(var(--fs-s)*var(--fss,1));border:1px solid #E2E8F0;border-radius:4px;width:300px;margin-right:6px;">';
-  h += '<button class="btn btn-primary" id="sess-accgo-' + attrId(sessionId) + '" style="padding:6px 14px;font-size:calc(var(--fs-s)*var(--fss,1));" onclick="confirmSessionAccept(\'' + jsq(sessionId) + '\',' + Number(idx) + ',' + (isAbandoned ? 'true' : 'false') + ')">✓ Accept ' + fmtNum(s.scan_count) + ' scan' + (Number(s.scan_count) === 1 ? '' : 's') + '</button> ';
-  h += '<button class="btn btn-grey" style="padding:6px 12px;font-size:calc(var(--fs-s)*var(--fss,1));" onclick="cancelSessionReverse(\'' + jsq(sessionId) + '\')">Cancel</button>';
-  h += '<div id="sess-acc-msg-' + attrId(sessionId) + '" style="margin-top:6px;font-size:calc(var(--fs-s)*var(--fss,1));"></div></div>';
+       'style="padding:6px 8px;font-size:var(--t-body);border:1px solid #E2E8F0;border-radius:4px;width:300px;margin-right:6px;">';
+  h += '<button class="btn btn-primary" id="sess-accgo-' + attrId(sessionId) + '" style="padding:6px 14px;font-size:var(--t-body);" onclick="confirmSessionAccept(\'' + jsq(sessionId) + '\',' + Number(idx) + ',' + (isAbandoned ? 'true' : 'false') + ')">✓ Accept ' + fmtNum(s.scan_count) + ' scan' + (Number(s.scan_count) === 1 ? '' : 's') + '</button> ';
+  h += '<button class="btn btn-grey" style="padding:6px 12px;font-size:var(--t-body);" onclick="cancelSessionReverse(\'' + jsq(sessionId) + '\')">Cancel</button>';
+  h += '<div id="sess-acc-msg-' + attrId(sessionId) + '" style="margin-top:6px;font-size:var(--t-body);"></div></div>';
   resEl.className = 'result-msg'; resEl.innerHTML = h;
 }
 
@@ -9366,11 +9436,11 @@ function confirmSessionAccept(sessionId, idx, isAbandoned) {
     if (resEl) {
       resEl.innerHTML =
         '<div style="border:1px solid #1B7A3A;border-radius:6px;padding:12px;background:#fff;text-align:left;">' +
-        '<div style="color:#1B7A3A;font-weight:bold;font-size:calc(var(--fs-m)*var(--fsm,1));">✓ Accepted.</div>' +
-        '<div style="font-size:calc(var(--fs-s)*var(--fss,1));margin-top:4px;">' +
+        '<div style="color:#1B7A3A;font-weight:bold;font-size:var(--t-section);">✓ Accepted.</div>' +
+        '<div style="font-size:var(--t-body);margin-top:4px;">' +
         (d.already_accepted ? 'This batch had already been accepted. Nothing changed.'
            : fmtNum(d.entries || 0) + ' scan' + ((d.entries === 1) ? '' : 's') + ' approved. No stock was changed — they had already counted.') +
-        '</div><div style="margin-top:8px;"><button class="btn btn-primary" style="padding:6px 12px;font-size:calc(var(--fs-s)*var(--fss,1));" onclick="loadScanSessions()">Refresh the list</button></div></div>';
+        '</div><div style="margin-top:8px;"><button class="btn btn-primary" style="padding:6px 12px;font-size:var(--t-body);" onclick="loadScanSessions()">Refresh the list</button></div></div>';
     }
     // oms_commit_scan_session writes its own audit row server-side.
   }).catch(function (err) {
@@ -9403,18 +9473,18 @@ function resolveEmptySession(sessionId, idx) {
   var resEl = openSessionPanelShell(sessionId, idx);
   if (!s || !resEl) return;
   var h = '<div style="border:1px solid #E2E8F0;border-radius:6px;padding:12px;background:#fff;text-align:left;">';
-  h += '<div style="font-weight:bold;color:#0A1628;font-size:calc(var(--fs-m)*var(--fsm,1));margin-bottom:6px;">Close off this empty batch</div>';
-  h += '<div style="font-size:calc(var(--fs-s)*var(--fss,1));margin-bottom:6px;">Nothing was ever scanned into it, so there is nothing to put back. ' +
+  h += '<div style="font-weight:bold;color:#0A1628;font-size:var(--t-section);margin-bottom:6px;">Close off this empty batch</div>';
+  h += '<div style="font-size:var(--t-body);margin-bottom:6px;">Nothing was ever scanned into it, so there is nothing to put back. ' +
        'This just tidies it out of the list. <strong>No stock changes.</strong></div>';
-  h += '<div style="background:#FFF8E6;border:1px solid #d9a63a;padding:9px 10px;font-size:calc(var(--fs-s)*var(--fss,1));margin-bottom:8px;">' +
+  h += '<div style="background:#FFF8E6;border:1px solid #d9a63a;padding:9px 10px;font-size:var(--t-body);margin-bottom:8px;">' +
        'Opened ' + esc(sessionAgeText(s)) + ' ago on ' + esc(s.device_hint || 'a phone') + ' · ' + esc(lastScanText(s)) + '.<br>' +
        'The batch is re-checked against the database the moment you press the button, and if any scan has arrived by then you will be told instead of it being closed off.<br>' +
        'If that phone is still offline and sends scans <strong>later</strong>, those units will count into stock correctly but will no longer belong to this batch — they will appear in the ledger on their own.</div>';
   h += '<input type="text" id="sess-empty-note-' + attrId(sessionId) + '" placeholder="Reason (e.g. started by mistake)" autocomplete="off" ' +
-       'style="padding:6px 8px;font-size:calc(var(--fs-s)*var(--fss,1));border:1px solid #E2E8F0;border-radius:4px;width:280px;margin-right:6px;">';
-  h += '<button class="btn" id="sess-emptygo-' + attrId(sessionId) + '" style="padding:6px 14px;font-size:calc(var(--fs-s)*var(--fss,1));background:#9A6700;color:#fff;" onclick="confirmResolveEmptySession(\'' + jsq(sessionId) + '\',' + Number(idx) + ')">⊘ Close this off</button> ';
-  h += '<button class="btn btn-grey" style="padding:6px 12px;font-size:calc(var(--fs-s)*var(--fss,1));" onclick="cancelSessionReverse(\'' + jsq(sessionId) + '\')">Cancel</button>';
-  h += '<div id="sess-empty-msg-' + attrId(sessionId) + '" style="margin-top:6px;font-size:calc(var(--fs-s)*var(--fss,1));"></div></div>';
+       'style="padding:6px 8px;font-size:var(--t-body);border:1px solid #E2E8F0;border-radius:4px;width:280px;margin-right:6px;">';
+  h += '<button class="btn" id="sess-emptygo-' + attrId(sessionId) + '" style="padding:6px 14px;font-size:var(--t-body);background:#9A6700;color:#fff;" onclick="confirmResolveEmptySession(\'' + jsq(sessionId) + '\',' + Number(idx) + ')">⊘ Close this off</button> ';
+  h += '<button class="btn btn-grey" style="padding:6px 12px;font-size:var(--t-body);" onclick="cancelSessionReverse(\'' + jsq(sessionId) + '\')">Cancel</button>';
+  h += '<div id="sess-empty-msg-' + attrId(sessionId) + '" style="margin-top:6px;font-size:var(--t-body);"></div></div>';
   resEl.className = 'result-msg'; resEl.innerHTML = h;
 }
 
@@ -9486,9 +9556,9 @@ function confirmResolveEmptySession(sessionId, idx) {
       if (resEl) {
         resEl.innerHTML =
           '<div style="border:1px solid #1B7A3A;border-radius:6px;padding:12px;background:#fff;text-align:left;">' +
-          '<div style="color:#1B7A3A;font-weight:bold;font-size:calc(var(--fs-m)*var(--fsm,1));">✓ Closed off.</div>' +
-          '<div style="font-size:calc(var(--fs-s)*var(--fss,1));margin-top:4px;">The batch was empty, so no stock changed. It will show as “Closed off — was empty”.</div>' +
-          '<div style="margin-top:8px;"><button class="btn btn-primary" style="padding:6px 12px;font-size:calc(var(--fs-s)*var(--fss,1));" onclick="loadScanSessions()">Refresh the list</button></div></div>';
+          '<div style="color:#1B7A3A;font-weight:bold;font-size:var(--t-section);">✓ Closed off.</div>' +
+          '<div style="font-size:var(--t-body);margin-top:4px;">The batch was empty, so no stock changed. It will show as “Closed off — was empty”.</div>' +
+          '<div style="margin-top:8px;"><button class="btn btn-primary" style="padding:6px 12px;font-size:var(--t-body);" onclick="loadScanSessions()">Refresh the list</button></div></div>';
       }
     });
   }).catch(function (err) {
@@ -9588,7 +9658,7 @@ function sessionReversePanelHtml(sessionId, idx, p) {
   var nothingLeft = (p.scans_to_reverse || 0) === 0;
 
   var h = '<div style="border:1px solid #E2E8F0;border-radius:6px;padding:12px;background:#fff;text-align:left;">';
-  h += '<div style="font-weight:bold;color:#0A1628;font-size:calc(var(--fs-m)*var(--fsm,1));margin-bottom:6px;">Reverse this scan session — check this first</div>';
+  h += '<div style="font-weight:bold;color:#0A1628;font-size:var(--t-section);margin-bottom:6px;">Reverse this scan session — check this first</div>';
 
   // A one-line statement of what state the session is in and what that means.
   var stateLine;
@@ -9603,21 +9673,21 @@ function sessionReversePanelHtml(sessionId, idx, p) {
   } else {
     stateLine = 'This session is <strong>closed and waiting for review</strong>.';
   }
-  h += '<div style="font-size:calc(var(--fs-s)*var(--fss,1));color:#1A1A1A;margin-bottom:8px;">' + stateLine + '</div>';
+  h += '<div style="font-size:var(--t-body);color:#1A1A1A;margin-bottom:8px;">' + stateLine + '</div>';
 
   if (nothingLeft) {
-    h += '<div style="background:#F8F9FB;border:1px solid #E2E8F0;padding:10px;font-size:calc(var(--fs-s)*var(--fss,1));">' +
+    h += '<div style="background:#F8F9FB;border:1px solid #E2E8F0;padding:10px;font-size:var(--t-body);">' +
          'There is nothing left to reverse in this session. ' +
          (p.already_reversed ? ('All ' + fmtNum(p.already_reversed) + ' of its scans have already been backed out.') : 'It has no scans in it at all.') +
          ' Nothing will be changed.</div>' +
-         '<div style="margin-top:10px;"><button class="btn btn-grey" style="padding:6px 12px;font-size:calc(var(--fs-s)*var(--fss,1));" onclick="cancelSessionReverse(\'' + jsq(sessionId) + '\')">Close</button></div></div>';
+         '<div style="margin-top:10px;"><button class="btn btn-grey" style="padding:6px 12px;font-size:var(--t-body);" onclick="cancelSessionReverse(\'' + jsq(sessionId) + '\')">Close</button></div></div>';
     return h;
   }
 
-  h += '<div style="font-size:calc(var(--fs-s)*var(--fss,1));margin-bottom:8px;">Started by <strong>' + esc(p.session_owner || '—') + '</strong>' +
+  h += '<div style="font-size:var(--t-body);margin-bottom:8px;">Started by <strong>' + esc(p.session_owner || '—') + '</strong>' +
        ' on ' + esc(p.device_hint || '—') + ' · opened ' + fmtDateTime(p.opened_at) + '</div>';
 
-  h += '<div style="background:#EEF2F8;padding:8px 10px;border-radius:4px;font-size:calc(var(--fs-m)*var(--fsm,1));margin-bottom:8px;">' +
+  h += '<div style="background:#EEF2F8;padding:8px 10px;border-radius:4px;font-size:var(--t-section);margin-bottom:8px;">' +
        'This will back out <strong>' + fmtNum(p.scans_to_reverse) + '</strong> scan' + (p.scans_to_reverse === 1 ? '' : 's') +
        ' across <strong>' + fmtNum(p.distinct_skus) + '</strong> product' + (p.distinct_skus === 1 ? '' : 's') +
        ', a total of <strong>' + fmtNum(p.net_qty_to_reverse) + '</strong> units.' +
@@ -9626,7 +9696,7 @@ function sessionReversePanelHtml(sessionId, idx, p) {
 
   // The line-by-line table. This is the whole point of the panel.
   h += '<div style="max-height:260px;overflow:auto;border:1px solid #E2E8F0;">';
-  h += '<table style="width:100%;border-collapse:collapse;font-size:calc(var(--fs-s)*var(--fss,1));">';
+  h += '<table style="width:100%;border-collapse:collapse;font-size:var(--t-body);">';
   h += '<thead><tr style="background:#0A1628;color:#fff;">' +
        '<th style="text-align:left;padding:5px 6px;">Product (title, ASIN, SKU)</th>' +
        '<th style="text-align:left;padding:5px 6px;">Bin</th>' +
@@ -9648,7 +9718,7 @@ function sessionReversePanelHtml(sessionId, idx, p) {
   h += '</tbody></table></div>';
 
   if ((p.blockers || 0) > 0) {
-    h += '<div style="margin-top:8px;background:#FDECEA;border:1px solid #B3261E;padding:10px;font-size:calc(var(--fs-s)*var(--fss,1));color:#B3261E;">' +
+    h += '<div style="margin-top:8px;background:#FDECEA;border:1px solid #B3261E;padding:10px;font-size:var(--t-body);color:#B3261E;">' +
          '<strong>This cannot be reversed as things stand.</strong> Stock has moved on since these scans were made, so backing them out would take ' +
          fmtNum(p.blockers) + ' line' + (p.blockers === 1 ? '' : 's') + ' below zero (shown in red above). ' +
          'Put the true count in first on those products, then reverse. The button below is switched off until then, and the database would refuse it in any case.</div>';
@@ -9658,27 +9728,27 @@ function sessionReversePanelHtml(sessionId, idx, p) {
   // out, so it cannot happen by a stray click on a phone.
   h += '<div style="margin-top:10px;">';
   if (needsForce) {
-    h += '<div style="font-size:calc(var(--fs-s)*var(--fss,1));margin-bottom:5px;">This session is <strong>' + esc((SESSION_STATUS_LABEL[p.status] || p.status)) + '</strong>, so reversing it is an override. ' +
+    h += '<div style="font-size:var(--t-body);margin-bottom:5px;">This session is <strong>' + esc((SESSION_STATUS_LABEL[p.status] || p.status)) + '</strong>, so reversing it is an override. ' +
          'Type <strong>REVERSE</strong> below to confirm you have read the list above.</div>' +
          '<input type="text" id="sess-confirm-' + attrId(sessionId) + '" placeholder="Type REVERSE" autocomplete="off" ' +
-         'style="padding:6px 8px;font-size:calc(var(--fs-s)*var(--fss,1));border:1px solid #E2E8F0;border-radius:4px;width:150px;margin-right:6px;">';
+         'style="padding:6px 8px;font-size:var(--t-body);border:1px solid #E2E8F0;border-radius:4px;width:150px;margin-right:6px;">';
   }
   h += '<input type="text" id="sess-note-' + attrId(sessionId) + '" placeholder="Why is this being reversed?" autocomplete="off" ' +
-       'style="padding:6px 8px;font-size:calc(var(--fs-s)*var(--fss,1));border:1px solid #E2E8F0;border-radius:4px;width:260px;margin-right:6px;">';
+       'style="padding:6px 8px;font-size:var(--t-body);border:1px solid #E2E8F0;border-radius:4px;width:260px;margin-right:6px;">';
   // v2.27: reversing stock is authorised by the person doing it, not by the
   // shared password. The panel already knows who is signed in.
   h += '<input type="text" class="pw-mask" inputmode="numeric" autocapitalize="off" spellcheck="false" id="sess-pin-' + attrId(sessionId) + '" data-1p-ignore data-lpignore="true" data-bwignore="true" data-form-type="other" maxlength="12" placeholder="Your PIN" autocomplete="off" ' +
-       'style="padding:6px 8px;font-size:calc(var(--fs-s)*var(--fss,1));border:1px solid #E2E8F0;border-radius:4px;width:96px;margin-right:6px;">';
+       'style="padding:6px 8px;font-size:var(--t-body);border:1px solid #E2E8F0;border-radius:4px;width:96px;margin-right:6px;">';
   var blocked = (p.blockers || 0) > 0;
   h += '<button class="btn" id="sess-go-' + attrId(sessionId) + '"' + (blocked ? ' disabled' : '') +
-       ' style="padding:6px 14px;font-size:calc(var(--fs-s)*var(--fss,1));background:' + (blocked ? '#bbb' : '#a33') + ';color:#fff;' + (blocked ? 'cursor:not-allowed;' : '') + '" ' +
+       ' style="padding:6px 14px;font-size:var(--t-body);background:' + (blocked ? '#bbb' : '#a33') + ';color:#fff;' + (blocked ? 'cursor:not-allowed;' : '') + '" ' +
        'onclick="confirmSessionReverse(\'' + jsq(sessionId) + '\',' + Number(idx) + ')">' +
        (blocked ? 'Cannot reverse — fix the counts first' : ('Reverse ' + fmtNum(p.scans_to_reverse) + ' scan' + (p.scans_to_reverse === 1 ? '' : 's'))) + '</button> ';
-  h += '<button class="btn btn-grey" style="padding:6px 12px;font-size:calc(var(--fs-s)*var(--fss,1));" onclick="cancelSessionReverse(\'' + jsq(sessionId) + '\')">Cancel</button>';
-  h += '<div style="font-size:calc(var(--fs-s)*var(--fss,1));color:#6B7280;margin-top:6px;">Reversing stock is recorded against <strong>you</strong> (' + esc(getAdminPanelEmployeeCode() || 'this Admin') + '), so it asks for your own PIN rather than the shared Admin Password.' +
+  h += '<button class="btn btn-grey" style="padding:6px 12px;font-size:var(--t-body);" onclick="cancelSessionReverse(\'' + jsq(sessionId) + '\')">Cancel</button>';
+  h += '<div style="font-size:var(--t-body);color:#6B7280;margin-top:6px;">Reversing stock is recorded against <strong>you</strong> (' + esc(getAdminPanelEmployeeCode() || 'this Admin') + '), so it asks for your own PIN rather than the shared Admin Password.' +
        ' <label style="cursor:pointer;"><input type="checkbox" id="sess-usesecret-' + attrId(sessionId) + '" onchange="toggleSecretFallback(\'' + jsq(sessionId) + '\')" style="vertical-align:middle;"> use the Admin Password instead</label>' +
        '<span id="sess-secretnote-' + attrId(sessionId) + '" style="display:none;color:#9A6700;"> — the record will show it was authorised by the shared password, not by a named person.</span></div>';
-  h += '<div id="sess-reverse-msg-' + attrId(sessionId) + '" style="margin-top:6px;font-size:calc(var(--fs-s)*var(--fss,1));"></div>';
+  h += '<div id="sess-reverse-msg-' + attrId(sessionId) + '" style="margin-top:6px;font-size:var(--t-body);"></div>';
   h += '</div></div>';
   return h;
 }
@@ -9788,11 +9858,11 @@ function confirmSessionReverse(sessionId, idx) {
       resEl.className = 'result-msg';
       resEl.innerHTML =
         '<div style="border:1px solid #1B7A3A;border-radius:6px;padding:12px;background:#fff;text-align:left;">' +
-        '<div style="color:#1B7A3A;font-weight:bold;font-size:calc(var(--fs-m)*var(--fsm,1));">✓ Reversed.</div>' +
-        '<div style="font-size:calc(var(--fs-s)*var(--fss,1));margin-top:4px;"><strong>' + fmtNum(d.entries_reversed || 0) + '</strong> scan' +
+        '<div style="color:#1B7A3A;font-weight:bold;font-size:var(--t-section);">✓ Reversed.</div>' +
+        '<div style="font-size:var(--t-body);margin-top:4px;"><strong>' + fmtNum(d.entries_reversed || 0) + '</strong> scan' +
         ((d.entries_reversed === 1) ? ' has' : 's have') + ' been backed out of stock. Nothing was deleted — one opposite entry was written for each.' +
         (d.already_reversed ? ' ' + fmtNum(d.already_reversed) + ' had already been reversed earlier and were left alone.' : '') + '</div>' +
-        '<div style="margin-top:8px;"><button class="btn btn-primary" style="padding:6px 12px;font-size:calc(var(--fs-s)*var(--fss,1));" onclick="loadScanSessions()">Refresh the list</button></div>' +
+        '<div style="margin-top:8px;"><button class="btn btn-primary" style="padding:6px 12px;font-size:var(--t-body);" onclick="loadScanSessions()">Refresh the list</button></div>' +
         '</div>';
     }
     // No client-side writeAuditLog() -- oms_void_scan_session already writes a
@@ -9865,23 +9935,23 @@ function deviceRowHtml(r, idx) {
 
   var statusCell = blocked
     ? '<span class="badge badge-red">⛔ Blocked</span>' +
-      (r.blocked_by ? '<div style="color:#6B7280;font-size:calc(var(--fs-s)*var(--fss,1));">by ' + esc(r.blocked_by) + '</div>' : '') +
-      (r.block_reason ? '<div style="color:#6B7280;font-size:calc(var(--fs-s)*var(--fss,1));">' + esc(r.block_reason) + '</div>' : '')
+      (r.blocked_by ? '<div style="color:#6B7280;font-size:var(--t-body);">by ' + esc(r.blocked_by) + '</div>' : '') +
+      (r.block_reason ? '<div style="color:#6B7280;font-size:var(--t-body);">' + esc(r.block_reason) + '</div>' : '')
     : '<span class="badge badge-green">✓ Allowed</span>';
 
   var actions = '';
   if (!ro) {
-    actions += '<button class="btn btn-grey" style="padding:3px 9px;font-size:calc(var(--fs-s)*var(--fss,1));" title="Give this phone a friendly name (e.g. the warehouse floor tablet) so it is easy to recognise here instead of a long device code." onclick="openDevNameRow(' + Number(idx) + ')">✎ ' + (named ? 'Rename' : 'Name it') + '</button> ';
+    actions += '<button class="btn btn-grey" style="padding:3px 9px;font-size:var(--t-body);" title="Give this phone a friendly name (e.g. the warehouse floor tablet) so it is easy to recognise here instead of a long device code." onclick="openDevNameRow(' + Number(idx) + ')">✎ ' + (named ? 'Rename' : 'Name it') + '</button> ';
     actions += blocked
-      ? '<button class="btn" style="padding:3px 9px;font-size:calc(var(--fs-s)*var(--fss,1));background:#1B7A3A;color:#fff;" title="Let this phone sign in again." onclick="openDevBlockRow(' + Number(idx) + ',false)">Allow again</button>'
-      : '<button class="btn" style="padding:3px 9px;font-size:calc(var(--fs-s)*var(--fss,1));background:#a33;color:#fff;" title="Stop this phone from being able to sign in at all, even with a correct PIN. Use this for a lost or stolen device." onclick="openDevBlockRow(' + Number(idx) + ',true)">⛔ Block</button>';
+      ? '<button class="btn" style="padding:3px 9px;font-size:var(--t-body);background:#1B7A3A;color:#fff;" title="Let this phone sign in again." onclick="openDevBlockRow(' + Number(idx) + ',false)">Allow again</button>'
+      : '<button class="btn" style="padding:3px 9px;font-size:var(--t-body);background:#a33;color:#fff;" title="Stop this phone from being able to sign in at all, even with a correct PIN. Use this for a lost or stolen device." onclick="openDevBlockRow(' + Number(idx) + ',true)">⛔ Block</button>';
   } else {
-    actions = '<span style="color:#999;font-size:calc(var(--fs-s)*var(--fss,1));">read-only</span>';
+    actions = '<span style="color:#999;font-size:var(--t-body);">read-only</span>';
   }
 
   return '<tr' + (blocked ? ' style="background:#FDECEA;"' : '') + '>' +
     '<td>' + (named ? '<strong>' + esc(r.display_name) + '</strong>' : '<span style="color:#9A6700;">Not named yet</span>') + '</td>' +
-    '<td class="mono" style="font-size:calc(var(--fs-s)*var(--fss,1));">' + esc(hint) + '</td>' +
+    '<td class="mono" style="font-size:var(--t-body);">' + esc(hint) + '</td>' +
     '<td>' + statusCell + '</td>' +
     '<td>' + (r.last_employee ? esc(r.last_employee) + (r.last_employee_name ? ' <span style="color:#6B7280;">(' + esc(r.last_employee_name) + ')</span>' : '') : '—') + '</td>' +
     '<td>' + fmtNum(r.batches || 0) + '</td>' +
@@ -9905,10 +9975,10 @@ function openDevNameRow(idx) {
   el.innerHTML =
     '<div style="margin-top:6px;text-align:left;">' +
     '<input type="text" id="dev-nm-' + idx + '" maxlength="40" placeholder="e.g. Packing bench 1" autocomplete="off" value="' + esc(cur) + '" ' +
-    'style="padding:5px 7px;font-size:calc(var(--fs-s)*var(--fss,1));border:1px solid #E2E8F0;border-radius:4px;width:180px;margin-right:5px;">' +
-    '<button class="btn btn-primary" style="padding:5px 11px;font-size:calc(var(--fs-s)*var(--fss,1));" id="dev-nmgo-' + idx + '" onclick="saveDevName(' + Number(idx) + ')">Save</button> ' +
-    (cur ? '<button class="btn btn-grey" style="padding:5px 9px;font-size:calc(var(--fs-s)*var(--fss,1));" title="Go back to showing the code" onclick="clearDevName(' + Number(idx) + ')">Clear name</button> ' : '') +
-    '<button class="btn btn-grey" style="padding:5px 9px;font-size:calc(var(--fs-s)*var(--fss,1));" onclick="devRowMsg(' + Number(idx) + ',\'\',false)">Cancel</button>' +
+    'style="padding:5px 7px;font-size:var(--t-body);border:1px solid #E2E8F0;border-radius:4px;width:180px;margin-right:5px;">' +
+    '<button class="btn btn-primary" style="padding:5px 11px;font-size:var(--t-body);" id="dev-nmgo-' + idx + '" onclick="saveDevName(' + Number(idx) + ')">Save</button> ' +
+    (cur ? '<button class="btn btn-grey" style="padding:5px 9px;font-size:var(--t-body);" title="Go back to showing the code" onclick="clearDevName(' + Number(idx) + ')">Clear name</button> ' : '') +
+    '<button class="btn btn-grey" style="padding:5px 9px;font-size:var(--t-body);" onclick="devRowMsg(' + Number(idx) + ',\'\',false)">Cancel</button>' +
     '</div>';
 }
 
@@ -9958,21 +10028,21 @@ function openDevBlockRow(idx, blocking) {
   var nm = (r.display_name && r.display_name !== r.device_hint) ? r.display_name : r.device_hint;
   el.className = 'result-msg';
   var h = '<div style="margin-top:6px;text-align:left;border:1px solid ' + (blocking ? '#B3261E' : '#1B7A3A') + ';border-radius:5px;padding:9px;background:#fff;">';
-  h += '<div style="font-size:calc(var(--fs-s)*var(--fss,1));margin-bottom:6px;">' +
+  h += '<div style="font-size:var(--t-body);margin-bottom:6px;">' +
        (blocking
           ? '<strong>Block ' + esc(nm) + '?</strong> It will not be able to sign in or start a batch, and if it is signed in right now it will be signed out on its next check — within about a minute of use. Anything it already scanned stays exactly as it is.'
           : '<strong>Allow ' + esc(nm) + ' again?</strong> It will be able to sign in as normal.') + '</div>';
   if (blocking) {
     h += '<input type="text" id="dev-rsn-' + idx + '" maxlength="200" placeholder="Why? e.g. handset returned" autocomplete="off" ' +
-         'style="padding:5px 7px;font-size:calc(var(--fs-s)*var(--fss,1));border:1px solid #E2E8F0;border-radius:4px;width:210px;margin-right:5px;margin-bottom:5px;">';
+         'style="padding:5px 7px;font-size:var(--t-body);border:1px solid #E2E8F0;border-radius:4px;width:210px;margin-right:5px;margin-bottom:5px;">';
   }
-  h += '<div style="font-size:calc(var(--fs-s)*var(--fss,1));color:#6B7280;margin-bottom:5px;">Confirm with your own PIN (' + esc(who) + ') — this is recorded against you, not against the shared password.</div>';
+  h += '<div style="font-size:var(--t-body);color:#6B7280;margin-bottom:5px;">Confirm with your own PIN (' + esc(who) + ') — this is recorded against you, not against the shared password.</div>';
   h += '<input type="text" class="pw-mask" inputmode="numeric" autocapitalize="off" spellcheck="false" id="dev-pin-' + idx + '" data-1p-ignore data-lpignore="true" data-bwignore="true" data-form-type="other" maxlength="12" placeholder="Your PIN" autocomplete="off" ' +
-       'style="padding:5px 7px;font-size:calc(var(--fs-s)*var(--fss,1));border:1px solid #E2E8F0;border-radius:4px;width:100px;margin-right:5px;">';
-  h += '<button class="btn" id="dev-bgo-' + idx + '" style="padding:5px 11px;font-size:calc(var(--fs-s)*var(--fss,1));background:' + (blocking ? '#a33' : '#1B7A3A') + ';color:#fff;" ' +
+       'style="padding:5px 7px;font-size:var(--t-body);border:1px solid #E2E8F0;border-radius:4px;width:100px;margin-right:5px;">';
+  h += '<button class="btn" id="dev-bgo-' + idx + '" style="padding:5px 11px;font-size:var(--t-body);background:' + (blocking ? '#a33' : '#1B7A3A') + ';color:#fff;" ' +
        'onclick="saveDevBlock(' + Number(idx) + ',' + (blocking ? 'true' : 'false') + ')">' + (blocking ? 'Block it' : 'Allow it') + '</button> ';
-  h += '<button class="btn btn-grey" style="padding:5px 9px;font-size:calc(var(--fs-s)*var(--fss,1));" onclick="devRowMsg(' + Number(idx) + ',\'\',false)">Cancel</button>';
-  h += '<div id="dev-bmsg-' + idx + '" style="margin-top:5px;font-size:calc(var(--fs-s)*var(--fss,1));"></div></div>';
+  h += '<button class="btn btn-grey" style="padding:5px 9px;font-size:var(--t-body);" onclick="devRowMsg(' + Number(idx) + ',\'\',false)">Cancel</button>';
+  h += '<div id="dev-bmsg-' + idx + '" style="margin-top:5px;font-size:var(--t-body);"></div></div>';
   el.innerHTML = h;
 }
 
@@ -10021,13 +10091,9 @@ function loadEmployees() {
   // "permission denied for table oms_employees" instead of listing anyone.
   // Naming the columns fixes that, and keeps the secrets unreachable by
   // construction rather than by hoping nobody asks for them.
-  withTimeout(db.from('oms_employees').select(
-      'employee_code,display_name,role,active,archived,archived_at,original_employee_code,' +
-      'last_login_at,locked_until,failed_pin_count,permissions,permission_preset,created_at,' +
-      'totp_enabled,totp_enrolled_at,totp_required,totp_required_at'
-    ).order('employee_code'), 10000, 'Employees').then(function (res) {
-    if (res.error) { body.innerHTML = '<tr class="empty-row"><td colspan="9">Error: ' + esc(friendlyError(res.error, 1)) + '</td></tr>'; return; }
-    employeesCache = res.data || [];
+  a72Dir(true, 'Type your PIN to see the staff list.', true).then(function (res) {   /* A72: checked function instead of reading the table */
+    if (!res.ok) { empLoadedOnce = false; body.innerHTML = '<tr class="empty-row"><td colspan="9">' + esc(res.text) + ' Nothing was changed. Open this page again to try again.</td></tr>'; return; }
+    employeesCache = res.rows || [];
     selectedEmployeeCodes = {};
     updateEmpBulkBar();
     populateEmployeeDropdowns();
@@ -10045,6 +10111,7 @@ function renderEmployees() {
   // the main view by default (every filter EXCEPT "archived" excludes
   // them) — the code-reuse point of archiving is that it stays out of the
   // way, not that it disappears entirely.
+  var r73Known = employeesCache.some(function (e) { return Object.prototype.hasOwnProperty.call(e, 'locked_until'); });   /* R23b: was the lock field returned at all? */
   var rows = employeesCache.filter(function (e) {
     var isLocked = e.locked_until && new Date(e.locked_until) > now;
     if (statusFilter === 'archived') return !!e.archived;
@@ -10058,12 +10125,15 @@ function renderEmployees() {
     return true;
   });
 
+  if (statusFilter === 'locked' && employeesCache.length && !r73Known) { body.innerHTML = '<tr class="empty-row"><td colspan="9">Admin PIN needed: who is locked is only shown when you sign in to this list with an Admin PIN.</td></tr>'; return; }   /* R23b */
   if (!rows.length) { body.innerHTML = '<tr class="empty-row"><td colspan="9">No employees match this filter. ' + (q ? '<span class="sm-dim">Try fewer letters, a part of the code, or Clear all.</span> <button type="button" class="sm-act sm-clear" data-act="clearall" data-box="empq">&#10005; Clear all</button>' : '') + '</td></tr>'; return; }
 
   body.innerHTML = rows.map(function (e) {
     var isLocked = e.locked_until && new Date(e.locked_until) > now;
     var statusBadge = e.archived ? '<span class="badge badge-grey">Archived</span>' : (e.active ? '<span class="badge badge-green">Active</span>' : '<span class="badge badge-grey">Switched off</span>');   /* ADM-v265 A-28 */
     var lockBadge = isLocked ? '<span class="badge badge-red">Locked</span>' : '<span class="badge badge-grey">—</span>';
+    var r73Need = '<span class="badge badge-grey" title="Only an Admin PIN shows this. Sign in to this list with an Admin PIN to see it.">Admin PIN needed</span>';   /* R23b */
+    if (!Object.prototype.hasOwnProperty.call(e, 'locked_until')) lockBadge = r73Need;
     // v2.19: two-factor status, read from the only two 2FA columns the app's
     // key is allowed to see. The secret itself is not readable from here.
     // v2.22: the same three states, said in words the owner reads once and
@@ -10074,6 +10144,7 @@ function renderEmployees() {
       : (e.totp_required
           ? '<span class="badge badge-red" title="You asked for it, but they have not finished setting it up yet. They cannot use the app until they do.">Waiting for setup</span>'
           : '<span class="badge badge-grey" title="This person signs in with their PIN only">Not needed</span>');
+    if (!Object.prototype.hasOwnProperty.call(e, 'totp_enabled') && !Object.prototype.hasOwnProperty.call(e, 'totp_required')) twofaBadge = r73Need;   /* R23b */
     var code = esc(e.employee_code);
     // Archived rows show the original human-readable code (the live
     // employee_code has been suffixed to free it for reuse) — this is the
@@ -10144,10 +10215,10 @@ function openEmployeeRename(code) {
   el.innerHTML =
     '<div style="margin-top:6px;text-align:left;">' +
     '<input type="text" id="emp-nm-' + attrId(code) + '" name="emp-nm-' + attrId(code) + '" maxlength="60" placeholder="Full name" autocomplete="off" value="' + esc(cur) + '" ' +
-    'style="padding:5px 7px;font-size:calc(var(--fs-s)*var(--fss,1));border:1px solid #E2E8F0;border-radius:4px;width:180px;margin-right:5px;">' +
+    'style="padding:5px 7px;font-size:var(--t-body);border:1px solid #E2E8F0;border-radius:4px;width:180px;margin-right:5px;">' +
     '<button class="btn btn-primary btn-sm" onclick="saveEmployeeRename(\'' + jsq(code) + '\')">Save</button> ' +
     '<button class="btn btn-grey btn-sm" onclick="cancelEmployeeRename(\'' + jsq(code) + '\')">Cancel</button>' +
-    '<div style="font-size:calc(var(--fs-s)*var(--fss,1));color:#6B7280;margin-top:4px;">This changes the name shown everywhere — scan batches, the audit log and every list. The employee code stays the same.</div>' +
+    '<div style="font-size:var(--t-body);color:#6B7280;margin-top:4px;">This changes the name shown everywhere — scan batches, the audit log and every list. The employee code stays the same.</div>' +
     '</div>';
 }
 
@@ -10313,7 +10384,7 @@ var SYSCHECK = [
   { name: 'The database is reachable',
     why:  'If this fails, nothing else on this page or in the phone app can work.',
     run:  function () {
-      return db.from('oms_employees').select('employee_code', { count: 'exact', head: true })
+      return a72Count()
         .then(function (r) {
           if (r.error) throw r.error;
           return { ok: true, detail: 'Answered normally.' };
@@ -10323,19 +10394,17 @@ var SYSCHECK = [
   { name: 'Staff accounts can be listed',
     why:  'This is the People and access page. It broke once before, silently, because it asked for a column it is not allowed to read.',
     run:  function () {
-      return db.from('oms_employees')
-        .select('employee_code,display_name,role,active,totp_enabled,totp_required')
-        .order('employee_code').then(function (r) {
+      return a72Count().then(function (r) {
           if (r.error) throw r.error;
-          var n = (r.data || []).length;
-          return { ok: n > 0, detail: n + ' account(s) readable.' , fail: 'No accounts came back at all.' };
+          var n = r.count || 0;
+          return { ok: n > 0, detail: n + ' active account(s) counted.' , fail: 'No accounts came back at all.' };
         });
     } },
 
   { name: 'Supervisors can sign in',
     why:  'A Supervisor needs two things: the role on their account, and the Supervisor Password. Having one without the other looks like it works and does not. This checks both agree.',
     run:  function () {
-      return db.from('oms_employees').select('employee_code,display_name,role,active,archived')
+      return a72Rows(false)
         .then(function (r) {
           if (r.error) return { ok: false, warnOnly: true, detail: 'Could not check — the staff list did not load.' };
           var sups = (r.data || []).filter(function (e) { return e.active && !e.archived && e.role === 'SUPERVISOR'; });
@@ -10364,7 +10433,7 @@ var SYSCHECK = [
   { name: 'Someone else can run the panel when you are away',
     why:  'This is not a fault and nothing is broken. It simply reports whether anyone besides you could run this panel if you were away — because unlocking a staff member, reversing a wrong batch or blocking a lost phone can otherwise only happen when you are available. It turns green the moment you make somebody a Supervisor.',
     run:  function () {
-      return db.from('oms_employees').select('employee_code,display_name,role,active,archived')
+      return a72Rows(false)
         .then(function (r) {
           if (r.error) {
             return { ok: false, warnOnly: true, detail: 'Could not check — the staff list did not load. Try again.' };
@@ -10390,7 +10459,7 @@ var SYSCHECK = [
   { name: 'Your way back in still works',
     why:  'Every Admin signs in with a PIN and a phone code. Backup codes are the way in when the phone with the authenticator is lost or flat. This checks that an Admin has not quietly run out of them.',
     run:  function () {
-      return db.from('oms_employees').select('employee_code,display_name,role,active,archived,totp_enabled,totp_required')
+      return a72Rows(true)
         .then(function (r) {
           if (r.error) {
             return { ok: false, warnOnly: true, detail: 'Could not check — the staff list did not load. Try again.' };
@@ -10496,13 +10565,11 @@ var SYSCHECK = [
   { name: 'No staff account is locked out right now',
     why:  'A locked account cannot sign in until the lock expires or you unlock it.',
     run:  function () {
-      return db.from('oms_employees').select('employee_code,locked_until')
-        .not('locked_until', 'is', null).then(function (r) {
+      return a72Locked().then(function (r) {
           if (r.error) throw r.error;
-          var now = Date.now();
-          var locked = (r.data || []).filter(function (e) { return new Date(e.locked_until).getTime() > now; });
-          return { ok: locked.length === 0,
-                   detail: locked.length === 0 ? 'Nobody is locked out.' : 'Locked: ' + locked.map(function (e) { return e.employee_code; }).join(', '),
+          var n = r.count || 0;
+          return { ok: n === 0,
+                   detail: n === 0 ? 'Nobody is locked out.' : n + ' account(s) are locked out right now. Open People and access to see who and to unlock them.',
                    warnOnly: true };
         });
     } },
@@ -10575,15 +10642,15 @@ function runSystemCheck() {
     var good = rows.filter(function (r) { return r && r.ok; }).length;
     if (bad === 0 && warn === 0) {
       sum.innerHTML = '<div style="padding:12px;border:2px solid #1B7A3A;border-radius:8px;background:#f2fbf5;">' +
-        '<strong style="color:#1B7A3A;font-size:calc(var(--fs-l)*var(--fs,1));">✓ Everything is working.</strong>' +
+        '<strong style="color:#1B7A3A;font-size:var(--t-section);">✓ Everything is working.</strong>' +
         '<div class="hint-text" style="margin-top:4px;">All ' + good + ' checks passed. Checked just now.</div></div>';
     } else if (bad === 0) {
       sum.innerHTML = '<div style="padding:12px;border:2px solid #9A6700;border-radius:8px;background:#fffdf5;">' +
-        '<strong style="color:#9A6700;font-size:calc(var(--fs-l)*var(--fs,1));">Nothing is broken, but ' + warn + ' thing(s) are worth a look.</strong>' +
+        '<strong style="color:#9A6700;font-size:var(--t-section);">Nothing is broken, but ' + warn + ' thing(s) are worth a look.</strong>' +
         '<div class="hint-text" style="margin-top:4px;">' + good + ' of ' + rows.length + ' checks passed. The amber rows below are not faults — they are things you may want to know about.</div></div>';
     } else {
       sum.innerHTML = '<div style="padding:12px;border:2px solid #B3261E;border-radius:8px;background:#fff5f5;">' +
-        '<strong style="color:#B3261E;font-size:calc(var(--fs-l)*var(--fs,1));">' + bad + ' thing(s) are NOT working.</strong>' +
+        '<strong style="color:#B3261E;font-size:var(--t-section);">' + bad + ' thing(s) are NOT working.</strong>' +
         '<div class="hint-text" style="margin-top:4px;">Look at the red rows below, take a photo of this page, and send it over.</div></div>';
     }
     tech.textContent = LAST_TECHNICAL_ERROR ? LAST_TECHNICAL_ERROR : '(nothing to report — no technical errors were seen)';
@@ -10780,7 +10847,7 @@ function drawTotpSetupQR(uri) {
   if (!box) return;
   box.innerHTML = '';
   if (typeof qrcode !== 'function') {
-    box.innerHTML = '<div style="font-size:calc(var(--fs-s)*var(--fss,1));color:#B3261E;">QR drawing is unavailable here — use the setup key below instead.</div>';
+    box.innerHTML = '<div style="font-size:var(--t-body);color:#B3261E;">QR drawing is unavailable here — use the setup key below instead.</div>';
     return;
   }
   try {
@@ -10796,7 +10863,7 @@ function drawTotpSetupQR(uri) {
     }
     box.innerHTML = html + '</table></div>';
   } catch (e) {
-    box.innerHTML = '<div style="font-size:calc(var(--fs-s)*var(--fss,1));color:#B3261E;">QR drawing failed — use the setup key below instead.</div>';
+    box.innerHTML = '<div style="font-size:var(--t-body);color:#B3261E;">QR drawing failed — use the setup key below instead.</div>';
   }
 }
 
@@ -10819,13 +10886,13 @@ function confirmEmployeeTwoFactor() {
     var d = res.data || {};
     if (d.ok === false) { out.className = 'result-msg err'; out.textContent = d.message || 'That code was not accepted.'; codeEl.value = ''; return; }
     var codes = d.backup_codes || [];
-    var list = codes.map(function (c) { return '<div style="font-family:monospace;font-size:calc(var(--fs-m)*var(--fsm,1));letter-spacing:1px;padding:3px 0;">' + esc(c) + '</div>'; }).join('');
+    var list = codes.map(function (c) { return '<div style="font-family:monospace;font-size:var(--t-section);letter-spacing:1px;padding:3px 0;">' + esc(c) + '</div>'; }).join('');
     document.getElementById('totp-setup-step1').style.display = 'none';
     var s2 = document.getElementById('totp-setup-step2');
     s2.innerHTML =
       '<div style="padding:12px;border:2px solid #9A6700;border-radius:8px;background:#fffdf5;">' +
       '<div style="font-weight:700;color:#9A6700;margin-bottom:6px;">&#9888; ' + esc(d.message || 'Two-factor is on.') + '</div>' +
-      '<div style="font-size:calc(var(--fs-m)*var(--fsm,1));color:#4a5568;line-height:1.6;margin-bottom:10px;">These are the <strong>backup codes</strong> for ' + esc(totpSetupCode.employee) +
+      '<div style="font-size:var(--t-section);color:#4a5568;line-height:1.6;margin-bottom:10px;">These are the <strong>backup codes</strong> for ' + esc(totpSetupCode.employee) +
       '. Each works once, in place of the 6-digit code, if the phone holding the authenticator is unavailable. ' +
       '<strong>They are shown now and never again.</strong> Print them or write them down before closing this box.</div>' +
       '<div style="background:#fff;border:1px solid #E2E8F0;border-radius:6px;padding:10px;">' + list + '</div>' +
@@ -12482,7 +12549,7 @@ function loadSystemInfo() {
 
   Promise.all([
     withTimeout(db.from('oms_sku_master').select('sku_code', { count: 'exact', head: true }), 10000, 'System info (SKUs)'),
-    withTimeout(db.from('oms_employees').select('employee_code', { count: 'exact', head: true }), 10000, 'System info (employees)'),
+    withTimeout(a72Count(), 10000, 'System info (employees)'),   /* A72 */
     withTimeout(db.from('oms_inventory_transactions').select('txn_id', { count: 'exact', head: true }), 10000, 'System info (transactions)'),
     withTimeout(db.from('oms_companies').select('company_id', { count: 'exact', head: true }), 5000, 'System info (connectivity check)')
   ]).then(function (results) {
@@ -12490,11 +12557,11 @@ function loadSystemInfo() {
     var connected = !connRes.error;
     el.innerHTML =
       '<div class="info-item"><div class="info-item-label">Total SKUs</div><div class="info-item-val">' + (skuRes.error ? '—' : fmtNum(skuRes.count)) + '</div></div>' +
-      '<div class="info-item"><div class="info-item-label">Total Employees</div><div class="info-item-val">' + (empRes.error ? '—' : fmtNum(empRes.count)) + '</div></div>' +
+      '<div class="info-item"><div class="info-item-label">Active staff</div><div class="info-item-val">' + (empRes.error ? '—' : fmtNum(empRes.count)) + '</div></div>' +
       '<div class="info-item"><div class="info-item-label">Total Transactions Logged</div><div class="info-item-val">' + (txnRes.error ? '—' : fmtNum(txnRes.count)) + '</div></div>' +
       '<div class="info-item"><div class="info-item-label">Database Connection</div><div class="info-item-val ' + (connected ? 'conn-ok' : 'conn-bad') + '">' + (connected ? 'Connected' : 'Unreachable') + '</div></div>' +
-      '<div class="info-item"><div class="info-item-label">Bulk Upload Template</div><div class="info-item-val"><a href="https://oms.artzfolio.com/ArtzFolio_OMS_Bulk_Upload_Template_v1.1_2026-09.xlsx" download style="color:#1B3F6B;font-weight:600;">&#11015; Download (.xlsx)</a></div></div>' +
-      '<div class="info-item"><div class="info-item-label">Other import templates</div><div class="info-item-val" style="font-size:calc(var(--fs-s)*var(--fss,1));font-weight:400;">Raw materials (items, vendors, opening stock, purchase bills, barcodes): open the phone App, go to Raw materials, then Import / Export. Customers and Production: open that section in the App and use its Import button. Each one downloads a ready-to-fill sheet with instructions.</div></div>';
+      '<div class="info-item"><div class="info-item-label">Bulk Upload Template</div><div class="info-item-val"><a href="' + ((location.protocol === 'https:' || location.protocol === 'http:') ? location.origin : 'https://app.artzfolio.com') + '/ArtzFolio_OMS_Bulk_Upload_Template_v1.1_2026-09.xlsx" download style="color:#1B3F6B;font-weight:600;">&#11015; Download (.xlsx)</a></div></div>' +
+      '<div class="info-item"><div class="info-item-label">Other import templates</div><div class="info-item-val" style="font-size:var(--t-body);font-weight:400;">Raw materials (items, vendors, opening stock, purchase bills, barcodes): open the phone App, go to Raw materials, then Import / Export. Customers and Production: open that section in the App and use its Import button. Each one downloads a ready-to-fill sheet with instructions.</div></div>';
   }).catch(function (err) {
     el.innerHTML = '<div class="info-item"><div class="info-item-label">Error</div><div class="info-item-val">' + esc(friendlyError(err, 1)) + '</div></div>';
   });
@@ -13063,7 +13130,7 @@ if (document.readyState === 'loading') document.addEventListener('DOMContentLoad
   </div>
 </div>
 <!-- B9-BEGIN text size button -->
-<button type="button" class="af-fs-fab" id="af-fs-fab" onclick="afFontFabToggle()" aria-label="Text size" aria-expanded="false" title="Text size">Aa<span style="font-size:var(--fs-s);font-weight:700;margin-left:6px">Text size</span></button>
+<button type="button" class="af-fs-fab" id="af-fs-fab" onclick="afFontFabToggle()" aria-label="Text size" aria-expanded="false" title="Text size">Aa<span style="font-size:var(--t-body);font-weight:700;margin-left:6px">Text size</span></button>
 <div class="af-fs-pop" id="af-fs-pop" role="dialog" aria-label="Text size"><div class="af-fs-t">Text size</div><div id="af-fs-ctl-fab"></div></div>
 <!-- B9-END -->
 
@@ -13207,10 +13274,10 @@ function a58Needs(negCount) {
     if (seq !== A58.seq) return;
     if (r.error) throw r.error; A58.need.batch = Number(r.count) || 0; a58NeedsPaint();
   }).catch(function () { if (seq !== A58.seq) return; A58.need.batch = '?'; a58NeedsPaint(); });
-  withTimeout(db.from('oms_employees').select('employee_code,locked_until,archived').not('locked_until', 'is', null), 10000, 'Needs you (locked staff)').then(function (r) {
+  withTimeout(a72Locked(), 10000, 'Needs you (locked staff)').then(function (r) {   /* A72: checked count */
     if (seq !== A58.seq) return;
-    if (r.error) throw r.error; var now = Date.now();
-    A58.need.lock = (r.data || []).filter(function (e) { return !e.archived && new Date(e.locked_until).getTime() > now; }).length; a58NeedsPaint();   /* ADM-v259 I16-139: same people as the People list (archived are hidden there) */
+    if (r.error) throw r.error;
+    A58.need.lock = Number(r.count) || 0; a58NeedsPaint();   /* ADM-v259 I16-139: same people as the People list (archived are hidden there) */
   }).catch(function () { if (seq !== A58.seq) return; A58.need.lock = '?'; a58NeedsPaint(); });
 }
 function a58NeedsFail() {
