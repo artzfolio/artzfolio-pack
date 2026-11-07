@@ -3220,7 +3220,7 @@ label:has(>input[type=checkbox]),label:has(>input[type=radio]){display:flex;alig
     <div class="sidebar-footer">
       <div class="af-fs-side"><div class="af-fs-t">Text size</div><div id="af-fs-ctl-side"></div></div>
       <button class="logout-btn" onclick="adminLogout()">Sign out</button>   <!-- ADM-v258 A-01 -->
-      <div class="ver-footer">ArtzFolio Super App - Admin Panel v2.73</div>
+      <div class="ver-footer">ArtzFolio Super App - Admin Panel v2.76</div>
     </div>
   </div>
 
@@ -10157,14 +10157,14 @@ function renderEmployees() {
       : '<div class="a58-act" style="display:flex;gap:6px;flex-wrap:wrap;">' +   /* ADM-v258 A-02 */
         '<button class="btn btn-sm ' + (e.active ? 'btn-grey' : 'btn-green') + '" onclick="toggleEmployeeActive(\'' + jsq(e.employee_code) + '\', ' + !!e.active + ')" title="' + (e.active ? 'Stop this account from being able to sign in. Their history and access settings are kept exactly as they are, and switching them back on undoes this completely.' : 'Let this account sign in again, with the same access it had before.') + '">' + (e.active ? 'Deactivate' : 'Reactivate') + '</button>' +
         '<button class="btn btn-sm btn-primary" onclick="resetEmployeePin(\'' + jsq(e.employee_code) + '\')" title="Set a new 4-digit PIN for this person. Use this if they forgot theirs or it needs to change for any reason.">Reset PIN</button>' +
-        '<button class="btn btn-sm btn-gold" onclick="unlockEmployee(\'' + jsq(e.employee_code) + '\')" title="Clears an automatic lockout caused by too many wrong PIN attempts, so they can try again immediately instead of waiting it out.">Unlock</button>' +
+        (!Object.prototype.hasOwnProperty.call(e, 'locked_until') ? '' : '<button class="btn btn-sm btn-gold" onclick="unlockEmployee(\'' + jsq(e.employee_code) + '\')" title="Clears an automatic lockout caused by too many wrong PIN attempts, so they can try again immediately instead of waiting it out.">Unlock</button>') +
         // v2.22: ONE button, not three. Three buttons called "Set up 2FA",
         // "Require 2FA" and "Clear 2FA" were impossible to tell apart. Now it
         // is simply on or off, and the question of WHOSE phone is asked inside
         // the box where it actually matters.
         ((e.totp_enabled || e.totp_required)
            ? '<button class="btn btn-sm btn-grey" onclick="turnOffPhoneCode(\'' + jsq(e.employee_code) + '\')" title="Go back to PIN only for this person. Use this if they lose their phone.">Turn off phone code</button>'
-           : '<button class="btn btn-sm btn-primary" onclick="openPhoneCodeChoice(\'' + jsq(e.employee_code) + '\')" title="Make this person enter a 6-digit code from a phone as well as their PIN">Turn on phone code</button>') +
+           : (!Object.prototype.hasOwnProperty.call(e, 'totp_enabled') && !Object.prototype.hasOwnProperty.call(e, 'totp_required') ? '' : '<button class="btn btn-sm btn-primary" onclick="openPhoneCodeChoice(\'' + jsq(e.employee_code) + '\')" title="Make this person enter a 6-digit code from a phone as well as their PIN">Turn on phone code</button>')) +
         '<button class="btn btn-sm btn-primary a58-pri" onclick="openEditAccessModal(\'' + jsq(e.employee_code) + '\')" title="Change this person&#39;s role and exactly which sections of the app they can use.">Edit Access</button>' +
         '<button class="btn btn-sm btn-grey" onclick="openEmployeeRename(\'' + jsq(e.employee_code) + '\')" title="Change the full name shown for this person everywhere in the panel, including the Activity record. Their employee code and history do not change.">✎ Rename</button>' +
         '<button class="btn btn-sm btn-grey a58-arch" onclick="archiveEmployee(\'' + jsq(e.employee_code) + '\')" title="Retire this account for good and free up its employee code for reuse. Everything they ever did stays in the Activity record and Transactions exactly as it is - this cannot be undone from here.">Archive &amp; Free Code</button>' +
@@ -13736,6 +13736,30 @@ function a67Strip(root) {
     if (empty) fbs[i].classList.add('a67-empty');
   }
 }
+</script>
+
+<style id="r74-css">
+/* R24a (b): the floating Text size button stays off the last rows and steps aside while a list scrolls */
+@media (max-width:900px){
+  .af-fs-fab{bottom:calc(10px + env(safe-area-inset-bottom,0px))}
+  .main{padding-bottom:calc(6rem + 44px + env(safe-area-inset-bottom,0px))}
+}
+.af-fs-fab{transition:opacity .15s}
+.af-fs-fab.r74-off{opacity:0;pointer-events:none}
+@media print{.af-fs-fab{display:none!important}}
+</style>
+<script id="r74-js">
+/* R24a (b): hide the Text size button while anything is scrolling (scroll events do not bubble, so this listens in the capture phase) */
+(function () {
+  var t = 0;
+  function off() {
+    var f = document.getElementById('af-fs-fab'); if (!f) return;
+    if (!f.classList.contains('r74-off')) f.classList.add('r74-off');
+    clearTimeout(t);
+    t = setTimeout(function () { var g = document.getElementById('af-fs-fab'); if (g) g.classList.remove('r74-off'); }, 1200);
+  }
+  try { document.addEventListener('scroll', off, { capture: true, passive: true }); } catch (e) {}
+})();
 </script>
 </body>
 </html>
