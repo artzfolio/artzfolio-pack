@@ -3220,7 +3220,7 @@ label:has(>input[type=checkbox]),label:has(>input[type=radio]){display:flex;alig
     <div class="sidebar-footer">
       <div class="af-fs-side"><div class="af-fs-t">Text size</div><div id="af-fs-ctl-side"></div></div>
       <button class="logout-btn" onclick="adminLogout()">Sign out</button>   <!-- ADM-v258 A-01 -->
-      <div class="ver-footer">ArtzFolio Super App - Admin Panel v2.76</div>
+      <div class="ver-footer">ArtzFolio Super App - Admin Panel v2.77</div>
     </div>
   </div>
 
@@ -11376,7 +11376,11 @@ function writeAuditLog(actionType, opts) {
       details: opts.details || null,
       device_hint: (navigator.userAgent || '').slice(0, 180)
     };
-    withTimeout(db.from('oms_audit_log').insert(row), 10000, 'Audit log write').then(function () {}).catch(function () {});
+    /* R26a (S2): through the admin-secret checked function (the direct insert into oms_audit_log is closed); no secret / read-only session = nothing is sent */
+    var sec26 = getAdminSecret();
+    if (!sec26 || isReadOnlyAdmin()) return;
+    var det26 = row.details; if (typeof det26 === 'string') det26 = { text: det26 };
+    withTimeout(db.rpc('oms_admin_audit_add_s', { p_admin_secret: sec26, p_action_type: actionType, p_details: (det26 == null ? null : det26), p_sku_code: row.sku_code, p_device_hint: row.device_hint }), 10000, 'Audit log write').then(function () {}).catch(function () {});
   } catch (e) { /* best-effort only */ }
 }
 
