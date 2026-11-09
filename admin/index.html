@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>ArtzFolio Super App has moved</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<link rel="canonical" href="https://app.artzfolio.com/">
+<meta http-equiv="refresh" content="3; url=https://app.artzfolio.com/admin/">
+<style>
+body{font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;margin:0;padding:32px 20px;background:#faf7f2;color:#222;text-align:center}
+a{color:#8a4b00;font-weight:600}
+</style>
+</head>
+<body>
+<!-- Served as a normal page (status 200) for /admin/; forwards keeping path, query and hash. -->
+<h1>We have moved</h1>
+<p>The ArtzFolio Super App now lives at <a id="go" href="https://app.artzfolio.com/">app.artzfolio.com</a>.</p>
+<p>Taking you there now. If nothing happens, tap the link above.</p>
+<script>
+(function () {
+  var target = "https://app.artzfolio.com" + location.pathname + location.search + location.hash;
+  try { document.getElementById("go").href = target; } catch (e) {}
+  try {
+    if (window.caches && caches.keys) { caches.keys().then(function (ks) { ks.forEach(function (k) { caches.delete(k); }); }); }
+    if (navigator.serviceWorker && navigator.serviceWorker.getRegistrations) {
+      navigator.serviceWorker.getRegistrations().then(function (rs) { rs.forEach(function (r) { r.unregister(); }); });
+    }
+  } catch (e) {}
+  location.replace(target);
+})();
+</script>
+<noscript><p><a href="https://app.artzfolio.com/">Open app.artzfolio.com</a></p></noscript>
+</body>
+</html>
