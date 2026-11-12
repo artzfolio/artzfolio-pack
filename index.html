@@ -7,7 +7,7 @@
 <meta name="robots" content="noindex">
 <link rel="canonical" href="https://app.artzfolio.com/">
 <!-- Fallback 1: no-JavaScript browsers go to the new home page (path and query cannot be kept without JavaScript). -->
-<meta http-equiv="refresh" content="3; url=https://app.artzfolio.com/">
+<noscript><meta http-equiv="refresh" content="3; url=https://app.artzfolio.com/"></noscript>
 <style>
 body{font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;margin:0;padding:32px 20px;background:#faf7f2;color:#222;text-align:center}
 a{color:#8a4b00;font-weight:600}
@@ -24,6 +24,8 @@ a{color:#8a4b00;font-weight:600}
   // Forward path + query + hash unchanged (deep links ?sku= ?asin=, /admin/, warranty-card check pages).
   var target = NEW_HOST + location.pathname + location.search + location.hash;
   try { document.getElementById("go").href = target; } catch (e) {}
+  var standaloneEarly = false; try { standaloneEarly = window.matchMedia("(display-mode: standalone)").matches; } catch (e) {}
+  if (standaloneEarly) { try { var mr = document.querySelector('meta[http-equiv="refresh"]'); if (mr) mr.parentNode.removeChild(mr); } catch (e) {} }
   // Tidy up anything the old address left on this phone, then leave.
   try {
     if (window.caches && caches.keys) { caches.keys().then(function (ks) { ks.forEach(function (k) { caches.delete(k); }); }); }
@@ -31,6 +33,15 @@ a{color:#8a4b00;font-weight:600}
       navigator.serviceWorker.getRegistrations().then(function (rs) { rs.forEach(function (r) { r.unregister(); }); });
     }
   } catch (e) {}
+  // v2 (RC31): an app installed from THIS old address must not be pushed out of itself (that shows the browser bar over the page).
+  var standalone = false;
+  try { standalone = window.matchMedia("(display-mode: standalone)").matches || navigator.standalone === true; } catch (e) {}
+  if (standalone) {
+    document.body.innerHTML = '<h1>This app has moved</h1><p>You opened the old app icon. The app now lives at <b>app.artzfolio.com</b>.</p>' +
+      '<p><b>3 steps, once:</b></p><ol style="text-align:left;max-width:360px;margin:0 auto 16px"><li>Tap the button below. It opens in Chrome.</li><li>In Chrome tap the three dots, then <b>Install app</b>.</li><li>Delete this old icon. Sign in once in the new app.</li></ol>' +
+      '<p><a href="' + target + '" style="display:inline-block;padding:14px 22px;background:#1B4F8A;color:#fff;border-radius:10px;text-decoration:none">Open the new app</a></p>';
+    return;
+  }
   location.replace(target);
 })();
 </script>
